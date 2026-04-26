@@ -3839,17 +3839,16 @@ sub rspconfig_response {
                             $nic =~ s/(.*\/)//g;
                             $status_info{RSPCONFIG_DHCPDIS_REQUEST}{init_url} =~ s/#NIC#/$nic/g
                         }
-                    } else {
-                        if (($content{Address} eq $check_ip) and
-                            ($content{PrefixLength} eq $check_netmask) and
-                            ($content{Gateway} eq $check_gateway)) {
-                            if ($check_vlan) {
-                                if (defined($response_info->{data}->{$path}->{Id}) and $response_info->{data}->{$path}->{Id} eq $check_vlan) {
-                                    $check_result = 1;
-                                }
-                            } else {
-                               $check_result = 1;
+                    }
+                    if (($content{Address} eq $check_ip) and
+                        ($content{PrefixLength} eq $check_netmask) and
+                        ($content{Gateway} eq $check_gateway)) {
+                        if ($check_vlan) {
+                            if (defined($response_info->{data}->{$path}->{Id}) and $response_info->{data}->{$path}->{Id} eq $check_vlan) {
+                                $check_result = 1;
                             }
+                        } else {
+                           $check_result = 1;
                         }
                     }
                 }

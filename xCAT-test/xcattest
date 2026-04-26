@@ -1229,6 +1229,7 @@ sub load_case {
             }
         }
         close($fd);
+        $newcmdstart = 0;
     }
 
     my @wrong_cases = ();

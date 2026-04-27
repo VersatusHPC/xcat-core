@@ -191,3 +191,63 @@ jobs:
       - name: Clean up workspace
         if: always()
         run: sudo rm -rf "$WORKDIR"
+
+  # ── Test harness (unit + smoke) ──────────────────────────────────────────
+  test-harness:
+    name: "Test Harness (${{ matrix.arch }})"
+    needs: build-test
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: xcat-rhel-x86_64
+            build_distro: EL10
+          - arch: ppc64le
+            runner: xcat-alma-ppc64le
+            build_distro: EL10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rpms-${{ matrix.build_distro }}-${{ matrix.arch }}
+          path: rpms
+
+      - name: Create test environment
+        id: env
+        run: |
+          RUN_ID="${{ github.run_id }}-${{ matrix.arch }}"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          MN_IP=$(sudo bash ci/create-test-env.sh --run-id "$RUN_ID")
+          echo "mn_ip=$MN_IP" >> "$GITHUB_OUTPUT"
+          echo "MN ready at $MN_IP"
+
+      - name: Copy repo to environment
+        run: |
+          sudo bash ci/copy-repo-to-env.sh \
+            --repo-path rpms \
+            --mn-ip "${{ steps.env.outputs.mn_ip }}"
+
+      - name: Initialize harness
+        run: |
+          sudo bash ci/init-harness.sh \
+            --mn-ip "${{ steps.env.outputs.mn_ip }}" \
+            --harness unit-smoke
+
+      - name: Run harness
+        run: |
+          sudo bash ci/run-harness.sh \
+            --mn-ip "${{ steps.env.outputs.mn_ip }}" \
+            --harness unit-smoke
+
+      - name: Teardown
+        if: always()
+        run: |
+          sudo bash ci/teardown-test-env.sh \
+            --run-id "${{ steps.env.outputs.run_id }}"

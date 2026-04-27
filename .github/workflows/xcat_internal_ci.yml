@@ -10,8 +10,8 @@ on:
         default: false
 
 jobs:
-  build-test:
-    name: "Build & Test (${{ matrix.distro }} ${{ matrix.arch }})"
+  build:
+    name: "Build (${{ matrix.distro }} ${{ matrix.arch }})"
     runs-on: [self-hosted, "${{ matrix.runner }}"]
     timeout-minutes: 120
     strategy:
@@ -180,7 +180,7 @@ jobs:
   # ── Test harness (unit + smoke) ──────────────────────────────────────────
   test-harness:
     name: "Test Harness (${{ matrix.arch }})"
-    needs: build-test
+    needs: build
     if: ${{ !cancelled() }}
     runs-on: [self-hosted, "${{ matrix.runner }}"]
     timeout-minutes: 60

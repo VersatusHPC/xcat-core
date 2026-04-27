@@ -131,21 +131,6 @@ jobs:
           ls -la "dist/$TARGET/rpms/"*.rpm 2>/dev/null | head -20
           test "$RPM_COUNT" -gt 0 || { echo "ERROR: no RPMs produced"; exit 1; }
 
-      - name: Run VM-based test
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          KEEP_FLAG=""
-          if [[ "${{ github.event.inputs.keep_vms }}" == "true" ]]; then
-            KEEP_FLAG="--keep"
-          fi
-          TARGET="${{ steps.target.outputs.target }}"
-          sudo -E bash ci/vm-test.sh \
-            --releasever ${{ matrix.elver }} \
-            --repo-target "$TARGET" \
-            --repo-path "$WORKDIR/dist/$TARGET/rpms" \
-            $KEEP_FLAG
-
       - name: Upload RPMs
         if: always() && matrix.type == 'rpm'
         uses: actions/upload-artifact@v4

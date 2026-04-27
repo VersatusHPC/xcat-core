@@ -37,18 +37,8 @@ export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
 export MANPATH="${XCATROOT}/share/man:${MANPATH:-}"
 export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
 
-PASS=0
-FAIL=0
-report() {
-    local name="$1" rc="$2"
-    if [[ "$rc" -eq 0 ]]; then
-        echo "  PASS: $name"
-        PASS=$((PASS + 1))
-    else
-        echo "  FAIL: $name"
-        FAIL=$((FAIL + 1))
-    fi
-}
+TOTAL_PASS=0
+TOTAL_FAIL=0
 
 echo "========================================="
 echo "  xCAT CI Test Harness: unit-smoke"
@@ -58,63 +48,50 @@ echo "========================================="
 echo ""
 echo "--- R1: Unit tests (xcattest -s ci_test) ---"
 if command -v xcattest &>/dev/null && rpm -q xCAT-test &>/dev/null; then
-    xcattest -s ci_test -q 2>&1 | tail -20
-    report "xcattest -s ci_test" "${PIPESTATUS[0]}"
+    if xcattest -s ci_test -q 2>&1 | tail -20; then
+        echo "  PASS: xcattest -s ci_test"
+        TOTAL_PASS=$((TOTAL_PASS + 1))
+    else
+        echo "  FAIL: xcattest -s ci_test"
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
 else
     echo "  SKIP: xCAT-test not installed"
 fi
 
-# ── R2: make* smoke tests ──────────────────────────
+# ── R2: make* smoke tests (BATS) ───────────────────
 echo ""
-echo "--- R2: make* smoke tests ---"
-
-if ! command -v lsdef &>/dev/null; then
-    echo "  SKIP: xCAT commands not available (xCAT-server not installed)"
-    echo ""
-    echo "--- Fallback: perl-xCAT module validation ---"
-    PERL5LIB=/opt/xcat/lib/perl perl -e 'use xCAT::Table; print "  PASS: perl-xCAT loads OK\n"' \
-        && PASS=$((PASS + 1)) \
-        || { echo "  FAIL: perl-xCAT modules broken"; FAIL=$((FAIL + 1)); }
-else
-    # P2.1: makehosts
-    makehosts 2>&1 | tail -5
-    rc=${PIPESTATUS[0]}
-    if [[ $rc -eq 0 ]] && grep -q "testnode01" /etc/hosts 2>/dev/null; then
-        report "makehosts (P2.1)" 0
+echo "--- R2: make* smoke tests (bats) ---"
+if command -v lsdef &>/dev/null && command -v bats &>/dev/null; then
+    bats --tap /opt/xcat-ci-tests/smoke-make-commands.bats
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        echo "  PASS: bats smoke tests"
+        TOTAL_PASS=$((TOTAL_PASS + 1))
     else
-        report "makehosts (P2.1)" 1
+        echo "  FAIL: bats smoke tests (exit $rc)"
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
     fi
-
-    # P2.2: makedns
-    makedns -n 2>&1 | tail -5
-    report "makedns -n (P2.2)" "${PIPESTATUS[0]}"
-
-    # P2.3: makedhcp
-    makedhcp -n 2>&1 | tail -5
-    rc1=${PIPESTATUS[0]}
-    makedhcp -a 2>&1 | tail -5
-    rc2=${PIPESTATUS[0]}
-    [[ $rc1 -eq 0 && $rc2 -eq 0 ]] && report "makedhcp -n && -a (P2.3)" 0 || report "makedhcp -n && -a (P2.3)" 1
-
-    # P2.4: makeknownhosts
-    makeknownhosts 2>&1 | tail -5
-    report "makeknownhosts (P2.4)" "${PIPESTATUS[0]}"
-
-    # P2.5: makeconservercf
-    makeconservercf 2>&1 | tail -5
-    report "makeconservercf (P2.5)" "${PIPESTATUS[0]}"
-
-    # P2.6: makentp
-    makentp 2>&1 | tail -5
-    report "makentp (P2.6)" "${PIPESTATUS[0]}"
+else
+    if ! command -v lsdef &>/dev/null; then
+        echo "  SKIP: xCAT-server not installed — running perl-xCAT fallback"
+        if PERL5LIB=/opt/xcat/lib/perl perl -e 'use xCAT::Table; print "  PASS: perl-xCAT loads OK\n"'; then
+            TOTAL_PASS=$((TOTAL_PASS + 1))
+        else
+            echo "  FAIL: perl-xCAT modules broken"
+            TOTAL_FAIL=$((TOTAL_FAIL + 1))
+        fi
+    else
+        echo "  SKIP: bats not installed"
+    fi
 fi
 
 echo ""
 echo "========================================="
-echo "  Results: $PASS passed, $FAIL failed"
+echo "  Results: $TOTAL_PASS passed, $TOTAL_FAIL failed"
 echo "========================================="
 
-[[ $FAIL -eq 0 ]] || exit 1
+[[ $TOTAL_FAIL -eq 0 ]] || exit 1
 REMOTE
 }
 

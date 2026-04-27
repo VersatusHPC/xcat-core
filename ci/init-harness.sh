@@ -9,6 +9,7 @@ SSH_KEY="$STATE_DIR/ci-ssh-key"
 MN_IP=""
 HARNESS=""
 ISO_DIR="/opt/xcat-ci/isos"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -28,8 +29,31 @@ ssh_cmd() {
     ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
 }
 
+install_bats() {
+    log "Installing bats on MN"
+    ssh_cmd root@"$MN_IP" bash << 'REMOTE'
+set -euo pipefail
+if ! command -v bats &>/dev/null; then
+    dnf install -y epel-release 2>&1 | tail -3
+    dnf install -y bats 2>&1 | tail -3
+fi
+bats --version
+REMOTE
+}
+
+copy_tests_to_mn() {
+    log "Copying test files to MN"
+    ssh_cmd root@"$MN_IP" 'mkdir -p /opt/xcat-ci-tests'
+    tar -C "$SCRIPT_DIR/tests" -cf - . \
+        | ssh_cmd root@"$MN_IP" 'tar -C /opt/xcat-ci-tests -xf -'
+}
+
 init_unit_smoke() {
     log "Initializing unit-smoke harness"
+
+    install_bats
+    copy_tests_to_mn
+
     ssh_cmd root@"$MN_IP" bash << 'REMOTE'
 set -euo pipefail
 export XCATROOT=/opt/xcat
@@ -52,7 +76,6 @@ REMOTE
 }
 
 init_deploy() {
-    # Parse: deploy-<os>-<boot>-<method>
     local os boot method
     os=$(echo "$HARNESS" | cut -d- -f2)
     boot=$(echo "$HARNESS" | cut -d- -f3)

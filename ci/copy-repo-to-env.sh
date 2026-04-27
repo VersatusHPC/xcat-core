@@ -47,13 +47,10 @@ install_rpm() {
     [[ -z "$RELEASEVER" ]] && RELEASEVER=$(rpm --eval '%{rhel}' 2>/dev/null || echo "9")
 
     DEP_DIR="$XCAT_DEP_PATH/el${RELEASEVER}/${ARCH}"
-    if [[ -d "$DEP_DIR" ]]; then
-        log "Copying xcat-dep ($DEP_DIR) to MN"
-        ssh_cmd root@"$MN_IP" 'mkdir -p /opt/xcat-dep'
-        tar -C "$DEP_DIR" -cf - . | ssh_cmd root@"$MN_IP" 'tar -C /opt/xcat-dep -xf -'
-    else
-        log "WARNING: xcat-dep not found at $DEP_DIR"
-    fi
+    [[ -d "$DEP_DIR" ]] || { log "FATAL: xcat-dep not found at $DEP_DIR — must be pre-staged"; exit 1; }
+    log "Copying xcat-dep ($DEP_DIR) to MN"
+    ssh_cmd root@"$MN_IP" 'mkdir -p /opt/xcat-dep'
+    tar -C "$DEP_DIR" -cf - . | ssh_cmd root@"$MN_IP" 'tar -C /opt/xcat-dep -xf -'
 
     log "Creating RPM repo metadata on MN"
     ssh_cmd root@"$MN_IP" bash << 'REMOTE'

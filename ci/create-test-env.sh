@@ -64,12 +64,8 @@ ensure_cloud_image() {
     if [[ "$OS_FAMILY" == "el" ]]; then
         if [[ "$ARCH" == "x86_64" ]]; then
             base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
-            [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
-                "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
         elif [[ "$ARCH" == "ppc64le" ]]; then
             base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.ppc64le.qcow2"
-            [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
-                "https://dl.rockylinux.org/pub/rocky/9/images/ppc64le/Rocky-9-GenericCloud-Base.latest.ppc64le.qcow2"
         else
             die "Unsupported architecture: $ARCH"
         fi
@@ -77,11 +73,10 @@ ensure_cloud_image() {
         local ubuntu_arch
         [[ "$ARCH" == "x86_64" ]] && ubuntu_arch="amd64" || ubuntu_arch="ppc64el"
         base_img="$CLOUD_IMG_DIR/jammy-server-cloudimg-${ubuntu_arch}.img"
-        [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
-            "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-${ubuntu_arch}.img"
     else
         die "Unknown os-family: $OS_FAMILY"
     fi
+    [[ -f "$base_img" ]] || die "Cloud image not found: $base_img — must be pre-staged"
     echo "$base_img"
 }
 

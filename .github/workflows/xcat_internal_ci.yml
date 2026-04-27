@@ -181,6 +181,7 @@ jobs:
   test-harness:
     name: "Test Harness (${{ matrix.arch }})"
     needs: build-test
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, "${{ matrix.runner }}"]
     timeout-minutes: 60
     strategy:

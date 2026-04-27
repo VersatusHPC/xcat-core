@@ -18,11 +18,13 @@ MN_VCPUS=4
 MN_DISK_SIZE="100G"
 
 RUN_ID=""
+OS_FAMILY="el"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --run-id) RUN_ID="$2"; shift 2 ;;
-        *)        echo "Unknown option: $1" >&2; exit 1 ;;
+        --run-id)    RUN_ID="$2"; shift 2 ;;
+        --os-family) OS_FAMILY="$2"; shift 2 ;;
+        *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
 
@@ -59,22 +61,26 @@ state_add() {
 
 ensure_cloud_image() {
     local base_img
-    if [[ "$ARCH" == "x86_64" ]]; then
-        base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
-        if [[ ! -f "$base_img" ]]; then
-            log "Downloading Rocky 9 GenericCloud x86_64..."
-            curl -sL -o "$base_img" \
+    if [[ "$OS_FAMILY" == "el" ]]; then
+        if [[ "$ARCH" == "x86_64" ]]; then
+            base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
+            [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
                 "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
-        fi
-    elif [[ "$ARCH" == "ppc64le" ]]; then
-        base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.ppc64le.qcow2"
-        if [[ ! -f "$base_img" ]]; then
-            log "Downloading Rocky 9 GenericCloud ppc64le..."
-            curl -sL -o "$base_img" \
+        elif [[ "$ARCH" == "ppc64le" ]]; then
+            base_img="$CLOUD_IMG_DIR/Rocky-9-GenericCloud-Base.latest.ppc64le.qcow2"
+            [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
                 "https://dl.rockylinux.org/pub/rocky/9/images/ppc64le/Rocky-9-GenericCloud-Base.latest.ppc64le.qcow2"
+        else
+            die "Unsupported architecture: $ARCH"
         fi
+    elif [[ "$OS_FAMILY" == "ubuntu" ]]; then
+        local ubuntu_arch
+        [[ "$ARCH" == "x86_64" ]] && ubuntu_arch="amd64" || ubuntu_arch="ppc64el"
+        base_img="$CLOUD_IMG_DIR/jammy-server-cloudimg-${ubuntu_arch}.img"
+        [[ -f "$base_img" ]] || curl -sL -o "$base_img" \
+            "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-${ubuntu_arch}.img"
     else
-        die "Unsupported architecture: $ARCH"
+        die "Unknown os-family: $OS_FAMILY"
     fi
     echo "$base_img"
 }
@@ -124,6 +130,8 @@ chpasswd:
 ssh_authorized_keys:
   - $(cat "${SSH_KEY}.pub")
 
+$(if [[ "$OS_FAMILY" == "el" ]]; then
+cat << 'EL_BLOCK'
 packages:
   - epel-release
 
@@ -132,6 +140,13 @@ runcmd:
   - setenforce 0 || true
   - dnf config-manager --set-enabled crb 2>/dev/null || true
   - touch /var/lib/cloud-init-done
+EL_BLOCK
+else
+cat << 'UBUNTU_BLOCK'
+runcmd:
+  - touch /var/lib/cloud-init-done
+UBUNTU_BLOCK
+fi)
 USERDATA
 
     cat > "$ci_dir/meta-data" << METADATA
@@ -178,7 +193,7 @@ NETCFG
         --disk "$VM_DISK" \
         --disk "$ci_iso,device=cdrom" \
         --network network="$NET_NAME" \
-        --osinfo name=rocky9 \
+        --osinfo name=$([[ "$OS_FAMILY" == "ubuntu" ]] && echo "ubuntu22.04" || echo "rocky9") \
         --noautoconsole \
         --noreboot >&2
 

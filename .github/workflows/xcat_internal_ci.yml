@@ -214,8 +214,49 @@ jobs:
               ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/xcatbuild
             '
 
-      # TODO: DEB testing needs libvirt VMs with Ubuntu cloud images + internal network + compute nodes
-      # Will be added when Ubuntu cloud images are staged on hosts
+      # ── DEB: Test ──────────────────────────────────────────────────────
+      - name: Create test environment (Ubuntu)
+        if: matrix.type == 'deb'
+        id: deb-env
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          RUN_ID="${{ github.run_id }}-${{ matrix.distro }}-${{ matrix.arch }}"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          MN_IP=$(sudo bash ci/create-test-env.sh --run-id "$RUN_ID" --os-family ubuntu)
+          echo "mn_ip=$MN_IP" >> "$GITHUB_OUTPUT"
+          echo "MN ready at $MN_IP"
+
+      - name: Copy repo to test environment (Ubuntu)
+        if: matrix.type == 'deb'
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          sudo bash ci/copy-repo-to-env.sh \
+            --pkg-type deb \
+            --repo-path "dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}/xcat-core" \
+            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}"
+
+      - name: Initialize test harness (Ubuntu)
+        if: matrix.type == 'deb'
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          sudo bash ci/init-harness.sh \
+            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}" \
+            --harness unit-smoke
+
+      - name: Run test harness (Ubuntu)
+        if: matrix.type == 'deb'
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          sudo bash ci/run-harness.sh \
+            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}" \
+            --harness unit-smoke
+
+      - name: Teardown test environment (Ubuntu)
+        if: always() && matrix.type == 'deb'
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          sudo bash ci/teardown-test-env.sh \
+            --run-id "${{ steps.deb-env.outputs.run_id || '' }}" 2>/dev/null || true
 
       - name: Upload DEBs
         if: always() && matrix.type == 'deb'

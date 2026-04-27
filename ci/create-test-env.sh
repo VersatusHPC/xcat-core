@@ -152,7 +152,9 @@ METADATA
     cat > "$ci_dir/network-config" << NETCFG
 version: 2
 ethernets:
-  eth0:
+  id0:
+    match:
+      name: "e*"
     addresses:
       - ${MN_IP}/24
     routes:

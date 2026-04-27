@@ -48,6 +48,14 @@ else
     log "WARNING: xcat-dep not found at $DEP_DIR"
 fi
 
+log "Creating repo metadata on MN"
+ssh_cmd root@"$MN_IP" bash << 'REMOTE'
+set -euo pipefail
+dnf install -y createrepo_c 2>&1 | tail -3
+createrepo /opt/xcat-core-repo/
+[[ -d /opt/xcat-dep ]] && createrepo /opt/xcat-dep/ || true
+REMOTE
+
 log "Configuring repos on MN"
 ssh_cmd root@"$MN_IP" bash << 'REMOTE'
 set -euo pipefail

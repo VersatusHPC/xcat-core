@@ -79,8 +79,10 @@ rpm -q xCAT-client || { echo "FAIL: xCAT-client not installed"; exit 1; }
 REMOTE
 
 log "Configuring xCAT"
-ssh_cmd root@"$MN_IP" bash << 'REMOTE'
+ssh_cmd root@"$MN_IP" bash -s "$MN_IP" << 'REMOTE'
 set -euo pipefail
+MN_IP="$1"
+MN_SUBNET=$(echo "$MN_IP" | sed 's/\.[0-9]*$//')
 export XCATROOT=/opt/xcat
 export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
 export MANPATH="${XCATROOT}/share/man:${MANPATH:-}"
@@ -96,9 +98,10 @@ if rpm -q xCAT-server > /dev/null 2>&1; then
     chtab key=domain site.value="xcat-ci.local" 2>/dev/null || true
 
     # Network definition for test subnet
-    chdef -t network 10_250_0_0-255_255_255_0 \
-        net=10.250.0.0 mask=255.255.255.0 \
-        gateway=10.250.0.1 2>/dev/null || true
+    NET_NAME=$(echo "${MN_SUBNET}.0" | tr '.' '_')-255_255_255_0
+    chdef -t network "$NET_NAME" \
+        net="${MN_SUBNET}.0" mask=255.255.255.0 \
+        gateway="$MN_IP" 2>/dev/null || true
 
     # Root password for compute nodes
     chtab key=system passwd.username=root passwd.password="xcat3ci" 2>/dev/null || true

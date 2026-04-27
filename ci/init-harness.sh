@@ -54,8 +54,10 @@ init_unit_smoke() {
     install_bats
     copy_tests_to_mn
 
-    ssh_cmd root@"$MN_IP" bash << 'REMOTE'
+    ssh_cmd root@"$MN_IP" bash -s "$MN_IP" << 'REMOTE'
 set -euo pipefail
+MN_IP="$1"
+MN_SUBNET=$(echo "$MN_IP" | sed 's/\.[0-9]*$//')
 export XCATROOT=/opt/xcat
 export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
 export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
@@ -66,8 +68,8 @@ if ! command -v lsdef &>/dev/null; then
 fi
 
 echo "Defining dummy nodes for make* smoke tests..."
-mkdef testnode01 groups=compute,all ip=10.250.0.101 mac=52:54:00:ci:00:01 2>/dev/null || true
-mkdef testnode02 groups=compute,all ip=10.250.0.102 mac=52:54:00:ci:00:02 2>/dev/null || true
+mkdef testnode01 groups=compute,all ip="${MN_SUBNET}.101" mac=52:54:00:ci:00:01 2>/dev/null || true
+mkdef testnode02 groups=compute,all ip="${MN_SUBNET}.102" mac=52:54:00:ci:00:02 2>/dev/null || true
 
 echo "Dummy nodes defined"
 lsdef testnode01 testnode02

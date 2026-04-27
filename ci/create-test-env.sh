@@ -13,9 +13,6 @@ CLOUD_IMG_DIR="/var/lib/libvirt/images"
 ARCH="$(uname -m)"
 SSH_KEY="$STATE_DIR/ci-ssh-key"
 
-# Network config
-NET_SUBNET="10.250.0"
-MN_IP="${NET_SUBNET}.1"
 MN_MEMORY=8192
 MN_VCPUS=4
 MN_DISK_SIZE="100G"
@@ -30,6 +27,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$RUN_ID" ]] && { echo "ERROR: --run-id required" >&2; exit 1; }
+
+# Derive unique /24 subnet from run-id hash (10.X.Y.0/24 where X=200..254, Y=0..254)
+HASH_VAL=$(echo "$RUN_ID" | md5sum | cut -c1-4)
+OCTET2=$(( (16#${HASH_VAL:0:2} % 55) + 200 ))
+OCTET3=$(( 16#${HASH_VAL:2:2} % 255 ))
+NET_SUBNET="10.${OCTET2}.${OCTET3}"
+MN_IP="${NET_SUBNET}.1"
 
 NET_NAME="xcat-ci-${RUN_ID}"
 MN_NAME="xcat-ci-mn-${RUN_ID}"

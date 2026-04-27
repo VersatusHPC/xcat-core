@@ -85,11 +85,13 @@ Validates R3 + R4 + R5. Per combination in the 24-combo matrix.
 - P4.4: petitboot: boot config at `/tftpboot/petitboot/<cn>`
 
 **R5: Deployment**
-- P5.1: `rpower <cn> boot` exits 0
+- P5.1: CN VM started via `virsh start <cn>` (rpower does not work in virtual environments)
 - P5.2: node reaches target state within timeout
 - P5.3: SSH into CN succeeds
 - P5.4: OS version matches expected
 - P5.5: architecture matches expected
+
+Note: `rpower` requires BMC/IPMI which is not available in virtual test environments. Use `virsh` directly for VM power management in CI.
 
 ## Test Environment Requirements
 
@@ -172,3 +174,5 @@ ci/
 | 2026-04-27 | Separate Build and Test jobs | Build only produces artifacts; Test consumes them |
 | 2026-04-27 | BATS for smoke tests | Standard test framework, TAP output, clear per-test results |
 | 2026-04-27 | test-harness: if !cancelled() | Run tests even if some build matrix entries fail |
+| 2026-04-27 | virsh instead of rpower for VMs | rpower needs BMC/IPMI, not available in virtual CI environment |
+| 2026-04-27 | 10.250.0.0/24 for CI network | 10.100.0.0/24 conflicts with br-prov on both hosts |

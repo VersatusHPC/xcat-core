@@ -15,12 +15,23 @@ GitHub Actions (self-hosted runners)
     └── Creates MN VM → installs xCAT → runs tests → teardown
 ```
 
+## Design Principles
+
+- **Optimize for completion time**: all independent jobs run in parallel
+- **Maximum parallelism**: 4 runners per architecture (8 total), all build jobs run concurrently
+- **Build and Test separation**: Build jobs produce artifacts, Test jobs consume them
+- **Fail-fast disabled**: individual job failures don't cancel others
+
 ## Runners
 
-| Label | Host | Arch | OS |
-|-------|------|------|----|
-| `xcat-rhel-x86_64` | rome01 | x86_64 | RHEL 10.1 |
-| `xcat-alma-ppc64le` | power | ppc64le | AlmaLinux 10.1 |
+4 runners per host, all with same label — GitHub distributes jobs across them.
+
+| Label | Host | Count | Arch | OS |
+|-------|------|-------|------|----|
+| `xcat-rhel-x86_64` | rome01 | 4 | x86_64 | RHEL 10.1 |
+| `xcat-alma-ppc64le` | power | 4 | ppc64le | AlmaLinux 10.1 |
+
+Runner dirs: `/opt/actions-runner-xcat3`, `/opt/actions-runner-xcat3-{2,3,4}`
 
 ## Build Matrix
 
@@ -176,3 +187,4 @@ ci/
 | 2026-04-27 | test-harness: if !cancelled() | Run tests even if some build matrix entries fail |
 | 2026-04-27 | virsh instead of rpower for VMs | rpower needs BMC/IPMI, not available in virtual CI environment |
 | 2026-04-27 | 10.250.0.0/24 for CI network | 10.100.0.0/24 conflicts with br-prov on both hosts |
+| 2026-04-27 | 4 runners per host | Maximize parallelism — all 4 x86_64 builds run concurrently |

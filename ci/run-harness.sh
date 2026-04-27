@@ -44,6 +44,25 @@ echo "========================================="
 echo "  xCAT CI Test Harness: unit-smoke"
 echo "========================================="
 
+# ── R0: Verify xcatd is accepting connections ───────
+echo ""
+echo "--- R0: Verify xcatd connectivity ---"
+if command -v lsdef &>/dev/null; then
+    echo "Waiting for xcatd to accept connections (up to 60s)..."
+    for i in $(seq 1 30); do
+        lsdef -t site clustersite &>/dev/null && break
+        sleep 2
+    done
+    if lsdef -t site clustersite &>/dev/null; then
+        echo "  PASS: xcatd accepting connections"
+        TOTAL_PASS=$((TOTAL_PASS + 1))
+    else
+        echo "  FAIL: xcatd not accepting connections after 60s"
+        systemctl status xcatd --no-pager 2>/dev/null || true
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+fi
+
 # ── R1: Unit tests ──────────────────────────────────
 echo ""
 echo "--- R1: Unit tests (xcattest -s ci_test) ---"

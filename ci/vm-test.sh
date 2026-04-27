@@ -295,8 +295,12 @@ if rpm -q xCAT-server > /dev/null 2>&1; then
     export MANPATH="$XCATROOT/share/man:${MANPATH:-}"
     export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
     systemctl start xcatd || true
-    sleep 5
-    systemctl is-active xcatd || { echo "FAIL: xcatd is not running"; systemctl status xcatd --no-pager; exit 1; }
+    echo "Waiting for xcatd to start (up to 60s)..."
+    for i in $(seq 1 12); do
+        systemctl is-active xcatd 2>/dev/null && break
+        sleep 5
+    done
+    systemctl is-active xcatd || { echo "FAIL: xcatd is not running"; systemctl status xcatd --no-pager; journalctl -u xcatd --no-pager -n 20; exit 1; }
     lsdef || { echo "FAIL: lsdef did not work"; exit 1; }
 else
     echo "WARN: xCAT-server skipped (missing deps) — testing perl-xCAT only"

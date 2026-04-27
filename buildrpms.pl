@@ -221,7 +221,8 @@ EOF
 
 sub createmockconfig {
     my ($pkg, $target) = @_;
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
     my $cfgfile = "/etc/mock/$chroot.cfg";
     return if -f $cfgfile && ! $opts{force};
     cp "/etc/mock/$target.cfg", $cfgfile;
@@ -302,7 +303,8 @@ EOF
 sub buildspkgs {
     my ($pkg, $target) = @_;
 
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
     my $targetarch = targetarch_from_target($target);
     my $genesis_tarch = genesis_tarch_from_targetarch($targetarch);
 
@@ -320,7 +322,7 @@ sub buildspkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
-    push @opts, "--uniqueext=$opts{mock_uniqueext}" if $opts{mock_uniqueext};
+
 
     say "Building $diskcache";
 
@@ -341,7 +343,8 @@ EOF
 sub buildpkgs {
     my ($pkg, $target) = @_;
     my $optsref = \%opts;
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
 
     my @native_pkgs = qw(
         xCAT
@@ -363,7 +366,7 @@ sub buildpkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
-    push @opts, "--uniqueext=$opts{mock_uniqueext}" if $opts{mock_uniqueext};
+
 
     my $spkgname = sub {
         return "${pkg}-${genesis_tarch}-${VERSION}-${RELEASE}.src.rpm"

@@ -96,9 +96,9 @@ if rpm -q xCAT-server > /dev/null 2>&1; then
     chtab key=domain site.value="xcat-ci.local" 2>/dev/null || true
 
     # Network definition for test subnet
-    chdef -t network 10_100_0_0-255_255_255_0 \
-        net=10.100.0.0 mask=255.255.255.0 \
-        gateway=10.100.0.1 2>/dev/null || true
+    chdef -t network 10_250_0_0-255_255_255_0 \
+        net=10.250.0.0 mask=255.255.255.0 \
+        gateway=10.250.0.1 2>/dev/null || true
 
     # Root password for compute nodes
     chtab key=system passwd.username=root passwd.password="xcat3ci" 2>/dev/null || true

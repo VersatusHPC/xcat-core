@@ -14,7 +14,7 @@ ARCH="$(uname -m)"
 SSH_KEY="$STATE_DIR/ci-ssh-key"
 
 # Network config
-NET_SUBNET="10.100.0"
+NET_SUBNET="10.250.0"
 MN_IP="${NET_SUBNET}.1"
 MN_MEMORY=8192
 MN_VCPUS=4
@@ -77,14 +77,15 @@ ensure_cloud_image() {
 
 create_network() {
     log "Creating libvirt network $NET_NAME"
-    local net_xml
+    local net_xml BRIDGE_ID
+    BRIDGE_ID=$(echo "$RUN_ID" | md5sum | cut -c1-6)
     net_xml=$(mktemp)
     cat > "$net_xml" << NETXML
 <network>
   <name>${NET_NAME}</name>
   <forward mode='nat'/>
-  <bridge name='xci${RUN_ID:0:8}' stp='on' delay='0'/>
-  <ip address='${NET_SUBNET}.1' netmask='255.255.255.0'>
+  <bridge name='xcibr${BRIDGE_ID}' stp='on' delay='0'/>
+  <ip address='${NET_SUBNET}.254' netmask='255.255.255.0'>
   </ip>
 </network>
 NETXML
@@ -142,7 +143,7 @@ ethernets:
       - ${MN_IP}/24
     routes:
       - to: 0.0.0.0/0
-        via: ${NET_SUBNET}.1
+        via: ${NET_SUBNET}.254
     nameservers:
       addresses: [1.1.1.1, 8.8.8.8]
 NETCFG

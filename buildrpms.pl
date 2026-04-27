@@ -110,6 +110,7 @@ my %opts = (
     configure_nginx => 0,
     force => 0,
     help => 0,
+    mock_uniqueext => "",
     nginx_port => 8080,
     nproc => int(`nproc --all`),
     packages => \@PACKAGES,
@@ -123,6 +124,7 @@ GetOptions(
     "configure_nginx" => \$opts{configure_nginx},
     "force" => \$opts{force},
     "help" => \$opts{help},
+    "mock-uniqueext=s" => \$opts{mock_uniqueext},
     "nginx_port" => \$opts{nginx_port},
     "nproc=i" => \$opts{nproc},
     "package=s@" => \$opts{packages},
@@ -318,6 +320,7 @@ sub buildspkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+    push @opts, "--uniqueext=$opts{mock_uniqueext}" if $opts{mock_uniqueext};
 
     say "Building $diskcache";
 
@@ -360,6 +363,7 @@ sub buildpkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+    push @opts, "--uniqueext=$opts{mock_uniqueext}" if $opts{mock_uniqueext};
 
     my $spkgname = sub {
         return "${pkg}-${genesis_tarch}-${VERSION}-${RELEASE}.src.rpm"

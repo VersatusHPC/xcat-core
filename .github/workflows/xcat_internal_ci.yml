@@ -68,7 +68,7 @@ jobs:
     steps:
       - name: Set up isolated workspace
         run: |
-          WORKDIR="/var/tmp/xcat3-ci/${{ matrix.distro }}-${{ matrix.arch }}"
+          WORKDIR="/var/tmp/xcat3-ci/${{ matrix.distro }}-${{ matrix.arch }}-${{ github.run_id }}"
           sudo rm -rf "$WORKDIR"
           sudo mkdir -p "$WORKDIR"
           sudo chown "$(id -u):$(id -g)" "$WORKDIR"
@@ -77,10 +77,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          path: src
+          path: ${{ matrix.distro }}-${{ matrix.arch }}
 
       - name: Copy source to workspace
-        run: cp -a src/. "$WORKDIR/"
+        run: cp -a "${{ matrix.distro }}-${{ matrix.arch }}/." "$WORKDIR/"
 
       - name: Prepare build environment
         working-directory: ${{ env.WORKDIR }}
@@ -100,7 +100,6 @@ jobs:
             qemu-img virt-install libvirt genisoimage openssh-clients \
             curl rpm-build rsync 2>&1 | tail -5
           sudo usermod -aG mock "$(whoami)" 2>/dev/null || true
-          sudo mkdir -p /root/rpmbuild/SOURCES
           sudo systemctl enable --now libvirtd
 
       - name: Detect mock target
@@ -119,7 +118,12 @@ jobs:
       - name: Build RPMs
         if: matrix.type == 'rpm'
         working-directory: ${{ env.WORKDIR }}
-        run: sudo perl buildrpms.pl --target "${{ steps.target.outputs.target }}" --force
+        run: |
+          sudo mkdir -p "$WORKDIR/rpmbuild/SOURCES"
+          sudo HOME="$WORKDIR" perl buildrpms.pl \
+            --target "${{ steps.target.outputs.target }}" \
+            --mock-uniqueext "${{ matrix.distro }}-${{ matrix.arch }}" \
+            --force
 
       - name: Verify RPMs built
         if: matrix.type == 'rpm'

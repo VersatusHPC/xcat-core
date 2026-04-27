@@ -214,48 +214,8 @@ jobs:
               ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/xcatbuild
             '
 
-      - name: Test DEBs
-        if: matrix.type == 'deb'
-        run: |
-          sudo podman run --rm --privileged \
-            -v "${WORKDIR}/dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}:/xcatbuild:Z" \
-            -v "${WORKDIR}/ci/tests:/opt/xcat-ci-tests:Z" \
-            ${{ matrix.ubuntu_image }} \
-            bash -c '
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -qq
-              apt-get install -y -qq bats 2>&1 | tail -3
-
-              # Install xCAT from built debs
-              if [ -d /xcatbuild/xcat-core ]; then
-                cd /xcatbuild/xcat-core
-                ./mklocalrepo.sh 2>/dev/null || true
-                apt-get update -qq --allow-insecure-repositories 2>&1 | tail -3
-                apt-get install -y --allow-unauthenticated xcat 2>&1 | tail -20 || \
-                  apt-get install -y --allow-unauthenticated perl-xcat xcat-server xcat-client 2>&1 | tail -20 || \
-                  echo "WARN: xCAT install incomplete"
-              else
-                echo "WARN: no xcat-core repo found, skipping install"
-              fi
-
-              # Validate
-              export XCATROOT=/opt/xcat
-              export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
-              export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
-
-              if command -v lsdef &>/dev/null; then
-                echo "xCAT commands available — running smoke tests"
-                if command -v bats &>/dev/null && [ -d /opt/xcat-ci-tests ]; then
-                  bats --tap /opt/xcat-ci-tests/smoke-make-commands.bats || echo "WARN: some BATS tests failed"
-                fi
-              else
-                echo "Testing perl-xCAT module loading"
-                perl -e "use lib \"/opt/xcat/lib/perl\"; use xCAT::Table; print \"perl-xCAT loads OK\n\"" || \
-                  { echo "FAIL: perl-xCAT broken"; exit 1; }
-              fi
-              echo "=== DEB TESTS PASSED ==="
-            '
+      # TODO: DEB testing needs libvirt VMs with Ubuntu cloud images + internal network + compute nodes
+      # Will be added when Ubuntu cloud images are staged on hosts
 
       - name: Upload DEBs
         if: always() && matrix.type == 'deb'

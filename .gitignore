@@ -5,3 +5,4 @@ Release.save*
 # ignore the old generated man pages and html pages
 xCAT-client/share/man
 xCAT-client/share/doc
+CLAUDE.md

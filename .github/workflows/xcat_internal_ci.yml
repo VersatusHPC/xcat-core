@@ -197,11 +197,15 @@ jobs:
 
       - name: Build DEBs
         if: matrix.type == 'deb'
+        working-directory: ${{ env.WORKDIR }}
         run: |
-          sudo mkdir -p "${WORKDIR}/dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
+          DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
+          sudo mkdir -p "$DIST_DIR"
+          # Create clean source tarball (no .git, no dist/)
+          git archive HEAD | sudo tee /tmp/xcat-src.tar > /dev/null
           sudo podman run --rm \
-            -v "${WORKDIR}:/xcatsrc:Z" \
-            -v "${WORKDIR}/dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}:/xcatbuild:Z" \
+            -v "/tmp/xcat-src.tar:/tmp/xcat-src.tar:Z" \
+            -v "${WORKDIR}/${DIST_DIR}:/xcatbuild:Z" \
             -e BUILDALL=1 -e GPGSIGN=0 \
             ${{ matrix.ubuntu_image }} \
             bash -c '
@@ -210,9 +214,13 @@ jobs:
               apt-get update -qq
               apt-get install -y -qq reprepro devscripts debhelper git quilt \
                 libsoap-lite-perl libdbi-perl libjson-perl libcgi-pm-perl 2>&1 | tail -3
-              cp -a /xcatsrc /tmp/xcat-core && cd /tmp/xcat-core
+              mkdir -p /tmp/xcat-core && cd /tmp/xcat-core
+              tar xf /tmp/xcat-src.tar
               ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/xcatbuild
             '
+          echo "DEB build output:"
+          ls -la "${DIST_DIR}/" | head -10
+          ls -la "${DIST_DIR}/debsxcat-core/xcat-core/" 2>/dev/null | head -5 || echo "WARN: repo dir not found"
 
       # ── DEB: Test ──────────────────────────────────────────────────────
       - name: Create test environment (Ubuntu)

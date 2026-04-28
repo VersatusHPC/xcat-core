@@ -321,9 +321,15 @@ INSTALL_RPM
         ssh_vm root@"$VM_IP" bash << 'INSTALL_DEB'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-if ls /root/xcat-debs/debs/*.deb 1>/dev/null 2>&1; then
-    dpkg -i /root/xcat-debs/debs/*.deb 2>&1 | tail -20 || true
+DEB_DIR=$(find /root/xcat-debs -maxdepth 2 -name "*.deb" -printf '%h\n' 2>/dev/null | head -1)
+if [[ -n "$DEB_DIR" ]]; then
+    echo "Installing debs from $DEB_DIR"
+    dpkg -i "$DEB_DIR"/*.deb 2>&1 | tail -20 || true
     apt-get install -f -y 2>&1 | tail -10
+else
+    echo "FAIL: no .deb files found under /root/xcat-debs/"
+    find /root/xcat-debs -type f | head -20
+    exit 1
 fi
 dpkg -l | grep -i xcat | head -10
 INSTALL_DEB
@@ -375,7 +381,7 @@ extract_artifacts() {
         ssh_vm root@"$VM_IP" 'tar -C /root/xcat-core -cf - dist/*/rpms/*.rpm 2>/dev/null' \
             | tar -C "$ARTIFACT_DIR" -xf - 2>/dev/null || true
     else
-        ssh_vm root@"$VM_IP" 'tar -C /root -cf - xcat-debs/debs/*.deb 2>/dev/null' \
+        ssh_vm root@"$VM_IP" 'find /root/xcat-debs -name "*.deb" -print0 | tar -C /root --null -T - -cf - 2>/dev/null' \
             | tar -C "$ARTIFACT_DIR" -xf - 2>/dev/null || true
     fi
 }

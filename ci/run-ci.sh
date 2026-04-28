@@ -327,11 +327,24 @@ REPO_DIR=$(find /root/xcat-debs -name "mklocalrepo.sh" -printf '%h\n' 2>/dev/nul
 if [[ -n "$REPO_DIR" ]]; then
     echo "Using reprepro repo at $REPO_DIR"
     cd "$REPO_DIR"
-    bash mklocalrepo.sh
-    apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5
-    apt-get install -y --allow-unauthenticated xcat 2>&1 | tail -20 || {
-        echo "WARN: xcat metapackage failed, trying components"
-        apt-get install -y --allow-unauthenticated perl-xcat xcat-server xcat-client xcat-test 2>&1 | tail -20 || true
+    # mklocalrepo.sh uses $DISTRIB_CODENAME from /etc/lsb-release
+    # If codename not in repo (e.g. noble), fall back to jammy
+    bash mklocalrepo.sh 2>/dev/null || true
+    if ! apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5; then
+        echo "Falling back to jammy codename for apt repo"
+        . /etc/lsb-release 2>/dev/null || true
+        host_arch=$(dpkg --print-architecture 2>/dev/null || echo amd64)
+        echo "deb [arch=$host_arch allow-insecure=yes] file://$(pwd) jammy main" > /etc/apt/sources.list.d/xcat-core.list
+        apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5
+    fi
+    # Install components individually — xcat metapackage has unresolvable deps (xcat-dep packages)
+    # Use --no-install-recommends to skip optional xcat-dep packages
+    for pkg in perl-xcat xcat-client xcat-test; do
+        apt-get install -y --allow-unauthenticated --no-install-recommends "$pkg" 2>&1 | tail -5 || true
+    done
+    # xcat-server has grub2-xcat hard dep — try with --force
+    apt-get install -y --allow-unauthenticated --no-install-recommends xcat-server 2>&1 | tail -10 || {
+        echo "WARN: xcat-server install failed (missing grub2-xcat dep)"
     }
 else
     # Fallback: find raw debs
@@ -403,6 +416,8 @@ extract_artifacts() {
 # ── Main ─────────────────────────────────────────────────────────────────────
 main() {
     state_init
+    # Pre-cleanup: remove leftovers from previous runs with same run-id
+    cleanup 2>/dev/null || true
     trap cleanup EXIT
 
     local base_img

@@ -127,46 +127,8 @@ chpasswd:
       type: text
 ssh_authorized_keys:
   - $(cat "${SSH_KEY}.pub")
-$(if [[ "$os_family" == "el" ]]; then
-cat << 'EL'
-packages:
-  - epel-release
-  - mock
-  - createrepo_c
-  - rpm-build
-  - perl
-  - perl-core
-  - perl-generators
-  - perl-File-Slurper
-  - perl-Parallel-ForkManager
-  - perl-Pod-Usage
-  - perl-autodie
-  - perl-Carp
-  - git
-runcmd:
-  - sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
-  - setenforce 0 || true
-  - dnf config-manager --set-enabled crb 2>/dev/null || true
-  - usermod -aG mock root
-  - touch /var/lib/cloud-init-done
-EL
-else
-cat << 'UBUNTU'
-packages:
-  - reprepro
-  - devscripts
-  - debhelper
-  - git
-  - quilt
-  - libsoap-lite-perl
-  - libdbi-perl
-  - libjson-perl
-  - libcgi-pm-perl
-  - perl
 runcmd:
   - touch /var/lib/cloud-init-done
-UBUNTU
-fi)
 USERDATA
 
     cat > "$ci_dir/meta-data" << MD
@@ -251,6 +213,35 @@ wait_ready() {
     log "Waiting for cloud-init to finish..."
     ssh_vm root@"$VM_IP" 'cloud-init status --wait 2>/dev/null || timeout 600 bash -c "while [ ! -f /var/lib/cloud-init-done ]; do sleep 5; done"'
     log "VM ready"
+}
+
+# ── Install build dependencies ───────────────────────────────────────────────
+install_deps() {
+    log "Installing build dependencies"
+    if [[ "$TARGET" == el* ]]; then
+        ssh_vm root@"$VM_IP" bash << 'DEPS'
+set -euo pipefail
+sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config 2>/dev/null || true
+setenforce 0 2>/dev/null || true
+dnf install -y epel-release 2>&1 | tail -3
+dnf config-manager --set-enabled crb 2>/dev/null || true
+dnf install -y mock createrepo_c rpm-build git \
+    perl perl-core perl-generators \
+    perl-File-Slurper perl-Parallel-ForkManager \
+    perl-Pod-Usage perl-autodie perl-Carp 2>&1 | tail -5
+usermod -aG mock root
+echo "EL deps installed"
+DEPS
+    else
+        ssh_vm root@"$VM_IP" bash << 'DEPS'
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq 2>&1 | tail -3
+apt-get install -y -qq git reprepro devscripts debhelper quilt \
+    libsoap-lite-perl libdbi-perl libjson-perl libcgi-pm-perl perl 2>&1 | tail -5
+echo "Ubuntu deps installed"
+DEPS
+    fi
 }
 
 # ── Copy source ──────────────────────────────────────────────────────────────
@@ -400,6 +391,7 @@ main() {
 
     create_vm "$base_img"
     wait_ready
+    install_deps
     copy_source
     build_packages
     install_packages

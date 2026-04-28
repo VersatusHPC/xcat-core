@@ -248,8 +248,8 @@ wait_ready() {
     done
     [[ $elapsed -lt 600 ]] || die "SSH timeout"
 
-    log "Waiting for cloud-init..."
-    ssh_vm root@"$VM_IP" 'timeout 600 bash -c "while [ ! -f /var/lib/cloud-init-done ]; do sleep 5; done"'
+    log "Waiting for cloud-init to finish..."
+    ssh_vm root@"$VM_IP" 'cloud-init status --wait 2>/dev/null || timeout 600 bash -c "while [ ! -f /var/lib/cloud-init-done ]; do sleep 5; done"'
     log "VM ready"
 }
 
@@ -258,6 +258,8 @@ copy_source() {
     log "Copying source to VM"
     ssh_vm root@"$VM_IP" 'mkdir -p /root/xcat-core'
     git archive HEAD | ssh_vm root@"$VM_IP" 'tar -C /root/xcat-core -xf -'
+    # Create a minimal git repo so build scripts (modifyUtils, build-ubunturepo) work
+    ssh_vm root@"$VM_IP" 'cd /root/xcat-core && git init -q && git add -A && git commit -q -m "ci build"'
 }
 
 # ── Build ────────────────────────────────────────────────────────────────────

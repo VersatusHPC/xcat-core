@@ -202,10 +202,10 @@ jobs:
           DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
           sudo mkdir -p "$DIST_DIR"
           # Create clean source tarball (no .git, no dist/)
-          git archive HEAD -o /tmp/xcat-src.tar
-          chmod 644 /tmp/xcat-src.tar
+          SRC_TAR="${WORKDIR}/xcat-src.tar"
+          git archive HEAD -o "$SRC_TAR"
           sudo podman run --rm \
-            -v "/tmp/xcat-src.tar:/tmp/xcat-src.tar:ro" \
+            -v "${SRC_TAR}:/tmp/xcat-src.tar:ro,Z" \
             -v "${WORKDIR}/${DIST_DIR}:/xcatbuild:Z" \
             -e BUILDALL=1 -e GPGSIGN=0 \
             ${{ matrix.ubuntu_image }} \

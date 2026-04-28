@@ -149,7 +149,8 @@ instance-id: ${MN_NAME}
 local-hostname: ${MN_NAME}
 METADATA
 
-    cat > "$ci_dir/network-config" << NETCFG
+    if [[ "$OS_FAMILY" == "ubuntu" ]]; then
+        cat > "$ci_dir/network-config" << NETCFG
 version: 2
 ethernets:
   id0:
@@ -163,6 +164,20 @@ ethernets:
     nameservers:
       addresses: [1.1.1.1, 8.8.8.8]
 NETCFG
+    else
+        cat > "$ci_dir/network-config" << NETCFG
+version: 2
+ethernets:
+  eth0:
+    addresses:
+      - ${MN_IP}/24
+    routes:
+      - to: 0.0.0.0/0
+        via: ${NET_SUBNET}.254
+    nameservers:
+      addresses: [1.1.1.1, 8.8.8.8]
+NETCFG
+    fi
 
     ci_iso="$STATE_DIR/${MN_NAME}-cidata.iso"
     if command -v genisoimage &>/dev/null; then

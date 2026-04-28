@@ -6,286 +6,54 @@ on:
 
 jobs:
   build-and-test:
-    name: "Build & Test (${{ matrix.distro }} ${{ matrix.arch }})"
+    name: "Build & Test (${{ matrix.target }} ${{ matrix.arch }})"
     runs-on: [self-hosted, "${{ matrix.runner }}"]
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
-          # ── x86_64 on rome01 ───────────────────────────────────────────
-          - distro: EL9
+          - target: el9
             arch: x86_64
             runner: xcat-rhel-x86_64
-            type: rpm
-            elver: 9
-          - distro: EL10
+          - target: el10
             arch: x86_64
             runner: xcat-rhel-x86_64
-            type: rpm
-            elver: 10
-          - distro: Ubuntu-22.04
+          - target: ubuntu-22.04
             arch: x86_64
             runner: xcat-rhel-x86_64
-            type: deb
-            ubuntu_image: docker.io/library/ubuntu:22.04
-            ubuntu_tag: "22.04"
-          - distro: Ubuntu-24.04
+          - target: ubuntu-24.04
             arch: x86_64
             runner: xcat-rhel-x86_64
-            type: deb
-            ubuntu_image: docker.io/library/ubuntu:24.04
-            ubuntu_tag: "24.04"
-          # ── ppc64le on power ───────────────────────────────────────────
-          - distro: EL9
+          - target: el9
             arch: ppc64le
             runner: xcat-alma-ppc64le
-            type: rpm
-            elver: 9
-          - distro: EL10
+          - target: el10
             arch: ppc64le
             runner: xcat-alma-ppc64le
-            type: rpm
-            elver: 10
-          - distro: Ubuntu-22.04
+          - target: ubuntu-22.04
             arch: ppc64le
             runner: xcat-alma-ppc64le
-            type: deb
-            ubuntu_image: docker.io/ppc64le/ubuntu:22.04
-            ubuntu_tag: "22.04"
-          - distro: Ubuntu-24.04
+          - target: ubuntu-24.04
             arch: ppc64le
             runner: xcat-alma-ppc64le
-            type: deb
-            ubuntu_image: docker.io/ppc64le/ubuntu:24.04
-            ubuntu_tag: "24.04"
 
     steps:
-      # ── Common setup ────────────────────────────────────────────────────
-      - name: Set up isolated workspace
-        run: |
-          WORKDIR="/var/tmp/xcat3-ci/${{ matrix.distro }}-${{ matrix.arch }}-${{ github.run_id }}"
-          sudo rm -rf "$WORKDIR"
-          sudo mkdir -p "$WORKDIR"
-          sudo chown "$(id -u):$(id -g)" "$WORKDIR"
-          echo "WORKDIR=$WORKDIR" >> "$GITHUB_ENV"
-
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: ${{ matrix.distro }}-${{ matrix.arch }}
 
-      - name: Copy source to workspace
-        run: cp -a "${{ matrix.distro }}-${{ matrix.arch }}/." "$WORKDIR/"
-
-      - name: Prepare build environment
-        working-directory: ${{ env.WORKDIR }}
+      - name: Build and Test in VM
         run: |
-          git rev-parse HEAD > Gitinfo
-          echo "snap$(date +%Y%m%d%H%M)" > Release
-          echo "Release set to: $(cat Release)"
+          sudo bash ci/run-ci.sh \
+            --target "${{ matrix.target }}" \
+            --run-id "${{ github.run_id }}-${{ matrix.target }}-${{ matrix.arch }}" \
+            --artifact-dir "${{ github.workspace }}/artifacts"
 
-      # ── RPM: Build ─────────────────────────────────────────────────────
-      - name: Install RPM build dependencies
-        if: matrix.type == 'rpm'
-        run: |
-          sudo dnf install -y \
-            mock createrepo_c perl perl-core perl-generators \
-            perl-File-Slurper perl-Parallel-ForkManager \
-            perl-Pod-Usage perl-autodie perl-Carp \
-            curl rpm-build rsync 2>&1 | tail -5
-          sudo usermod -aG mock "$(whoami)" 2>/dev/null || true
-
-      - name: Detect mock target
-        if: matrix.type == 'rpm'
-        id: target
-        run: |
-          DISTRO=$(. /etc/os-release && echo "$ID")
-          case "$DISTRO" in
-            almalinux) DISTRO="alma" ;;
-            rocky)     DISTRO="rocky" ;;
-          esac
-          TARGET="${DISTRO}+epel-${{ matrix.elver }}-${{ matrix.arch }}"
-          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
-
-      - name: Build RPMs
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo mkdir -p "$WORKDIR/rpmbuild/SOURCES"
-          sudo HOME="$WORKDIR" perl buildrpms.pl \
-            --target "${{ steps.target.outputs.target }}" \
-            --mock-uniqueext "${{ matrix.distro }}-${{ matrix.arch }}" \
-            --force
-
-      - name: Verify RPMs built
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          TARGET="${{ steps.target.outputs.target }}"
-          RPM_COUNT=$(find "dist/$TARGET/rpms" -name "*.rpm" 2>/dev/null | wc -l)
-          echo "Built $RPM_COUNT RPMs in dist/$TARGET/rpms/"
-          test "$RPM_COUNT" -gt 0 || { echo "ERROR: no RPMs produced"; exit 1; }
-
-      # ── RPM: Test (xcattest in podman) ─────────────────────────────────
-      - name: Run xcattest (RPM)
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          TARGET="${{ steps.target.outputs.target }}"
-          RELEASEVER=${{ matrix.elver }}
-          ARCH=$(uname -m)
-
-          # Create repo metadata
-          sudo createrepo "dist/$TARGET/rpms/"
-
-          # Prepare xcat-dep
-          DEP_DIR="/opt/xcat-dep/el${RELEASEVER}/${ARCH}"
-
-          sudo podman run --rm --privileged --systemd=true \
-            -v "$WORKDIR/dist/$TARGET/rpms:/opt/xcat-core-repo:Z" \
-            -v "${DEP_DIR}:/opt/xcat-dep:Z" \
-            quay.io/rockylinux/rockylinux:${RELEASEVER}-ubi-init \
-            bash -c '
-              set -euo pipefail
-              dnf install -y epel-release 2>&1 | tail -3
-              dnf config-manager --set-enabled crb 2>/dev/null || true
-
-              # Configure repos
-              cat > /etc/yum.repos.d/xcat-ci.repo << REPO
-          [xcat-core]
-          name=xCAT Core CI
-          baseurl=file:///opt/xcat-core-repo/
-          gpgcheck=0
-          enabled=1
-
-          [xcat-dep]
-          name=xCAT Dependencies
-          baseurl=file:///opt/xcat-dep/
-          gpgcheck=0
-          enabled=1
-          REPO
-
-              dnf makecache || true
-              dnf install -y --skip-broken perl-xCAT xCAT-server xCAT-client xCAT-test 2>&1 | tail -20
-
-              rpm -q perl-xCAT || { echo "FAIL: perl-xCAT not installed"; exit 1; }
-
-              export XCATROOT=/opt/xcat
-              export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
-              export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
-
-              if rpm -q xCAT-server > /dev/null 2>&1; then
-                systemctl start xcatd || true
-                for i in $(seq 1 12); do
-                  lsdef -t site clustersite &>/dev/null && break
-                  sleep 5
-                done
-
-                if command -v xcattest &>/dev/null; then
-                  xcattest -s ci_test 2>&1 | tail -30
-                  echo "xcattest exit code: $?"
-                else
-                  echo "WARN: xcattest not found"
-                fi
-              else
-                echo "WARN: xCAT-server not installed, testing perl-xCAT only"
-                PERL5LIB=/opt/xcat/lib/perl perl -e "use xCAT::Table; print \"perl-xCAT OK\n\""
-              fi
-            '
-
-      - name: Upload RPMs
-        if: always() && matrix.type == 'rpm'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpms-${{ matrix.distro }}-${{ matrix.arch }}
-          path: ${{ env.WORKDIR }}/dist/*/rpms/*.rpm
-          retention-days: 7
-          if-no-files-found: warn
-
-      # ── DEB: Build ─────────────────────────────────────────────────────
-      - name: Install DEB build dependencies
-        if: matrix.type == 'deb'
-        run: sudo dnf install -y podman 2>&1 | tail -3
-
-      - name: Build DEBs
-        if: matrix.type == 'deb'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
-          sudo mkdir -p "$DIST_DIR"
-          SRC_TAR="${WORKDIR}/xcat-src.tar"
-          git archive HEAD -o "$SRC_TAR"
-          sudo podman run --rm \
-            -v "${SRC_TAR}:/tmp/xcat-src.tar:ro,Z" \
-            -v "${WORKDIR}/${DIST_DIR}:/xcatbuild:Z" \
-            -e BUILDALL=1 -e GPGSIGN=0 \
-            ${{ matrix.ubuntu_image }} \
-            bash -c '
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -qq
-              apt-get install -y -qq reprepro devscripts debhelper git quilt \
-                libsoap-lite-perl libdbi-perl libjson-perl libcgi-pm-perl 2>&1 | tail -3
-              mkdir -p /tmp/xcat-core && cd /tmp/xcat-core
-              tar xf /tmp/xcat-src.tar
-              ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/xcatbuild
-            '
-
-      # ── DEB: Test (xcattest in podman) ─────────────────────────────────
-      - name: Run xcattest (DEB)
-        if: matrix.type == 'deb'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
-          sudo podman run --rm --privileged \
-            -v "${WORKDIR}/${DIST_DIR}:/xcatbuild:Z" \
-            ${{ matrix.ubuntu_image }} \
-            bash -c '
-              set -euo pipefail
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -qq
-              apt-get install -y -qq systemd perl 2>&1 | tail -3
-
-              # Install debs
-              if ls /xcatbuild/debs/*.deb 1>/dev/null 2>&1; then
-                dpkg -i /xcatbuild/debs/*.deb 2>&1 | tail -20 || true
-                apt-get install -f -y 2>&1 | tail -10
-              fi
-
-              dpkg -l | grep -i xcat | head -10
-
-              export XCATROOT=/opt/xcat
-              export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
-              export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
-
-              if command -v xcatd &>/dev/null; then
-                xcatd &
-                sleep 10
-
-                if command -v xcattest &>/dev/null; then
-                  xcattest -s ci_test 2>&1 | tail -30
-                  echo "xcattest exit code: $?"
-                else
-                  echo "WARN: xcattest not found"
-                fi
-              else
-                echo "WARN: xcatd not available, testing perl-xCAT only"
-                perl -e "use lib \"/opt/xcat/lib/perl\"; use xCAT::Table; print \"perl-xCAT OK\n\"" || \
-                  { echo "FAIL: perl-xCAT broken"; exit 1; }
-              fi
-            '
-
-      - name: Upload DEBs
-        if: always() && matrix.type == 'deb'
-        uses: actions/upload-artifact@v4
-        with:
-          name: debs-${{ matrix.distro }}-${{ matrix.arch }}
-          path: ${{ env.WORKDIR }}/dist/ubuntu-*/debs/*.deb
-          retention-days: 7
-          if-no-files-found: warn
-
-      # ── Cleanup ────────────────────────────────────────────────────────
-      - name: Clean up workspace
+      - name: Upload artifacts
         if: always()
-        run: sudo rm -rf "$WORKDIR"
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.target }}-${{ matrix.arch }}
+          path: artifacts/
+          retention-days: 7
+          if-no-files-found: warn

@@ -241,7 +241,7 @@ jobs:
         run: |
           sudo bash ci/copy-repo-to-env.sh \
             --pkg-type deb \
-            --repo-path "dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}/debsxcat-core/xcat-core" \
+            --repo-path "dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}/debs" \
             --mn-ip "${{ steps.deb-env.outputs.mn_ip }}"
 
       - name: Initialize test harness (Ubuntu)
@@ -272,7 +272,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debs-${{ matrix.distro }}-${{ matrix.arch }}
-          path: ${{ env.WORKDIR }}/dist/ubuntu-*/debsxcat-core/xcat-core/*.deb
+          path: ${{ env.WORKDIR }}/dist/ubuntu-*/debs/*.deb
           retention-days: 7
           if-no-files-found: warn
 

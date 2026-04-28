@@ -88,29 +88,21 @@ REMOTE
 
 # ── DEB path ────────────────────────────────────────────────────────────────
 install_deb() {
-    log "Configuring DEB repo on MN"
+    log "Installing DEB packages on MN"
     ssh_cmd root@"$MN_IP" bash << 'REMOTE'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-# If mklocalrepo.sh exists in the repo, use it
-if [[ -f /opt/xcat-core-repo/mklocalrepo.sh ]]; then
-    cd /opt/xcat-core-repo
-    bash mklocalrepo.sh 2>/dev/null || true
-fi
+echo "Available debs:"
+find /opt/xcat-core-repo -name "*.deb" | head -20
 
-apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5
-apt-get install -y --allow-unauthenticated xcat 2>&1 | tail -20 || {
-    echo "WARN: xcat metapackage failed, trying components"
-    apt-get install -y --allow-unauthenticated perl-xcat xcat-server xcat-client 2>&1 | tail -20 || {
-        echo "WARN: component install also failed, trying dpkg"
-        find /opt/xcat-core-repo -name "*.deb" | head -20
-        dpkg -i /opt/xcat-core-repo/*.deb 2>&1 | tail -20 || true
-        apt-get install -f -y 2>&1 | tail -10
-    }
-}
+echo "Installing xCAT debs via dpkg..."
+dpkg -i /opt/xcat-core-repo/*.deb 2>&1 | tail -20 || true
+apt-get install -f -y 2>&1 | tail -10
 
+echo "Installed xCAT packages:"
 dpkg -l | grep -i xcat | head -10
+dpkg -l | grep -qE "perl-xcat|xcat-server" || { echo "FAIL: no xCAT packages installed"; exit 1; }
 echo "DEB install done"
 REMOTE
 }

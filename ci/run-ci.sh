@@ -250,7 +250,7 @@ copy_source() {
     ssh_vm root@"$VM_IP" 'mkdir -p /root/xcat-core'
     git archive HEAD | ssh_vm root@"$VM_IP" 'tar -C /root/xcat-core -xf -'
     # Create a minimal git repo so build scripts (modifyUtils, build-ubunturepo) work
-    ssh_vm root@"$VM_IP" 'cd /root/xcat-core && git init -q && git add -A && git commit -q -m "ci build"'
+    ssh_vm root@"$VM_IP" 'cd /root/xcat-core && git init -q && git config user.email "ci@xcat" && git config user.name "CI" && git add -A && git commit -q -m "ci build"'
 }
 
 # ── Build ────────────────────────────────────────────────────────────────────

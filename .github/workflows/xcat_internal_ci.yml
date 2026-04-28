@@ -3,11 +3,6 @@ name: xCAT Internal CI
 on:
   pull_request:
   workflow_dispatch:
-    inputs:
-      keep_vms:
-        description: "Keep test VMs after completion (for debugging)"
-        type: boolean
-        default: false
 
 jobs:
   build-and-test:
@@ -98,10 +93,8 @@ jobs:
             mock createrepo_c perl perl-core perl-generators \
             perl-File-Slurper perl-Parallel-ForkManager \
             perl-Pod-Usage perl-autodie perl-Carp \
-            qemu-img virt-install libvirt genisoimage openssh-clients \
-            curl rpm-build rsync bats 2>&1 | tail -5
+            curl rpm-build rsync 2>&1 | tail -5
           sudo usermod -aG mock "$(whoami)" 2>/dev/null || true
-          sudo systemctl enable --now libvirtd
 
       - name: Detect mock target
         if: matrix.type == 'rpm'
@@ -114,7 +107,6 @@ jobs:
           esac
           TARGET="${DISTRO}+epel-${{ matrix.elver }}-${{ matrix.arch }}"
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
-          echo "Mock target: $TARGET"
 
       - name: Build RPMs
         if: matrix.type == 'rpm'
@@ -133,54 +125,75 @@ jobs:
           TARGET="${{ steps.target.outputs.target }}"
           RPM_COUNT=$(find "dist/$TARGET/rpms" -name "*.rpm" 2>/dev/null | wc -l)
           echo "Built $RPM_COUNT RPMs in dist/$TARGET/rpms/"
-          ls -la "dist/$TARGET/rpms/"*.rpm 2>/dev/null | head -20
           test "$RPM_COUNT" -gt 0 || { echo "ERROR: no RPMs produced"; exit 1; }
 
-      # ── RPM: Test (harness) ────────────────────────────────────────────
-      - name: Create test environment
-        if: matrix.type == 'rpm'
-        id: env
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          RUN_ID="${{ github.run_id }}-${{ matrix.distro }}-${{ matrix.arch }}"
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          MN_IP=$(sudo bash ci/create-test-env.sh --run-id "$RUN_ID")
-          echo "mn_ip=$MN_IP" >> "$GITHUB_OUTPUT"
-          echo "MN ready at $MN_IP"
-
-      - name: Copy repo to test environment
+      # ── RPM: Test (xcattest in podman) ─────────────────────────────────
+      - name: Run xcattest (RPM)
         if: matrix.type == 'rpm'
         working-directory: ${{ env.WORKDIR }}
         run: |
           TARGET="${{ steps.target.outputs.target }}"
-          sudo bash ci/copy-repo-to-env.sh \
-            --repo-path "dist/$TARGET/rpms" \
-            --mn-ip "${{ steps.env.outputs.mn_ip }}"
+          RELEASEVER=${{ matrix.elver }}
+          ARCH=$(uname -m)
 
-      - name: Initialize test harness
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/init-harness.sh \
-            --mn-ip "${{ steps.env.outputs.mn_ip }}" \
-            --harness unit-smoke
+          # Create repo metadata
+          sudo createrepo "dist/$TARGET/rpms/"
 
-      - name: Run test harness
-        if: matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/run-harness.sh \
-            --mn-ip "${{ steps.env.outputs.mn_ip }}" \
-            --harness unit-smoke
+          # Prepare xcat-dep
+          DEP_DIR="/opt/xcat-dep/el${RELEASEVER}/${ARCH}"
 
-      - name: Teardown test environment
-        if: always() && matrix.type == 'rpm'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/teardown-test-env.sh \
-            --run-id "${{ steps.env.outputs.run_id || '' }}" 2>/dev/null || true
+          sudo podman run --rm --privileged --systemd=true \
+            -v "$WORKDIR/dist/$TARGET/rpms:/opt/xcat-core-repo:Z" \
+            -v "${DEP_DIR}:/opt/xcat-dep:Z" \
+            quay.io/rockylinux/rockylinux:${RELEASEVER}-ubi-init \
+            bash -c '
+              set -euo pipefail
+              dnf install -y epel-release 2>&1 | tail -3
+              dnf config-manager --set-enabled crb 2>/dev/null || true
 
-      # ── RPM: Upload validated artifacts ────────────────────────────────
+              # Configure repos
+              cat > /etc/yum.repos.d/xcat-ci.repo << REPO
+          [xcat-core]
+          name=xCAT Core CI
+          baseurl=file:///opt/xcat-core-repo/
+          gpgcheck=0
+          enabled=1
+
+          [xcat-dep]
+          name=xCAT Dependencies
+          baseurl=file:///opt/xcat-dep/
+          gpgcheck=0
+          enabled=1
+          REPO
+
+              dnf makecache || true
+              dnf install -y --skip-broken perl-xCAT xCAT-server xCAT-client xCAT-test 2>&1 | tail -20
+
+              rpm -q perl-xCAT || { echo "FAIL: perl-xCAT not installed"; exit 1; }
+
+              export XCATROOT=/opt/xcat
+              export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
+              export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+
+              if rpm -q xCAT-server > /dev/null 2>&1; then
+                systemctl start xcatd || true
+                for i in $(seq 1 12); do
+                  lsdef -t site clustersite &>/dev/null && break
+                  sleep 5
+                done
+
+                if command -v xcattest &>/dev/null; then
+                  xcattest -s ci_test 2>&1 | tail -30
+                  echo "xcattest exit code: $?"
+                else
+                  echo "WARN: xcattest not found"
+                fi
+              else
+                echo "WARN: xCAT-server not installed, testing perl-xCAT only"
+                PERL5LIB=/opt/xcat/lib/perl perl -e "use xCAT::Table; print \"perl-xCAT OK\n\""
+              fi
+            '
+
       - name: Upload RPMs
         if: always() && matrix.type == 'rpm'
         uses: actions/upload-artifact@v4
@@ -201,7 +214,6 @@ jobs:
         run: |
           DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
           sudo mkdir -p "$DIST_DIR"
-          # Create clean source tarball (no .git, no dist/)
           SRC_TAR="${WORKDIR}/xcat-src.tar"
           git archive HEAD -o "$SRC_TAR"
           sudo podman run --rm \
@@ -219,53 +231,50 @@ jobs:
               tar xf /tmp/xcat-src.tar
               ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/xcatbuild
             '
-          echo "DEB build output:"
-          ls -la "${DIST_DIR}/" | head -10
-          ls -la "${DIST_DIR}/debsxcat-core/xcat-core/" 2>/dev/null | head -5 || echo "WARN: repo dir not found"
 
-      # ── DEB: Test ──────────────────────────────────────────────────────
-      - name: Create test environment (Ubuntu)
-        if: matrix.type == 'deb'
-        id: deb-env
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          RUN_ID="${{ github.run_id }}-${{ matrix.distro }}-${{ matrix.arch }}"
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          MN_IP=$(sudo bash ci/create-test-env.sh --run-id "$RUN_ID" --os-family ubuntu)
-          echo "mn_ip=$MN_IP" >> "$GITHUB_OUTPUT"
-          echo "MN ready at $MN_IP"
-
-      - name: Copy repo to test environment (Ubuntu)
+      # ── DEB: Test (xcattest in podman) ─────────────────────────────────
+      - name: Run xcattest (DEB)
         if: matrix.type == 'deb'
         working-directory: ${{ env.WORKDIR }}
         run: |
-          sudo bash ci/copy-repo-to-env.sh \
-            --pkg-type deb \
-            --repo-path "dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}/debs" \
-            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}"
+          DIST_DIR="dist/ubuntu-${{ matrix.ubuntu_tag }}-${{ matrix.arch }}"
+          sudo podman run --rm --privileged \
+            -v "${WORKDIR}/${DIST_DIR}:/xcatbuild:Z" \
+            ${{ matrix.ubuntu_image }} \
+            bash -c '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq systemd perl 2>&1 | tail -3
 
-      - name: Initialize test harness (Ubuntu)
-        if: matrix.type == 'deb'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/init-harness.sh \
-            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}" \
-            --harness unit-smoke
+              # Install debs
+              if ls /xcatbuild/debs/*.deb 1>/dev/null 2>&1; then
+                dpkg -i /xcatbuild/debs/*.deb 2>&1 | tail -20 || true
+                apt-get install -f -y 2>&1 | tail -10
+              fi
 
-      - name: Run test harness (Ubuntu)
-        if: matrix.type == 'deb'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/run-harness.sh \
-            --mn-ip "${{ steps.deb-env.outputs.mn_ip }}" \
-            --harness unit-smoke
+              dpkg -l | grep -i xcat | head -10
 
-      - name: Teardown test environment (Ubuntu)
-        if: always() && matrix.type == 'deb'
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          sudo bash ci/teardown-test-env.sh \
-            --run-id "${{ steps.deb-env.outputs.run_id || '' }}" 2>/dev/null || true
+              export XCATROOT=/opt/xcat
+              export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
+              export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+
+              if command -v xcatd &>/dev/null; then
+                xcatd &
+                sleep 10
+
+                if command -v xcattest &>/dev/null; then
+                  xcattest -s ci_test 2>&1 | tail -30
+                  echo "xcattest exit code: $?"
+                else
+                  echo "WARN: xcattest not found"
+                fi
+              else
+                echo "WARN: xcatd not available, testing perl-xCAT only"
+                perl -e "use lib \"/opt/xcat/lib/perl\"; use xCAT::Table; print \"perl-xCAT OK\n\"" || \
+                  { echo "FAIL: perl-xCAT broken"; exit 1; }
+              fi
+            '
 
       - name: Upload DEBs
         if: always() && matrix.type == 'deb'

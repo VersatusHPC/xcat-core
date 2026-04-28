@@ -321,15 +321,29 @@ INSTALL_RPM
         ssh_vm root@"$VM_IP" bash << 'INSTALL_DEB'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-DEB_DIR=$(find /root/xcat-debs -maxdepth 2 -name "*.deb" -printf '%h\n' 2>/dev/null | head -1)
-if [[ -n "$DEB_DIR" ]]; then
-    echo "Installing debs from $DEB_DIR"
-    dpkg -i "$DEB_DIR"/*.deb 2>&1 | tail -20 || true
-    apt-get install -f -y 2>&1 | tail -10
+
+# Find the reprepro repo with mklocalrepo.sh
+REPO_DIR=$(find /root/xcat-debs -name "mklocalrepo.sh" -printf '%h\n' 2>/dev/null | head -1)
+if [[ -n "$REPO_DIR" ]]; then
+    echo "Using reprepro repo at $REPO_DIR"
+    cd "$REPO_DIR"
+    bash mklocalrepo.sh
+    apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5
+    apt-get install -y --allow-unauthenticated xcat 2>&1 | tail -20 || {
+        echo "WARN: xcat metapackage failed, trying components"
+        apt-get install -y --allow-unauthenticated perl-xcat xcat-server xcat-client xcat-test 2>&1 | tail -20 || true
+    }
 else
-    echo "FAIL: no .deb files found under /root/xcat-debs/"
-    find /root/xcat-debs -type f | head -20
-    exit 1
+    # Fallback: find raw debs
+    DEB_DIR=$(find /root/xcat-debs -name "*.deb" -printf '%h\n' 2>/dev/null | sort -u | head -1)
+    if [[ -n "$DEB_DIR" ]]; then
+        dpkg -i "$DEB_DIR"/*.deb 2>&1 | tail -20 || true
+        apt-get install -f -y 2>&1 | tail -10
+    else
+        echo "FAIL: no debs or repo found"
+        find /root/xcat-debs -type f | head -20
+        exit 1
+    fi
 fi
 dpkg -l | grep -i xcat | head -10
 INSTALL_DEB

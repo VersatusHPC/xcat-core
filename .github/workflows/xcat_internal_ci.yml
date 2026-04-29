@@ -19,24 +19,24 @@ jobs:
           - target: el10
             arch: x86_64
             runner: xcat-rhel-x86_64
-          - target: ubuntu-22.04
-            arch: x86_64
-            runner: xcat-rhel-x86_64
-          - target: ubuntu-24.04
-            arch: x86_64
-            runner: xcat-rhel-x86_64
+          # - target: ubuntu-22.04
+          #   arch: x86_64
+          #   runner: xcat-rhel-x86_64
+          # - target: ubuntu-24.04
+          #   arch: x86_64
+          #   runner: xcat-rhel-x86_64
           - target: el9
             arch: ppc64le
             runner: xcat-alma-ppc64le
           - target: el10
             arch: ppc64le
             runner: xcat-alma-ppc64le
-          - target: ubuntu-22.04
-            arch: ppc64le
-            runner: xcat-alma-ppc64le
-          - target: ubuntu-24.04
-            arch: ppc64le
-            runner: xcat-alma-ppc64le
+          # - target: ubuntu-22.04
+          #   arch: ppc64le
+          #   runner: xcat-alma-ppc64le
+          # - target: ubuntu-24.04
+          #   arch: ppc64le
+          #   runner: xcat-alma-ppc64le
 
     steps:
       - name: Clean workspace

@@ -39,6 +39,9 @@ jobs:
             runner: xcat-alma-ppc64le
 
     steps:
+      - name: Clean workspace
+        run: sudo rm -rf "${{ github.workspace }}/artifacts" || true
+
       - name: Checkout
         uses: actions/checkout@v4
 

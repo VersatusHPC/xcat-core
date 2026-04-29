@@ -16,7 +16,12 @@ STATE_FILE="$STATE_DIR/managed-vms.txt"
 CLOUD_IMG_DIR="/var/lib/libvirt/images"
 ARCH="$(uname -m)"
 SSH_KEY="$STATE_DIR/ci-ssh-key"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARTIFACT_DIR=""
+REUSE_VM=0
+SKIP_BUILD=0
+KEEP_VM=0
 
 TARGET=""
 RUN_ID=""
@@ -26,6 +31,9 @@ while [[ $# -gt 0 ]]; do
         --target)       TARGET="$2"; shift 2 ;;
         --run-id)       RUN_ID="$2"; shift 2 ;;
         --artifact-dir) ARTIFACT_DIR="$2"; shift 2 ;;
+        --reuse-vm)     REUSE_VM=1; shift ;;
+        --skip-build)   SKIP_BUILD=1; shift ;;
+        --keep-vm)      KEEP_VM=1; shift ;;
         *)              echo "Unknown: $1" >&2; exit 1 ;;
     esac
 done
@@ -52,14 +60,41 @@ ssh_vm() {
     ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
 }
 
+vm_exists() {
+    local name="${1:-$VM_NAME}"
+    virsh dominfo "$name" &>/dev/null
+}
+
+net_exists() {
+    local name="${1:-$NET_NAME}"
+    virsh net-info "$name" &>/dev/null
+}
+
 state_init() {
     mkdir -p "$STATE_DIR"
     touch "$STATE_FILE"
     chmod 666 "$STATE_FILE" 2>/dev/null || true
     [[ -f "$SSH_KEY" ]] || ssh-keygen -t ed25519 -f "$SSH_KEY" -N "" -q
+    prune_state
 }
 
-state_add() { echo "$1" >> "$STATE_FILE"; }
+state_add() {
+    grep -qxF "$1" "$STATE_FILE" 2>/dev/null || echo "$1" >> "$STATE_FILE"
+}
+
+prune_state() {
+    local tmp
+    tmp=$(mktemp)
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        if [[ "$entry" == net:* ]]; then
+            net_exists "${entry#net:}" && echo "$entry" >> "$tmp"
+        elif virsh dominfo "$entry" &>/dev/null; then
+            echo "$entry" >> "$tmp"
+        fi
+    done < "$STATE_FILE"
+    mv "$tmp" "$STATE_FILE"
+}
 
 cleanup() {
     log "Cleaning up $VM_NAME"
@@ -71,6 +106,18 @@ cleanup() {
     local tmp; tmp=$(mktemp)
     grep -vxF "$VM_NAME" "$STATE_FILE" 2>/dev/null | grep -vxF "net:$NET_NAME" > "$tmp" || true
     mv "$tmp" "$STATE_FILE"
+}
+
+log_optimizations() {
+    local active=()
+    [[ $REUSE_VM -eq 1 ]] && active+=("O1:reuse-vm")
+    [[ $SKIP_BUILD -eq 1 ]] && active+=("O2:skip-build")
+    [[ $KEEP_VM -eq 1 ]] && active+=("keep-vm")
+    if [[ ${#active[@]} -eq 0 ]]; then
+        log "OPTIMIZATIONS ACTIVE: none"
+    else
+        log "OPTIMIZATIONS ACTIVE: ${active[*]}"
+    fi
 }
 
 # ── Resolve cloud image ─────────────────────────────────────────────────────
@@ -221,14 +268,18 @@ install_deps() {
     if [[ "$TARGET" == el* ]]; then
         ssh_vm root@"$VM_IP" bash << 'DEPS'
 set -euo pipefail
-sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config 2>/dev/null || true
+sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config 2>/dev/null || true
 setenforce 0 2>/dev/null || true
-dnf install -y epel-release 2>&1 | tail -3
+# Use fastestmirror and increase timeout for slow mirrors
+echo "fastestmirror=1" >> /etc/dnf/dnf.conf
+echo "timeout=120" >> /etc/dnf/dnf.conf
+echo "retries=5" >> /etc/dnf/dnf.conf
+dnf install -y epel-release
 dnf config-manager --set-enabled crb 2>/dev/null || true
-dnf install -y mock createrepo_c rpm-build git \
+dnf install -y mock createrepo_c rpm-build git initscripts \
     perl perl-core perl-generators \
     perl-File-Slurper perl-Parallel-ForkManager \
-    perl-Pod-Usage perl-autodie perl-Carp 2>&1 | tail -5
+    perl-Pod-Usage perl-autodie perl-Carp
 usermod -aG mock root
 echo "EL deps installed"
 DEPS
@@ -236,9 +287,9 @@ DEPS
         ssh_vm root@"$VM_IP" bash << 'DEPS'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq 2>&1 | tail -3
+apt-get update -qq 2>&1
 apt-get install -y -qq git reprepro devscripts debhelper quilt \
-    libsoap-lite-perl libdbi-perl libjson-perl libcgi-pm-perl perl 2>&1 | tail -5
+    libsoap-lite-perl libdbi-perl libjson-perl libcgi-pm-perl perl 2>&1
 echo "Ubuntu deps installed"
 DEPS
     fi
@@ -247,10 +298,20 @@ DEPS
 # ── Copy source ──────────────────────────────────────────────────────────────
 copy_source() {
     log "Copying source to VM"
-    ssh_vm root@"$VM_IP" 'mkdir -p /root/xcat-core'
-    git archive HEAD | ssh_vm root@"$VM_IP" 'tar -C /root/xcat-core -xf -'
+    ssh_vm root@"$VM_IP" 'rm -rf /root/xcat-core && mkdir -p /root/xcat-core'
+    tar -C "$REPO_ROOT" \
+        --exclude-vcs \
+        --exclude artifacts \
+        -cf - . \
+        | ssh_vm root@"$VM_IP" 'tar --no-same-owner -C /root/xcat-core -xf - && chown -R root:root /root/xcat-core'
     # Create a minimal git repo so build scripts (modifyUtils, build-ubunturepo) work
-    ssh_vm root@"$VM_IP" 'cd /root/xcat-core && git init -q && git config user.email "ci@xcat" && git config user.name "CI" && git add -A && git commit -q -m "ci build"'
+    ssh_vm root@"$VM_IP" '
+        set -e
+        rm -rf /root/xcat-core/.git
+        git -C /root/xcat-core init -q
+        git -C /root/xcat-core add -A
+        git -C /root/xcat-core -c user.email=ci@xcat -c user.name=CI commit -q -m "ci build"
+    '
 }
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -297,6 +358,28 @@ install_packages() {
     log "Installing xCAT packages"
     if [[ "$TARGET" == el* ]]; then
         local elver="${TARGET#el}"
+        local dep_root="/opt/xcat-dep/el${elver}"
+        if [[ -d "$dep_root" ]]; then
+            log "Copying xcat-dep tree from $dep_root to VM"
+            ssh_vm root@"$VM_IP" 'mkdir -p /opt/xcat-dep'
+            tar -C "$dep_root" -cf - . | ssh_vm root@"$VM_IP" 'tar -C /opt/xcat-dep -xf -'
+        else
+            log "WARNING: xcat-dep not found at $dep_root"
+        fi
+        if [[ "$elver" -ge 10 ]] \
+            && ! compgen -G "$dep_root/$ARCH/goconserver-*.rpm" > /dev/null; then
+            local fallback_dep_root="/opt/xcat-dep/el9/$ARCH"
+            if compgen -G "$fallback_dep_root/goconserver-*.rpm" > /dev/null; then
+                local rpm
+                for rpm in "$fallback_dep_root"/goconserver-*.rpm; do
+                    log "Copying fallback $(basename "$rpm") from $fallback_dep_root to VM"
+                    cat "$rpm" | ssh_vm root@"$VM_IP" "cat > /opt/xcat-dep/$ARCH/$(basename "$rpm")"
+                done
+            else
+                log "WARNING: No fallback goconserver RPM found under $fallback_dep_root"
+            fi
+        fi
+
         ssh_vm root@"$VM_IP" bash -s "$elver" << 'INSTALL_RPM'
 set -euo pipefail
 ELVER="$1"
@@ -306,59 +389,98 @@ case "$DISTRO" in almalinux) DISTRO="alma";; rocky) DISTRO="rocky";; esac
 ARCH=$(uname -m)
 TARGET="${DISTRO}+epel-${ELVER}-${ARCH}"
 
+# Refresh same-arch xcat-dep metadata so any staged fallback RPMs are visible.
+if [[ -d "/opt/xcat-dep/$ARCH" ]]; then
+    createrepo_c "/opt/xcat-dep/$ARCH" 2>&1
+fi
+
 cat > /etc/yum.repos.d/xcat-local.repo << REPO
-[xcat-local]
-name=xCAT Local Build
+[xcat-core-local]
+name=xCAT Core Local Build
 baseurl=file:///root/xcat-core/dist/$TARGET/rpms/
 gpgcheck=0
 enabled=1
+
+[xcat-dep-local]
+name=xCAT Dependencies ($ARCH)
+baseurl=file:///opt/xcat-dep/$ARCH/
+gpgcheck=0
+enabled=1
 REPO
-dnf makecache --repo=xcat-local
-dnf install -y --skip-broken perl-xCAT xCAT-server xCAT-client xCAT-test
+dnf makecache
+
+dnf install -y xCAT xCAT-test
+
+rpm -q xCAT || { echo "FAIL: xCAT not installed"; exit 1; }
+rpm -q xCAT-server || { echo "FAIL: xCAT-server not installed"; exit 1; }
+rpm -q xCAT-test || { echo "FAIL: xCAT-test not installed"; exit 1; }
 rpm -q perl-xCAT || { echo "FAIL: perl-xCAT not installed"; exit 1; }
+echo "All xCAT packages installed"
 INSTALL_RPM
+
+        log "Running xcatconfig -i for management-node initialization"
+        ssh_vm root@"$VM_IP" bash << 'XCATCONFIG'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+$XCATROOT/sbin/xcatconfig -i
+test -f /root/.xcat/client-cred.pem
+echo "xcatconfig init complete"
+XCATCONFIG
+
+        # Initialize xCAT DB in separate SSH call (heredocs get truncated)
+        log "Initializing xCAT database"
+        ssh_vm root@"$VM_IP" bash << 'XCATDB'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl"
+XCAT_DOMAIN="cluster.net"
+MASTER_IP=$(hostname -I | awk '{print $1}')
+mkdir -p /etc/xcat
+$XCATROOT/sbin/chtab key=xcatdport site.value=3001
+$XCATROOT/sbin/chtab key=xcatiport site.value=3002
+$XCATROOT/sbin/chtab key=master site.value="$MASTER_IP"
+$XCATROOT/sbin/chtab key=domain site.value="$XCAT_DOMAIN"
+$XCATROOT/sbin/chtab key=installdir site.value=/install
+$XCATROOT/sbin/chtab key=tftpdir site.value=/tftpboot
+while IFS= read -r netname; do
+    [[ -n "$netname" ]] || continue
+    $XCATROOT/sbin/chdef -t network -o "$netname" domain="$XCAT_DOMAIN" >/dev/null
+done < <($XCATROOT/sbin/lsdef -t network 2>/dev/null | awk 'NF { print $1 }')
+echo "xCAT DB initialized"
+XCATDB
     else
         ssh_vm root@"$VM_IP" bash << 'INSTALL_DEB'
-set -euo pipefail
+set -eu
 export DEBIAN_FRONTEND=noninteractive
 
-# Find the reprepro repo with mklocalrepo.sh
+# Configure xcat-dep from upstream apt repo
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo amd64)
+wget -qO - "https://xcat.org/files/xcat/repos/apt/apt.key" | apt-key add - 2>/dev/null || true
+echo "deb [arch=$ARCH] https://xcat.org/files/xcat/repos/apt/latest/xcat-dep focal main" \
+    > /etc/apt/sources.list.d/xcat-dep.list
+
+# Configure local xcat-core repo
 REPO_DIR=$(find /root/xcat-debs -name "mklocalrepo.sh" -printf '%h\n' 2>/dev/null | head -1)
 if [[ -n "$REPO_DIR" ]]; then
-    echo "Using reprepro repo at $REPO_DIR"
     cd "$REPO_DIR"
-    # mklocalrepo.sh uses $DISTRIB_CODENAME from /etc/lsb-release
-    # If codename not in repo (e.g. noble), fall back to jammy
-    bash mklocalrepo.sh 2>/dev/null || true
-    if ! apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5; then
-        echo "Falling back to jammy codename for apt repo"
-        . /etc/lsb-release 2>/dev/null || true
-        host_arch=$(dpkg --print-architecture 2>/dev/null || echo amd64)
-        echo "deb [arch=$host_arch allow-insecure=yes] file://$(pwd) jammy main" > /etc/apt/sources.list.d/xcat-core.list
-        apt-get update -qq --allow-insecure-repositories 2>&1 | tail -5
-    fi
-    # Install components individually — xcat metapackage has unresolvable deps (xcat-dep packages)
-    # Use --no-install-recommends to skip optional xcat-dep packages
-    for pkg in perl-xcat xcat-client xcat-test; do
-        apt-get install -y --allow-unauthenticated --no-install-recommends "$pkg" 2>&1 | tail -5 || true
-    done
-    # xcat-server has grub2-xcat hard dep — try with --force
-    apt-get install -y --allow-unauthenticated --no-install-recommends xcat-server 2>&1 | tail -10 || {
-        echo "WARN: xcat-server install failed (missing grub2-xcat dep)"
-    }
-else
-    # Fallback: find raw debs
-    DEB_DIR=$(find /root/xcat-debs -name "*.deb" -printf '%h\n' 2>/dev/null | sort -u | head -1)
-    if [[ -n "$DEB_DIR" ]]; then
-        dpkg -i "$DEB_DIR"/*.deb 2>&1 | tail -20 || true
-        apt-get install -f -y 2>&1 | tail -10
-    else
-        echo "FAIL: no debs or repo found"
-        find /root/xcat-debs -type f | head -20
-        exit 1
-    fi
+    # Always use focal — build-ubunturepo only creates focal/bionic/etc, not jammy/noble
+    echo "deb [arch=$ARCH trusted=yes] file://$(pwd) focal main" \
+        > /etc/apt/sources.list.d/xcat-core.list
 fi
-dpkg -l | grep -i xcat | head -10
+
+apt-get update -qq 2>&1
+apt-get install -y xcat xcat-test 2>&1
+
+echo "Installed xCAT packages:"
+dpkg -l 2>/dev/null | grep -i xcat || echo "(none found)"
+dpkg -s xcat >/dev/null 2>&1 || { echo "FAIL: xcat not installed"; exit 1; }
+dpkg -s perl-xcat >/dev/null 2>&1 || { echo "FAIL: perl-xcat not installed"; exit 1; }
+dpkg -s xcat-server >/dev/null 2>&1 || { echo "FAIL: xcat-server not installed"; exit 1; }
+dpkg -s xcat-test >/dev/null 2>&1 || { echo "FAIL: xcat-test not installed"; exit 1; }
+echo "All xCAT packages installed"
 INSTALL_DEB
     fi
 }
@@ -374,29 +496,54 @@ export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
 
 # Start xcatd
 if command -v xcatd &>/dev/null || [[ -f /etc/init.d/xcatd ]]; then
-    systemctl start xcatd 2>/dev/null || service xcatd start 2>/dev/null || true
+    systemctl start xcatd || service xcatd start || {
+        echo "FAIL: xcatd failed to start"
+        systemctl status xcatd --no-pager 2>/dev/null || true
+        journalctl -u xcatd --no-pager -n 30 2>/dev/null || true
+        exit 1
+    }
     echo "Waiting for xcatd..."
     for i in $(seq 1 24); do
-        lsdef -t site clustersite &>/dev/null && break
+        lsdef -t site -o clustersite -i master -c &>/dev/null && break
         sleep 5
     done
-    lsdef -t site clustersite || { echo "FAIL: xcatd not responding"; exit 1; }
+    if ! lsdef -t site -o clustersite -i master -c >/dev/null 2>&1; then
+        echo "FAIL: xcatd not responding after 120s"
+        lsdef -t site -o clustersite -i master -c 2>&1 || true
+        lsxcatd -d 2>&1 || true
+        systemctl status xcatd --no-pager 2>/dev/null || true
+        journalctl -u xcatd --no-pager -n 30 2>/dev/null || true
+        exit 1
+    fi
     echo "PASS: xcatd responding"
 else
-    echo "WARN: xcatd not available, testing perl-xCAT only"
-    perl -e 'use xCAT::Table; print "perl-xCAT OK\n"' || exit 1
-    exit 0
-fi
-
-# Run xcattest
-if command -v xcattest &>/dev/null; then
-    echo "Running xcattest -s ci_test..."
-    xcattest -s ci_test
-    echo "PASS: xcattest -s ci_test"
-else
-    echo "WARN: xcattest not available"
+    echo "FAIL: xcatd command/service not available"
+    exit 1
 fi
 TEST
+
+    # Seed DNS/DDNS key material so makedhcp -n works with Kea on EL10+
+    log "Seeding DNS configuration"
+    ssh_vm root@"$VM_IP" bash << 'SEEDNS'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+makedns -n
+echo "PASS: makedns -n"
+SEEDNS
+
+    # Run xcattest in separate SSH call (long heredocs get truncated)
+    log "Running xcattest -s ci_test"
+    ssh_vm root@"$VM_IP" bash << 'XCATTEST'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+echo "xcattest location: $(which xcattest 2>&1)"
+xcattest -s ci_test
+echo "PASS: xcattest -s ci_test"
+XCATTEST
 }
 
 # ── Extract artifacts ────────────────────────────────────────────────────────
@@ -416,19 +563,39 @@ extract_artifacts() {
 # ── Main ─────────────────────────────────────────────────────────────────────
 main() {
     state_init
-    # Pre-cleanup: remove leftovers from previous runs with same run-id
-    cleanup 2>/dev/null || true
-    trap cleanup EXIT
+    log_optimizations
+    if [[ $REUSE_VM -eq 0 ]]; then
+        # Pre-cleanup: remove leftovers from previous runs with same run-id
+        cleanup 2>/dev/null || true
+    fi
+    [[ $KEEP_VM -eq 0 ]] && trap cleanup EXIT
 
     local base_img
     base_img=$(resolve_image)
     log "Target=$TARGET Arch=$ARCH Image=$(basename "$base_img")"
 
-    create_vm "$base_img"
+    if [[ $REUSE_VM -eq 1 ]] && vm_exists; then
+        log "Reusing existing VM $VM_NAME"
+        if ! net_exists; then
+            log "Existing VM found but network missing, recreating run resources"
+            cleanup 2>/dev/null || true
+            create_vm "$base_img"
+        else
+            state_add "$VM_NAME"
+            state_add "net:$NET_NAME"
+            virsh start "$VM_NAME" 2>/dev/null || true
+        fi
+    else
+        create_vm "$base_img"
+    fi
     wait_ready
     install_deps
-    copy_source
-    build_packages
+    if [[ $SKIP_BUILD -eq 0 ]]; then
+        copy_source
+        build_packages
+    else
+        log "Skipping source copy and package build"
+    fi
     install_packages
     run_tests
     extract_artifacts

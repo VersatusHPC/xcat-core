@@ -185,10 +185,7 @@ GO_XCAT_CORE_PACKAGE_LIST=()
 GO_XCAT_DEP_PACKAGE_LIST=()
 
 # The package list of all the packages should be installed
-GO_XCAT_INSTALL_LIST=(perl-xCAT xCAT-client xCAT xCAT-buildkit
-	xCAT-genesis-scripts-ppc64 xCAT-genesis-scripts-x86_64 xCAT-server
-	elilo-xcat grub2-xcat ipmitool-xcat syslinux-xcat
-	xCAT-genesis-base-ppc64 xCAT-genesis-base-x86_64 xnba-undi yaboot-xcat)
+GO_XCAT_INSTALL_LIST=()
 # For Debian/Ubuntu, it will need a slightly different package list
 type dpkg >/dev/null 2>&1 &&
 GO_XCAT_INSTALL_LIST=(perl-xcat xcat-client xcat xcat-buildkit
@@ -196,10 +193,7 @@ GO_XCAT_INSTALL_LIST=(perl-xcat xcat-client xcat xcat-buildkit
 	elilo-xcat grub2-xcat ipmitool-xcat syslinux-xcat
 	xcat-genesis-base-amd64 xcat-genesis-base-ppc64 xnba-undi)
 # The package list of all the packages should be uninstalled
-GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
-	goconserver xCAT-SoftLayer xCAT-confluent xCAT-csm xCAT-genesis-builder
-	xCAT-openbmc-py xCAT-probe xCAT-test xCAT-vlan xCATsn xCAT-UI-deps
-    xCAT-buildkit conserver-xcat)
+GO_XCAT_UNINSTALL_LIST=()
 # For Debian/Ubuntu, it will need a slightly different package list
 type dpkg >/dev/null 2>&1 &&
 GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
@@ -210,6 +204,37 @@ PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH
 EL9_EPEL_TEST_RPM="perl-Crypt-CBC"
 EL9_CRB_TEST_RPM="perl-IO-Tty"
+
+function init_xcat_package_lists()
+{
+	local genesis_scripts_pkg=""
+	local genesis_base_pkg=""
+
+	type dpkg >/dev/null 2>&1 && return 0
+
+	case "${GO_XCAT_ARCH}" in
+	"x86_64")
+		genesis_scripts_pkg="xCAT-genesis-scripts-x86_64"
+		genesis_base_pkg="xCAT-genesis-base-x86_64"
+		;;
+	"ppc64"|"ppc64le")
+		genesis_scripts_pkg="xCAT-genesis-scripts-ppc64"
+		genesis_base_pkg="xCAT-genesis-base-ppc64"
+		;;
+	*)
+		exit_if_bad 1 "${GO_XCAT_ARCH}: unsupported instruction set architecture"
+		;;
+	esac
+
+	GO_XCAT_INSTALL_LIST=(perl-xCAT xCAT-client xCAT xCAT-buildkit
+		"${genesis_scripts_pkg}" xCAT-server
+		elilo-xcat grub2-xcat ipmitool-xcat syslinux-xcat
+		"${genesis_base_pkg}" xnba-undi yaboot-xcat)
+	GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
+		goconserver xCAT-SoftLayer xCAT-confluent xCAT-csm xCAT-genesis-builder
+		xCAT-openbmc-py xCAT-probe xCAT-test xCAT-vlan xCATsn xCAT-UI-deps
+		xCAT-buildkit conserver-xcat)
+}
 
 #
 # warn_if_bad		Put out warning message(s) if $1 has bad RC.
@@ -2356,6 +2381,8 @@ case "${GO_XCAT_ARCH}" in
 	exit_if_bad 1 "${GO_XCAT_ARCH}: unsupported instruction set architecture"
 	;;
 esac
+
+init_xcat_package_lists
 
 GO_XCAT_LINUX_DISTRO="$(check_linux_distro)"
 GO_XCAT_LINUX_VERSION="$(check_linux_version)"

@@ -552,12 +552,23 @@ extract_artifacts() {
     log "Extracting artifacts to $ARTIFACT_DIR"
     mkdir -p "$ARTIFACT_DIR"
     if [[ "$TARGET" == el* ]]; then
-        ssh_vm root@"$VM_IP" 'tar -C /root/xcat-core -cf - dist/*/rpms/*.rpm 2>/dev/null' \
-            | tar -C "$ARTIFACT_DIR" -xf - 2>/dev/null || true
+        local count
+        count=$(ssh_vm root@"$VM_IP" 'find /root/xcat-core/dist -name "*.rpm" ! -name "*.src.rpm" | wc -l')
+        log "Found $count RPMs in VM"
+        if [[ "$count" -gt 0 ]]; then
+            ssh_vm root@"$VM_IP" 'cd /root/xcat-core && find dist -name "*.rpm" ! -name "*.src.rpm" -print0 | tar --null -T - -cf -' \
+                | tar -C "$ARTIFACT_DIR" -xf -
+        fi
     else
-        ssh_vm root@"$VM_IP" 'find /root/xcat-debs -name "*.deb" -print0 | tar -C /root --null -T - -cf - 2>/dev/null' \
-            | tar -C "$ARTIFACT_DIR" -xf - 2>/dev/null || true
+        local count
+        count=$(ssh_vm root@"$VM_IP" 'find /root/xcat-debs -name "*.deb" | wc -l')
+        log "Found $count debs in VM"
+        if [[ "$count" -gt 0 ]]; then
+            ssh_vm root@"$VM_IP" 'cd /root && find xcat-debs -name "*.deb" -print0 | tar --null -T - -cf -' \
+                | tar -C "$ARTIFACT_DIR" -xf -
+        fi
     fi
+    log "Artifacts extracted: $(find "$ARTIFACT_DIR" -type f | wc -l) files"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────

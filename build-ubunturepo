@@ -11,7 +11,7 @@
 #  - Run this script from the local git repository you just created.
 #       ./build-ubunturepo -c BUILDALL=1
 
-# Usage:  attr=value attr=value ... ./build-ubunturepo { -c | -d }
+# Usage:  attr=value attr=value ... ./build-ubunturepo { -c | -d [-r /path/to/xCAT-genesis-base.rpm] }
 #               PROMOTE=1 - if the attribute "PROMOTE" is specified, means an official dot release.  This does not
 #                           actually build xcat, just uploads the most recent snap build to http://xcat.org/files/xcat/ .
 #                           If not specified, a snap build is assumed, which uploads to https://xcat.org/files/xcat/
@@ -35,15 +35,18 @@
 # For the dependency packages 1. All the xcat dependency deb packages should be uploaded to
 #                                "pokgsa/projects/x/xcat/build/ubuntu/xcat-dep/debs/" on GSA
 #                             2. run ./build-ubunturepo -d
+#                                Optional: pass -r with an xCAT-genesis-base RPM file or directory to
+#                                convert and stage Genesis base debs before the xcat-dep repo is created.
 #
 #                             3. the built xcat-dep deb packages tarball can be found in "../../xcat-dep"
 #                                related to the path of this script
 ############################
 printusage()
 {
-    printf "Usage: %s {-c | -d} \n" $(basename $0) >&2
+    printf "Usage: %s {-c | -d [-r /path/to/xCAT-genesis-base.rpm]} \n" $(basename $0) >&2
     echo "    -c : Build the xcat-core packages and create the repo"
     echo "    -d : Create the xcat-dep repo."
+    echo "    -r : Convert xCAT-genesis-base RPM file(s) into the xcat-dep repo. Use with -d."
 }
 # For the purpose of getting the distribution name
 if [[ ! -f /etc/lsb-release ]]; then
@@ -104,8 +107,8 @@ for package in ${packages[@]}; do
     fi
 done
 
-# Supported distributions
-dists="saucy trusty utopic xenial bionic focal jammy"
+# Supported distributions. Set DISTS="jammy noble" to limit local validation builds.
+dists="${DISTS:-saucy trusty utopic xenial bionic focal jammy noble}"
 
 c_flag=            # xcat-core (trunk-delvel) path
 d_flag=            # xcat-dep (trunk) path
@@ -138,6 +141,24 @@ if [ "$c_flag" -a "$d_flag" ];then
     exit 2
 fi
 
+if [ "$r_flag" -a -z "$d_flag" ];then
+    printusage
+    exit 2
+fi
+
+if [ "$r_flag" ];then
+    if [ ! -e "$genesis_rpm_path" ];then
+        echo "ERROR: Could not find Genesis base RPM path $genesis_rpm_path"
+        exit 1
+    fi
+
+    RC=`dpkg -l | grep alien >> /dev/null 2>&1; echo $?`
+    if [[ ${RC} != 0 ]]; then
+        echo "ERROR: Could not find alien, install using 'apt-get install alien' to continue"
+        exit 1
+    fi
+fi
+
 if [ -z "$BUILDALL" ]; then
     BUILDALL=1
 fi
@@ -168,6 +189,72 @@ function setbranch {
     else
         REL=$branch
     fi
+}
+
+function stage_genesis_base_debs {
+    local rpm_path="$1"
+    local debs_dir="$2"
+    local converter="$curdir/xCAT-genesis-builder/debuild-xcat-genesis-base"
+    local work_dir
+    local rc
+    local deb
+    local rpm
+    local produced_deb
+
+    if [ ! -x "$converter" ]; then
+        echo "ERROR: Could not execute $converter"
+        exit 1
+    fi
+
+    declare -a genesis_rpms
+    if [ -d "$rpm_path" ]; then
+        mapfile -t genesis_rpms < <(find "$rpm_path" -type f -name 'xCAT-genesis-base-*.rpm' ! -name '*.src.rpm' | sort)
+    else
+        if [[ "$rpm_path" = *.src.rpm ]]; then
+            echo "ERROR: $rpm_path is a source RPM, expected a binary xCAT-genesis-base RPM"
+            exit 1
+        fi
+        genesis_rpms=("$rpm_path")
+    fi
+
+    if [ ${#genesis_rpms[@]} -eq 0 ]; then
+        echo "ERROR: Could not find xCAT-genesis-base RPMs in $rpm_path"
+        exit 1
+    fi
+
+    mkdir -p "$debs_dir"
+    work_dir=`mktemp -d`
+
+    for rpm in "${genesis_rpms[@]}"; do
+        echo "Converting Genesis base RPM $rpm into $debs_dir"
+        cp "$rpm" "$work_dir/"
+        (
+            cd "$work_dir" &&
+            "$converter" "$work_dir/${rpm##*/}"
+        )
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            rm -rf "$work_dir"
+            echo "ERROR: Failed to convert Genesis base RPM $rpm"
+            exit $rc
+        fi
+
+        produced_deb=0
+        for deb in "$work_dir"/xcat-genesis-base-*.deb; do
+            if [ -e "$deb" ]; then
+                produced_deb=1
+                mv -f "$deb" "$debs_dir/"
+            fi
+        done
+        if [ "$produced_deb" != "1" ]; then
+            rm -rf "$work_dir"
+            echo "ERROR: No Genesis base deb was produced from $rpm"
+            exit 1
+        fi
+        rm -rf "$work_dir"/xCAT-genesis-base-* "$work_dir"/xcat-genesis-base-*
+    done
+
+    rm -rf "$work_dir"
 }
 
 WGET_CMD="wget"
@@ -491,6 +578,10 @@ then
     if [ $? -ne 0 ]; then
         echo "Error from rsync, cannot continue!"
         exit 1
+    fi
+
+    if [ "$r_flag" ]; then
+        stage_genesis_base_debs "$genesis_rpm_path" "$local_dep_repo_path/../debs"
     fi
 
     #clean all old files

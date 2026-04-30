@@ -1,7 +1,6 @@
 name: xCAT Internal CI
 
 on:
-  pull_request:
   workflow_dispatch:
 
 jobs:

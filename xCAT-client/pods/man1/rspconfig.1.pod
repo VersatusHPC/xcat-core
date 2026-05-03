@@ -50,6 +50,22 @@ B<rspconfig> I<noderange> B<ntpservers>
 
 B<rspconfig> I<noderange> B<ntpservers>={I<ntpservers>}
 
+B<rspconfig> I<noderange> B<alert>
+
+B<rspconfig> I<noderange> B<alert>={I<ip:port>|B<off>|B<disable>}
+
+B<rspconfig> I<noderange> B<snmpdest>
+
+B<rspconfig> I<noderange> B<snmpdest>=I<snmpmanager-IP[:port]> [B<-d>|B<--delete>]
+
+B<rspconfig> I<noderange> B<userls>
+
+B<rspconfig> I<noderange> B<useradd>=I<user> B<password>=I<password> B<privilege>={B<priv-admin>|B<priv-operator>|B<priv-user>|B<priv-callback>} [B<groups>={B<ipmi,redfish,ssh,web>}] [B<enabled>={B<0>|B<1>}]
+
+B<rspconfig> I<noderange> B<userch>=I<user> [B<password>=I<password>] [B<privilege>={B<priv-admin>|B<priv-operator>|B<priv-user>|B<priv-callback>}] [B<groups>={B<ipmi,redfish,ssh,web>}] [B<enabled>={B<0>|B<1>}]
+
+B<rspconfig> I<noderange> B<userrm>=I<user>
+
 B<rspconfig> I<noderange> B<powerrestorepolicy>
 
 B<rspconfig> I<noderange> B<powerrestorepolicy={always_on|restore|always_off}>
@@ -257,6 +273,10 @@ For options B<autopower>|B<iocap>|B<decfg>|B<memdecfg>|B<procdecfg>|B<time>|B<da
 =item B<alert={on | enable | off | disable}>
 
 Turn on or off SNMP alerts.
+
+=item B<alert> | B<alert>={I<ip:port>|B<off>|B<disable>}
+
+For OpenBMC nodes, show or set the remote syslog destination. Specifying B<off> or B<disable> disables remote logging.
 
 =item B<autopower>={I<enable> | I<disable>}
 
@@ -478,6 +498,26 @@ Enable or disable SNMP on MPA.
 =item B<snmpdest>=I<snmpmanager-IP>
 
 Get or set where the SNMP alerts should be sent to.
+
+=item B<snmpdest> | B<snmpdest>=I<snmpmanager-IP[:port]> [B<-d>|B<--delete>]
+
+For OpenBMC nodes, list, add, or remove SNMP trap destinations. If no port is specified, port 162 is used.
+
+=item B<userls>
+
+For OpenBMC nodes, list local BMC users and their privilege, enabled state, and groups.
+
+=item B<useradd>=I<user> B<password>=I<password> B<privilege>={B<priv-admin>|B<priv-operator>|B<priv-user>|B<priv-callback>} [B<groups>={B<ipmi,redfish,ssh,web>}] [B<enabled>={B<0>|B<1>}]
+
+For OpenBMC nodes, create a local BMC user. If B<groups> is omitted, all supported OpenBMC groups are used. If B<enabled> is omitted, the user is enabled.
+
+=item B<userch>=I<user> [B<password>=I<password>] [B<privilege>={B<priv-admin>|B<priv-operator>|B<priv-user>|B<priv-callback>}] [B<groups>={B<ipmi,redfish,ssh,web>}] [B<enabled>={B<0>|B<1>}]
+
+For OpenBMC nodes, update the password, privilege, groups, or enabled state for a local BMC user.
+
+=item B<userrm>=I<user>
+
+For OpenBMC nodes, delete a local BMC user.
 
 =item B<solcfg>={B<enable>|B<disable>}
 

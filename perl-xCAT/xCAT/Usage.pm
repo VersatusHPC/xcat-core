@@ -184,6 +184,14 @@ my %usage = (
        rspconfig <noderange> gard -c|--clear
        rspconfig <noderange> [hostname|ntpservers]
        rspconfig <noderange> [hostname=<*|hostname>|ntpservers=<ntpservers>]
+       rspconfig <noderange> alert
+       rspconfig <noderange> alert=<ip:port|off|disable>
+       rspconfig <noderange> snmpdest
+       rspconfig <noderange> snmpdest=<ip[:port]> [-d|--delete]
+       rspconfig <noderange> userls
+       rspconfig <noderange> useradd=<user> password=<password> privilege=<priv-admin|priv-operator|priv-user|priv-callback> [groups=<ipmi,redfish,ssh,web>] [enabled=<0|1>]
+       rspconfig <noderange> userch=<user> [password=<password>] [privilege=<priv-admin|priv-operator|priv-user|priv-callback>] [groups=<ipmi,redfish,ssh,web>] [enabled=<0|1>]
+       rspconfig <noderange> userrm=<user>
        rspconfig <noderange> sshcfg
        rspconfig <noderange> powerrestorepolicy
        rspconfig <noderange> powerrestorepolicy={always_on|restore|always_off}

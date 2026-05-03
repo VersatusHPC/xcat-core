@@ -38,6 +38,39 @@ check:rc==1
 check:output=~Error: (\[.*?\]: )?Can not set and query OpenBMC information at the same time
 end
 
+start:openbmc_rspconfig_user_parse_error
+description: Check the parsing code for OpenBMC rspconfig user management (error cases)
+hcp: openbmc
+label:cn_bmc_ready,hctrl_openbmc
+cmd: rspconfig $$CN useradd=testuser privilege=priv-admin
+check:rc==1
+check:output=~useradd requires password=<password> and privilege=<privilege>
+cmd: rspconfig $$CN useradd=testuser password=secret privilege=badpriv
+check:rc==1
+check:output=~Invalid value 'badpriv' for 'privilege'
+cmd: rspconfig $$CN userch=testuser
+check:rc==1
+check:output=~userch requires at least one of password=<password>, privilege=<privilege>, groups=<groups>, enabled=<0|1>
+end
+
+start:openbmc_rspconfig_snmp_alert_parse_error
+description: Check the parsing code for OpenBMC rspconfig SNMP and alert (error cases)
+hcp: openbmc
+label:cn_bmc_ready,hctrl_openbmc
+cmd: rspconfig $$CN snmpdest=not-an-ip
+check:rc==1
+check:output=~Invalid parameter for option snmpdest
+cmd: rspconfig $$CN snmpdest=1.2.3.4:badport
+check:rc==1
+check:output=~Invalid parameter for option snmpdest
+cmd: rspconfig $$CN alert=1.2.3.4
+check:rc==1
+check:output=~Invalid parameter for option alert
+cmd: rspconfig $$CN alert=1.2.3.4:badport
+check:rc==1
+check:output=~Invalid parameter for option alert
+end
+
 start:openbmc_rspconfig_get_and_set_hostname
 description: Test setting and getting hostname on the BMC
 os:Linux

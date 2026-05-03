@@ -73,6 +73,22 @@ OpenBMC specific:
 
 \ **rspconfig**\  \ *noderange*\  \ **ntpservers**\ ={\ *ntpservers*\ }
 
+\ **rspconfig**\  \ *noderange*\  \ **alert**
+
+\ **rspconfig**\  \ *noderange*\  \ **alert**\ ={\ *ip:port*\ |\ **off**\ |\ **disable**\ }
+
+\ **rspconfig**\  \ *noderange*\  \ **snmpdest**
+
+\ **rspconfig**\  \ *noderange*\  \ **snmpdest**\ =\ *snmpmanager-IP[:port]*\  [\ **-d | -**\ **-delete**\ ]
+
+\ **rspconfig**\  \ *noderange*\  \ **userls**
+
+\ **rspconfig**\  \ *noderange*\  \ **useradd**\ =\ *user*\  \ **password**\ =\ *password*\  \ **privilege**\ ={\ **priv-admin**\ |\ **priv-operator**\ |\ **priv-user**\ |\ **priv-callback**\ } [\ **groups**\ ={\ **ipmi,redfish,ssh,web**\ }] [\ **enabled**\ ={\ **0**\ |\ **1**\ }]
+
+\ **rspconfig**\  \ *noderange*\  \ **userch**\ =\ *user*\  [\ **password**\ =\ *password*\ ] [\ **privilege**\ ={\ **priv-admin**\ |\ **priv-operator**\ |\ **priv-user**\ |\ **priv-callback**\ }] [\ **groups**\ ={\ **ipmi,redfish,ssh,web**\ }] [\ **enabled**\ ={\ **0**\ |\ **1**\ }]
+
+\ **rspconfig**\  \ *noderange*\  \ **userrm**\ =\ *user*
+
 \ **rspconfig**\  \ *noderange*\  \ **powerrestorepolicy**\ 
 
 \ **rspconfig**\  \ *noderange*\  \ **powerrestorepolicy={always_on|restore|always_off}**\ 
@@ -308,6 +324,11 @@ OPTIONS
  
  Turn on or off SNMP alerts.
  
+
+\ **alert**\  | \ **alert**\ ={\ *ip:port*\ |\ **off**\ |\ **disable**\ }
+
+ For OpenBMC nodes, show or set the remote syslog destination. Specifying \ **off**\  or \ **disable**\  disables remote logging.
+
 
 
 \ **autopower**\ ={\ *enable*\  | \ *disable*\ }
@@ -630,6 +651,31 @@ OPTIONS
  
  Get or set where the SNMP alerts should be sent to.
  
+
+\ **snmpdest**\  | \ **snmpdest**\ =\ *snmpmanager-IP[:port]*\  [\ **-d | -**\ **-delete**\ ]
+
+ For OpenBMC nodes, list, add, or remove SNMP trap destinations. If no port is specified, port 162 is used.
+
+
+\ **userls**
+
+ For OpenBMC nodes, list local BMC users and their privilege, enabled state, and groups.
+
+
+\ **useradd**\ =\ *user*\  \ **password**\ =\ *password*\  \ **privilege**\ ={\ **priv-admin**\ |\ **priv-operator**\ |\ **priv-user**\ |\ **priv-callback**\ } [\ **groups**\ ={\ **ipmi,redfish,ssh,web**\ }] [\ **enabled**\ ={\ **0**\ |\ **1**\ }]
+
+ For OpenBMC nodes, create a local BMC user. If \ **groups**\  is omitted, all supported OpenBMC groups are used. If \ **enabled**\  is omitted, the user is enabled.
+
+
+\ **userch**\ =\ *user*\  [\ **password**\ =\ *password*\ ] [\ **privilege**\ ={\ **priv-admin**\ |\ **priv-operator**\ |\ **priv-user**\ |\ **priv-callback**\ }] [\ **groups**\ ={\ **ipmi,redfish,ssh,web**\ }] [\ **enabled**\ ={\ **0**\ |\ **1**\ }]
+
+ For OpenBMC nodes, update the password, privilege, groups, or enabled state for a local BMC user.
+
+
+\ **userrm**\ =\ *user*
+
+ For OpenBMC nodes, delete a local BMC user.
+
 
 
 \ **solcfg**\ ={\ **enable | disable**\ }

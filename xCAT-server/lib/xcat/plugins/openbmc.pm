@@ -89,6 +89,11 @@ $::RSPCONFIG_WAIT_IP_DONE   = 3;
 $::RSPCONFIG_DUMP_CMD_TIME  = 0;
 $::RSPCONFIG_CONFIGURED_API_KEY  = -1;
 
+my @rspconfig_user_privileges = qw(priv-admin priv-operator priv-user priv-callback);
+my %rspconfig_user_privilege = map { $_ => 1 } @rspconfig_user_privileges;
+my @rspconfig_user_groups = qw(ipmi redfish ssh web);
+my %rspconfig_user_group = map { $_ => 1 } @rspconfig_user_groups;
+
 $::XCAT_LOG_DIR             = "/var/log/xcat";
 $::RAS_POLICY_TABLE         = "/opt/ibm/ras/lib/policyTable.json";
 $::RAS_POLICY_TABLE_RPM_LOC = "https://www.ibm.com/support/customercare/sas/f/lopdiags/scaleOutLCdebugtool.html#OpenBMC";
@@ -499,6 +504,97 @@ my %status_info = (
         data           => "[]",
     },
     RSPCONFIG_CLEAR_GARD_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_LIST_REQUEST => {
+        method         => "GET",
+        init_url       => "$openbmc_project_url/user/enumerate",
+    },
+    RSPCONFIG_USER_LIST_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_CREATE_REQUEST => {
+        method         => "POST",
+        init_url       => "$openbmc_project_url/user/action/CreateUser",
+    },
+    RSPCONFIG_USER_CREATE_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_SET_PASSWORD_REQUEST => {
+        method         => "POST",
+        init_url       => "$openbmc_project_url/user/#USER#/action/SetPassword",
+    },
+    RSPCONFIG_USER_SET_PASSWORD_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_SET_PRIVILEGE_REQUEST => {
+        method         => "PUT",
+        init_url       => "$openbmc_project_url/user/#USER#/attr/UserPrivilege",
+    },
+    RSPCONFIG_USER_SET_PRIVILEGE_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_SET_GROUPS_REQUEST => {
+        method         => "PUT",
+        init_url       => "$openbmc_project_url/user/#USER#/attr/UserGroups",
+    },
+    RSPCONFIG_USER_SET_GROUPS_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_SET_ENABLED_REQUEST => {
+        method         => "PUT",
+        init_url       => "$openbmc_project_url/user/#USER#/attr/UserEnabled",
+    },
+    RSPCONFIG_USER_SET_ENABLED_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_USER_DELETE_REQUEST => {
+        method         => "DELETE",
+        init_url       => "$openbmc_project_url/user/#USER#",
+    },
+    RSPCONFIG_USER_DELETE_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_SNMP_DEST_LIST_REQUEST => {
+        method         => "GET",
+        init_url       => "$openbmc_project_url/network/snmp/manager/enumerate",
+    },
+    RSPCONFIG_SNMP_DEST_LIST_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_SNMP_DEST_ADD_REQUEST => {
+        method         => "POST",
+        init_url       => "$openbmc_project_url/network/snmp/manager/action/Client",
+    },
+    RSPCONFIG_SNMP_DEST_ADD_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_SNMP_DEST_DELETE_REQUEST => {
+        method         => "DELETE",
+        init_url       => "",
+    },
+    RSPCONFIG_SNMP_DEST_DELETE_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_ALERT_REQUEST => {
+        method         => "GET",
+        init_url       => "$openbmc_project_url/logging/config/remote",
+    },
+    RSPCONFIG_ALERT_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_ALERT_ADDRESS_REQUEST => {
+        method         => "PUT",
+        init_url       => "$openbmc_project_url/logging/config/remote/attr/Address",
+    },
+    RSPCONFIG_ALERT_ADDRESS_RESPONSE => {
+        process        => \&rspconfig_response,
+    },
+    RSPCONFIG_ALERT_PORT_REQUEST => {
+        method         => "PUT",
+        init_url       => "$openbmc_project_url/logging/config/remote/attr/Port",
+    },
+    RSPCONFIG_ALERT_PORT_RESPONSE => {
         process        => \&rspconfig_response,
     },
     RSPCONFIG_DUMP_LIST_REQUEST => {
@@ -1229,6 +1325,222 @@ rmdir \"/tmp/\$userid\" \n";
 
 #-------------------------------------------------------
 
+=head3  rspconfig_parse_bool
+
+  Parse boolean rspconfig input values.
+
+=cut
+
+#-------------------------------------------------------
+sub rspconfig_parse_bool {
+    my $value = shift;
+    return if (!defined($value));
+    $value = lc($value);
+    return 1 if ($value =~ /^1$|^true$|^on$|^enable$|^enabled$/);
+    return 0 if ($value =~ /^0$|^false$|^off$|^disable$|^disabled$/);
+    return;
+}
+
+sub rspconfig_valid_port {
+    my $port = shift;
+    return (defined($port) and $port =~ /^\d+$/ and $port >= 0 and $port <= 65535);
+}
+
+sub rspconfig_parse_address_port {
+    my ($value, $default_port, $require_port) = @_;
+    return (undef, undef, "Invalid parameter: $value") if (!defined($value) or $value eq "");
+
+    my ($address, $port);
+    if ($value =~ /^([^:]+):(\d+)$/) {
+        ($address, $port) = ($1, $2);
+    } elsif (!$require_port) {
+        ($address, $port) = ($value, $default_port);
+    } else {
+        return (undef, undef, "Invalid parameter: $value");
+    }
+
+    return (undef, undef, "Invalid parameter: $address") if (!xCAT::NetworkUtils->isIpaddr($address));
+    return (undef, undef, "Invalid parameter: $port") if (!rspconfig_valid_port($port) or $port == 0);
+    return ($address, $port, undef);
+}
+
+sub rspconfig_normalize_privilege {
+    my $privilege = shift;
+    return if (!defined($privilege) or $privilege eq "");
+    $privilege = lc($privilege);
+    $privilege = "priv-$privilege" if ($privilege =~ /^admin$|^operator$|^user$|^callback$/);
+    return $privilege if ($rspconfig_user_privilege{$privilege});
+    return;
+}
+
+sub rspconfig_parse_groups {
+    my $groups = shift;
+    return [@rspconfig_user_groups] if (!defined($groups) or $groups eq "" or lc($groups) eq "all");
+
+    my @groups = grep { $_ ne "" } split(/[,:]/, lc($groups));
+    return if (!@groups);
+    foreach my $group (@groups) {
+        return if (!$rspconfig_user_group{$group});
+    }
+    return \@groups;
+}
+
+sub rspconfig_valid_user_name {
+    my $user = shift;
+    return (defined($user) and $user =~ /^[A-Za-z0-9_.-]+$/);
+}
+
+sub rspconfig_set_request_data {
+    my ($state, $data, $sensitive_data) = @_;
+    delete $status_info{$state}{data};
+    delete $status_info{$state}{data_ref};
+    delete $status_info{$state}{raw_data};
+    delete $status_info{$state}{sensitive_data};
+    $status_info{$state}{data_ref} = $data;
+    $status_info{$state}{sensitive_data} = $sensitive_data if (defined($sensitive_data));
+}
+
+sub rspconfig_parse_user_args {
+    my $args = shift;
+    my %info;
+    my %seen;
+
+    foreach my $arg (@$args) {
+        if ($arg eq "userls") {
+            return (undef, "Only one user operation can be specified") if ($info{action});
+            $info{action} = "list";
+        } elsif ($arg =~ /^useradd=(.+)$/) {
+            return (undef, "Only one user operation can be specified") if ($info{action});
+            $info{action} = "add";
+            $info{user} = $1;
+        } elsif ($arg =~ /^userch=(.+)$/) {
+            return (undef, "Only one user operation can be specified") if ($info{action});
+            $info{action} = "change";
+            $info{user} = $1;
+        } elsif ($arg =~ /^userrm=(.+)$/) {
+            return (undef, "Only one user operation can be specified") if ($info{action});
+            $info{action} = "remove";
+            $info{user} = $1;
+        } elsif ($arg =~ /^password=(.*)$/) {
+            return (undef, "Duplicate user password option") if ($seen{password});
+            $seen{password} = 1;
+            $info{password} = $1;
+        } elsif ($arg =~ /^(privilege|role)=(.*)$/) {
+            return (undef, "Duplicate user privilege option") if ($seen{privilege});
+            $seen{privilege} = 1;
+            my $privilege = rspconfig_normalize_privilege($2);
+            return (undef, "Invalid value '$2' for '$1', Valid values: " . join(",", @rspconfig_user_privileges)) if (!$privilege);
+            $info{privilege} = $privilege;
+        } elsif ($arg =~ /^groups=(.*)$/) {
+            return (undef, "Duplicate user groups option") if ($seen{groups});
+            $seen{groups} = 1;
+            my $groups = rspconfig_parse_groups($1);
+            return (undef, "Invalid value '$1' for 'groups', Valid values: " . join(",", @rspconfig_user_groups)) if (!$groups);
+            $info{groups} = $groups;
+        } elsif ($arg =~ /^enabled=(.*)$/) {
+            return (undef, "Duplicate user enabled option") if ($seen{enabled});
+            $seen{enabled} = 1;
+            my $enabled = rspconfig_parse_bool($1);
+            return (undef, "Invalid value '$1' for 'enabled', Valid values: 0,1") if (!defined($enabled));
+            $info{enabled} = $enabled;
+        } else {
+            return (undef, undef);
+        }
+    }
+
+    return (undef, undef) if (!$info{action});
+
+    if ($info{action} eq "list") {
+        return (undef, "userls cannot be issued with other options") if (@$args > 1);
+        return (\%info, undef);
+    }
+
+    return (undef, "Invalid parameter for user name: $info{user}") if (!rspconfig_valid_user_name($info{user}));
+
+    if ($info{action} eq "remove") {
+        return (undef, "userrm cannot be issued with other options") if (@$args > 1);
+        return (\%info, undef);
+    }
+
+    if ($info{action} eq "add") {
+        return (undef, "useradd requires password=<password> and privilege=<privilege>") if (!defined($info{password}) or $info{password} eq "" or !$info{privilege});
+        $info{groups} = [@rspconfig_user_groups] if (!$info{groups});
+        $info{enabled} = 1 if (!defined($info{enabled}));
+        return (\%info, undef);
+    }
+
+    if ($info{action} eq "change") {
+        return (undef, "userch requires at least one of password=<password>, privilege=<privilege>, groups=<groups>, enabled=<0|1>")
+            if ((!defined($info{password}) or $info{password} eq "") and !$info{privilege} and !$info{groups} and !defined($info{enabled}));
+        return (\%info, undef);
+    }
+
+    return (undef, undef);
+}
+
+sub rspconfig_parse_snmp_args {
+    my $args = shift;
+    my %info;
+
+    return (undef, undef) if (!@$args or $$args[0] !~ /^snmpdest/);
+    if ($$args[0] eq "snmpdest") {
+        return (undef, "snmpdest cannot be issued with other options") if (@$args > 1);
+        $info{action} = "list";
+        return (\%info, undef);
+    }
+
+    if ($$args[0] =~ /^snmpdest=(.+)$/) {
+        my $destination = $1;
+        my $port_specified = ($destination =~ /:/) ? 1 : 0;
+        my ($address, $port, $error) = rspconfig_parse_address_port($destination, 162, 0);
+        return (undef, "Invalid parameter for option snmpdest: $error") if ($error);
+        $info{address} = $address;
+        $info{port} = $port;
+        $info{port_specified} = $port_specified;
+        $info{action} = "add";
+
+        if (@$args == 2 and $$args[1] =~ /^-d$|^--delete$/) {
+            $info{action} = "delete";
+        } elsif (@$args > 1) {
+            return (undef, "snmpdest can only be issued with -d|--delete");
+        }
+        return (\%info, undef);
+    }
+
+    return (undef, undef);
+}
+
+sub rspconfig_parse_alert_args {
+    my $args = shift;
+    my %info;
+
+    return (undef, undef) if (!@$args or $$args[0] !~ /^alert/);
+    if ($$args[0] eq "alert") {
+        return (undef, "alert cannot be issued with other options") if (@$args > 1);
+        $info{action} = "list";
+        return (\%info, undef);
+    }
+
+    if ($$args[0] =~ /^alert=(.*)$/) {
+        return (undef, "alert must be issued without other options") if (@$args > 1);
+        my $value = $1;
+        if ($value =~ /^off$|^disable$/i) {
+            $info{action} = "set";
+            $info{address} = "";
+            $info{port} = 0;
+            return (\%info, undef);
+        }
+        my ($address, $port, $error) = rspconfig_parse_address_port($value, undef, 1);
+        return (undef, "Invalid parameter for option alert: $error") if ($error);
+        $info{action} = "set";
+        $info{address} = $address;
+        $info{port} = $port;
+        return (\%info, undef);
+    }
+
+    return (undef, undef);
+}
+
 =head3  parse_args
 
   Parse the command line options and operands
@@ -1312,6 +1624,19 @@ sub parse_args {
         my $num_subcommand = @ARGV;
         my $setorget;
         my $all_subcommand = "";
+
+        my ($user_args, $user_error) = rspconfig_parse_user_args(\@ARGV);
+        return ([ 1, $user_error ]) if ($user_error);
+        return if ($user_args);
+
+        my ($snmp_args, $snmp_error) = rspconfig_parse_snmp_args(\@ARGV);
+        return ([ 1, $snmp_error ]) if ($snmp_error);
+        return if ($snmp_args);
+
+        my ($alert_args, $alert_error) = rspconfig_parse_alert_args(\@ARGV);
+        return ([ 1, $alert_error ]) if ($alert_error);
+        return if ($alert_args);
+
         foreach $subcommand (@ARGV) {
             $::RSPCONFIG_CONFIGURED_API_KEY = &is_valid_config_api($subcommand, $callback);
             if ($::RSPCONFIG_CONFIGURED_API_KEY ne -1) {
@@ -1843,6 +2168,141 @@ sub parse_command_status {
                 $status_info{RSPCONFIG_SET_NTPSERVERS_REQUEST}{data} = "[\"$1\"]";
                 return 0;
             }
+        }
+
+        my ($user_args, $user_error) = rspconfig_parse_user_args($subcommands);
+        if ($user_error) {
+            xCAT::SvrUtils::sendmsg([1, $user_error], $callback);
+            return 1;
+        }
+        if ($user_args) {
+            my $user = $user_args->{user};
+            if ($user_args->{action} eq "list") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_USER_LIST_REQUEST";
+                $next_status{RSPCONFIG_USER_LIST_REQUEST} = "RSPCONFIG_USER_LIST_RESPONSE";
+                delete $next_status{RSPCONFIG_USER_LIST_RESPONSE};
+            } elsif ($user_args->{action} eq "add") {
+                my $enabled = $user_args->{enabled} ? JSON::true : JSON::false;
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_USER_CREATE_REQUEST";
+                $next_status{RSPCONFIG_USER_CREATE_REQUEST} = "RSPCONFIG_USER_CREATE_RESPONSE";
+                $next_status{RSPCONFIG_USER_CREATE_RESPONSE} = "RSPCONFIG_USER_SET_PASSWORD_REQUEST";
+                $next_status{RSPCONFIG_USER_SET_PASSWORD_REQUEST} = "RSPCONFIG_USER_SET_PASSWORD_RESPONSE";
+                delete $next_status{RSPCONFIG_USER_SET_PASSWORD_RESPONSE};
+
+                rspconfig_set_request_data("RSPCONFIG_USER_CREATE_REQUEST", [
+                    $user,
+                    $user_args->{groups},
+                    $user_args->{privilege},
+                    $enabled
+                ]);
+                $status_info{RSPCONFIG_USER_CREATE_RESPONSE}{argv} = $user;
+                $status_info{RSPCONFIG_USER_SET_PASSWORD_REQUEST}{init_url} = "$openbmc_project_url/user/$user/action/SetPassword";
+                rspconfig_set_request_data("RSPCONFIG_USER_SET_PASSWORD_REQUEST", [ $user_args->{password} ], $user_args->{password});
+                $status_info{RSPCONFIG_USER_SET_PASSWORD_RESPONSE}{argv} = "add:$user";
+            } elsif ($user_args->{action} eq "change") {
+                my @chain;
+                if (defined($user_args->{password}) and $user_args->{password} ne "") {
+                    $status_info{RSPCONFIG_USER_SET_PASSWORD_REQUEST}{init_url} = "$openbmc_project_url/user/$user/action/SetPassword";
+                    rspconfig_set_request_data("RSPCONFIG_USER_SET_PASSWORD_REQUEST", [ $user_args->{password} ], $user_args->{password});
+                    $status_info{RSPCONFIG_USER_SET_PASSWORD_RESPONSE}{argv} = "change:$user";
+                    push @chain, [ "RSPCONFIG_USER_SET_PASSWORD_REQUEST", "RSPCONFIG_USER_SET_PASSWORD_RESPONSE" ];
+                }
+                if ($user_args->{privilege}) {
+                    $status_info{RSPCONFIG_USER_SET_PRIVILEGE_REQUEST}{init_url} = "$openbmc_project_url/user/$user/attr/UserPrivilege";
+                    rspconfig_set_request_data("RSPCONFIG_USER_SET_PRIVILEGE_REQUEST", $user_args->{privilege});
+                    $status_info{RSPCONFIG_USER_SET_PRIVILEGE_RESPONSE}{argv} = "$user:$user_args->{privilege}";
+                    push @chain, [ "RSPCONFIG_USER_SET_PRIVILEGE_REQUEST", "RSPCONFIG_USER_SET_PRIVILEGE_RESPONSE" ];
+                }
+                if ($user_args->{groups}) {
+                    $status_info{RSPCONFIG_USER_SET_GROUPS_REQUEST}{init_url} = "$openbmc_project_url/user/$user/attr/UserGroups";
+                    rspconfig_set_request_data("RSPCONFIG_USER_SET_GROUPS_REQUEST", $user_args->{groups});
+                    $status_info{RSPCONFIG_USER_SET_GROUPS_RESPONSE}{argv} = "$user:" . join(",", @{ $user_args->{groups} });
+                    push @chain, [ "RSPCONFIG_USER_SET_GROUPS_REQUEST", "RSPCONFIG_USER_SET_GROUPS_RESPONSE" ];
+                }
+                if (defined($user_args->{enabled})) {
+                    my $enabled = $user_args->{enabled} ? JSON::true : JSON::false;
+                    $status_info{RSPCONFIG_USER_SET_ENABLED_REQUEST}{init_url} = "$openbmc_project_url/user/$user/attr/UserEnabled";
+                    rspconfig_set_request_data("RSPCONFIG_USER_SET_ENABLED_REQUEST", $enabled);
+                    $status_info{RSPCONFIG_USER_SET_ENABLED_RESPONSE}{argv} = "$user:$user_args->{enabled}";
+                    push @chain, [ "RSPCONFIG_USER_SET_ENABLED_REQUEST", "RSPCONFIG_USER_SET_ENABLED_RESPONSE" ];
+                }
+                for (my $i = 0; $i < @chain; $i++) {
+                    my ($request_state, $response_state) = @{ $chain[$i] };
+                    if ($i == 0) {
+                        $next_status{LOGIN_RESPONSE} = $request_state;
+                    } else {
+                        $next_status{ $chain[$i - 1]->[1] } = $request_state;
+                    }
+                    $next_status{$request_state} = $response_state;
+                    delete $next_status{$response_state};
+                }
+            } elsif ($user_args->{action} eq "remove") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_USER_DELETE_REQUEST";
+                $next_status{RSPCONFIG_USER_DELETE_REQUEST} = "RSPCONFIG_USER_DELETE_RESPONSE";
+                delete $next_status{RSPCONFIG_USER_DELETE_RESPONSE};
+
+                $status_info{RSPCONFIG_USER_DELETE_REQUEST}{init_url} = "$openbmc_project_url/user/$user";
+                $status_info{RSPCONFIG_USER_DELETE_RESPONSE}{argv} = $user;
+            }
+            return 0;
+        }
+
+        my ($snmp_args, $snmp_error) = rspconfig_parse_snmp_args($subcommands);
+        if ($snmp_error) {
+            xCAT::SvrUtils::sendmsg([1, $snmp_error], $callback);
+            return 1;
+        }
+        if ($snmp_args) {
+            if ($snmp_args->{action} eq "list") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_SNMP_DEST_LIST_REQUEST";
+                $next_status{RSPCONFIG_SNMP_DEST_LIST_REQUEST} = "RSPCONFIG_SNMP_DEST_LIST_RESPONSE";
+                delete $next_status{RSPCONFIG_SNMP_DEST_LIST_RESPONSE};
+                $status_info{RSPCONFIG_SNMP_DEST_LIST_RESPONSE}{argv} = "list";
+            } elsif ($snmp_args->{action} eq "add") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_SNMP_DEST_ADD_REQUEST";
+                $next_status{RSPCONFIG_SNMP_DEST_ADD_REQUEST} = "RSPCONFIG_SNMP_DEST_ADD_RESPONSE";
+                delete $next_status{RSPCONFIG_SNMP_DEST_ADD_RESPONSE};
+                rspconfig_set_request_data("RSPCONFIG_SNMP_DEST_ADD_REQUEST", [ $snmp_args->{address}, $snmp_args->{port} ]);
+                $status_info{RSPCONFIG_SNMP_DEST_ADD_RESPONSE}{argv} = "$snmp_args->{address}:$snmp_args->{port}";
+            } elsif ($snmp_args->{action} eq "delete") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_SNMP_DEST_LIST_REQUEST";
+                $next_status{RSPCONFIG_SNMP_DEST_LIST_REQUEST} = "RSPCONFIG_SNMP_DEST_LIST_RESPONSE";
+                delete $next_status{RSPCONFIG_SNMP_DEST_LIST_RESPONSE};
+                if ($snmp_args->{port_specified}) {
+                    $status_info{RSPCONFIG_SNMP_DEST_LIST_RESPONSE}{argv} = "delete:$snmp_args->{address}:$snmp_args->{port}";
+                    $status_info{RSPCONFIG_SNMP_DEST_DELETE_RESPONSE}{argv} = "$snmp_args->{address}:$snmp_args->{port}";
+                } else {
+                    $status_info{RSPCONFIG_SNMP_DEST_LIST_RESPONSE}{argv} = "delete:$snmp_args->{address}";
+                    $status_info{RSPCONFIG_SNMP_DEST_DELETE_RESPONSE}{argv} = $snmp_args->{address};
+                }
+            }
+            return 0;
+        }
+
+        my ($alert_args, $alert_error) = rspconfig_parse_alert_args($subcommands);
+        if ($alert_error) {
+            xCAT::SvrUtils::sendmsg([1, $alert_error], $callback);
+            return 1;
+        }
+        if ($alert_args) {
+            if ($alert_args->{action} eq "list") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_ALERT_REQUEST";
+                $next_status{RSPCONFIG_ALERT_REQUEST} = "RSPCONFIG_ALERT_RESPONSE";
+                delete $next_status{RSPCONFIG_ALERT_RESPONSE};
+            } elsif ($alert_args->{action} eq "set") {
+                $next_status{LOGIN_RESPONSE} = "RSPCONFIG_ALERT_ADDRESS_REQUEST";
+                $next_status{RSPCONFIG_ALERT_ADDRESS_REQUEST} = "RSPCONFIG_ALERT_ADDRESS_RESPONSE";
+                $next_status{RSPCONFIG_ALERT_ADDRESS_RESPONSE} = "RSPCONFIG_ALERT_PORT_REQUEST";
+                $next_status{RSPCONFIG_ALERT_PORT_REQUEST} = "RSPCONFIG_ALERT_PORT_RESPONSE";
+                $next_status{RSPCONFIG_ALERT_PORT_RESPONSE} = "RSPCONFIG_ALERT_REQUEST";
+                $next_status{RSPCONFIG_ALERT_REQUEST} = "RSPCONFIG_ALERT_RESPONSE";
+                delete $next_status{RSPCONFIG_ALERT_RESPONSE};
+
+                rspconfig_set_request_data("RSPCONFIG_ALERT_ADDRESS_REQUEST", $alert_args->{address});
+                rspconfig_set_request_data("RSPCONFIG_ALERT_PORT_REQUEST", $alert_args->{port});
+                $status_info{RSPCONFIG_ALERT_PORT_RESPONSE}{argv} = "$alert_args->{address}:$alert_args->{port}";
+            }
+            return 0;
         }
 
         $subcommand = $$subcommands[0];
@@ -2426,7 +2886,11 @@ sub gen_send_request {
     } else {
         $method = $status_info{ $node_info{$node}{cur_status} }{method};
     }
-    if (defined($status_info{ $node_info{$node}{cur_status} }{data})) {
+    if (defined($status_info{ $node_info{$node}{cur_status} }{raw_data})) {
+        $content = $status_info{ $node_info{$node}{cur_status} }{raw_data};
+    } elsif (defined($status_info{ $node_info{$node}{cur_status} }{data_ref})) {
+        $content = encode_json({ data => $status_info{ $node_info{$node}{cur_status} }{data_ref} });
+    } elsif (defined($status_info{ $node_info{$node}{cur_status} }{data})) {
         # Handle boolean values by create the json objects without wrapping with quotes
         if ($status_info{ $node_info{$node}{cur_status} }{data} =~ /^1$|^true$|^True$|^0$|^false$|^False$/) {
             $content = '{"data":' . $status_info{ $node_info{$node}{cur_status} }{data} . '}';
@@ -2463,7 +2927,17 @@ sub gen_send_request {
                 if ($node_info{$node}{cur_status} eq "LOGIN_REQUEST_GENERAL") {
                     $debug_info = "curl -k -c cjar -H \"Content-Type: application/json\" -d '{ \"data\": [\"$node_info{$node}{username}\", \"xxxxxx\"] }' $request_url";
                 } else {
-                    $debug_info = "curl -k -b cjar -X $method -H \"Content-Type: application/json\" -d '$content' $request_url";
+                    my $debug_content = $content;
+                    if (defined $status_info{ $node_info{$node}{cur_status} }{sensitive_data}) {
+                        my @secrets = ref($status_info{ $node_info{$node}{cur_status} }{sensitive_data}) eq 'ARRAY' ?
+                            @{ $status_info{ $node_info{$node}{cur_status} }{sensitive_data} } :
+                            ($status_info{ $node_info{$node}{cur_status} }{sensitive_data});
+                        foreach my $secret (@secrets) {
+                            next if (!defined($secret) or $secret eq "");
+                            $debug_content = mask_password2($debug_content, $secret);
+                        }
+                    }
+                    $debug_info = "curl -k -b cjar -X $method -H \"Content-Type: application/json\" -d '$debug_content' $request_url";
                 }
             }
         }
@@ -3926,6 +4400,148 @@ sub rspconfig_response {
             }
         }
     }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_LIST_RESPONSE") {
+        my @output;
+        foreach my $key_url (sort keys %{ $response_info->{data} || {} }) {
+            next if ($key_url !~ m#/xyz/openbmc_project/user/([^/]+)$#);
+            my $user = $1;
+            my %content = %{ $response_info->{data}{$key_url} };
+            my $privilege = defined($content{UserPrivilege}) ? $content{UserPrivilege} : "unknown";
+            my $enabled = defined($content{UserEnabled}) ? ($content{UserEnabled} ? "enabled" : "disabled") : "unknown";
+            my $groups = "unknown";
+            if (defined($content{UserGroups})) {
+                if (ref($content{UserGroups}) eq "ARRAY") {
+                    $groups = join(",", @{ $content{UserGroups} });
+                } else {
+                    $groups = $content{UserGroups};
+                }
+            }
+            push @output, "BMC User $user: privilege=$privilege, enabled=$enabled, groups=$groups";
+        }
+        if (@output) {
+            xCAT::SvrUtils::sendmsg($_, $callback, $node) foreach (@output);
+        } else {
+            xCAT::SvrUtils::sendmsg("No BMC users returned.", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_CREATE_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            xCAT::SvrUtils::sendmsg("BMC User $status_info{RSPCONFIG_USER_CREATE_RESPONSE}{argv} created", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_SET_PASSWORD_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            my ($operation, $user) = split(/:/, $status_info{RSPCONFIG_USER_SET_PASSWORD_RESPONSE}{argv}, 2);
+            my $message = $operation eq "add" ? "BMC User $user password set" : "BMC User $user password updated";
+            xCAT::SvrUtils::sendmsg($message, $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_SET_PRIVILEGE_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            my ($user, $privilege) = split(/:/, $status_info{RSPCONFIG_USER_SET_PRIVILEGE_RESPONSE}{argv}, 2);
+            xCAT::SvrUtils::sendmsg("BMC User $user privilege set to $privilege", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_SET_GROUPS_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            my ($user, $groups) = split(/:/, $status_info{RSPCONFIG_USER_SET_GROUPS_RESPONSE}{argv}, 2);
+            xCAT::SvrUtils::sendmsg("BMC User $user groups set to $groups", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_SET_ENABLED_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            my ($user, $enabled_value) = split(/:/, $status_info{RSPCONFIG_USER_SET_ENABLED_RESPONSE}{argv}, 2);
+            my $enabled = $enabled_value ? "enabled" : "disabled";
+            xCAT::SvrUtils::sendmsg("BMC User $user $enabled", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_USER_DELETE_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            xCAT::SvrUtils::sendmsg("BMC User $status_info{RSPCONFIG_USER_DELETE_RESPONSE}{argv} deleted", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_SNMP_DEST_LIST_RESPONSE") {
+        my $operation = $status_info{RSPCONFIG_SNMP_DEST_LIST_RESPONSE}{argv} || "list";
+        my @output;
+        my $delete_url;
+        my $delete_address;
+        my $delete_port;
+        if ($operation =~ /^delete:([^:]+)(?::(\d+))?$/) {
+            $delete_address = $1;
+            $delete_port = $2;
+        }
+        foreach my $key_url (sort keys %{ $response_info->{data} || {} }) {
+            next if ($key_url !~ m#/xyz/openbmc_project/network/snmp/manager/([^/]+)$#);
+            my $id = $1;
+            my %content = %{ $response_info->{data}{$key_url} };
+            my $address = defined($content{Address}) ? $content{Address} : "";
+            my $port = defined($content{Port}) ? $content{Port} : "";
+            if ($delete_address) {
+                if ($address eq $delete_address and (!defined($delete_port) or $port eq $delete_port)) {
+                    $delete_url = $key_url;
+                    last;
+                }
+            } else {
+                push @output, "BMC SNMP Destination $id: $address:$port";
+            }
+        }
+        if ($delete_address) {
+            if ($delete_url) {
+                $status_info{RSPCONFIG_SNMP_DEST_DELETE_REQUEST}{init_url} = $delete_url;
+                $next_status{RSPCONFIG_SNMP_DEST_LIST_RESPONSE} = "RSPCONFIG_SNMP_DEST_DELETE_REQUEST";
+                $next_status{RSPCONFIG_SNMP_DEST_DELETE_REQUEST} = "RSPCONFIG_SNMP_DEST_DELETE_RESPONSE";
+                delete $next_status{RSPCONFIG_SNMP_DEST_DELETE_RESPONSE};
+            } else {
+                xCAT::SvrUtils::sendmsg([1, "SNMP destination $delete_address not found"], $callback, $node);
+                $wait_node_num--;
+                return;
+            }
+        } elsif (@output) {
+            xCAT::SvrUtils::sendmsg($_, $callback, $node) foreach (@output);
+        } else {
+            xCAT::SvrUtils::sendmsg("No BMC SNMP destinations configured.", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_SNMP_DEST_ADD_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            xCAT::SvrUtils::sendmsg("BMC SNMP destination added: $status_info{RSPCONFIG_SNMP_DEST_ADD_RESPONSE}{argv}", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_SNMP_DEST_DELETE_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            xCAT::SvrUtils::sendmsg("BMC SNMP destination removed: $status_info{RSPCONFIG_SNMP_DEST_DELETE_RESPONSE}{argv}", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_ALERT_PORT_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            xCAT::SvrUtils::sendmsg("BMC Setting Alert Destination...", $callback, $node);
+        }
+    }
+
+    if ($node_info{$node}{cur_status} eq "RSPCONFIG_ALERT_RESPONSE") {
+        if ($response_info->{'message'} eq $::RESPONSE_OK) {
+            my %content = %{ $response_info->{data} || {} };
+            my $address = defined($content{Address}) ? $content{Address} : "";
+            my $port = defined($content{Port}) ? $content{Port} : "";
+            if ($address ne "" and $port) {
+                xCAT::SvrUtils::sendmsg("BMC Alert Destination: $address:$port", $callback, $node);
+            } else {
+                xCAT::SvrUtils::sendmsg("BMC Alert Destination: disabled", $callback, $node);
+            }
+        }
+    }
+
     if ($next_status{ $node_info{$node}{cur_status} }) {
         if ($node_info{$node}{cur_status} eq "RSPCONFIG_CHECK_RESPONSE") {
             $node_info{$node}{cur_status} = $next_status{ $node_info{$node}{cur_status} }{$origin_type};

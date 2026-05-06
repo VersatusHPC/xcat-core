@@ -9,6 +9,10 @@ use lib "$::XCATROOT/lib/perl";
 use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
+use Cwd qw/realpath/;
+use Fcntl qw(:DEFAULT);
+use File::Copy qw(copy);
+use File::Basename;
 use xCAT::Table;
 use xCAT::Utils;
 use xCAT::SvrUtils;
@@ -190,6 +194,93 @@ sub copyAndAddCustomizations {
     system("find . |cpio -o -H newc | gzip -c - -9 >> $dest");
 }
 
+# Safely unlink a file only if it is a regular file (not a symlink) and
+# its resolved path is under the expected install root.
+sub _safe_unlink
+{
+    my ($path, $expected_root) = @_;
+    return unless $expected_root;
+    return unless -f $path and ! -l $path;
+    my $real = realpath($path);
+    return unless $real;
+    if ($real eq $expected_root or index($real, "$expected_root/") == 0)
+    {
+        unlink($path);
+    }
+}
+
+# Copy src to an O_EXCL-opened dst filehandle with full error checking.
+# Loops on short writes, distinguishes read errors from EOF, checks
+# close on both handles, and verifies size matches source.
+# Returns 1 on success, 0 on failure.
+# Safely restore a backup to its original path, validating that
+# the target remains under the expected install root and no
+# ancestor is a symlink.
+sub _safe_restore
+{
+    my ($backup, $original, $expected_root) = @_;
+    return 0 unless $expected_root and -f $backup;
+
+    # Validate ancestors of the target
+    my $real_parent = realpath(File::Basename::dirname($original));
+    return 0 unless $real_parent;
+    return 0 unless $real_parent eq $expected_root or
+        index($real_parent, "$expected_root/") == 0;
+
+    # Check no symlink at the target itself.
+    # Never delete the backup — it may be the only recovery copy.
+    if (-l $original)
+    {
+        return 0;
+    }
+
+    return rename($backup, $original) ? 1 : 0;
+}
+
+sub _safe_copy_to_excl
+{
+    my ($src_path, $dst_fh) = @_;
+    my $src_fh;
+    unless (open($src_fh, '<', $src_path))
+    {
+        return 0;
+    }
+    binmode($src_fh);
+    binmode($dst_fh);
+
+    my $total = 0;
+    my $buf;
+    while (1)
+    {
+        my $n = sysread($src_fh, $buf, 65536);
+        if (!defined $n)
+        {
+            close($src_fh);
+            return 0;
+        }
+        last if $n == 0;
+
+        my $written = 0;
+        while ($written < $n)
+        {
+            my $w = syswrite($dst_fh, $buf, $n - $written, $written);
+            if (!defined $w)
+            {
+                close($src_fh);
+                return 0;
+            }
+            $written += $w;
+        }
+        $total += $n;
+    }
+    close($src_fh) or return 0;
+    close($dst_fh) or return 0;
+
+    # Verify size matches source
+    my $src_size = -s $src_path;
+    return ($total == $src_size) ? 1 : 0;
+}
+
 sub copycd
 {
     my $request     = shift;
@@ -357,6 +448,117 @@ sub copycd
     }
     %{$request} = ();    #clear request we've got it.
 
+    # Preflight: Ubuntu pre-16.04.2 on ppc64el requires a netboot-capable
+    # initrd from the xcat-compat package. All validation runs before any
+    # files are written so we don't corrupt an existing install tree.
+    my $compat_initrd;
+    my $compat_expected_root;
+    if ($arch eq "ppc64el" and $detdistname =~ /^ubuntu(\d+)\.(\d+)\.?(\d*)/)
+    {
+        my ($major, $minor, $point) = ($1, $2, $3 || 0);
+        if ($major < 16 or ($major == 16 and $minor == 4 and $point < 2))
+        {
+            my $compat_ver = ($point > 0) ? "$major.$minor.$point" : "$major.$minor";
+            $compat_initrd = "$::XCATROOT/share/xcat/netboot/ubuntu/initrd/ubuntu${compat_ver}.ppc64el.gz";
+
+            if (! -f $compat_initrd or ! -r $compat_initrd or ! -s $compat_initrd)
+            {
+                if ($noosimage)
+                {
+                    $callback->({ warning => ["Ubuntu $detdistname on ppc64el: xcat-compat package not installed. Media will be copied but netboot osimages will not work until xcat-compat is installed and copycds is re-run without -o."] });
+                    # Clear compat_initrd so replacement is skipped, but
+                    # mark paths for cleanup so mkinstall can't find the
+                    # known-bad ISO initrd and silently produce a non-booting image.
+                    $compat_initrd = undef;
+                }
+                else
+                {
+                    $callback->({ error => "Ubuntu $detdistname on ppc64el requires a netboot-capable initrd not included in the server ISO. Install the xcat-compat package (yum install xCAT-compat or apt install xcat-compat) and run copycds again." });
+                    return;
+                }
+            }
+
+            # Resolve the install root early. realpath handles symlinked
+            # /install (e.g. pointing to external storage) correctly.
+            # We validate target paths against this resolved root, not
+            # against the raw path, so symlinked installdir is allowed
+            # but symlinks WITHIN the distro tree are rejected.
+            $compat_expected_root = realpath($installroot) || $installroot;
+
+            # Validate existing target path ancestors for symlinks
+            # within the distro tree (below installroot).
+            my @target_dirs = (
+                "$installroot/$distname/$arch/install/netboot",
+                "$installroot/$distname/$arch/install/netboot/ubuntu-installer/$arch",
+            );
+            foreach my $tdir (@target_dirs)
+            {
+                # Only check components below the resolved installroot
+                my $relative = $tdir;
+                $relative =~ s/^\Q$installroot\E\/?//;
+                my $walk = realpath($installroot) || $installroot;
+                foreach my $part (split('/', $relative))
+                {
+                    next unless $part;
+                    $walk .= "/$part";
+                    last unless -e $walk;
+                    if (-l $walk)
+                    {
+                        $callback->({ error => "Symlink detected at $walk within install tree, refusing to proceed." });
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    # Track all candidate initrd paths before ISO copy so we can
+    # restore/clean up on any failure. Runs for all affected ppc64el
+    # media, including noosimage, so we never lose existing working initrds.
+    my @compat_initrd_backups;
+    my @compat_initrd_created;
+    my $is_affected_ppc64el = ($arch eq "ppc64el" and $detdistname =~ /^ubuntu(\d+)\.(\d+)\.?(\d*)/ and
+        ($1 < 16 or ($1 == 16 and $2 == 4 and ($3 || 0) < 2)));
+    if ($is_affected_ppc64el)
+    {
+        my @paths = (
+            "$installroot/$distname/$arch/install/netboot/initrd.gz",
+            "$installroot/$distname/$arch/install/netboot/ubuntu-installer/$arch/initrd.gz",
+        );
+        foreach my $p (@paths)
+        {
+            if (-l $p)
+            {
+                $callback->({ error => "Existing symlink at $p, refusing to proceed." });
+                return;
+            }
+            elsif (-f $p)
+            {
+                # Store backups in the parent of the distro tree (same
+                # filesystem for atomic rename, but outside cpio target).
+                my $basename = $p;
+                $basename =~ s/[\/]/_/g;
+                my $bak = "$installroot/.xcat-copycds-bak-$$-$basename";
+                my $bak_ok = 0;
+                if (sysopen(my $dst_fh, $bak, O_WRONLY|O_CREAT|O_EXCL, 0600))
+                {
+                    $bak_ok = _safe_copy_to_excl($p, $dst_fh);
+                }
+                if (!$bak_ok)
+                {
+                    $callback->({ error => "Failed to back up existing initrd at $p. Cannot safely proceed with copycds." });
+                    unlink($_->{backup}) for @compat_initrd_backups;
+                    return;
+                }
+                push @compat_initrd_backups, { original => $p, backup => $bak };
+            }
+            elsif (! -e $p)
+            {
+                push @compat_initrd_created, $p;
+            }
+        }
+    }
+
     $callback->(
         { data => "Copying media to $installroot/$distname/$arch" });
     my $omask = umask 0022;
@@ -403,7 +605,23 @@ sub copycd
             $callback->({ sinfo => "$fout" });
             ++$copied;
         }
-        exit;
+        close(PIPE);
+        exit($? ? 1 : 0);
+    }
+
+    # Check cpio status immediately before any post-copy mutations.
+    if ($rc != 0)
+    {
+        $callback->({ error => "Media copy operation failed, status $rc" });
+        foreach my $b (@compat_initrd_backups)
+        {
+            unless (_safe_restore($b->{backup}, $b->{original}, $compat_expected_root)) { $callback->({ warning => ["Failed to restore backup $b->{backup} to $b->{original}. Manual recovery may be needed."] }); }
+        }
+        foreach my $p (@compat_initrd_created)
+        {
+            _safe_unlink($p, $compat_expected_root);
+        }
+        return;
     }
 
     #  system(
@@ -451,12 +669,132 @@ sub copycd
         system("cp install.*/vmlinuz $installroot/$distname/$arch/install/netboot/.");
     }
 
-    if ($rc != 0)
+    # For noosimage ppc64el affected media without compat: restore
+    # pre-existing initrds from backup (preserving whatever state existed
+    # before this copycds run) and delete only files created by this cpio.
+    # This avoids both destroying a working compat initrd AND leaving a
+    # newly-copied bad ISO initrd discoverable by mkinstall.
+    if (!$compat_initrd and $is_affected_ppc64el)
     {
-        $callback->({ error => "Media copy operation failed, status $rc" });
+        foreach my $b (@compat_initrd_backups)
+        {
+            unless (_safe_restore($b->{backup}, $b->{original}, $compat_expected_root)) { $callback->({ warning => ["Failed to restore backup $b->{backup} to $b->{original}. Manual recovery may be needed."] }); }
+        }
+        _safe_unlink($_, $compat_expected_root) for @compat_initrd_created;
     }
-    else
+
     {
+        # Replace the broken ppc64el initrd with the compat version.
+        # Runs only after media copy succeeds. Uses atomic temp+rename
+        # and validates canonical paths to prevent symlink traversal.
+        # On failure, restores backed-up initrd files from before the
+        # ISO copy so a re-run of copycds doesn't degrade an existing
+        # working install tree.
+        # Path validation (ancestor symlinks, containment) already done
+        # in preflight before any files were written.
+        if ($compat_initrd)
+        {
+            my @target_dirs = (
+                "$installroot/$distname/$arch/install/netboot",
+                "$installroot/$distname/$arch/install/netboot/ubuntu-installer/$arch",
+            );
+            my $copy_ok = 1;
+            my @staged;
+            foreach my $tdir (@target_dirs)
+            {
+                # Re-walk path components after cpio to catch symlinks
+                # that the media copy may have introduced.
+                my $relative = $tdir;
+                $relative =~ s/^\Q$installroot\E\/?//;
+                my $walk = realpath($installroot) || $installroot;
+                my $symlink_found = 0;
+                foreach my $part (split('/', $relative))
+                {
+                    next unless $part;
+                    $walk .= "/$part";
+                    last unless -e $walk;
+                    if (-l $walk)
+                    {
+                        $callback->({ error => "Symlink at $walk introduced by media copy, refusing to write compat initrd." });
+                        $symlink_found = 1;
+                        last;
+                    }
+                }
+                if ($symlink_found)
+                {
+                    $copy_ok = 0;
+                    last;
+                }
+
+                mkpath($tdir);
+
+                # Verify resolved path stays under the install tree
+                my $real_tdir = realpath($tdir);
+                if (!$real_tdir or ($real_tdir ne $compat_expected_root
+                    and index($real_tdir, "$compat_expected_root/") != 0))
+                {
+                    $callback->({ error => "Target path $tdir resolves outside install tree, refusing to write." });
+                    $copy_ok = 0;
+                    last;
+                }
+
+                my $target = "$real_tdir/initrd.gz";
+
+                if (-l $target)
+                {
+                    $callback->({ error => "Symlink detected at $target, refusing to overwrite." });
+                    $copy_ok = 0;
+                    last;
+                }
+
+                # Copy through O_EXCL filehandle with full error checking.
+                my $tmp = "$real_tdir/initrd.gz.tmp.$$";
+                my $tmp_ok = 0;
+                if (sysopen(my $dst_fh, $tmp, O_WRONLY|O_CREAT|O_EXCL, 0644))
+                {
+                    $tmp_ok = _safe_copy_to_excl($compat_initrd, $dst_fh);
+                }
+                if (!$tmp_ok or ! -s $tmp)
+                {
+                    unlink($tmp);
+                    $callback->({ error => "Failed to copy compat initrd to $tdir." });
+                    $copy_ok = 0;
+                    last;
+                }
+                push @staged, { tmp => $tmp, target => "$real_tdir/initrd.gz" };
+            }
+
+            if ($copy_ok)
+            {
+                foreach my $s (@staged)
+                {
+                    unless (rename($s->{tmp}, $s->{target}))
+                    {
+                        $callback->({ error => "Failed to rename compat initrd to $s->{target}: $!" });
+                        unlink($s->{tmp});
+                        $copy_ok = 0;
+                    }
+                }
+            }
+
+            unless ($copy_ok)
+            {
+                unlink($_->{tmp}) for @staged;
+                # Restore backed-up initrd files so the existing tree isn't degraded
+                foreach my $b (@compat_initrd_backups)
+                {
+                    unless (_safe_restore($b->{backup}, $b->{original}, $compat_expected_root)) { $callback->({ warning => ["Failed to restore backup $b->{backup} to $b->{original}. Manual recovery may be needed."] }); }
+                }
+                # Delete initrd files that didn't exist before the ISO copy,
+                # so mkinstall doesn't find the broken ISO initrd at the
+                # higher-priority ubuntu-installer path.
+                _safe_unlink($_, $compat_expected_root) for @compat_initrd_created;
+                return;
+            }
+            # Clean up backups on success
+            unlink($_->{backup}) for @compat_initrd_backups;
+            $callback->({ data => "Replaced ppc64el initrd with netboot-capable version from xcat-compat package." });
+        }
         my $osdistroname = $distname . "-" . $arch;
         my $temppath    = "$installroot/$distname/$arch";
         my @ret = xCAT::SvrUtils->update_osdistro_table($distname, $arch, $temppath, $osdistroname);
@@ -840,8 +1178,8 @@ sub mkinstall {
 
         if ($arch =~ /ppc64/i and !(-e "$pkgdir/install/netboot/initrd.gz") and
             !(-e "$pkgdir/install/netboot/ubuntu-installer/$darch/initrd.gz")) {
-            xCAT::MsgUtils->report_node_error($callback, $node, 
-                "The network boot initrd.gz is not found in $pkgdir/install/netboot.  This is provided by Ubuntu, please download and retry."
+            xCAT::MsgUtils->report_node_error($callback, $node,
+                "The network boot initrd.gz is not found in $pkgdir/install/netboot. For Ubuntu pre-16.04.2 on ppc64el, install the xcat-compat package and re-run copycds."
                 );
             next;
         }

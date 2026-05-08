@@ -2,8 +2,13 @@
 # IBM(c) 2013 EPL license http://www.eclipse.org/legal/epl-v10.html
 #------------------------------------------------------------------------------
 #
-# Setup a sudoer named xcat and copy the xCAT public SSH key in its
-# authorized_keys file. Only applies to Linux.
+# Setup a sudoer user and copy the xCAT public SSH key in its authorized_keys
+# file. Only applies to Linux.
+#
+# Credential source is controlled by site.sudoerpolicy:
+#   disabled - skip user creation entirely
+#   modern   - fetch credentials from xCAT server at runtime
+#   legacy   - use hardcoded defaults with deprecation warning (default)
 #
 #------------------------------------------------------------------------------
 
@@ -14,59 +19,601 @@ else
 fi
 
 if [ "$(uname -s|tr 'A-Z' 'a-z')" = "linux" ];then
-   str_dir_name=`dirname $0`
-   . $str_dir_name/xcatlib.sh
+   str_dir_name=$(dirname "$0")
+   # shellcheck source=/dev/null
+   . "$str_dir_name/xcatlib.sh"
 fi
 
-# Configuration for the sudoer
-SUDOER="xcat"
-SUDOERPW="rootpw"
+LEGACY_USER="xcat"
+LEGACY_PASSWORD="rootpw"
+
+PROTECTED_USERS="root bin daemon sys adm nobody systemd-network systemd-resolve messagebus sshd"
+
+fetch_sudoer_credentials() {
+    local xcatserver="${MASTER:-$XCATMASTER}"
+    if [ -z "$xcatserver" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: cannot determine xCAT server address"
+        return 1
+    fi
+
+    local port="${XCATPORT:-3001}"
+    local callback_port=300
+    local tmpdir="/var/run/xcat"
+    local tmpfile=""
+    local listener_pid=""
+
+    mkdir -p "$tmpdir" 2>/dev/null
+    chmod 700 "$tmpdir" 2>/dev/null
+
+    old_umask=$(umask)
+    umask 077
+    tmpfile=$(mktemp "${tmpdir}/sudoercreds.XXXXXX") || {
+        logger -t "$log_label" -p local4.err "sudoer: cannot create secure temp file"
+        umask "$old_umask"
+        return 1
+    }
+    umask "$old_umask"
+
+    if [ -L "$tmpfile" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: temp file is a symlink, aborting"
+        rm -f "$tmpfile"
+        return 1
+    fi
+
+    cleanup_fetch() {
+        if [ -n "$listener_pid" ]; then
+            kill "$listener_pid" 2>/dev/null
+            wait "$listener_pid" 2>/dev/null
+        fi
+        rm -f "$tmpfile" 2>/dev/null
+    }
+    trap cleanup_fetch EXIT
+
+    logger -t "$log_label" -p local4.info "sudoer: fetching credentials from $xcatserver:$port"
+
+    str_dir_name=$(dirname "$0")
+    if [ -x "$str_dir_name/allowcred.awk" ]; then
+        "$str_dir_name/allowcred.awk" &
+        listener_pid=$!
+        sleep 0.3
+    else
+        logger -t "$log_label" -p local4.err "sudoer: allowcred.awk not found, callback verification will fail"
+        trap - EXIT
+        cleanup_fetch
+        return 1
+    fi
+
+    local ssl_opts="-quiet -no_ssl3 -ign_eof"
+    if openssl s_client -help 2>&1 | grep -q -- '-no_ssl2'; then
+        ssl_opts="$ssl_opts -no_ssl2"
+    fi
+
+    local ca_file="/xcatpost/_xcat/ca.pem"
+    if [ -f "$ca_file" ]; then
+        ssl_opts="$ssl_opts -CAfile $ca_file -verify_return_error"
+        logger -t "$log_label" -p local4.info "sudoer: using CA verification for credential fetch"
+    else
+        logger -t "$log_label" -p local4.err "sudoer: CA file not found, refusing unauthenticated credential fetch"
+        trap - EXIT
+        cleanup_fetch
+        return 1
+    fi
+
+    local saw_serverdone=0
+    {
+        echo "<xcatrequest>"
+        echo "   <command>getsudoercreds</command>"
+        echo "   <callback_port>$callback_port</callback_port>"
+        echo "</xcatrequest>"
+    } | timeout 60 openssl s_client $ssl_opts -connect "${xcatserver}:${port}" 2>/dev/null | \
+        while IFS= read -r line; do
+            echo "$line" >> "$tmpfile"
+            if echo "$line" | grep -q "<serverdone>"; then
+                saw_serverdone=1
+            fi
+            if [ "$saw_serverdone" -eq 1 ] && echo "$line" | grep -q "</xcatresponse>"; then
+                break
+            fi
+        done
+
+    if [ -n "$listener_pid" ]; then
+        kill "$listener_pid" 2>/dev/null
+        wait "$listener_pid" 2>/dev/null
+        listener_pid=""
+    fi
+
+    if [ ! -s "$tmpfile" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: no response from xCAT server"
+        trap - EXIT
+        cleanup_fetch
+        return 1
+    fi
+
+    if ! grep -q "</xcatresponse>" "$tmpfile"; then
+        logger -t "$log_label" -p local4.err "sudoer: incomplete response from xCAT server"
+        trap - EXIT
+        cleanup_fetch
+        return 1
+    fi
+
+    if grep -q "<error>" "$tmpfile"; then
+        local err
+        err=$(grep -o '<error>[^<]*</error>' "$tmpfile" | sed 's/<[^>]*>//g')
+        logger -t "$log_label" -p local4.err "sudoer: server returned error: $err"
+        trap - EXIT
+        cleanup_fetch
+        return 1
+    fi
+
+    local fetched_user fetched_hash
+    fetched_user=$(grep '<data>SUDOER_USER=' "$tmpfile" | sed 's/.*<data>SUDOER_USER=//' | sed 's/<\/data>.*//' | tr -d '\r\n')
+    fetched_hash=$(grep '<data>SUDOER_PWHASH=' "$tmpfile" | sed 's/.*<data>SUDOER_PWHASH=//' | sed 's/<\/data>.*//' | tr -d '\r\n')
+
+    rm -f "$tmpfile" 2>/dev/null
+    trap - EXIT
+
+    if [ -z "$fetched_user" ] || [ -z "$fetched_hash" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: incomplete credentials from server"
+        return 1
+    fi
+
+    if ! validate_username "$fetched_user"; then
+        logger -t "$log_label" -p local4.err "sudoer: fetched username '$fetched_user' failed validation"
+        return 1
+    fi
+
+    if ! echo "$fetched_hash" | grep -qE '^\$[156]\$(rounds=[0-9]+\$)?[a-zA-Z0-9./]+\$[a-zA-Z0-9./]+$'; then
+        logger -t "$log_label" -p local4.err "sudoer: fetched hash has invalid format"
+        return 1
+    fi
+
+    SUDOER_USER="$fetched_user"
+    SUDOER_PWHASH="$fetched_hash"
+    logger -t "$log_label" -p local4.info "sudoer: credentials fetched and validated for user '$fetched_user'"
+    return 0
+}
+
+validate_username() {
+    local user="$1"
+    if [ -z "$user" ]; then
+        return 1
+    fi
+    if ! echo "$user" | grep -qE '^[a-z_][a-z0-9_-]*$'; then
+        logger -t "$log_label" -p local4.err "sudoer: invalid username format: $user"
+        return 1
+    fi
+    for protected in $PROTECTED_USERS; do
+        if [ "$user" = "$protected" ]; then
+            logger -t "$log_label" -p local4.err "sudoer: refusing to manage protected account: $user"
+            return 1
+        fi
+    done
+    local existing_uid
+    existing_uid=$(id -u "$user" 2>/dev/null)
+    if [ -n "$existing_uid" ] && [ "$existing_uid" -lt 1000 ]; then
+        logger -t "$log_label" -p local4.err "sudoer: refusing to manage system account: $user (uid=$existing_uid)"
+        return 1
+    fi
+    return 0
+}
+
+XCAT_SUDOER_STATE_DIR="/var/lib/xcat/sudoer-managed"
+
+is_xcat_managed_user() {
+    local user="$1"
+    if ! id "$user" >/dev/null 2>&1; then
+        return 1
+    fi
+    local marker="$XCAT_SUDOER_STATE_DIR/$user"
+    if [ -f "$marker" ]; then
+        local marker_owner marker_mode
+        marker_owner=$(stat -c %u "$marker" 2>/dev/null || stat -f %u "$marker" 2>/dev/null)
+        marker_mode=$(stat -c %a "$marker" 2>/dev/null || stat -f %Lp "$marker" 2>/dev/null)
+        if [ "$marker_owner" = "0" ] && [ "$marker_mode" = "600" ] || [ "$marker_mode" = "644" ]; then
+            return 0
+        fi
+    fi
+    if [ "$user" = "$LEGACY_USER" ]; then
+        if grep -q "^$LEGACY_USER ALL=(ALL) NOPASSWD: ALL" /etc/sudoers 2>/dev/null; then
+            return 0
+        fi
+        local home
+        home=$(grep "^$user:" /etc/passwd 2>/dev/null | cut -f6 -d :)
+        if [ -z "$home" ]; then
+            return 1
+        fi
+        if [ -f "$home/.ssh/authorized_keys" ]; then
+            local match=0
+            local rsa_key dsa_key
+            if [ -f /xcatpost/hostkeys/ssh_host_rsa_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_rsa_key.pub ]; then
+                rsa_key=$(cat /xcatpost/hostkeys/ssh_host_rsa_key.pub)
+                if [ -n "$rsa_key" ] && grep -qF "$rsa_key" "$home/.ssh/authorized_keys" 2>/dev/null; then
+                    match=1
+                fi
+            fi
+            if [ -f /xcatpost/hostkeys/ssh_host_dsa_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_dsa_key.pub ]; then
+                dsa_key=$(cat /xcatpost/hostkeys/ssh_host_dsa_key.pub)
+                if [ -n "$dsa_key" ] && grep -qF "$dsa_key" "$home/.ssh/authorized_keys" 2>/dev/null; then
+                    match=1
+                fi
+            fi
+            if [ "$match" -eq 1 ]; then
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+mark_xcat_managed() {
+    local user="$1"
+    mkdir -p "$XCAT_SUDOER_STATE_DIR" || return 1
+    chmod 755 "$XCAT_SUDOER_STATE_DIR"
+    chown root:root "$XCAT_SUDOER_STATE_DIR"
+    local marker="$XCAT_SUDOER_STATE_DIR/$user"
+    touch "$marker" || return 1
+    chmod 600 "$marker"
+    chown root:root "$marker"
+    return 0
+}
+
+cleanup_managed_user() {
+    local user="$1"
+    local current_user="${2:-}"
+
+    if [ "$user" = "$current_user" ]; then
+        return 0
+    fi
+    if ! id "$user" >/dev/null 2>&1; then
+        rm -f "$XCAT_SUDOER_STATE_DIR/$user" 2>/dev/null
+        return 0
+    fi
+
+    logger -t "$log_label" -p local4.info "sudoer: cleaning up xCAT-managed user $user"
+
+    if ! /usr/sbin/usermod -L "$user" 2>/dev/null; then
+        logger -t "$log_label" -p local4.err "sudoer: failed to lock user $user"
+        return 1
+    fi
+
+    if [ -f /etc/sudoers ]; then
+        sed -i "/^$user /d" /etc/sudoers 2>/dev/null
+        sed -i "/^Defaults:$user /d" /etc/sudoers 2>/dev/null
+    fi
+
+    if grep -q "^$user " /etc/sudoers 2>/dev/null; then
+        logger -t "$log_label" -p local4.err "sudoer: failed to remove sudoers entry for $user"
+        return 1
+    fi
+
+    local user_home
+    user_home=$(grep "^$user:" /etc/passwd 2>/dev/null | cut -f6 -d :)
+    if [ -n "$user_home" ] && [ -f "$user_home/.ssh/authorized_keys" ]; then
+        local keys_file="$user_home/.ssh/authorized_keys"
+        local backup_file="${keys_file}.xcat-backup.$(date +%Y%m%d%H%M%S)"
+        cp -p "$keys_file" "$backup_file" 2>/dev/null
+
+        if grep -q "# BEGIN xCAT MANAGED KEYS" "$keys_file" 2>/dev/null; then
+            sed -i "/# BEGIN xCAT MANAGED KEYS/,/# END xCAT MANAGED KEYS/d" "$keys_file" 2>/dev/null
+            logger -t "$log_label" -p local4.info "sudoer: removed xCAT managed key block from $keys_file (backup: $backup_file)"
+        else
+            local rsa_key="" dsa_key="" ecdsa_key="" ed25519_key=""
+            if [ -f /xcatpost/hostkeys/ssh_host_rsa_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_rsa_key.pub ]; then
+                rsa_key=$(cut -d' ' -f2 < /xcatpost/hostkeys/ssh_host_rsa_key.pub)
+            fi
+            if [ -f /xcatpost/hostkeys/ssh_host_dsa_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_dsa_key.pub ]; then
+                dsa_key=$(cut -d' ' -f2 < /xcatpost/hostkeys/ssh_host_dsa_key.pub)
+            fi
+            if [ -f /xcatpost/hostkeys/ssh_host_ecdsa_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_ecdsa_key.pub ]; then
+                ecdsa_key=$(cut -d' ' -f2 < /xcatpost/hostkeys/ssh_host_ecdsa_key.pub)
+            fi
+            if [ -f /xcatpost/hostkeys/ssh_host_ed25519_key.pub ] && [ -s /xcatpost/hostkeys/ssh_host_ed25519_key.pub ]; then
+                ed25519_key=$(cut -d' ' -f2 < /xcatpost/hostkeys/ssh_host_ed25519_key.pub)
+            fi
+
+            if [ -n "$rsa_key" ] || [ -n "$dsa_key" ] || [ -n "$ecdsa_key" ] || [ -n "$ed25519_key" ]; then
+                local tmp_keys
+                tmp_keys=$(mktemp) || return 1
+                while IFS= read -r line; do
+                    local keep=1
+                    [ -n "$rsa_key" ] && echo "$line" | grep -qF "$rsa_key" && keep=0
+                    [ -n "$dsa_key" ] && echo "$line" | grep -qF "$dsa_key" && keep=0
+                    [ -n "$ecdsa_key" ] && echo "$line" | grep -qF "$ecdsa_key" && keep=0
+                    [ -n "$ed25519_key" ] && echo "$line" | grep -qF "$ed25519_key" && keep=0
+                    [ "$keep" -eq 1 ] && echo "$line"
+                done < "$keys_file" > "$tmp_keys"
+                cat "$tmp_keys" > "$keys_file"
+                rm -f "$tmp_keys"
+                logger -t "$log_label" -p local4.info "sudoer: removed xCAT host keys from $keys_file (backup: $backup_file)"
+            fi
+        fi
+
+        if [ ! -s "$keys_file" ]; then
+            rm -f "$keys_file"
+        fi
+    fi
+
+    echo "disabled" > "$XCAT_SUDOER_STATE_DIR/$user" 2>/dev/null
+    chmod 600 "$XCAT_SUDOER_STATE_DIR/$user" 2>/dev/null
+    logger -t "$log_label" -p local4.info "sudoer: user $user locked and privileges removed (marker preserved)"
+    return 0
+}
+
+cleanup_all_stale_users() {
+    local current_user="${1:-}"
+    local cleanup_failed=0
+
+    if [ -d "$XCAT_SUDOER_STATE_DIR" ]; then
+        for marker in "$XCAT_SUDOER_STATE_DIR"/*; do
+            [ -f "$marker" ] || continue
+            local managed_user
+            managed_user=$(basename "$marker")
+            if [ "$managed_user" != "$current_user" ]; then
+                if ! cleanup_managed_user "$managed_user" "$current_user"; then
+                    cleanup_failed=1
+                fi
+            fi
+        done
+    fi
+
+    if [ "$current_user" != "$LEGACY_USER" ] && id "$LEGACY_USER" >/dev/null 2>&1; then
+        if is_xcat_managed_user "$LEGACY_USER"; then
+            if ! cleanup_managed_user "$LEGACY_USER" "$current_user"; then
+                cleanup_failed=1
+            fi
+        fi
+    fi
+
+    return $cleanup_failed
+}
+
+resolve_credentials() {
+    local policy="${SUDOER_POLICY:-$SUDOERPOLICY}"
+    policy="${policy:-legacy}"
+
+    case "$policy" in
+        invalid)
+            logger -t "$log_label" -p local4.err "sudoer: invalid policy configuration: ${SUDOER_ERROR:-unknown}"
+            echo "Error: invalid site.sudoerpolicy value. Check xCAT configuration." >&2
+            exit 1
+            ;;
+        disabled)
+            logger -t "$log_label" -p local4.info "sudoer: policy=disabled, removing existing managed users"
+            if ! cleanup_all_stale_users ""; then
+                logger -t "$log_label" -p local4.err "sudoer: failed to clean up all managed users"
+                echo "Error: failed to disable sudoer access completely." >&2
+                exit 1
+            fi
+            logger -t "$log_label" -p local4.info "sudoer: all managed sudoer access removed"
+            exit 0
+            ;;
+        modern)
+            logger -t "$log_label" -p local4.info "sudoer: policy=modern, fetching credentials from xCAT server"
+            if ! fetch_sudoer_credentials; then
+                logger -t "$log_label" -p local4.err "sudoer: failed to fetch credentials in modern mode"
+                exit 1
+            fi
+            SUDOER="$SUDOER_USER"
+            ENCRYPT="$SUDOER_PWHASH"
+            ;;
+        legacy)
+            logger -t "$log_label" -p local4.warning "sudoer: policy=legacy uses hardcoded credentials - DEPRECATED"
+            SUDOER="$LEGACY_USER"
+            SEED=$(date "+%s")
+            ENCRYPT=$(perl -e "print crypt('$LEGACY_PASSWORD', \$ARGV[0])" "$SEED")
+            ;;
+        *)
+            logger -t "$log_label" -p local4.err "sudoer: unrecognized policy '$policy', treating as legacy (DEPRECATED)"
+            SUDOER="$LEGACY_USER"
+            SEED=$(date "+%s")
+            ENCRYPT=$(perl -e "print crypt('$LEGACY_PASSWORD', \$ARGV[0])" "$SEED")
+            ;;
+    esac
+}
+
+resolve_credentials
+
+if [ ! -f /xcatpost/hostkeys/ssh_host_rsa_key.pub ] && [ ! -f /xcatpost/hostkeys/ssh_host_dsa_key.pub ]; then
+    logger -t "$log_label" -p local4.err "sudoer: no SSH host keys found in /xcatpost/hostkeys/"
+    echo "Error: no SSH host keys available for authorized_keys. Cannot proceed." >&2
+    exit 1
+fi
+
+if [ ! -w /etc/sudoers ]; then
+    logger -t "$log_label" -p local4.err "sudoer: /etc/sudoers is not writable"
+    echo "Error: cannot write to /etc/sudoers. Check permissions." >&2
+    exit 1
+fi
+
 PRIV="$SUDOER ALL=(ALL) NOPASSWD: ALL"
-SEED=`date "+%s"`
-ENCRYPT=`perl -e "print crypt($SUDOERPW, $SEED)"`
+XCAT_KEY_START="# BEGIN xCAT MANAGED KEYS"
+XCAT_KEY_END="# END xCAT MANAGED KEYS"
+SETUP_CREATED_USER=0
+SETUP_ADDED_SUDOERS=0
+SETUP_ADDED_TTY=0
+SETUP_MODIFIED_AUTHKEYS=0
 
-# Create sudoer
-/usr/sbin/userdel $SUDOER
-/usr/sbin/useradd -p $ENCRYPT -m $SUDOER
-echo "$PRIV" >> /etc/sudoers
-if [ -e "/etc/redhat-release" ]; then
-    echo "Defaults:$SUDOER !requiretty" >> /etc/sudoers
+rollback_setup() {
+    logger -t "$log_label" -p local4.warning "sudoer: rolling back partial setup for $SUDOER"
+    if [ "$SETUP_ADDED_TTY" -eq 1 ]; then
+        sed -i "/^Defaults:$SUDOER !requiretty$/d" /etc/sudoers 2>/dev/null
+    fi
+    if [ "$SETUP_ADDED_SUDOERS" -eq 1 ]; then
+        sed -i "/^$SUDOER ALL=(ALL) NOPASSWD: ALL$/d" /etc/sudoers 2>/dev/null
+    fi
+    if [ "$SETUP_MODIFIED_AUTHKEYS" -eq 1 ]; then
+        local home
+        home=$(grep "^$SUDOER:" /etc/passwd 2>/dev/null | cut -f6 -d :)
+        if [ -n "$home" ] && [ -f "$home/.ssh/authorized_keys" ]; then
+            sed -i "/$XCAT_KEY_START/,/$XCAT_KEY_END/d" "$home/.ssh/authorized_keys" 2>/dev/null
+        fi
+    fi
+    rm -f "$XCAT_SUDOER_STATE_DIR/$SUDOER" 2>/dev/null
+    if [ "$SETUP_CREATED_USER" -eq 1 ]; then
+        /usr/sbin/userdel -r "$SUDOER" 2>/dev/null
+    fi
+}
+
+if id "$SUDOER" >/dev/null 2>&1; then
+    if ! is_xcat_managed_user "$SUDOER"; then
+        logger -t "$log_label" -p local4.err "sudoer: refusing to take over existing non-xCAT user: $SUDOER"
+        echo "Error: user $SUDOER exists but is not xCAT-managed. Will not overwrite." >&2
+        echo "To manage this user, first remove it or its authorized_keys, then rerun." >&2
+        exit 1
+    fi
+    if ! /usr/sbin/usermod -p "$ENCRYPT" "$SUDOER"; then
+        logger -t "$log_label" -p local4.err "sudoer: failed to modify user $SUDOER"
+        exit 1
+    fi
+else
+    if ! /usr/sbin/useradd -p "$ENCRYPT" -m "$SUDOER"; then
+        logger -t "$log_label" -p local4.err "sudoer: failed to create user $SUDOER"
+        exit 1
+    fi
+    SETUP_CREATED_USER=1
 fi
 
-# Find sudoer home
-HOME=`egrep "^$SUDOER:" /etc/passwd | cut -f6 -d :`
+if ! mark_xcat_managed "$SUDOER"; then
+    logger -t "$log_label" -p local4.err "sudoer: failed to mark user as xCAT-managed"
+    rollback_setup
+    exit 1
+fi
 
-# Create the SSH directory in sudoer's home
-mkdir -p $HOME/.ssh/
-sleep 1
+SUDOERS_BACKUP=""
+if ! grep -q "^$SUDOER ALL=(ALL) NOPASSWD: ALL\$" /etc/sudoers 2>/dev/null; then
+    SUDOERS_BACKUP="/etc/sudoers.xcat-backup.$$"
+    cp -p /etc/sudoers "$SUDOERS_BACKUP" 2>/dev/null
+    if grep -q "^$SUDOER " /etc/sudoers 2>/dev/null; then
+        logger -t "$log_label" -p local4.info "sudoer: replacing stale sudoers entry for $SUDOER"
+        sed -i "/^$SUDOER /d" /etc/sudoers 2>/dev/null
+        sed -i "/^Defaults:$SUDOER /d" /etc/sudoers 2>/dev/null
+    fi
+    if ! echo "$PRIV" >> /etc/sudoers; then
+        logger -t "$log_label" -p local4.err "sudoer: failed to add sudoers entry"
+        [ -n "$SUDOERS_BACKUP" ] && cp -p "$SUDOERS_BACKUP" /etc/sudoers 2>/dev/null
+        rm -f "$SUDOERS_BACKUP" 2>/dev/null
+        rollback_setup
+        exit 1
+    fi
+    rm -f "$SUDOERS_BACKUP" 2>/dev/null
+    SETUP_ADDED_SUDOERS=1
+fi
 
-rm -rf $HOME/.ssh/authorized_keys
+if [ -e "/etc/redhat-release" ]; then
+    if ! grep -q "Defaults:$SUDOER !requiretty" /etc/sudoers 2>/dev/null; then
+        if ! echo "Defaults:$SUDOER !requiretty" >> /etc/sudoers; then
+            logger -t "$log_label" -p local4.err "sudoer: failed to add requiretty sudoers entry"
+            rollback_setup
+            exit 1
+        fi
+        SETUP_ADDED_TTY=1
+    fi
+fi
 
-#-----------------
-# Retrieve RSA key
-#-----------------
-KEY=`cat /xcatpost/hostkeys/ssh_host_rsa_key.pub`
+HOME=$(grep "^$SUDOER:" /etc/passwd | cut -f6 -d :)
 
-# Put key in authorized_keys file
-echo -e $KEY >> $HOME/.ssh/authorized_keys
+if [ -z "$HOME" ]; then
+    logger -t "$log_label" -p local4.err "sudoer: cannot determine home directory for $SUDOER"
+    rollback_setup
+    exit 1
+fi
 
+mkdir -p "$HOME/.ssh/" || {
+    logger -t "$log_label" -p local4.err "sudoer: failed to create .ssh directory"
+    rollback_setup
+    exit 1
+}
 
-#-----------------
-# Retrieve DSA key
-#-----------------
-KEY=`cat /xcatpost/hostkeys/ssh_host_dsa_key.pub`
+auth_keys_tmp=$(mktemp "$HOME/.ssh/authorized_keys.XXXXXX") || {
+    logger -t "$log_label" -p local4.err "sudoer: failed to create temp authorized_keys"
+    rollback_setup
+    exit 1
+}
 
-# Put key in authorized_keys file
-echo -e $KEY >> $HOME/.ssh/authorized_keys
-chmod 0644 $HOME/.ssh/authorized_keys
-chown $SUDOER:users $HOME/.ssh/authorized_keys
+{
+    echo "$XCAT_KEY_START"
+    [ -f /xcatpost/hostkeys/ssh_host_rsa_key.pub ] && cat /xcatpost/hostkeys/ssh_host_rsa_key.pub
+    [ -f /xcatpost/hostkeys/ssh_host_dsa_key.pub ] && cat /xcatpost/hostkeys/ssh_host_dsa_key.pub
+    [ -f /xcatpost/hostkeys/ssh_host_ecdsa_key.pub ] && cat /xcatpost/hostkeys/ssh_host_ecdsa_key.pub
+    [ -f /xcatpost/hostkeys/ssh_host_ed25519_key.pub ] && cat /xcatpost/hostkeys/ssh_host_ed25519_key.pub
+    echo "$XCAT_KEY_END"
+} > "$auth_keys_tmp"
 
+if ! grep -q "^ssh-" "$auth_keys_tmp" 2>/dev/null; then
+    logger -t "$log_label" -p local4.err "sudoer: authorized_keys has no valid keys after processing"
+    rm -f "$auth_keys_tmp"
+    rollback_setup
+    exit 1
+fi
 
-# Restart the SSHD for syncfiles postscript to do the sync work
-logger -t $log_label -p local4.info "Restarting SSHD"
-#if [ -f "/etc/debian_version" ];then
-#    service ssh restart
-#else
-#    service sshd restart
-#fi
+chmod 0600 "$auth_keys_tmp"
+chown "$SUDOER:$(id -gn "$SUDOER" 2>/dev/null || echo "$SUDOER")" "$auth_keys_tmp" 2>/dev/null
+chmod 0700 "$HOME/.ssh"
+chown "$SUDOER:$(id -gn "$SUDOER" 2>/dev/null || echo "$SUDOER")" "$HOME/.ssh" 2>/dev/null
+
+mv "$auth_keys_tmp" "$HOME/.ssh/authorized_keys" || {
+    logger -t "$log_label" -p local4.err "sudoer: failed to install authorized_keys"
+    rm -f "$auth_keys_tmp"
+    rollback_setup
+    exit 1
+}
+SETUP_MODIFIED_AUTHKEYS=1
+
+verify_new_sudoer_setup() {
+    if ! id "$SUDOER" >/dev/null 2>&1; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - user $SUDOER does not exist"
+        return 1
+    fi
+    if ! grep -q "^$SUDOER ALL=(ALL) NOPASSWD: ALL\$" /etc/sudoers 2>/dev/null; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - missing NOPASSWD sudoers entry for $SUDOER"
+        return 1
+    fi
+    local home
+    home=$(grep "^$SUDOER:" /etc/passwd 2>/dev/null | cut -f6 -d :)
+    if [ -z "$home" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - cannot determine home for $SUDOER"
+        return 1
+    fi
+    if [ ! -d "$home/.ssh" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - .ssh directory missing for $SUDOER"
+        return 1
+    fi
+    local ssh_perms
+    ssh_perms=$(stat -c '%a' "$home/.ssh" 2>/dev/null)
+    if [ "$ssh_perms" != "700" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - .ssh has wrong permissions ($ssh_perms, expected 700)"
+        return 1
+    fi
+    if [ ! -f "$home/.ssh/authorized_keys" ] || [ ! -s "$home/.ssh/authorized_keys" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - no authorized_keys for $SUDOER"
+        return 1
+    fi
+    local ak_perms
+    ak_perms=$(stat -c '%a' "$home/.ssh/authorized_keys" 2>/dev/null)
+    if [ "$ak_perms" != "600" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - authorized_keys has wrong permissions ($ak_perms, expected 600)"
+        return 1
+    fi
+    local marker="$XCAT_SUDOER_STATE_DIR/$SUDOER"
+    if [ ! -f "$marker" ]; then
+        logger -t "$log_label" -p local4.err "sudoer: verification failed - no marker file for $SUDOER"
+        return 1
+    fi
+    return 0
+}
+
+if ! verify_new_sudoer_setup; then
+    echo "Error: sudoer setup verification failed. Rolling back. Check logs for details." >&2
+    rollback_setup
+    exit 1
+fi
+
+if ! cleanup_all_stale_users "$SUDOER"; then
+    echo "Error: failed to clean up stale sudoer accounts. Check logs for details." >&2
+    exit 1
+fi
+
+logger -t "$log_label" -p local4.info "sudoer: successfully configured user $SUDOER"
+
+logger -t "$log_label" -p local4.info "Restarting SSHD"
 restartservice ssh

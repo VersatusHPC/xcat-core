@@ -318,6 +318,9 @@ sub makescript {
     # For AIX, get the password and cryptmethod for system root
     my $aixrootpasswdvars = getAIXPasswdVars();
 
+    # Get sudoer policy variables
+    my $sudoervars = getSudoerVars();
+
     #%image_hash is used to store the attributes in linuximage and nimimage tabs
     my %image_hash;
     getImage(\%image_hash);
@@ -357,6 +360,7 @@ sub makescript {
     #So move the string substitutions outside the loop
     $t_inc =~ s/#SITE_TABLE_ALL_ATTRIBS_EXPORT#/$allattribsfromsitetable/eg;
     $t_inc =~ s/#AIX_ROOT_PW_VARS_EXPORT#/$aixrootpasswdvars/eg;
+    $t_inc =~ s/#SUDOER_VARS_EXPORT#/$sudoervars/eg;
     $t_inc =~ s/tabdump\(([\w]+)\)/tabdump($1)/eg;
 
     my $monhash = getMonItems($nodes);
@@ -1074,6 +1078,49 @@ sub getAIXPasswdVars
         }
 
     }
+    return $result;
+}
+
+sub getSudoerVars
+{
+    my $result = "";
+
+    require xCAT::SudoerPolicy;
+
+    my %sitevals;
+    my @entries = xCAT::TableUtils->get_site_attribute("sudoerpolicy");
+    if ($entries[0]) {
+        $sitevals{sudoerpolicy} = $entries[0];
+    }
+
+    my $resolved = xCAT::SudoerPolicy::resolve_sudoer_policy(\%sitevals);
+    my $policy = $resolved->{policy};
+
+    $result .= "SUDOER_POLICY=$policy\n";
+    $result .= "export SUDOER_POLICY\n";
+
+    if ($policy eq 'keyonly') {
+        my $passwdtab = xCAT::Table->new('passwd');
+        if ($passwdtab) {
+            my @allents = $passwdtab->getAllAttribs(qw(key username disable));
+            my @sudoer_ents = grep {
+                defined($_->{key}) && $_->{key} eq 'sudoer' &&
+                (!defined($_->{disable}) || $_->{disable} !~ /^(yes|1)$/i)
+            } @allents;
+
+            if (scalar(@sudoer_ents) == 1) {
+                my $ent = $sudoer_ents[0];
+                if (defined($ent->{'username'}) && $ent->{'username'} ne '') {
+                    my $user = $ent->{'username'};
+                    if (xCAT::SudoerPolicy::is_valid_sudoer_username($user)) {
+                        $result .= "SUDOER_USER=$user\n";
+                        $result .= "export SUDOER_USER\n";
+                    }
+                }
+            }
+        }
+    }
+
     return $result;
 }
 

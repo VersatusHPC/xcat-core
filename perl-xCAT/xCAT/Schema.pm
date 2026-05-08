@@ -1361,7 +1361,14 @@ passed as argument rather than by table value',
 "                  https://metacpan.org/pod/IO::Socket::SSL\n\n" .
 " xcatsslciphers:  Administrator override for the TLS cipher list used by\n" .
 "                  xcatd. By default, this value is empty and xcatd uses the\n" .
-"                  OpenSSL library defaults.\n\n",
+"                  OpenSSL library defaults.\n\n" .
+" sudoerpolicy:  Controls how the sudoer postscript configures the sudoer user.\n" .
+"                Valid values are:\n" .
+"                - legacy: (default) Uses hardcoded xcat/rootpw credentials.\n" .
+"                          DEPRECATED and will be removed in a future release.\n" .
+"                - modern: Fetches credentials from xCAT server at runtime.\n" .
+"                          Requires passwd table entry with key=sudoer.\n" .
+"                - disabled: Skip sudoer user creation entirely.\n\n",
             value => 'The value of the attribute specified in the "key" column.',
             comments => 'Any user-written notes.',
             disable  => "Set to 'yes' or '1' to comment out this row.",

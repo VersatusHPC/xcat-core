@@ -81,6 +81,10 @@ export PATH
 ## There may be no information.
 #AIX_ROOT_PW_VARS_EXPORT#
 
+## Sudoer policy credentials. Only exports username for keyonly mode.
+## For modern mode, credentials are fetched at runtime.
+#SUDOER_VARS_EXPORT#
+
 NODESETSTATE=$NSETSTATE
 export NODESETSTATE
 

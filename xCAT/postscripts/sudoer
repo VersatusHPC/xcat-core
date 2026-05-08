@@ -251,7 +251,7 @@ mark_xcat_managed() {
     chmod 755 "$XCAT_SUDOER_STATE_DIR"
     chown root:root "$XCAT_SUDOER_STATE_DIR"
     local marker="$XCAT_SUDOER_STATE_DIR/$user"
-    touch "$marker" || return 1
+    echo "active" > "$marker" || return 1
     chmod 600 "$marker"
     chown root:root "$marker"
     return 0

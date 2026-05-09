@@ -19,6 +19,7 @@ use lib "$::XCATROOT/lib/perl";
 # needing it to avoid reprocessing of user tables ( ExtTab.pm) for each command call
 use POSIX qw(ceil);
 use File::Path;
+use File::Copy;
 #use Data::Dumper;
 use Socket;
 use strict;
@@ -5044,4 +5045,77 @@ sub strim{
     my $str=shift;
     $str =~ s/^\s+|\s+$//g;
     return $str;
+}
+
+#--------------------------------------------------------------------------------
+
+=head3 copy_aarch64_bootloaders
+
+    Copy aarch64 EFI bootloaders from media to tftpboot for netboot support.
+
+    Arguments:
+        $mediapath      - Path to mounted media (ISO contents)
+        $grub_candidates - Arrayref of paths to try for GRUB bootloader
+        $shim_candidates - Arrayref of paths to try for secure boot shim
+        $callback       - Callback for status messages
+
+    Returns:
+        None (status reported via callback)
+
+=cut
+
+#--------------------------------------------------------------------------------
+sub copy_aarch64_bootloaders {
+    my $class = shift;
+    my $mediapath = shift;
+    my $grub_candidates = shift;
+    my $shim_candidates = shift;
+    my $callback = shift;
+
+    my $tftpdir = xCAT::TableUtils->getTftpDir();
+    my $grub_dst_dir = "$tftpdir/boot/grub2";
+
+    unless (-d $grub_dst_dir) {
+        mkpath($grub_dst_dir);
+    }
+
+    # Find and copy GRUB2 bootloader
+    my $grub_src;
+    for my $candidate (@$grub_candidates) {
+        if (-f $candidate) {
+            $grub_src = $candidate;
+            last;
+        }
+    }
+
+    if ($grub_src) {
+        my $grub_dst = "$grub_dst_dir/grub2.aarch64";
+        if (copy($grub_src, $grub_dst)) {
+            chmod 0644, $grub_dst;
+            $callback->({ data => "Copied aarch64 GRUB2 bootloader to $grub_dst" });
+        } else {
+            $callback->({ warning => ["Failed to copy aarch64 GRUB2 bootloader: $!"] });
+        }
+    } else {
+        $callback->({ warning => ["aarch64 GRUB2 bootloader not found in media"] });
+    }
+
+    # Find and copy secure boot shim if available
+    my $shim_src;
+    for my $candidate (@$shim_candidates) {
+        if (-f $candidate) {
+            $shim_src = $candidate;
+            last;
+        }
+    }
+
+    if ($shim_src) {
+        my $shim_dst = "$grub_dst_dir/shim.aarch64";
+        if (copy($shim_src, $shim_dst)) {
+            chmod 0644, $shim_dst;
+            $callback->({ data => "Copied aarch64 secure boot shim to $shim_dst" });
+        } else {
+            $callback->({ warning => ["Failed to copy aarch64 secure boot shim: $!"] });
+        }
+    }
 }

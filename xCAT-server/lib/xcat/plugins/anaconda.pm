@@ -2391,6 +2391,13 @@ sub copycd
             $callback->({ data => "Error when updating the osdistro tables: " . $ret[1] });
         }
 
+        # For aarch64 media, copy EFI bootloaders to tftpboot for netboot support
+        if ($arch eq "aarch64") {
+            my @grub_candidates = ("$path/EFI/BOOT/grubaa64.efi");
+            my @shim_candidates = ("$path/EFI/BOOT/BOOTAA64.EFI");
+            xCAT::Utils->copy_aarch64_bootloaders($path, \@grub_candidates, \@shim_candidates, $callback);
+        }
+
         unless ($noosimage) {
             my @ret = xCAT::SvrUtils->update_tables_with_templates($distname, $arch, $path, $osdistroname);
             if ($ret[0] != 0) {

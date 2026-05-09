@@ -494,6 +494,20 @@ sub copycd
         }
 
         $callback->({ data => "Media copy operation successful" });
+
+        # For aarch64 media, copy EFI bootloaders to tftpboot for netboot support
+        if ($arch eq "aarch64") {
+            my @grub_candidates = (
+                "$temppath/efi/boot/grubaa64.efi",   # Ubuntu (lowercase)
+                "$temppath/EFI/boot/grubaa64.efi",   # Debian
+            );
+            my @shim_candidates = (
+                "$temppath/efi/boot/bootaa64.efi",   # Ubuntu (lowercase)
+                "$temppath/EFI/boot/bootaa64.efi",   # Debian
+            );
+            xCAT::Utils->copy_aarch64_bootloaders($temppath, \@grub_candidates, \@shim_candidates, $callback);
+        }
+
         unless ($noosimage) {
             my @ret = xCAT::SvrUtils->update_tables_with_templates($distname, $arch, $temppath, $osdistroname, $legacyUB20);
             if ($ret[0] != 0) {

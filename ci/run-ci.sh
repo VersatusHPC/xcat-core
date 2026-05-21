@@ -144,6 +144,11 @@ resolve_image() {
             [[ "$ARCH" == "x86_64" ]] && img="noble-server-cloudimg-amd64.img" \
                                        || img="noble-server-cloudimg-ppc64el.img"
             ;;
+        ubuntu-26.04)
+            os_family="ubuntu"
+            [[ "$ARCH" == "x86_64" ]] && img="resolute-server-cloudimg-amd64.img" \
+                                       || img="resolute-server-cloudimg-ppc64el.img"
+            ;;
         *) die "Unknown target: $TARGET" ;;
     esac
     [[ -f "$CLOUD_IMG_DIR/$img" ]] || die "Cloud image not found: $CLOUD_IMG_DIR/$img"
@@ -229,7 +234,13 @@ NX
     # Create disk + VM
     qemu-img create -f qcow2 -b "$base_img" -F qcow2 "$VM_DISK" 100G >&2
     local machine_type; [[ "$ARCH" == "ppc64le" ]] && machine_type="pseries" || machine_type="q35"
-    local osinfo; [[ "$os_family" == "ubuntu" ]] && osinfo="ubuntu22.04" || osinfo="rocky9"
+    local osinfo
+    if [[ "$os_family" == "ubuntu" ]]; then
+        local ver="${TARGET#ubuntu-}"
+        osinfo="ubuntu${ver}"
+    else
+        osinfo="rocky9"
+    fi
 
     virt-install --connect qemu:///system --name "$VM_NAME" \
         --memory 8192 --vcpus 4 --cpu host-passthrough \
@@ -346,11 +357,47 @@ git rev-parse HEAD > Gitinfo 2>/dev/null || echo "unknown" > Gitinfo
 echo "snap$(date +%Y%m%d%H%M)" > Release
 
 echo "Building Ubuntu debs..."
-./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/root/xcat-debs
+DISTS="jammy noble resolute" ./build-ubunturepo -c UP=0 BUILDALL=1 GPGSIGN=0 DEST=/root/xcat-debs
 echo "Build complete"
 ls /root/xcat-debs/debs/*.deb 2>/dev/null | wc -l
 BUILD_DEB
     fi
+}
+
+# ── Initialize xCAT ─────────────────────────────────────────────────────────
+init_xcat() {
+    log "Running xcatconfig -i for management-node initialization"
+    ssh_vm root@"$VM_IP" bash << 'XCATCONFIG'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
+$XCATROOT/sbin/xcatconfig -i
+test -f /root/.xcat/client-cred.pem
+echo "xcatconfig init complete"
+XCATCONFIG
+
+    log "Initializing xCAT database"
+    ssh_vm root@"$VM_IP" bash << 'XCATDB'
+set -euo pipefail
+export XCATROOT=/opt/xcat
+export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
+export PERL5LIB="$XCATROOT/lib/perl"
+XCAT_DOMAIN="cluster.net"
+MASTER_IP=$(hostname -I | awk '{print $1}')
+mkdir -p /etc/xcat
+$XCATROOT/sbin/chtab key=xcatdport site.value=3001
+$XCATROOT/sbin/chtab key=xcatiport site.value=3002
+$XCATROOT/sbin/chtab key=master site.value="$MASTER_IP"
+$XCATROOT/sbin/chtab key=domain site.value="$XCAT_DOMAIN"
+$XCATROOT/sbin/chtab key=installdir site.value=/install
+$XCATROOT/sbin/chtab key=tftpdir site.value=/tftpboot
+while IFS= read -r netname; do
+    [[ -n "$netname" ]] || continue
+    $XCATROOT/sbin/chdef -t network -o "$netname" domain="$XCAT_DOMAIN" >/dev/null
+done < <($XCATROOT/sbin/lsdef -t network 2>/dev/null | awk 'NF { print $1 }')
+echo "xCAT DB initialized"
+XCATDB
 }
 
 # ── Install ──────────────────────────────────────────────────────────────────
@@ -418,56 +465,41 @@ rpm -q perl-xCAT || { echo "FAIL: perl-xCAT not installed"; exit 1; }
 echo "All xCAT packages installed"
 INSTALL_RPM
 
-        log "Running xcatconfig -i for management-node initialization"
-        ssh_vm root@"$VM_IP" bash << 'XCATCONFIG'
-set -euo pipefail
-export XCATROOT=/opt/xcat
-export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
-export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
-$XCATROOT/sbin/xcatconfig -i
-test -f /root/.xcat/client-cred.pem
-echo "xcatconfig init complete"
-XCATCONFIG
-
-        # Initialize xCAT DB in separate SSH call (heredocs get truncated)
-        log "Initializing xCAT database"
-        ssh_vm root@"$VM_IP" bash << 'XCATDB'
-set -euo pipefail
-export XCATROOT=/opt/xcat
-export PATH="$XCATROOT/bin:$XCATROOT/sbin:$PATH"
-export PERL5LIB="$XCATROOT/lib/perl"
-XCAT_DOMAIN="cluster.net"
-MASTER_IP=$(hostname -I | awk '{print $1}')
-mkdir -p /etc/xcat
-$XCATROOT/sbin/chtab key=xcatdport site.value=3001
-$XCATROOT/sbin/chtab key=xcatiport site.value=3002
-$XCATROOT/sbin/chtab key=master site.value="$MASTER_IP"
-$XCATROOT/sbin/chtab key=domain site.value="$XCAT_DOMAIN"
-$XCATROOT/sbin/chtab key=installdir site.value=/install
-$XCATROOT/sbin/chtab key=tftpdir site.value=/tftpboot
-while IFS= read -r netname; do
-    [[ -n "$netname" ]] || continue
-    $XCATROOT/sbin/chdef -t network -o "$netname" domain="$XCAT_DOMAIN" >/dev/null
-done < <($XCATROOT/sbin/lsdef -t network 2>/dev/null | awk 'NF { print $1 }')
-echo "xCAT DB initialized"
-XCATDB
+        init_xcat
     else
-        ssh_vm root@"$VM_IP" bash << 'INSTALL_DEB'
+        local codename
+        case "$TARGET" in
+            ubuntu-22.04) codename=jammy ;;
+            ubuntu-24.04) codename=noble ;;
+            ubuntu-26.04) codename=resolute ;;
+            *) die "Unknown Ubuntu target: $TARGET" ;;
+        esac
+
+        local dep_root="/opt/xcat-dep/apt"
+        if [[ -d "$dep_root" ]]; then
+            log "Copying xcat-dep APT repo to VM"
+            ssh_vm root@"$VM_IP" 'mkdir -p /opt/xcat-dep/apt'
+            tar -C "$dep_root" -cf - . | ssh_vm root@"$VM_IP" 'tar -C /opt/xcat-dep/apt -xf -'
+        else
+            log "WARNING: xcat-dep APT repo not found at $dep_root"
+        fi
+
+        ssh_vm root@"$VM_IP" bash -s "$codename" << 'INSTALL_DEB'
 set -eu
 export DEBIAN_FRONTEND=noninteractive
+CODENAME="$1"
 
-# Configure xcat-dep from upstream apt repo
 ARCH=$(dpkg --print-architecture 2>/dev/null || echo amd64)
-wget -qO - "https://xcat.org/files/xcat/repos/apt/apt.key" | apt-key add - 2>/dev/null || true
-echo "deb [arch=$ARCH] https://xcat.org/files/xcat/repos/apt/latest/xcat-dep focal main" \
+
+# Configure xcat-dep from local repo (copied from host)
+echo "deb [arch=$ARCH trusted=yes] file:///opt/xcat-dep/apt $CODENAME main" \
     > /etc/apt/sources.list.d/xcat-dep.list
 
 # Configure local xcat-core repo
 REPO_DIR=$(find /root/xcat-debs -name "mklocalrepo.sh" -printf '%h\n' 2>/dev/null | head -1)
 if [[ -n "$REPO_DIR" ]]; then
     cd "$REPO_DIR"
-    # Always use focal — build-ubunturepo only creates focal/bionic/etc, not jammy/noble
-    echo "deb [arch=$ARCH trusted=yes] file://$(pwd) focal main" \
+    echo "deb [arch=$ARCH trusted=yes] file://$(pwd) $CODENAME main" \
         > /etc/apt/sources.list.d/xcat-core.list
 fi
 
@@ -482,6 +514,8 @@ dpkg -s xcat-server >/dev/null 2>&1 || { echo "FAIL: xcat-server not installed";
 dpkg -s xcat-test >/dev/null 2>&1 || { echo "FAIL: xcat-test not installed"; exit 1; }
 echo "All xCAT packages installed"
 INSTALL_DEB
+
+        init_xcat
     fi
 }
 
@@ -523,8 +557,10 @@ fi
 TEST
 
     # Seed DNS/DDNS key material so makedhcp -n works with Kea on EL10+
-    log "Seeding DNS configuration"
-    ssh_vm root@"$VM_IP" bash << 'SEEDNS'
+    # Skip on Ubuntu — bind9 may not be installed
+    if [[ "$TARGET" == el* ]]; then
+        log "Seeding DNS configuration"
+        ssh_vm root@"$VM_IP" bash << 'SEEDNS'
 set -euo pipefail
 export XCATROOT=/opt/xcat
 export PATH="$XCATROOT/bin:$XCATROOT/sbin:$XCATROOT/share/xcat/tools:$PATH"
@@ -532,6 +568,9 @@ export PERL5LIB="$XCATROOT/lib/perl:${PERL5LIB:-}"
 makedns -n
 echo "PASS: makedns -n"
 SEEDNS
+    else
+        log "Skipping makedns -n on Ubuntu"
+    fi
 
     # Run xcattest in separate SSH call (long heredocs get truncated)
     log "Running xcattest -s ci_test"

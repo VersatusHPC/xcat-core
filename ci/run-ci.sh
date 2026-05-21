@@ -236,8 +236,13 @@ NX
     local machine_type; [[ "$ARCH" == "ppc64le" ]] && machine_type="pseries" || machine_type="q35"
     local osinfo
     if [[ "$os_family" == "ubuntu" ]]; then
+        # Fall back to latest known osinfo if target version not in database
         local ver="${TARGET#ubuntu-}"
-        osinfo="ubuntu${ver}"
+        if osinfo-query os -s short-id=ubuntu"${ver}" 2>/dev/null | grep -q "ubuntu${ver}"; then
+            osinfo="ubuntu${ver}"
+        else
+            osinfo="ubuntu24.04"
+        fi
     else
         osinfo="rocky9"
     fi

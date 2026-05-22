@@ -36,7 +36,6 @@ BuildRequires: bc
 BuildRequires: bind-utils
 BuildRequires: chrony
 BuildRequires: cpio
-BuildRequires: dhcp-client
 BuildRequires: e2fsprogs
 BuildRequires: hostname
 %if "%{_target_cpu}" == "x86_64"

@@ -110,6 +110,7 @@ my %opts = (
     configure_nginx => 0,
     force => 0,
     help => 0,
+    mock_uniqueext => "",
     nginx_port => 8080,
     nproc => int(`nproc --all`),
     packages => \@PACKAGES,
@@ -123,6 +124,7 @@ GetOptions(
     "configure_nginx" => \$opts{configure_nginx},
     "force" => \$opts{force},
     "help" => \$opts{help},
+    "mock-uniqueext=s" => \$opts{mock_uniqueext},
     "nginx_port" => \$opts{nginx_port},
     "nproc=i" => \$opts{nproc},
     "package=s@" => \$opts{packages},
@@ -219,7 +221,8 @@ EOF
 
 sub createmockconfig {
     my ($pkg, $target) = @_;
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
     my $cfgfile = "/etc/mock/$chroot.cfg";
     return if -f $cfgfile && ! $opts{force};
     cp "/etc/mock/$target.cfg", $cfgfile;
@@ -300,7 +303,8 @@ EOF
 sub buildspkgs {
     my ($pkg, $target) = @_;
 
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
     my $targetarch = targetarch_from_target($target);
     my $genesis_tarch = genesis_tarch_from_targetarch($targetarch);
 
@@ -318,6 +322,7 @@ sub buildspkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+
 
     say "Building $diskcache";
 
@@ -338,7 +343,8 @@ EOF
 sub buildpkgs {
     my ($pkg, $target) = @_;
     my $optsref = \%opts;
-    my $chroot = "$pkg-$target";
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    my $chroot = "$pkg-$target$ext";
 
     my @native_pkgs = qw(
         xCAT
@@ -360,6 +366,7 @@ sub buildpkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+
 
     my $spkgname = sub {
         return "${pkg}-${genesis_tarch}-${VERSION}-${RELEASE}.src.rpm"

@@ -256,6 +256,22 @@ then
         pkg_version="${ver}-${xcat_release}"
 
         packages="xCAT-client xCAT-genesis-scripts perl-xCAT xCAT-server xCAT xCATsn xCAT-test xCAT-buildkit xCAT-vlan xCAT-confluent xCAT-probe"
+        if [ -n "$PACKAGE" ]; then
+            match=""
+            for p in $packages; do
+                p_low=$(echo "$p" | tr '[A-Z]' '[a-z]')
+                pkg_low=$(echo "$PACKAGE" | tr '[A-Z]' '[a-z]')
+                if [ "$p_low" = "$pkg_low" ]; then
+                    match="$p"
+                    break
+                fi
+            done
+            if [ -z "$match" ]; then
+                echo "ERROR: Package '$PACKAGE' not found. Valid packages: $packages"
+                exit 1
+            fi
+            packages="$match"
+        fi
         target_archs=(amd64 ppc64el)
         for file in $packages
         do

@@ -58,6 +58,18 @@ chomp($VERSION);
 chomp($RELEASE);
 chomp($GITINFO);
 
+my $SOURCE_DATE_EPOCH;
+if (-f "Gitepoch") {
+    $SOURCE_DATE_EPOCH = read_text("Gitepoch");
+    chomp($SOURCE_DATE_EPOCH);
+}
+unless ($SOURCE_DATE_EPOCH && $SOURCE_DATE_EPOCH =~ /^\d+$/) {
+    $SOURCE_DATE_EPOCH = `git log -1 --format=%ct HEAD 2>/dev/null`;
+    chomp($SOURCE_DATE_EPOCH);
+}
+$SOURCE_DATE_EPOCH = time() unless $SOURCE_DATE_EPOCH =~ /^\d+$/;
+$ENV{SOURCE_DATE_EPOCH} = $SOURCE_DATE_EPOCH;
+
 sub os_release {
     my %os;
     open my $fh, '<', '/etc/os-release' or die "Cannot open /etc/os-release: $!";
@@ -233,6 +245,7 @@ sub createmockconfig {
         # exported by the RPM
         $contents .= "config_opts['chroot_additional_packages'] = 'perl-generators'\n";
     }
+    $contents .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$SOURCE_DATE_EPOCH'\n";
     write_text($cfgfile, $contents);
 }
 
@@ -254,7 +267,7 @@ sub buildsources_genesis_base($) {
        "$staging_root/80-net-name-slot.rules";
 
     unlink $support_tarball if -f $support_tarball;
-    sh(qq(tar -cjf "$support_tarball" -C "$staging_parent" xCAT-genesis-base-build-support))
+    sh(qq(tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -cjf "$support_tarball" -C "$staging_parent" xCAT-genesis-base-build-support))
         and die "Error creating $support_tarball";
 
     remove_tree($staging_parent);
@@ -271,32 +284,32 @@ sub buildsources {
         }
         sh(<<"EOF");
           cd xCAT
-          tar --exclude upflag -czf $SOURCES/postscripts.tar.gz  postscripts LICENSE.html
-          tar -czf $SOURCES/prescripts.tar.gz  prescripts
-          tar -czf $SOURCES/templates.tar.gz templates
-          tar -czf $SOURCES/winpostscripts.tar.gz winpostscripts
-          tar -czf $SOURCES/etc.tar.gz etc
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" --exclude upflag -czf $SOURCES/postscripts.tar.gz  postscripts LICENSE.html
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf $SOURCES/prescripts.tar.gz  prescripts
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf $SOURCES/templates.tar.gz templates
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf $SOURCES/winpostscripts.tar.gz winpostscripts
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf $SOURCES/etc.tar.gz etc
           cp xcat.conf $SOURCES
           cp xcat.conf.apach24 $SOURCES
           cp xCATMN $SOURCES
 EOF
     } elsif ($pkg eq "xCAT-genesis-scripts") {
-      sh qq(tar -cjf "$SOURCES/$pkg.tar.bz2" $pkg);
+      sh qq(tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -cjf "$SOURCES/$pkg.tar.bz2" $pkg);
     } elsif ($pkg eq "xCAT-genesis-base") {
         buildsources_genesis_base($target);
     } elsif ($pkg eq "xCATsn") {
       sh(<<"EOF");
-          tar -czf "$SOURCES/$pkg-$VERSION.tar.gz" $pkg
-          tar -czf "$SOURCES/license.tar.gz" -C $pkg LICENSE.html
-          tar -czf "$SOURCES/etc.tar.gz" -C xCAT etc
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/$pkg-$VERSION.tar.gz" $pkg
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/license.tar.gz" -C $pkg LICENSE.html
+          tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/etc.tar.gz" -C xCAT etc
           cp $pkg/xcat.conf $SOURCES
           cp $pkg/xcat.conf.apach24 $SOURCES
           cp $pkg/xCATSN $SOURCES
 EOF
       # xCATsn.spec consumes templates from xCAT shared templates payload.
-      sh qq(tar -czf "$SOURCES/templates.tar.gz" xCAT/templates) unless -f "$SOURCES/templates.tar.gz";
+      sh qq(tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/templates.tar.gz" xCAT/templates) unless -f "$SOURCES/templates.tar.gz";
     } else {
-      sh qq(tar -czf "$SOURCES/$pkg-$VERSION.tar.gz" $pkg);
+      sh qq(tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/$pkg-$VERSION.tar.gz" $pkg);
     }
 }
 
@@ -333,6 +346,9 @@ mock -r $chroot \\
     --define "version $VERSION" \\
     --define "release $RELEASE" \\
     --define "gitinfo $GITINFO" \\
+    --define "use_source_date_epoch_as_buildtime 1" \\
+    --define "clamp_mtime_to_source_date_epoch 1" \\
+    --define "_buildhost xcat-build" \\
     --buildsrpm \\
     --spec $dir/$pkg.spec \\
     --sources $SOURCES \\
@@ -351,7 +367,7 @@ sub buildpkgs {
         xCAT-genesis-scripts
     );
 
-    # get x86_64 from rhel+epel-9-x86_64
+    # get x86_64 from alma+epel-9-x86_64
     my $targetarch = targetarch_from_target($target);
 
     # xCAT genesis packages include the translated target arch in their file names.
@@ -386,6 +402,9 @@ mock -r $chroot \\
     --define "version $VERSION" \\
     --define "release $RELEASE" \\
     --define "gitinfo $GITINFO" \\
+    --define "use_source_date_epoch_as_buildtime 1" \\
+    --define "clamp_mtime_to_source_date_epoch 1" \\
+    --define "_buildhost xcat-build" \\
     --resultdir "dist/$target/rpms/" \\
     --rebuild dist/$target/srpms/$spkgname
 EOF

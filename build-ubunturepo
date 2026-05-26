@@ -235,10 +235,18 @@ then
         ver=`cat Version`
         short_ver=`cat Version|cut -d. -f 1,2`
         short_short_ver=`cat Version|cut -d. -f 1`
-        build_time=`date`
-        build_machine=`hostname`
         commit_id_long=`git rev-parse HEAD`
         commit_id="${commit_id_long:0:7}"
+        if [ -f Gitepoch ]; then
+            source_date_epoch=$(cat Gitepoch)
+        else
+            source_date_epoch=$(git log -1 --format=%ct HEAD 2>/dev/null || date +%s)
+        fi
+        export SOURCE_DATE_EPOCH="$source_date_epoch"
+        export DEBEMAIL="xcat-build@xcat.org"
+        export DEBFULLNAME="xCAT Build"
+        build_time=$(date -d "@$source_date_epoch" --utc '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u)
+        build_machine=`hostname`
 
         if [ $code_change == 0 -a "$UP" != 1 -a "$BUILDALL" != 1 ]; then
             echo "Nothing new detected.  Exiting...."
@@ -252,7 +260,11 @@ then
         #the package type:  local | snap | alpha
         #the build introduce string
         build_string="Snap_Build"
-        xcat_release="snap$(date '+%Y%m%d%H%M')"
+        if [ -f Release ]; then
+            xcat_release=$(cat Release)
+        else
+            xcat_release="snap$(date -d "@$source_date_epoch" --utc '+%Y%m%d%H%M')"
+        fi
         pkg_version="${ver}-${xcat_release}"
 
         packages="xCAT-client xCAT-genesis-scripts perl-xCAT xCAT-server xCAT xCATsn xCAT-test xCAT-buildkit xCAT-vlan xCAT-confluent xCAT-probe"
@@ -294,7 +306,9 @@ then
                     CURDIR=$(pwd)
 
                     find . -name '*.dch' -delete
-                    dch -v $pkg_version -b -c debian/changelog $build_string
+                    deterministic_date=$(date -R -d "@$SOURCE_DATE_EPOCH" --utc 2>/dev/null || date -R --utc)
+                    sed -i "1s/(.*)/(${pkg_version})/" debian/changelog
+                    sed -i "s/^ -- .*/ -- $DEBFULLNAME <$DEBEMAIL>  $deterministic_date/" debian/changelog
                     if [ "$target_arch" = "all" ]; then
                         #xcat probe use some functions shipped by xCAT, for below reasons we need to copy files to xCAT-probe directory
                         #1 make xcat probe code to be self-contained
@@ -353,7 +367,7 @@ then
             done
         done
 
-        find $PKGDIR/* ! -name *.deb | xargs rm -f
+        find $PKGDIR/* ! -name '*.deb' | xargs rm -f
     fi
 
     if [ "$PROMOTE" = 1 ]; then

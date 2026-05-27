@@ -19,7 +19,7 @@ sub install_deps {
     esac
     dnf install -y perl-generators https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
     dnf install -y \$(/usr/lib/rpm/perl.req $0)
-    dnf install -y tar mock nginx createrepo podman rpmdevtools
+    dnf install -y tar mock nginx createrepo podman rpmdevtools rpm-sign
 
     systemctl enable --now nginx
 
@@ -121,6 +121,9 @@ my @TARGETS = (
 my %opts = (
     configure_nginx => 0,
     force => 0,
+    gpg_home => "",
+    gpg_key_name => "xCAT Automatic Signing Key",
+    gpg_sign => 0,
     help => 0,
     mock_uniqueext => "",
     nginx_port => 8080,
@@ -135,6 +138,9 @@ my %opts = (
 GetOptions(
     "configure_nginx" => \$opts{configure_nginx},
     "force" => \$opts{force},
+    "gpg-home=s" => \$opts{gpg_home},
+    "gpg-key-name=s" => \$opts{gpg_key_name},
+    "gpg-sign" => \$opts{gpg_sign},
     "help" => \$opts{help},
     "mock-uniqueext=s" => \$opts{mock_uniqueext},
     "nginx_port" => \$opts{nginx_port},
@@ -502,9 +508,13 @@ sub setup_local_repos {
         ? "file://$PWD/dist/$target/rpms"
         : "http://127.0.0.1:$opts{nginx_port}/$target"
     );
+    my $gpgkey = $opts{gpg_sign}
+        ? "file://$PWD/dist/$target/rpms/repodata/repomd.xml.key"
+        : undef;
     my $exit = setup_repo
         -id => "xcat-core-local",
-        -baseurl => $core_baseurl;
+        -baseurl => $core_baseurl,
+        -gpgkey => $gpgkey;
     return $exit if $exit;
     my %os = os_release();
     my $version = int $os{VERSION_ID};
@@ -528,6 +538,27 @@ sub update_repo {
     `createrepo --update dist/$target/rpms`;
 }
 
+sub sign_rpms {
+    my ($target) = @_;
+    my $key_name = $opts{gpg_key_name};
+    my $repodir = "dist/$target/rpms";
+
+    say "Signing RPMs in $repodir";
+    my @rpms = glob("$repodir/*.rpm");
+    if (@rpms) {
+        my $rpm_list = join " ", map { qq("$_") } @rpms;
+        sh(qq(rpmsign --define "%_gpg_name $key_name" --addsign $rpm_list))
+            and die "Failed to sign RPMs in $repodir";
+    }
+
+    say "Signing repomd.xml for $target";
+    my $repomd = "$repodir/repodata/repomd.xml";
+    unlink "$repomd.asc" if -f "$repomd.asc";
+    sh(qq(gpg -a --detach-sign --default-key "$key_name" "$repomd"))
+        and die "Failed to sign $repomd";
+    sh(qq(gpg -a --export "$key_name" > "$repomd.key"))
+        and die "Failed to export public key";
+}
 
 sub main {
     usage(verbose => 2, exitval => 0) if $opts{help};
@@ -561,8 +592,13 @@ sub main {
     }
     $pm->wait_all_children;
 
-    # Default run builds artifacts only.
-    # Repo setup/nginx configuration are explicit actions.
+    if ($opts{gpg_sign}) {
+        $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
+        for my $target ($opts{targets}->@*) {
+            sign_rpms($target);
+        }
+    }
+
     exit(0);
 }
 
@@ -653,6 +689,22 @@ Write C</etc/yum.repos.d/xcat-core-local.repo> and
 C</etc/yum.repos.d/xcat-dep.repo> for the selected mode.
 This is an explicit action and does not run during the default build flow.
 
+=item B<--gpg-sign>
+
+Sign RPMs and repository metadata after build. Requires a GPG key
+in the active keyring (default C<~/.gnupg> or the directory set by
+C<--gpg-home>).
+
+=item B<--gpg-home>=I<PATH>
+
+Path to GNUPGHOME directory containing the signing key.
+If not specified, uses the default GPG keyring.
+
+=item B<--gpg-key-name>=I<NAME>
+
+Name of the GPG key to use for signing.
+Default: C<xCAT Automatic Signing Key>.
+
 =back
 
 =head1 DEFAULT FLOW
@@ -670,6 +722,10 @@ Builds all selected package/target combinations.
 Runs C<createrepo --update> for each selected target under C<dist/>.
 
 =item 3.
+
+If C<--gpg-sign> is set, signs RPMs and C<repomd.xml> for each target.
+
+=item 4.
 
 Exits without modifying nginx or yum repo files.
 

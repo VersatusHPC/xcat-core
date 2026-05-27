@@ -26,6 +26,9 @@
 #
 #               LOCAL_KEY=1  Use local keys to sign repo instead of WGET from GSA. By default use GSA.
 #
+#               GPG_HOME=<path> - Use the specified directory as GNUPGHOME for signing (no passphrase assumed).
+#                                 Bypasses GSA download and LOCAL_KEY.
+#
 #               SETUP=1      Setup environment for build. By default do not setup environment.
 #
 #               LOG=<filename> - provide an LOG file option to redirect some output into log file
@@ -177,6 +180,9 @@ fi
 
 if [ "$GPGSIGN" = "0" ];then
     echo "GPGSIGN=$GPGSIGN specified, skip gnupg key downloading"
+elif [ -n "$GPG_HOME" ];then
+    echo "GPG_HOME=$GPG_HOME specified, using provided GNUPGHOME"
+    export GNUPGHOME="$GPG_HOME"
 else
     #sync the gpg key to the build machine local
     gsa_url=http://pokgsa.ibm.com/projects/x/xcat/build/linux
@@ -416,11 +422,18 @@ __EOF__
        fi
     done
 
-    cat << __EOF__ > conf/options
+    if [ -n "$GPG_HOME" ]; then
+        cat << __EOF__ > conf/options
+verbose
+basedir .
+__EOF__
+    else
+        cat << __EOF__ > conf/options
 verbose
 ask-passphrase
 basedir .
 __EOF__
+    fi
 
     #import the deb packages into the repo
     amd_files=`ls ../$package_dir_name/*.deb | grep -v "ppc64el"`
@@ -561,11 +574,18 @@ __EOF__
 
 
 
-    cat << __EOF__ > conf/options
+    if [ -n "$GPG_HOME" ]; then
+        cat << __EOF__ > conf/options
+verbose
+basedir .
+__EOF__
+    else
+        cat << __EOF__ > conf/options
 verbose
 ask-passphrase
 basedir .
 __EOF__
+    fi
 
     #import the deb packages into the repo
     amd_files=`ls ../debs/*.deb | grep -v "ppc64el"`

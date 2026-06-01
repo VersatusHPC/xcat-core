@@ -68,7 +68,7 @@ BuildRequires: procps-ng
 BuildRequires: psmisc
 BuildRequires: rsync
 BuildRequires: rsyslog
-BuildRequires: screen
+BuildRequires: tmux
 BuildRequires: usbutils
 BuildRequires: util-linux
 BuildRequires: vim-minimal

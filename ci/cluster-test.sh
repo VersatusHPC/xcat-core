@@ -156,9 +156,35 @@ $NSSH "root@$NODE_IP" "test -s $CONF && grep -q '\[Object_node\]' $CONF && echo 
 #    Plain `-f` (no :System) => xcattest chdef's the sn/cn from the conf, then runs the bundle
 #    (setup_vm -> mkvm; SN_setup_case + reg_linux_*_hierarchy -> install the sn then the cn).
 echo "[cluster-test] running FULL: xcattest -f $CONF -b ${BUNDLE}"
+# tee xcattest stdout: it carries the "Miss attribute:" / "To run:" report that the
+# result/ logs and JUnit pass-fail counters do NOT capture. The step-9 silent-skip
+# guard scans this to catch a dropped required install case (see SN_setup_case).
 $NSSH "root@$NODE_IP" \
   ". /etc/profile.d/xcat.sh; cd /opt/xcat/share/xcat/tools/autotest && rm -rf result/* && \
-   /opt/xcat/bin/xcattest -f $CONF -b '${BUNDLE}'" || true
+   /opt/xcat/bin/xcattest -f $CONF -b '${BUNDLE}'" 2>&1 | tee reports/raw/xcattest-console.log || true
+
+# 7b. Kea diagnostics dump (non-fatal): make the EL10/Kea DHCP state visible in
+#     the build log + archived artifacts so future Kea issues need no MN SSH.
+echo "[cluster-test] dumping Kea DHCP diagnostics from the MN"
+mkdir -p reports/raw
+$NSSH "root@$NODE_IP" '
+  echo "===== systemctl status kea-dhcp4 kea-dhcp-ddns =====";
+  systemctl --no-pager status kea-dhcp4 kea-dhcp-ddns 2>&1;
+  echo "===== systemctl is-active =====";
+  systemctl is-active kea-dhcp4 kea-dhcp-ddns 2>&1;
+  echo "===== ss -ulnp sport = :67 =====";
+  ss -ulnp "sport = :67" 2>&1;
+  echo "===== journalctl -u kea-dhcp4 -u kea-dhcp-ddns (last 200) =====";
+  journalctl -u kea-dhcp4 -u kea-dhcp-ddns --no-pager -n 200 2>&1;
+  echo "===== /etc/kea/kea-dhcp4.conf =====";
+  cat /etc/kea/kea-dhcp4.conf 2>&1;
+  echo "===== /etc/kea/kea-dhcp-ddns.conf =====";
+  cat /etc/kea/kea-dhcp-ddns.conf 2>&1;
+  echo "===== kea-dhcp4 -t =====";
+  kea-dhcp4 -t /etc/kea/kea-dhcp4.conf 2>&1;
+  echo "===== kea-dhcp-ddns -t =====";
+  kea-dhcp-ddns -t /etc/kea/kea-dhcp-ddns.conf 2>&1;
+' 2>&1 | tee reports/raw/kea-diagnostics.txt || true
 
 # 8. collect raw results, convert to JUnit, push to the shared tests area
 $SCP -r "root@$NODE_IP:/opt/xcat/share/xcat/tools/autotest/result/*" reports/raw/ 2>/dev/null || true
@@ -171,6 +197,27 @@ echo "[cluster-test] results -> ${RESULTS_DST}/${RUNID}/"
 TESTS=$(grep -oE 'tests="[0-9]+"' "reports/junit/${OS}.xml" 2>/dev/null | grep -oE '[0-9]+' | head -1)
 TESTS="${TESTS:-0}"
 echo "[cluster-test] xcattest reported ${TESTS} cases"
+
+# 9a. guard against SILENT SKIPS of required install cases (run before the counters).
+#     A case xcattest drops for a missing $$attribute (or any other reason) emits NO
+#     ------END:: marker, so the pass/fail counters below are blind to it -- exactly how
+#     the alma10 SN_setup_case / PYTHON_DEP_* gap let "the service node never installed"
+#     masquerade as a partial run. Fail loudly and name the cause.
+REQUIRED_CASES="${XCAT_REQUIRED_CASES:-SN_setup_case reg_linux_diskfull_installation_hierarchy}"
+CONSOLE=reports/raw/xcattest-console.log
+skip_fail=0
+for rc in $REQUIRED_CASES; do
+  if [ -f "$CONSOLE" ] && grep -qE "(^|[[:space:]])${rc}[[:space:]]+miss attribute" "$CONSOLE"; then
+    attr=$(sed -nE "s/.*${rc}[[:space:]]+miss attribute[[:space:]]+([A-Za-z0-9_]+).*/\1/p" "$CONSOLE" | head -1)
+    echo "[cluster-test] FAILURE: required case ${rc} was SKIPPED (miss attribute ${attr:-?}) -- node not provisioned; define it in the cluster conf [System]"
+    skip_fail=1
+  elif ! grep -rqE "END::${rc}::" reports/raw/ 2>/dev/null; then
+    echo "[cluster-test] FAILURE: required case ${rc} produced no result (did not run) -- bundle/harness problem, not a pass"
+    skip_fail=1
+  fi
+done
+[ "$skip_fail" = 0 ] || exit 1
+
 if [ "$TESTS" -eq 0 ]; then
   echo "[cluster-test] FAILURE: xcattest ran 0 cases (harness/setup problem, not a real pass)"; exit 1
 fi

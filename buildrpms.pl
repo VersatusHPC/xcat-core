@@ -42,6 +42,7 @@ use File::Path qw(make_path remove_tree);
 use File::Slurper qw(read_text write_text);
 use FindBin qw($Bin);
 use Getopt::Long qw(GetOptions);
+use POSIX qw(strftime);
 use Parallel::ForkManager;
 use Pod::Usage qw(pod2usage);
 
@@ -50,13 +51,19 @@ use autodie qw(cp);
 
 my $SOURCES = "$ENV{HOME}/rpmbuild/SOURCES";
 my $VERSION = read_text("Version");
-my $RELEASE = read_text("Release");
-my $GITINFO = read_text("Gitinfo");
 my $PWD = Cwd::cwd();
 
 chomp($VERSION);
-chomp($RELEASE);
+
+# Release and Gitinfo are regenerated at each run: every build gets a fresh
+# snapshot release and the current git revision.
+my $RELEASE = strftime("snap%Y%m%d%H%M", localtime);
+write_text("Release", "$RELEASE\n");
+
+my $GITINFO = `git rev-parse HEAD 2>/dev/null`;
 chomp($GITINFO);
+$GITINFO = "unknown" unless $GITINFO;
+write_text("Gitinfo", "$GITINFO\n");
 
 my $SOURCE_DATE_EPOCH;
 if (-f "Gitepoch") {
@@ -94,6 +101,9 @@ sub arch {
 my $ARCH = arch();
 my %OS = os_release();
 my $DISTRO = $OS{ID};
+# mock's EPEL-enabled AlmaLinux templates are named alma+epel-*, there is no
+# almalinux+epel-* config, so translate the os-release ID accordingly.
+$DISTRO = "alma" if $DISTRO eq "almalinux";
 
 my @PACKAGES = qw(
     perl-xCAT

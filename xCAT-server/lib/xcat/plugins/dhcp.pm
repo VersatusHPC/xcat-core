@@ -2737,6 +2737,18 @@ sub kea_build_ddns_intent
         $dns =~ s/,.*//;
         next unless $dns;
 
+        # networks.nameservers / site.nameservers default to the <xcatmaster>
+        # placeholder.  Kea D2 validates dns-servers[].ip-address as a real IP,
+        # so resolve <xcatmaster> to the management IP facing this network the
+        # same way kea_subnet4_intent does for DHCP options.  Skip the network's
+        # DDNS domains if we can't resolve a real IP rather than emit an invalid one.
+        if ($dns =~ /<xcatmaster>/) {
+            my @myipd = xCAT::NetworkUtils->my_ip_facing($entry->{net});
+            my $myip = $myipd[0] ? undef : $myipd[1];
+            $dns =~ s/<xcatmaster>/$myip/g if $myip;
+        }
+        next if (!$dns || $dns =~ /<xcatmaster>/);
+
         my $domain = $entry->{ddnsdomain} || $entry->{domain} || $site_domain;
         if ($domain) {
             $domain .= '.' unless $domain =~ /\.$/;

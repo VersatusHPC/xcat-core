@@ -98,6 +98,7 @@ my $DISTRO = $OS{ID};
 my @PACKAGES = qw(
     perl-xCAT
     xCAT
+    xCATsn
     xCAT-buildkit
     xCAT-client
     xCAT-confluent
@@ -550,6 +551,13 @@ sub sign_rpms {
         sh(qq(rpmsign --define "%_gpg_name $key_name" --addsign $rpm_list))
             and die "Failed to sign RPMs in $repodir";
     }
+
+    # rpmsign --addsign rewrites the rpm files, so the checksums recorded by the
+    # earlier createrepo no longer match and dnf rejects them. Regenerate the repo
+    # metadata now (after signing, before signing repomd.xml) so it stays consistent.
+    say "Regenerating repo metadata after signing $repodir";
+    sh(qq(createrepo --update "$repodir"))
+        and die "Failed to regenerate repo metadata after signing";
 
     say "Signing repomd.xml for $target";
     my $repomd = "$repodir/repodata/repomd.xml";

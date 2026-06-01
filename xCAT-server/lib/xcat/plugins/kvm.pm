@@ -313,7 +313,24 @@ sub get_filepath_by_url { #at the end of the day, the libvirt storage api gives 
         if ($_->get_name() eq $desiredname) {
             if ($create) {
                 if ($force) {    #must destroy the storage
-                    $_->delete();
+                    my $vol = $_;
+                    eval {
+                        # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                        $vol->get_info();
+                        $vol->delete();
+                    };
+                    if ($@) {
+                        # On newer libvirt/Sys::Virt (e.g. EL10) delete() can transiently
+                        # fail; refresh the pool and retry once before giving up.
+                        eval { $poolobj->refresh(); };
+                        eval {
+                            $vol->get_info();
+                            $vol->delete();
+                        };
+                        if ($@) {
+                            die "Unable to delete existing volume $desiredname: $@";
+                        }
+                    }
                 } else {
                     die "Path $desiredname already exists";
                 }
@@ -2100,7 +2117,11 @@ sub chvm {
                     my $file = $_;
                     my $vol  = $hypconn->get_storage_volume_by_path($file);
                     if ($vol) {
-                        $vol->delete();
+                        # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                        eval {
+                            $vol->get_info();
+                            $vol->delete();
+                        };
                     }
                 }
                 $vmxml = $dom->get_xml_description();
@@ -2150,7 +2171,14 @@ sub chvm {
                 #if that worked, remove the disk..
                 my $vol = $hypconn->get_storage_volume_by_path($file);
                 if ($vol) {
-                    $vol->delete();
+                    # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                    eval {
+                        $vol->get_info();
+                        $vol->delete();
+                    };
+                    if ($@) {
+                        xCAT::SvrUtils::sendmsg([ 1, "Unable to remove volume $file: $@" ], $callback, $node);
+                    }
                 }
             }
 
@@ -2897,6 +2925,8 @@ sub promote_vm_to_master {
                     next;
                 }
                 xCAT::SvrUtils::sendmsg("Rebasing $rebasename from master", $callback, $node);
+                # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                $sourcevol->get_info();
                 $sourcevol->delete();
                 my $newbasexml = "<volume><name>$rebasename</name><target><format type='$format'/></target><capacity>" . $sourceinfo{capacity} . "</capacity><backingStore><path>" . $newvol->get_path() . "</path><format type='$format'/></backingStore></volume>";
                 my $newbasevol;

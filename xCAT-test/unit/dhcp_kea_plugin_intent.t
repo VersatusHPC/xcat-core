@@ -202,4 +202,39 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
     is( $subnet->{dynamicrange}, $network_entry{dynamicrange}, 'owning Kea server renders dynamic pool' );
 }
 
+{
+    # Regression: networks.nameservers / site.nameservers default to the
+    # <xcatmaster> placeholder.  Kea D2 rejects a non-IP dns-servers ip-address,
+    # so kea_build_ddns_intent must resolve <xcatmaster> to the management IP
+    # facing the network (via my_ip_facing) before rendering DDNS domains.
+    no warnings 'redefine';
+    local *xCAT_plugin::dhcp::kea_ddns_enabled = sub { 1 };
+    local *xCAT_plugin::dhcp::kea_ddns_key     = sub { ( 'HMAC-SHA256', 'YWJjMTIz' ); };
+
+    local $xCAT::Table::networks = DHCPKeaIntentNetTable->new(
+        {
+            %network_entry,
+            nameservers => '<xcatmaster>',
+        }
+    );
+
+    my $ddns_intent = xCAT_plugin::dhcp::kea_build_ddns_intent();
+
+    ok( $ddns_intent && !$ddns_intent->{error}, 'kea_build_ddns_intent succeeds with <xcatmaster> nameservers' );
+    ok( scalar @{ $ddns_intent->{forward_domains} || [] }, 'kea_build_ddns_intent renders a forward DDNS domain' );
+    ok( scalar @{ $ddns_intent->{reverse_domains} || [] }, 'kea_build_ddns_intent renders a reverse DDNS domain' );
+
+    my @dns_ips =
+      map { $_->{'ip-address'} }
+      map { @{ $_->{'dns-servers'} || [] } }
+      ( @{ $ddns_intent->{forward_domains} || [] }, @{ $ddns_intent->{reverse_domains} || [] } );
+
+    ok( scalar @dns_ips, 'rendered DDNS domains carry dns-servers' );
+    foreach my $ip (@dns_ips) {
+        isnt( $ip, '<xcatmaster>', 'DDNS dns-server ip-address is never the literal <xcatmaster> placeholder' );
+        is( $ip, '10.0.0.1', 'DDNS dns-server ip-address resolves to the management IP facing the network' );
+        like( $ip, qr/^\d+\.\d+\.\d+\.\d+$/, 'DDNS dns-server ip-address is a valid IPv4 literal' );
+    }
+}
+
 done_testing();

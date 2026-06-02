@@ -313,7 +313,24 @@ sub get_filepath_by_url { #at the end of the day, the libvirt storage api gives 
         if ($_->get_name() eq $desiredname) {
             if ($create) {
                 if ($force) {    #must destroy the storage
-                    $_->delete();
+                    my $vol = $_;
+                    eval {
+                        # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                        $vol->get_info();
+                        $vol->delete();
+                    };
+                    if ($@) {
+                        # On newer libvirt/Sys::Virt (e.g. EL10) delete() can transiently
+                        # fail; refresh the pool and retry once before giving up.
+                        eval { $poolobj->refresh(); };
+                        eval {
+                            $vol->get_info();
+                            $vol->delete();
+                        };
+                        if ($@) {
+                            die "Unable to delete existing volume $desiredname: $@";
+                        }
+                    }
                 } else {
                     die "Path $desiredname already exists";
                 }
@@ -2100,7 +2117,11 @@ sub chvm {
                     my $file = $_;
                     my $vol  = $hypconn->get_storage_volume_by_path($file);
                     if ($vol) {
-                        $vol->delete();
+                        # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                        eval {
+                            $vol->get_info();
+                            $vol->delete();
+                        };
                     }
                 }
                 $vmxml = $dom->get_xml_description();
@@ -2150,7 +2171,14 @@ sub chvm {
                 #if that worked, remove the disk..
                 my $vol = $hypconn->get_storage_volume_by_path($file);
                 if ($vol) {
-                    $vol->delete();
+                    # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                    eval {
+                        $vol->get_info();
+                        $vol->delete();
+                    };
+                    if ($@) {
+                        xCAT::SvrUtils::sendmsg([ 1, "Unable to remove volume $file: $@" ], $callback, $node);
+                    }
                 }
             }
 
@@ -2897,6 +2925,8 @@ sub promote_vm_to_master {
                     next;
                 }
                 xCAT::SvrUtils::sendmsg("Rebasing $rebasename from master", $callback, $node);
+                # Need to call get_info() before deleting a volume, without that, delete() will sometimes fail. Issue #455
+                $sourcevol->get_info();
                 $sourcevol->delete();
                 my $newbasexml = "<volume><name>$rebasename</name><target><format type='$format'/></target><capacity>" . $sourceinfo{capacity} . "</capacity><backingStore><path>" . $newvol->get_path() . "</path><format type='$format'/></backingStore></volume>";
                 my $newbasevol;
@@ -3157,6 +3187,35 @@ sub mkvm {
         #print "force=$force\n";
         my @return;
         if ($mastername or $disksize) {
+            if ($force) {
+                # On libvirt 11.x (e.g. EL10) a storage volume cannot be deleted
+                # while it is still attached to a running domain; vol->delete()
+                # then fails and storage is never recreated. Mirror rmvm's
+                # destroy-before-delete ordering: hard power off the existing
+                # domain (if any) before createstorage tries to delete the
+                # volume. We only destroy (power off), not undefine, so the
+                # domain definition is preserved and recreated below as needed.
+                my $existingdom;
+                eval { $existingdom = $hypconn->get_domain_by_name($node); };
+                if ($existingdom and _dom_active($existingdom)) {
+                    eval { $existingdom->destroy(); };
+                    if ($@) {
+                        xCAT::MsgUtils->trace(0, "e", "kvm: failed to destroy running domain $node before recreating storage: $@");
+                    }
+
+                    # libvirt destroy is normally synchronous, but guard against
+                    # a brief race where the volume is still held open: wait for
+                    # the domain to actually report inactive before proceeding.
+                    my $waited = 0;
+                    while ($waited < 10) {
+                        my $stilldom;
+                        eval { $stilldom = $hypconn->get_domain_by_name($node); };
+                        last unless ($stilldom and _dom_active($stilldom));
+                        sleep 1;
+                        $waited++;
+                    }
+                }
+            }
             eval {
                 @return = createstorage($diskname, $mastername, $disksize, $confdata->{vm}->{$node}->[0], $force);
             };
@@ -3242,7 +3301,7 @@ sub power {
             else {
                 $allnodestatus{$node} = $::STATUS_POWERING_ON;
             }
-        } elsif (not $dom->is_active()) {
+        } elsif (not _dom_active($dom)) {
             eval{
                 $dom->create();
             };
@@ -3257,7 +3316,7 @@ sub power {
         if ($dom) {
             my $newxml = $dom->get_xml_description();
             $updatetable->{kvm_nodedata}->{$node}->{xml} = $newxml;
-            if ($dom->is_active()) {
+            if (_dom_active($dom)) {
                 eval{
                     $dom->destroy();
                 };
@@ -3276,7 +3335,7 @@ sub power {
             $allnodestatus{$node} = $::STATUS_POWERING_OFF;
         } else { $retstring .= "$status_noop"; }
     } elsif ($subcommand eq 'reset') {
-        if ($dom && $dom->is_active()) {
+        if ($dom && _dom_active($dom)) {
             my $oldxml = $dom->get_xml_description();
             my $newxml = reconfigvm($node, $oldxml);
 
@@ -4341,6 +4400,21 @@ sub get_cdrom_device_names() {
          }
     }
     return @cdrom_device_names;
+}
+
+# Return true if a libvirt domain is running. Some Sys::Virt versions on EL10 do
+# not expose Sys::Virt::Domain->is_active(); fall back to the domain info state
+# (VIR_DOMAIN_SHUTOFF == 5) so rpower/mkvm work across Sys::Virt versions.
+sub _dom_active {
+    my $dom = shift;
+    return 0 unless ($dom);
+    my $active;
+    eval { $active = $dom->is_active(); };
+    return $active unless ($@);
+    my $info;
+    eval { $info = $dom->get_info(); };
+    return 0 if ($@ || !$info || !defined($info->{state}));
+    return ($info->{state} != 5) ? 1 : 0;
 }
 
 1;

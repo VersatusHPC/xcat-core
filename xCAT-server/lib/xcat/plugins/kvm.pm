@@ -3187,6 +3187,35 @@ sub mkvm {
         #print "force=$force\n";
         my @return;
         if ($mastername or $disksize) {
+            if ($force) {
+                # On libvirt 11.x (e.g. EL10) a storage volume cannot be deleted
+                # while it is still attached to a running domain; vol->delete()
+                # then fails and storage is never recreated. Mirror rmvm's
+                # destroy-before-delete ordering: hard power off the existing
+                # domain (if any) before createstorage tries to delete the
+                # volume. We only destroy (power off), not undefine, so the
+                # domain definition is preserved and recreated below as needed.
+                my $existingdom;
+                eval { $existingdom = $hypconn->get_domain_by_name($node); };
+                if ($existingdom and _dom_active($existingdom)) {
+                    eval { $existingdom->destroy(); };
+                    if ($@) {
+                        xCAT::MsgUtils->trace(0, "e", "kvm: failed to destroy running domain $node before recreating storage: $@");
+                    }
+
+                    # libvirt destroy is normally synchronous, but guard against
+                    # a brief race where the volume is still held open: wait for
+                    # the domain to actually report inactive before proceeding.
+                    my $waited = 0;
+                    while ($waited < 10) {
+                        my $stilldom;
+                        eval { $stilldom = $hypconn->get_domain_by_name($node); };
+                        last unless ($stilldom and _dom_active($stilldom));
+                        sleep 1;
+                        $waited++;
+                    }
+                }
+            }
             eval {
                 @return = createstorage($diskname, $mastername, $disksize, $confdata->{vm}->{$node}->[0], $force);
             };

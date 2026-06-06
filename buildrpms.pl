@@ -55,11 +55,7 @@ my $PWD = Cwd::cwd();
 
 chomp($VERSION);
 
-# Release and Gitinfo are regenerated at each run: every build gets a fresh
-# snapshot release and the current git revision.
-my $RELEASE = strftime("snap%Y%m%d%H%M", localtime);
-write_text("Release", "$RELEASE\n");
-
+# Gitinfo is regenerated at each run with the current git revision.
 my $GITINFO = `git rev-parse HEAD 2>/dev/null`;
 chomp($GITINFO);
 $GITINFO = "unknown" unless $GITINFO;
@@ -140,6 +136,7 @@ my %opts = (
     nginx_port => 8080,
     nproc => int(`nproc --all`),
     packages => \@PACKAGES,
+    release => "",
     repo_mode => "file",
     targets => \@TARGETS,
     verbose => 0,
@@ -157,12 +154,19 @@ GetOptions(
     "nginx_port" => \$opts{nginx_port},
     "nproc=i" => \$opts{nproc},
     "package=s@" => \$opts{packages},
+    "release=s" => \$opts{release},
     "repo-mode=s" => \$opts{repo_mode},
     "target=s@" => \$opts{targets},
     "verbose" => \$opts{verbose},
     "xcat_dep_path=s" => \$opts{xcat_dep_path},
     "setup_local_repos" => \$opts{setup_local_repos},
 ) or usage();
+
+# Release is regenerated at each run so every build gets a fresh snapshot
+# release, unless pinned with --release (e.g. to rebuild a single package
+# matching the release the rest of the repo was built with).
+my $RELEASE = $opts{release} || strftime("snap%Y%m%d%H%M", localtime);
+write_text("Release", "$RELEASE\n");
 
 sub usage {
     my (%args) = @_;
@@ -669,6 +673,17 @@ Default: all host CPUs.
 =item B<--force>
 
 Rebuild artifacts even if output files already exist.
+
+=item B<--release>=I<STRING>
+
+Override the auto-generated C<snapYYYYMMDDHHMM> release string. xCAT packages
+inter-depend on the exact C<Version-Release>, so use this to rebuild a single
+package that installs alongside an already-built repo:
+
+  ./buildrpms.pl --package xCAT-client --release snap202606060850 --force
+
+C<--force> is usually required: with a pinned release the existing RPM under
+C<dist/> matches the disk-cache check and the build would be skipped.
 
 =item B<--verbose>
 

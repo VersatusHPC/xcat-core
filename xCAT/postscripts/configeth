@@ -769,7 +769,17 @@ elif [ "$1" = "-s" ];then
                 tmp_con_name=${str_inst_nic}"-tmp"
                 nmcli con modify $con_name connection.id $tmp_con_name
             fi
-            nmcli con add type ethernet con-name $con_name ifname ${str_inst_nic} ipv4.method manual ipv4.addresses  ${str_inst_ip}/${str_inst_prefix} connection.autoconnect-priority 9 gw4 ${str_inst_gateway}
+            if [ -z "$str_inst_gateway" ]; then
+                # EL10/NM: during updatenode the dhclient lease and MACADDRESS may be
+                # absent, leaving the gateway empty. Recover it from the live default
+                # route so the install NIC keeps its default route.
+                str_inst_gateway=`ip route show default | awk '{print $3}' | head -1`
+            fi
+            gw4_arg=""
+            # Never pass an empty gw4: nmcli rejects "value for 'gw4' is missing", the
+            # connection is not created, and the later down+reload leaves the NIC down.
+            [ -n "$str_inst_gateway" ] && gw4_arg="gw4 $str_inst_gateway"
+            nmcli con add type ethernet con-name $con_name ifname ${str_inst_nic} ipv4.method manual ipv4.addresses  ${str_inst_ip}/${str_inst_prefix} connection.autoconnect-priority 9 $gw4_arg
             str_conf_file_1="/etc/sysconfig/network-scripts/ifcfg-xcat-${str_inst_nic}-1"
             if [ -f $str_conf_file_1 ]; then
                 grep $con_name $str_conf_file_1 >/dev/null 2>/dev/null

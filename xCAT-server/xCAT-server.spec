@@ -494,7 +494,7 @@ xcat_can_use_systemctl()
 if [ "$1" = "1" ]; then #Only if installing for the first time..
    if xcat_can_use_systemctl; then
        systemctl daemon-reload
-       systemctl enable --now xcatd.service
+       systemctl enable xcatd.service
    elif [ -x /sbin/chkconfig ]; then
        /sbin/chkconfig --add xcatd
    elif [ -x /usr/lib/lsb/install_initd ]; then

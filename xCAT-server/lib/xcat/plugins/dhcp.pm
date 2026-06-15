@@ -2849,9 +2849,10 @@ sub kea_ddns_key
         return ($algorithm, $secret) if $secret;
     }
 
+    my $settings = xCAT::DHCP::OmapiPolicy->settings();
     my $passtab = xCAT::Table->new('passwd');
-    my $pent = $passtab ? $passtab->getAttribs({ key => 'omapi', username => 'xcat_key' }, ['password']) : undef;
-    return ('HMAC-SHA256', $pent->{password}) if $pent && $pent->{password};
+    my $pent = $passtab ? $passtab->getAttribs({ key => 'omapi', username => $settings->{key_name} }, ['password']) : undef;
+    return (uc($settings->{algorithm}), $pent->{password}) if $pent && $pent->{password};
     return;
 }
 

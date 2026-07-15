@@ -6,10 +6,10 @@ no warnings 'once';
 use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use Test::More;
 
 my $repo_root = File::Spec->catdir($FindBin::Bin, '..', '..');
-$ENV{XCATROOT} = File::Spec->catdir($repo_root, 'xCAT-server');
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";

@@ -22,6 +22,7 @@ is( system( 'bash', '-n', $source ), 0, 'configeth has valid bash syntax' );
 
 my ( $harness_fh, $harness ) = tempfile();
 print {$harness_fh} shell_function('discover_install_nic_ipv6'), "\n";
+print {$harness_fh} shell_function('configure_install_nic_ipv6_connection'), "\n";
 print {$harness_fh} shell_function('configure_install_nic_ipv6_nm'), "\n";
 print {$harness_fh} shell_function('configure_install_nic_ipv6_keyfile'), "\n";
 print {$harness_fh} <<'SHELL';

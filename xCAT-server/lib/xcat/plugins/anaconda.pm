@@ -55,32 +55,6 @@ sub _oracle_linux_distname
     return "ol$version";
 }
 
-sub _is_el10
-{
-    my $os = shift;
-    return defined($os) && $os =~ /^(?:rh\w*|centos|alma|rocky|ol)10(?:\D|$)/i;
-}
-
-sub _node_is_ipv6_only
-{
-    my $node = shift;
-    return 0 if xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1);
-    return xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1) ? 1 : 0;
-}
-
-sub _ipv6_server_for_node
-{
-    my ($node, $server) = @_;
-
-    if (!defined($server) || $server eq '!myipfn!' || $server eq '<xcatmaster>') {
-        my @facing = xCAT::NetworkUtils->my_ip_facing_family($node, 6);
-        return unless @facing && !$facing[0];
-        return $facing[1];
-    }
-
-    return xCAT::NetworkUtils->getipaddr($server, OnlyV6 => 1);
-}
-
 sub _server_authority
 {
     my ($server, $port, $ipv6_only) = @_;
@@ -124,14 +98,8 @@ sub _el10_static_ipv6_boot_args
     }
 
     if (defined($gateway) && length($gateway)) {
-        if ($gateway eq '<xcatmaster>') {
-            my @facing = xCAT::NetworkUtils->my_ip_facing_family($node, 6);
-            return unless @facing && !$facing[0];
-            $gateway = $facing[1];
-        } elsif (!xCAT::NetworkUtils->isValidIPAddress($gateway) || $gateway !~ /:/) {
-            $gateway = xCAT::NetworkUtils->getipaddr($gateway, OnlyV6 => 1);
-            return unless $gateway;
-        }
+        $gateway = xCAT::NetworkUtils->ipv6_server_for_node($node, $gateway);
+        return unless $gateway;
     } else {
         $gateway = '';
     }
@@ -646,7 +614,8 @@ sub mknetboot
 
         $ent = $reshash->{$node}->[0]; #$restab->getNodeAttribs($node, ['primarynic']);
         my $sent = $hmhash->{$node}->[0];
-        my $el10_ipv6_only = _is_el10($osver) && _node_is_ipv6_only($node);
+        my $el10_ipv6_only = xCAT::SvrUtils->is_el10_os($osver)
+          && xCAT::NetworkUtils->node_is_ipv6_only($node);
 
         #          $hmtab->getNodeAttribs($node,
         #                                 ['serialport', 'serialspeed', 'serialflow']);
@@ -681,12 +650,12 @@ sub mknetboot
         my $imgsrvip;
         my $xcatmasterip;
         if ($el10_ipv6_only) {
-            $imgsrvip = _ipv6_server_for_node($node, $imgsrv);
+            $imgsrvip = xCAT::NetworkUtils->ipv6_server_for_node($node, $imgsrv);
             unless ($imgsrvip) {
                 xCAT::MsgUtils->report_node_error($callback, $node, "Unable to resolve the image server for $node as IPv6");
                 next;
             }
-            $xcatmasterip = _ipv6_server_for_node($node, $xcatmaster);
+            $xcatmasterip = xCAT::NetworkUtils->ipv6_server_for_node($node, $xcatmaster);
             unless ($xcatmasterip) {
                 xCAT::MsgUtils->report_node_error($callback, $node, "Unable to resolve the xCAT master for $node as IPv6");
                 next;
@@ -1449,9 +1418,10 @@ sub mkinstall
                 $instserver = $ent->{nfsserver};
             }
 
-            my $el10_ipv6_only = _is_el10($os) && _node_is_ipv6_only($node);
+            my $el10_ipv6_only = xCAT::SvrUtils->is_el10_os($os)
+              && xCAT::NetworkUtils->node_is_ipv6_only($node);
             if ($el10_ipv6_only) {
-                $instserver = _ipv6_server_for_node($node, $instserver);
+                $instserver = xCAT::NetworkUtils->ipv6_server_for_node($node, $instserver);
                 unless ($instserver) {
                     xCAT::MsgUtils->report_node_error($callback, $node, "Unable to resolve the install server for $node as IPv6");
                     next;

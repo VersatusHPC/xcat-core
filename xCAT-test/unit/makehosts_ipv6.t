@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use lib "$FindBin::Bin/../../xCAT-server/lib";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use lib "$FindBin::Bin/../../perl-xCAT";

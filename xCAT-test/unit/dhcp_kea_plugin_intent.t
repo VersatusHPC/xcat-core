@@ -37,6 +37,22 @@ BEGIN {
     sub getipaddr { return '10.0.0.1'; }
     sub my_ip_facing { return ( 0, '10.0.0.1' ); }
     sub my_ip_facing_family { return ( 0, '2001:db8::1' ); }
+    sub getIPv6PrefixLength {
+        my ( $class, $network, $mask ) = @_;
+        ( $network, $mask ) = ( $class, $network ) if $class ne __PACKAGE__;
+        return $1 if defined($network) && $network =~ m{/([0-9]+)$} && $1 <= 128;
+        return $1 if defined($mask) && $mask =~ m{^/?([0-9]+)$} && $1 <= 128;
+        return;
+    }
+    sub getIPv6ReverseZone {
+        my ( $class, $network, $mask ) = @_;
+        ( $network, $mask ) = ( $class, $network ) if $class ne __PACKAGE__;
+        my $prefix = getIPv6PrefixLength(__PACKAGE__, $network, $mask);
+        return unless defined($prefix);
+        return '0.0.0.0.9.0.3.7.8.b.d.0.1.0.0.2.ip6.arpa.'
+          if $network =~ /^2001:db8:7309::/ && $prefix == 64;
+        return;
+    }
     sub format_uri_host {
         my ($host) = @_;
         $host = $_[1] if defined($host) && $host eq __PACKAGE__;

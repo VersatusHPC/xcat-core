@@ -113,35 +113,6 @@ sub handled_commands
     return { "makedns" => "site:dnshandler" };
 }
 
-sub _ipv6_reverse_zone {
-    my ($netnum, $maskbits) = @_;
-    return unless defined($netnum) && defined($maskbits);
-    return 'ip6.arpa.' if $maskbits == 0;
-
-    my $prefix = Math::BigInt->new($netnum);
-    $prefix->brsft(128 - $maskbits);
-    $prefix = $prefix->as_hex();
-    $prefix =~ s/^0x//;
-
-    my $nibbles = $maskbits / 4;
-    $prefix = ('0' x ($nibbles - length($prefix))) . $prefix;
-    return join('.', reverse(split(//, $prefix))) . '.ip6.arpa.';
-}
-
-sub _ipv6_prefix_length {
-    my ($network, $mask) = @_;
-    return unless defined($network) && $network =~ /:/;
-
-    my $prefix;
-    if ($network =~ m{/([0-9]+)$}) {
-        $prefix = $1;
-    } elsif (defined($mask) && $mask =~ m{^/?([0-9]+)$}) {
-        $prefix = $1;
-    }
-    return unless defined($prefix) && $prefix <= 128;
-    return $prefix;
-}
-
 sub _local_addresses_for_network {
     my $network = shift;
     return unless defined($network) && length($network);
@@ -164,15 +135,15 @@ sub getzonesfornet {
         push @zones, $netent->{ddnsdomain};
     }
     if ($net =~ /:/) { #ipv6, for now do the simple stuff under the assumption we won't have a mask indivisible by 4
-        my $maskbits = _ipv6_prefix_length($net, $mask);
+        my $maskbits = xCAT::NetworkUtils->getIPv6PrefixLength($net, $mask);
         $net =~ s{/.*$}{};
         return @zones unless defined($maskbits);
         if ($maskbits % 4) {
             die "Not supporting an IPv6 prefix length that is not divisible by 4 on network $net";
         }
-        my $netnum = getipaddr($net, GetNumber => 1);
-        unless (defined($netnum)) { return (); }
-        push @zones, _ipv6_reverse_zone($netnum, $maskbits);
+        my $zone = xCAT::NetworkUtils->getIPv6ReverseZone($net, $maskbits);
+        return @zones unless defined($zone);
+        push @zones, $zone;
         return @zones;
     }
 
@@ -280,10 +251,7 @@ sub get_reverse_zones_for_entity {
                     unless (defined($maskbits) && (($maskbits % 4) == 0)) {
                         die "Never expected this, $net should have had CIDR / notation... and the mask should be a factor of 4, if not, need work..."
                     }
-                    push @revs, _ipv6_reverse_zone(
-                        $ctx->{nets}->{$net}->{netn},
-                        $maskbits
-                    );
+                    push @revs, xCAT::NetworkUtils->getIPv6ReverseZone($net);
                 }
             }
         }
@@ -643,7 +611,9 @@ sub process_request {
         my $maskn;
         my $network_key = $_->{net};
         if ($_->{net} =~ /:/) {
-            my $maskbits = _ipv6_prefix_length($_->{net}, $_->{mask});
+            my $maskbits = xCAT::NetworkUtils->getIPv6PrefixLength(
+                $_->{net}, $_->{mask}
+            );
             unless (defined($maskbits)) {
                 umask($oldmask);
                 die "IPv6 network " . $_->{net} . " must include a valid prefix length or numeric mask";
@@ -1150,22 +1120,11 @@ sub _dns_record_type {
     return $address =~ /:/ ? 'AAAA' : 'A';
 }
 
-sub _ipv6_reverse_name {
-    my $address = shift;
-    my $number = getipaddr($address, GetNumber => 1);
-    return unless defined($number);
-
-    my $hex = $number->as_hex();
-    $hex =~ s/^0x//;
-    $hex = ('0' x (32 - length($hex))) . $hex;
-
-    return join('.', reverse(split(//, $hex))) . '.ip6.arpa.';
-}
-
 sub _dns_reverse_name {
     my $address = shift;
 
-    return _ipv6_reverse_name($address) if $address =~ /:/;
+    return xCAT::NetworkUtils->getIPv6ReverseName($address)
+      if $address =~ /:/;
     return join('.', reverse(split(/\./, $address))) . '.IN-ADDR.ARPA.'
       if $address =~ /\./;
 

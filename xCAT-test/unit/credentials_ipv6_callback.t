@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use POSIX ();
 use Time::HiRes qw(usleep);
 use Test::More;

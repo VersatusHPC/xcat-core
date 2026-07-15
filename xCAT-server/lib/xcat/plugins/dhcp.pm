@@ -3674,28 +3674,13 @@ sub getzonesfornet {
     my $mask  = shift;
     my @zones = ();
     if ($net =~ /:/) { #ipv6, for now do the simple stuff under the assumption we won't have a mask indivisible by 4
-        my $maskbits;
-        if ($net =~ s{/([0-9]+)$}{}) {
-            $maskbits = $1;
-        } elsif (defined($mask) && $mask =~ m{^/?([0-9]+)$}) {
-            $maskbits = $1;
-        }
-        return () unless defined($maskbits) && $maskbits <= 128;
+        my $maskbits = xCAT::NetworkUtils->getIPv6PrefixLength($net, $mask);
+        return () unless defined($maskbits);
         if ($maskbits % 4) {
             die "Not supporting an IPv6 prefix length that is not divisible by 4 on network $net";
         }
-        my $netnum = getipaddr($net, GetNumber => 1);
-        unless (defined($netnum)) { return (); }
-        my $prefix_number = Math::BigInt->new($netnum);
-        $prefix_number->brsft(128 - $maskbits);
-        my $prefix = $prefix_number->as_hex();
-        my $nibbs  = $maskbits / 4;
-        $prefix =~ s/^0x//;
-        $prefix = ('0' x ($nibbs - length($prefix))) . $prefix;
-        my $rev = $maskbits
-          ? join('.', reverse(split(//, $prefix))) . '.ip6.arpa.'
-          : 'ip6.arpa.';
-        return ($rev);
+        my $zone = xCAT::NetworkUtils->getIPv6ReverseZone($net, $mask);
+        return defined($zone) ? ($zone) : ();
     }
 
     #return all in-addr reverse zones for a given mask and net

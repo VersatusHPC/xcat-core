@@ -15,6 +15,7 @@ use xCAT::ADUtils;    #to allow setting of one-time machine passwords
 use xCAT::Utils;
 use xCAT::TableUtils;
 use xCAT::NetworkUtils;
+use xCAT::SvrUtils;
 use xCAT::PasswordUtils;
 use xCAT::MsgUtils;
 use XML::Simple;
@@ -50,30 +51,6 @@ my %tab_replacement = (
     "noderes:tftpserver" => "noderes:xcatmaster",
 );
 
-sub _node_is_ipv6_only
-{
-    my $candidate = shift;
-    return 0 if xCAT::NetworkUtils->getipaddr($candidate, OnlyV4 => 1);
-    return xCAT::NetworkUtils->getipaddr($candidate, OnlyV6 => 1) ? 1 : 0;
-}
-
-sub _is_el10
-{
-    my $os = shift;
-    return defined($os) && $os =~ /^(?:rh\w*|centos|alma|rocky|ol)10(?:\D|$)/i;
-}
-
-sub _ipv6_server_for_node
-{
-    my ($candidate, $server) = @_;
-    if (!defined($server) || $server eq '!myipfn!' || $server eq '<xcatmaster>') {
-        my @facing = xCAT::NetworkUtils->my_ip_facing_family($candidate, 6);
-        return unless @facing && !$facing[0];
-        return $facing[1];
-    }
-    return xCAT::NetworkUtils->getipaddr($server, OnlyV6 => 1);
-}
-
 sub _dynamic_kickstart_network
 {
     my ($suffix, $ipv6_only) = @_;
@@ -94,7 +71,7 @@ sub _static_kickstart_network6
     }
 
     if (defined($gateway) && length($gateway)) {
-        $gateway = _ipv6_server_for_node($candidate, $gateway);
+        $gateway = xCAT::NetworkUtils->ipv6_server_for_node($candidate, $gateway);
         unless ($gateway) {
             $tmplerr = "Cannot resolve the IPv6 gateway of $candidate";
             return;
@@ -109,7 +86,7 @@ sub _static_kickstart_network6
     my @nameserver_ips;
     foreach my $nameserver (split(/,/, $nameservers{$candidate} || '')) {
         next unless length($nameserver);
-        my $resolved = _ipv6_server_for_node($candidate, $nameserver);
+        my $resolved = xCAT::NetworkUtils->ipv6_server_for_node($candidate, $nameserver);
         push @nameserver_ips, $resolved if $resolved;
     }
     $network .= " --nameserver=" . join(',', @nameserver_ips) if @nameserver_ips;
@@ -124,7 +101,7 @@ sub subvars {
     my $outf = shift;
     $tmplerr = undef;    #clear tmplerr since we are starting fresh
     $node    = shift;
-    $node_ipv6_only = _node_is_ipv6_only($node);
+    $node_ipv6_only = xCAT::NetworkUtils->node_is_ipv6_only($node);
     my $pkglistfile      = shift;
     my $media_dir        = shift;
     my $platform         = shift;
@@ -198,7 +175,7 @@ sub subvars {
 
     $ENV{XCATMASTER} = $master;
     my $ipaddr = $node_ipv6_only
-      ? _ipv6_server_for_node($node, $master)
+      ? xCAT::NetworkUtils->ipv6_server_for_node($node, $master)
       : xCAT::NetworkUtils->getipaddr($master);
     unless ($ipaddr) {
         $tmplerr = "Unable to resolve master \"$master\" to an IP address for $node";
@@ -1128,10 +1105,12 @@ sub kickstartnetwork {
     unless ($ent and $ent->{mac}) { $tmplerr = "missing mac data for $node"; return; }
     my $suffix = xCAT::Utils->parseMacTabEntry($ent->{mac}, $node);
     $suffix = lc($suffix);
-    my $ipv6_only = defined($node_ipv6_only) ? $node_ipv6_only : _node_is_ipv6_only($node);
+    my $ipv6_only = defined($node_ipv6_only)
+      ? $node_ipv6_only
+      : xCAT::NetworkUtils->node_is_ipv6_only($node);
 
     if ($ipv6_only
-        && _is_el10($template_os)
+        && xCAT::SvrUtils->is_el10_os($template_os)
         && $::XCATSITEVALS{managedaddressmode} ne "autoula")
     {
         my $static_network = _static_kickstart_network6($node, $suffix);
@@ -1991,7 +1970,9 @@ sub tabdb
         unless ($blankok) {
             if ($field eq "xcatmaster") {
                 my $ipfn;
-                my $ipv6_only = defined($node_ipv6_only) ? $node_ipv6_only : _node_is_ipv6_only($node);
+                my $ipv6_only = defined($node_ipv6_only)
+                  ? $node_ipv6_only
+                  : xCAT::NetworkUtils->node_is_ipv6_only($node);
                 my @ipfnd = $ipv6_only
                   ? xCAT::NetworkUtils->my_ip_facing_family($node, 6)
                   : xCAT::NetworkUtils->my_ip_facing($node);

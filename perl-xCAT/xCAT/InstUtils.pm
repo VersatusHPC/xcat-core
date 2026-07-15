@@ -756,11 +756,7 @@ sub get_server_nodes
     foreach my $node (@nodelist)
     {
         my $serv;
-        my $node_family = xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1)
-          ? 4
-          : xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1)
-          ? 6
-          : undef;
+        my $node_family = xCAT::NetworkUtils->node_address_family($node);
         if ($xcatmasters->{$node}->[0]->{xcatmaster})
         {
             # get ip of node xcatmaster attribute

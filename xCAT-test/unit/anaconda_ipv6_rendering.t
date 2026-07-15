@@ -58,21 +58,21 @@ local *xCAT::NetworkUtils::getNodeNetworkCfg6 = sub {
     return @{ $network_cfg{$node} || [] };
 };
 
-ok(xCAT_plugin::anaconda::_is_el10('rhels10.0'), 'RHEL 10 is recognized as EL10');
-ok(xCAT_plugin::anaconda::_is_el10('rocky10'), 'Rocky 10 is recognized as EL10');
-ok(!xCAT_plugin::anaconda::_is_el10('rhels9.6'), 'EL9 is outside the EL10 IPv6 rendering path');
+ok(xCAT::SvrUtils->is_el10_os('rhels10.0'), 'RHEL 10 is recognized as EL10');
+ok(xCAT::SvrUtils->is_el10_os('rocky10'), 'Rocky 10 is recognized as EL10');
+ok(!xCAT::SvrUtils->is_el10_os('rhels9.6'), 'EL9 is outside the EL10 IPv6 rendering path');
 
-ok(xCAT_plugin::anaconda::_node_is_ipv6_only('nodev6'), 'AAAA-only node is detected as IPv6-only');
-ok(!xCAT_plugin::anaconda::_node_is_ipv6_only('nodev4'), 'IPv4-only node stays on the IPv4 path');
-ok(!xCAT_plugin::anaconda::_node_is_ipv6_only('nodedual'), 'dual-stack node retains IPv4 preference');
+ok(xCAT::NetworkUtils->node_is_ipv6_only('nodev6'), 'AAAA-only node is detected as IPv6-only');
+ok(!xCAT::NetworkUtils->node_is_ipv6_only('nodev4'), 'IPv4-only node stays on the IPv4 path');
+ok(!xCAT::NetworkUtils->node_is_ipv6_only('nodedual'), 'dual-stack node retains IPv4 preference');
 
 is(
-    xCAT_plugin::anaconda::_ipv6_server_for_node('nodev6', 'boot6.example.test'),
+    xCAT::NetworkUtils->ipv6_server_for_node('nodev6', 'boot6.example.test'),
     '2001:db8::10',
     'explicit image server resolves in the node IPv6 family'
 );
 is(
-    xCAT_plugin::anaconda::_ipv6_server_for_node('nodev6', '!myipfn!'),
+    xCAT::NetworkUtils->ipv6_server_for_node('nodev6', '!myipfn!'),
     '2001:db8::1',
     'dynamic xCAT master resolves to the IPv6-facing local address'
 );

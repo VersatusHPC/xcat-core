@@ -14,6 +14,7 @@ use xCAT::MsgUtils;
 use xCAT::NodeRange;
 use xCAT::Utils;
 use xCAT::TableUtils;
+use xCAT::NetworkUtils;
 use xCAT::Template;
 use xCAT::SvrUtils;
 use xCAT::Zone;
@@ -23,18 +24,10 @@ use File::Basename;
 use Socket;
 use strict;
 
-sub _node_address_family
-{
-    my $node = shift;
-    return 4 if xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1);
-    return 6 if xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1);
-    return;
-}
-
 sub _facing_addresses_for_node
 {
     my $node = shift;
-    my $family = _node_address_family($node);
+    my $family = xCAT::NetworkUtils->node_address_family($node);
     return defined($family) && $family == 6
       ? xCAT::NetworkUtils->my_ip_facing_family($node, 6)
       : xCAT::NetworkUtils->my_ip_facing($node);
@@ -43,7 +36,7 @@ sub _facing_addresses_for_node
 sub _resolve_server_for_node
 {
     my ($node, $server) = @_;
-    my $family = _node_address_family($node);
+    my $family = xCAT::NetworkUtils->node_address_family($node);
     return xCAT::NetworkUtils->getipaddr($server, OnlyV6 => 1)
       if defined($family) && $family == 6;
     return xCAT::NetworkUtils->getipaddr($server, OnlyV4 => 1)

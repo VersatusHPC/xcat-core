@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use lib "$FindBin::Bin/../../perl-xCAT";
 
 use Test::More;
@@ -115,8 +116,28 @@ like(
 );
 like(
     $content,
-    qr/my \$family_option = \$family == 6 \? '-6' : '';/,
+    qr/push \@command, '-6' if \$family == 6;/,
     'the IPv6 nmap path explicitly selects nmap -6'
+);
+like(
+    $content,
+    qr/push \@command, shellwords\(\$more_options\)/,
+    'site nmap options are parsed into list-form command arguments'
+);
+like(
+    $content,
+    qr/open\(my \$nmap_output, '-\|'\)/,
+    'nmap output uses a lexical pipe'
+);
+like(
+    $content,
+    qr/exec \{ \$command\[0\] \} \@command;/,
+    'nmap executes without an interpolated shell command'
+);
+unlike(
+    $content,
+    qr/open\(NMAP,/,
+    'pping no longer uses the legacy bareword two-argument nmap pipe'
 );
 
 done_testing();

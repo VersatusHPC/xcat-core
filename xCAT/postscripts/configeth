@@ -114,41 +114,9 @@ function discover_install_nic_ipv6(){
     return 0
 }
 
-# Persist an IPv6-only install connection as a native NetworkManager keyfile.
-# Keeping this separate from configipv6 preserves the existing static-address
-# path while allowing configeth -s to replace an installer DHCPv6 connection.
-function configure_install_nic_ipv6_nm(){
-    local str_con_name=$1
-    local str_if_name=$2
-    local str_v6ip=$3
-    local str_v6prefix=$4
-    local str_v6gateway=$5
-    local str_v6dns=$6
-    local str_v6dns_search=$7
-    local str_nic_mtu=$8
-    local -a nm_args=(
-        con add type ethernet
-        con-name "$str_con_name"
-        ifname "$str_if_name"
-        ipv4.method disabled
-        ipv6.method manual
-        ipv6.addresses "${str_v6ip}/${str_v6prefix}"
-        connection.autoconnect yes
-        connection.autoconnect-priority 9
-    )
-
-    [ -n "$str_v6gateway" ] && nm_args+=(ipv6.gateway "$str_v6gateway")
-    [ -n "$str_v6dns" ] && nm_args+=(ipv6.dns "$str_v6dns")
-    [ -n "$str_v6dns_search" ] && nm_args+=(ipv6.dns-search "$str_v6dns_search")
-    [ -n "$str_nic_mtu" ] && nm_args+=(802-3-ethernet.mtu "$str_nic_mtu")
-
-    nmcli "${nm_args[@]}"
-}
-
-# During Anaconda's chrooted %post, NetworkManager is running but nmcli cannot
-# persist a connection in the target root.  Write the equivalent native
-# keyfile there so the IPv6-only install NIC is selected on first boot.
-function configure_install_nic_ipv6_keyfile(){
+# Build the install NIC connection once, then either apply it to the running
+# NetworkManager instance or render the equivalent keyfile for a target root.
+function configure_install_nic_ipv6_connection(){
     local str_con_name=$1
     local str_if_name=$2
     local str_v6ip=$3
@@ -158,8 +126,6 @@ function configure_install_nic_ipv6_keyfile(){
     local str_v6dns_search=$7
     local str_nic_mtu=$8
     local str_keyfile=$9
-    local str_keyfile_dir=${str_keyfile%/*}
-    local str_tmp_keyfile="${str_keyfile}.xcat.$$"
     local -a nm_args=(
         con add type ethernet
         con-name "$str_con_name"
@@ -175,6 +141,16 @@ function configure_install_nic_ipv6_keyfile(){
     [ -n "$str_v6dns" ] && nm_args+=(ipv6.dns "$str_v6dns")
     [ -n "$str_v6dns_search" ] && nm_args+=(ipv6.dns-search "$str_v6dns_search")
     [ -n "$str_nic_mtu" ] && nm_args+=(802-3-ethernet.mtu "$str_nic_mtu")
+
+    if [ -z "$str_keyfile" ]; then
+        nmcli "${nm_args[@]}"
+        return $?
+    fi
+
+    # During Anaconda's chrooted %post, NetworkManager is running but nmcli
+    # cannot persist a connection in the target root. Render it offline.
+    local str_keyfile_dir=${str_keyfile%/*}
+    local str_tmp_keyfile="${str_keyfile}.xcat.$$"
 
     mkdir -p "$str_keyfile_dir" || return $?
     (
@@ -185,6 +161,16 @@ function configure_install_nic_ipv6_keyfile(){
     local int_rc=$?
     [ $int_rc -ne 0 ] && rm -f "$str_tmp_keyfile"
     return $int_rc
+}
+
+# Persist an IPv6-only install connection on a running node.
+function configure_install_nic_ipv6_nm(){
+    configure_install_nic_ipv6_connection "$@" ""
+}
+
+# Persist the same connection as a native NetworkManager keyfile.
+function configure_install_nic_ipv6_keyfile(){
+    configure_install_nic_ipv6_connection "$@"
 }
 
 function configipv4(){

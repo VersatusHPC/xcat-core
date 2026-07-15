@@ -711,11 +711,12 @@ sub partition_ping_targets
 
     foreach my $target (@targets)
     {
-        if (xCAT::NetworkUtils->getipaddr($target, OnlyV4 => 1))
+        my $family = xCAT::NetworkUtils->node_address_family($target);
+        if (defined($family) && $family == 4)
         {
             push @ipv4, $target;
         }
-        elsif (xCAT::NetworkUtils->getipaddr($target, OnlyV6 => 1))
+        elsif (defined($family) && $family == 6)
         {
             push @ipv6, $target;
         }

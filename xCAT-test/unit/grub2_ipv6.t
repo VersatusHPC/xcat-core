@@ -56,6 +56,14 @@ BEGIN {
         return $entry->{4} || $entry->{6};
     }
 
+    sub node_address_family {
+        my $node = shift;
+        $node = shift if defined($node) && $node eq __PACKAGE__;
+        return 4 if getipaddr($node, OnlyV4 => 1);
+        return 6 if getipaddr($node, OnlyV6 => 1);
+        return;
+    }
+
     sub my_ip_facing {
         my $node = shift;
         $node = shift if defined($node) && $node eq __PACKAGE__;

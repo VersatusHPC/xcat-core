@@ -424,7 +424,7 @@ sub getipaddr
         if ($error)
         {
             return () if $extraarguments{GetAllAddresses};
-            return undef;
+            return;
         }
 
         my @returns;
@@ -1475,6 +1475,106 @@ sub _pack_ip_address
 
 #-------------------------------------------------------------------------------
 
+=head3    getIPv6PrefixLength
+
+    Returns the numeric prefix length from an IPv6 network and optional mask.
+
+    Arguments:
+        IPv6 network, optionally with a CIDR suffix
+        Optional numeric prefix mask
+    Returns:
+        Prefix length from 0 through 128, or undef
+
+=cut
+
+#-------------------------------------------------------------------------------
+
+sub getIPv6PrefixLength
+{
+    my $network = shift;
+    if (defined($network) && $network eq __PACKAGE__)
+    {
+        $network = shift;
+    }
+    my $mask = shift;
+
+    return unless defined($network) && $network =~ /:/;
+
+    my $prefix;
+    if ($network =~ m{/([0-9]+)$})
+    {
+        $prefix = $1;
+    }
+    elsif (defined($mask) && $mask =~ m{^/?([0-9]+)$})
+    {
+        $prefix = $1;
+    }
+
+    return unless defined($prefix) && $prefix <= 128;
+    return $prefix;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3    getIPv6ReverseZone
+
+    Formats the nibble-aligned ip6.arpa zone for an IPv6 network.
+
+    Arguments:
+        IPv6 network, optionally with a CIDR suffix
+        Optional numeric prefix mask
+    Returns:
+        Reverse zone name, or undef for invalid or non-nibble-aligned input
+
+=cut
+
+#-------------------------------------------------------------------------------
+
+sub getIPv6ReverseZone
+{
+    my $network = shift;
+    if (defined($network) && $network eq __PACKAGE__)
+    {
+        $network = shift;
+    }
+    my $mask = shift;
+
+    my $prefix = xCAT::NetworkUtils->getIPv6PrefixLength($network, $mask);
+    return unless defined($prefix) && $prefix % 4 == 0;
+
+    my $address = $network;
+    $address =~ s{/.*$}{};
+    my $packed = _pack_ip_address($address, 6);
+    return unless defined($packed);
+    return 'ip6.arpa.' if $prefix == 0;
+
+    my $hex = substr(unpack('H*', $packed), 0, $prefix / 4);
+    return join('.', reverse(split(//, $hex))) . '.ip6.arpa.';
+}
+
+#-------------------------------------------------------------------------------
+
+=head3    getIPv6ReverseName
+
+    Formats the complete 32-nibble ip6.arpa owner name for an IPv6 literal.
+
+=cut
+
+#-------------------------------------------------------------------------------
+
+sub getIPv6ReverseName
+{
+    my $address = shift;
+    if (defined($address) && $address eq __PACKAGE__)
+    {
+        $address = shift;
+    }
+
+    return xCAT::NetworkUtils->getIPv6ReverseZone($address, 128);
+}
+
+#-------------------------------------------------------------------------------
+
 =head3    isSameIPAddress
 
     Compares two IPv4 or IPv6 literals by their packed address value.
@@ -1539,6 +1639,42 @@ sub _addresses_share_prefix
     return 1;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3    node_address_family
+
+    Returns the preferred address family for a node. IPv4 remains preferred
+    for dual-stack nodes to preserve existing xCAT behavior.
+
+=cut
+
+#-------------------------------------------------------------------------------
+
+sub node_address_family
+{
+    my $node = shift;
+    if (defined($node) && $node eq __PACKAGE__)
+    {
+        $node = shift;
+    }
+
+    return 4 if xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1);
+    return 6 if xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1);
+    return;
+}
+
+sub node_is_ipv6_only
+{
+    my $node = shift;
+    if (defined($node) && $node eq __PACKAGE__)
+    {
+        $node = shift;
+    }
+
+    my $family = xCAT::NetworkUtils->node_address_family($node);
+    return defined($family) && $family == 6 ? 1 : 0;
+}
+
 sub my_ip_facing_family
 {
     my $peer = shift;
@@ -1576,6 +1712,27 @@ sub my_ip_facing_family
         return (0, @ips);
     }
     return (2, "The IPv$family address of node $peer is in an undefined subnet");
+}
+
+sub ipv6_server_for_node
+{
+    my $node = shift;
+    if (defined($node) && $node eq __PACKAGE__)
+    {
+        $node = shift;
+    }
+    my $server = shift;
+
+    if (!defined($server) || $server eq '!myipfn!' || $server eq '<xcatmaster>')
+    {
+        my @facing = xCAT::NetworkUtils->my_ip_facing_family($node, 6);
+        return unless @facing && !$facing[0];
+        return $facing[1];
+    }
+
+    return $server
+      if $server =~ /:/ && xCAT::NetworkUtils->isValidIPAddress($server);
+    return xCAT::NetworkUtils->getipaddr($server, OnlyV6 => 1);
 }
 
 #-------------------------------------------------------------------------------
@@ -2493,15 +2650,7 @@ sub isValidIPAddress
     return 0 unless $addr =~ /:/;
     return 0 if $addr =~ m{[%/\[\]\s]};
 
-    my $packed;
-    if (defined(&Socket::inet_pton)) {
-        $packed = eval { Socket::inet_pton(Socket::AF_INET6(), $addr) };
-    }
-    if (!defined($packed) && $socket6support) {
-        $packed = eval { Socket6::inet_pton(Socket6::AF_INET6(), $addr) };
-    }
-
-    return defined($packed) ? 1 : 0;
+    return defined(_pack_ip_address($addr, 6)) ? 1 : 0;
 }
 
 
@@ -2526,6 +2675,8 @@ sub _endpoint_hostname_is_valid
     my $host = shift;
     return 0 unless defined($host) && length($host);
 
+    # The endpoint grammar intentionally accepts uppercase and underscore
+    # labels used by xCAT; the legacy hostname validators do not accept both.
     my $name = $host;
     $name =~ s/\.$//;
     return 0 unless length($name) && length($name) <= 253;

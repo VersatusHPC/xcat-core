@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use lib "$FindBin::Bin/../../xCAT-server/lib";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use lib "$FindBin::Bin/../../perl-xCAT";
@@ -12,7 +13,6 @@ use Socket ();
 use Test::More;
 
 $ENV{XCATCFG}  ||= 'SQLite:/tmp';
-$ENV{XCATROOT} ||= "$FindBin::Bin/../../xCAT-server";
 
 my $source_ddns_plugin =
   "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/ddns.pm";
@@ -144,11 +144,11 @@ SKIP: {
 }
 
 SKIP: {
-    skip 'Socket6 is required for IPv6 reverse-zone number conversion', 11
-      unless eval { require Socket6; 1 };
+    skip 'No IPv6 literal parser is available for reverse-zone conversion', 11
+      unless $has_ipv6_parser;
 
     is(
-        xCAT_plugin::ddns::_ipv6_reverse_name('::'),
+        xCAT::NetworkUtils->getIPv6ReverseName('::'),
         join('.', ('0') x 32) . '.ip6.arpa.',
         'all-zero IPv6 PTR owner contains all 32 nibbles'
     );
@@ -188,7 +188,7 @@ SKIP: {
         'IPv6 /0 associates an entity with the root reverse zone'
     );
     is(
-        xCAT_plugin::ddns::_ipv6_reverse_name('::1'),
+        xCAT::NetworkUtils->getIPv6ReverseName('::1'),
         join('.', reverse(split(//, ('0' x 31) . '1'))) . '.ip6.arpa.',
         'IPv6 PTR owner contains all 32 nibbles for a leading-zero address'
     );

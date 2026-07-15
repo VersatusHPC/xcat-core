@@ -85,6 +85,98 @@ SKIP: {
 }
 
 is(
+    xCAT::NetworkUtils->getIPv6PrefixLength('2001:db8:7309::/64'),
+    64,
+    'extracts an IPv6 prefix from CIDR notation'
+);
+is(
+    xCAT::NetworkUtils->getIPv6PrefixLength('2001:db8:7309::', '/64'),
+    64,
+    'accepts a separate numeric IPv6 prefix'
+);
+ok(
+    !defined(xCAT::NetworkUtils->getIPv6PrefixLength('2001:db8::', 129)),
+    'rejects an out-of-range IPv6 prefix'
+);
+
+SKIP: {
+    skip 'No IPv6 literal parser is available', 6 unless $has_ipv6_parser;
+
+    is(
+        xCAT::NetworkUtils->getIPv6ReverseZone('2001:db8:7309::/64'),
+        '0.0.0.0.9.0.3.7.8.b.d.0.1.0.0.2.ip6.arpa.',
+        'formats an IPv6 reverse zone from packed address bytes'
+    );
+    is(
+        xCAT::NetworkUtils->getIPv6ReverseZone('2001:db8:7309::', 64),
+        '0.0.0.0.9.0.3.7.8.b.d.0.1.0.0.2.ip6.arpa.',
+        'formats a reverse zone with a separate prefix'
+    );
+    is(
+        xCAT::NetworkUtils->getIPv6ReverseZone('::/0'),
+        'ip6.arpa.',
+        'formats the IPv6 root reverse zone'
+    );
+    is(
+        xCAT::NetworkUtils->getIPv6ReverseName('::1'),
+        join('.', reverse(split(//, ('0' x 31) . '1'))) . '.ip6.arpa.',
+        'formats a complete IPv6 PTR owner name'
+    );
+    is(
+        xCAT::NetworkUtils->getIPv6ReverseName('::ffff:192.0.2.10'),
+        join('.', reverse(split(//, '00000000000000000000ffffc000020a')))
+          . '.ip6.arpa.',
+        'formats an IPv4-mapped IPv6 PTR owner name'
+    );
+    ok(
+        !defined(xCAT::NetworkUtils->getIPv6ReverseZone('2001:db8::/63')),
+        'rejects a non-nibble-aligned reverse zone'
+    );
+}
+
+{
+    no warnings 'redefine';
+    my %addresses = (
+        nodev4   => { 4 => '192.0.2.10' },
+        nodev6   => { 6 => '2001:db8::10' },
+        nodedual => { 4 => '192.0.2.20', 6 => '2001:db8::20' },
+        server6  => { 6 => '2001:db8::53' },
+    );
+    local *xCAT::NetworkUtils::getipaddr = sub {
+        my $host = shift;
+        $host = shift if defined($host) && $host eq 'xCAT::NetworkUtils';
+        my %options = @_;
+        return $addresses{$host}{4} if $options{OnlyV4};
+        return $addresses{$host}{6} if $options{OnlyV6};
+        return;
+    };
+    local *xCAT::NetworkUtils::my_ip_facing_family = sub {
+        return (0, '2001:db8::1');
+    };
+
+    is(xCAT::NetworkUtils->node_address_family('nodev4'), 4, 'detects an IPv4 node');
+    is(xCAT::NetworkUtils->node_address_family('nodev6'), 6, 'detects an IPv6-only node');
+    is(xCAT::NetworkUtils->node_address_family('nodedual'), 4, 'preserves IPv4 preference for a dual-stack node');
+    ok(xCAT::NetworkUtils->node_is_ipv6_only('nodev6'), 'identifies an IPv6-only node');
+    ok(!xCAT::NetworkUtils->node_is_ipv6_only('nodedual'), 'does not classify a dual-stack node as IPv6-only');
+    is(
+        xCAT::NetworkUtils->ipv6_server_for_node('nodev6', 'server6'),
+        '2001:db8::53',
+        'resolves an explicit server in the IPv6 family'
+    );
+    is(
+        xCAT::NetworkUtils->ipv6_server_for_node('nodev6', '2001:db8::54'),
+        '2001:db8::54',
+        'preserves a valid IPv6 server literal without resolver lookup'
+    );
+    is(
+        xCAT::NetworkUtils->ipv6_server_for_node('nodev6', '<xcatmaster>'),
+        '2001:db8::1',
+        'selects the IPv6-facing address for the xCAT master token'
+    );
+}
+
+is(
     xCAT::NetworkUtils->format_uri_host('192.0.2.10'),
     '192.0.2.10',
     'URI host formatting preserves IPv4'
@@ -355,6 +447,8 @@ BEGIN {
     };
 }
 use xCAT::NetworkUtils;
+die "core IPv6 validation failed\n"
+  unless xCAT::NetworkUtils->isValidIPAddress('2001:db8::10');
 my $v6 = xCAT::NetworkUtils->getipaddr('2001:db8::10', OnlyV6 => 1);
 die "core IPv6 lookup failed\n" unless defined($v6) && $v6 eq '2001:db8::10';
 my $number = xCAT::NetworkUtils->getipaddr(

@@ -4,6 +4,7 @@ use warnings;
 no warnings 'once';
 
 use FindBin;
+BEGIN { $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server"; }
 use lib "$FindBin::Bin/../../perl-xCAT";
 use Test::More;
 use xCAT::InstUtils;

@@ -62,20 +62,13 @@ sub _slow_get_tftpdir {    #make up for paths where tftpdir is not passed in
     }
 }
 
-sub grub2_node_address_family {
-    my $node = shift;
-
-    return 4 if xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1);
-    return 6 if xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1);
+sub grub2_server_for_node {
+    my ($node, $tftpserver) = @_;
+    my $family = xCAT::NetworkUtils->node_address_family($node);
 
     # Preserve the legacy IPv4 path and its error reporting when the node does
     # not resolve in either family.
-    return 4;
-}
-
-sub grub2_server_for_node {
-    my ($node, $tftpserver) = @_;
-    my $family = grub2_node_address_family($node);
+    $family = 4 unless defined($family);
 
     if ($tftpserver eq '<xcatmaster>') {
         my @facing = $family == 6

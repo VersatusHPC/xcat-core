@@ -24,6 +24,7 @@ $XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 use IO::Handle;
 use IO::Select;
 use Getopt::Long;
+use Text::ParseWords qw(shellwords);
 
 my $USAGE = "Usage: pping [-i|--interface interfaces][-f|--use_fping] noderange
        pping -h|--help
@@ -232,12 +233,23 @@ sub nmap_pping {
         $more_options = $nmap_options[0];
     }
     $more_options = '' unless defined($more_options);
-    my $family_option = $family == 6 ? '-6' : '';
 
     # Added port 22 for unprivileged case (#4324)
-    open(NMAP, "nmap $family_option -PE --system-dns --send-ip -sP --unprivileged -PA80,443,22 $more_options " . join(' ', @$nodes) . " 2> /dev/null|") or die("Cannot open nmap pipe: $!");
-    my @output = <NMAP>;
-    close(NMAP);
+    my @command = ('nmap');
+    push @command, '-6' if $family == 6;
+    push @command, qw(-PE --system-dns --send-ip -sP --unprivileged -PA80,443,22);
+    push @command, shellwords($more_options) if length($more_options);
+    push @command, @{$nodes};
+
+    my $pid = open(my $nmap_output, '-|');
+    die("Cannot open nmap pipe: $!") unless defined($pid);
+    if ($pid == 0) {
+        open(STDERR, '>', '/dev/null');
+        exec { $command[0] } @command;
+        exit 127;
+    }
+    my @output = <$nmap_output>;
+    close($nmap_output);
 
     my %alive = map { $_ => 1 }
       xCAT::DSHCore->nmap_alive_targets($nodes, \@output);

@@ -396,9 +396,9 @@ passed as argument rather than by table value',
         table_desc => 'IP addresses and hostnames of nodes.  This info is optional and is only used to populate /etc/hosts and DNS via makehosts and makedns.  Using regular expressions in this table can be a quick way to populate /etc/hosts.',
         descriptions => {
             node => 'The node name or group name.',
-            ip => 'The IP address of the node. This is only used in makehosts.  The rest of xCAT uses system name resolution to resolve node names to IP addresses.',
+            ip => 'The IPv4 or IPv6 address literal of the node. makehosts and makedns use this value; the rest of xCAT uses system name resolution to resolve node names to IP addresses.',
             hostnames => 'Hostname aliases added to /etc/hosts for this node. Comma or blank separated list.',
-            otherinterfaces => 'Other IP addresses to add for this node.  Format: -<ext>:<ip>,<intfhostname>:<ip>,...',
+            otherinterfaces => 'Other IP addresses to add for this node. Format: -<ext>:<IPv4>, <intfhostname>:<IPv4>, -<ext>!<IPv6>, or <intfhostname>!<IPv6>. A leading - derives the interface hostname from the node name; ! is required as the delimiter for IPv6 addresses.',
             comments => 'Any user-written notes.',
             disable  => "Set to 'yes' or '1' to comment out this row.",
         },
@@ -670,7 +670,7 @@ passed as argument rather than by table value',
             netboot => 'The type of network booting to use for this node.  Valid values:
 
                        Arch                    OS                           valid netboot options
-                       x86, x86_64             ALL                          pxe, xnba, grub2
+                       x86, x86_64             ALL                          pxe, xnba, grub2,grub2-http,grub2-tftp
                        ppc64                   <=rhel6, <=sles11.3          yaboot
                        ppc64                   >=rhels7, >=sles11.4         grub2,grub2-http,grub2-tftp
                        ppc64le NonVirtualize   ALL                          petitboot

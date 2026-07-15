@@ -85,10 +85,16 @@ echolog()
 
 download_postscripts()
 {
-    server=$1
-    if [ -z $server ]; then
+    local rawserver=$1
+    local server
+    local port
+    local authority
+    if [ -z "$rawserver" ]; then
         return 1;
     fi
+    server=$(parsehttpserver "$rawserver" 'server')
+    port=$(parsehttpserver "$rawserver" 'port')
+    authority=$(format_host_port "$server" "$port")
 
     # Do not override the parameter --installdir
     if [ -z "$INSTALLDIR" ]; then
@@ -99,7 +105,7 @@ download_postscripts()
             INSTALLDIR="/install"
         fi
     fi
-    echolog "debug" "trying to download postscripts from http://$server$INSTALLDIR/postscripts/"
+    echolog "debug" "trying to download postscripts from http://$authority$INSTALLDIR/postscripts/"
     max_retries=5
     retry=0
     rc=1  # this is a fail return
@@ -111,7 +117,7 @@ download_postscripts()
         # These dispatcher scripts are not needed by the legacy netboot post
         # path. Newer wget parses HTML-looking regex strings inside downloaded
         # scripts and fails the whole recursive download on bogus URLs.
-        export LANG=C; wget -l inf -nH -N -r --waitretry=10 --random-wait -e robots=off -T 60 -nH --cut-dirs=2 --reject "index.html*,post.xcat.ng,post.xcat.rhels10" --no-parent http://$server$INSTALLDIR/postscripts/ -P /$xcatpost 2> /tmp/wget.log
+        export LANG=C; wget -l inf -nH -N -r --waitretry=10 --random-wait -e robots=off -T 60 -nH --cut-dirs=2 --reject "index.html*,post.xcat.ng,post.xcat.rhels10" --no-parent "http://$authority$INSTALLDIR/postscripts/" -P "/$xcatpost" 2> /tmp/wget.log
         rc=$?
         if [ $rc -eq 0 ]; then
             # return from wget was 0 but some OS do not return errors, so we
@@ -124,7 +130,7 @@ download_postscripts()
             rc2=$?
             # check to see no errors at all, grep returns 1
             if [ $rc1 -eq 1 ] && [ $rc2 -eq 1 ]; then
-              echolog "debug" "postscripts are downloaded from $server successfully."
+              echolog "debug" "postscripts are downloaded from $authority successfully."
               return 0
             fi
         fi
@@ -132,7 +138,7 @@ download_postscripts()
         retry=$(($retry+1))
         echolog "debug" "download_postscripts retry $retry"
         if [ $retry -eq $max_retries ]; then
-            echolog "debug" "failed to download postscripts from http://$server$INSTALLDIR/postscripts/ after several retries."
+            echolog "debug" "failed to download postscripts from http://$authority$INSTALLDIR/postscripts/ after several retries."
             break
         fi
 
@@ -145,13 +151,19 @@ download_postscripts()
 
 download_mypostscript()
 {
-    server=$1
-    node=$2
-    max_retries=$3
-    TFTPDIR=$4
-    if [ -z $server ]; then
+    local rawserver=$1
+    local node=$2
+    local max_retries=$3
+    local TFTPDIR=$4
+    local server
+    local port
+    local authority
+    if [ -z "$rawserver" ]; then
       return 1;
     fi
+    server=$(parsehttpserver "$rawserver" 'server')
+    port=$(parsehttpserver "$rawserver" 'port')
+    authority=$(format_host_port "$server" "$port")
     if [ -z "$TFTPDIR" ]; then
         TFTPDIR="/tftpboot"
     fi
@@ -159,9 +171,9 @@ download_mypostscript()
     rc=1
 
 
-    echolog "debug" "trying to download http://$server$TFTPDIR/mypostscripts/mypostscript.$node..."
+    echolog "debug" "trying to download http://$authority$TFTPDIR/mypostscripts/mypostscript.$node..."
     while [ 0 -eq 0 ]; do
-        wget -N --waitretry=10 --random-wait -T 60 http://$server$TFTPDIR/mypostscripts/mypostscript.$node -P /$xcatpost 2>> /tmp/wget.log
+        wget -N --waitretry=10 --random-wait -T 60 "http://$authority$TFTPDIR/mypostscripts/mypostscript.$node" -P "/$xcatpost" 2>> /tmp/wget.log
         rc=$?
         # if no error and the file  was downloaded
         if [ $rc -eq 0 ] && [ -f /$xcatpost/mypostscript.$node ]; then
@@ -173,7 +185,7 @@ download_mypostscript()
 
         retry=$(($retry+1))
         if [ $retry -eq $max_retries ]; then
-            echolog "debug" "http://$server$TFTPDIR/mypostscripts/mypostscript.$node is not available."
+            echolog "debug" "http://$authority$TFTPDIR/mypostscripts/mypostscript.$node is not available."
             break
         fi
 
@@ -194,18 +206,22 @@ pmatch ()
   return 1          # non-zero return code means string not matched by pattern
 }
 
-#parse the http server "<ip/hostname>:<port>"
-#usgae: parsehttpserver(<http server string>,<what to return? 'server' or 'port'>)
+# Parse an HTTP authority. IPv6 with a port must use RFC 3986 brackets;
+# an unbracketed value containing multiple colons is treated as a bare address.
+# usage: parsehttpserver(<http server string>, <'server' or 'port'>)
 parsehttpserver ()
 {
-   rawserver=$1 
-   option=$2
-   server=$(echo "$rawserver"|cut -d: -f1 -s 2>/dev/null)
-   port="80"
-   if [ -z "$server"  ];then
-       server=$rawserver
-   else
-       port=$(echo "$rawserver"|cut -d: -f2 -s 2>/dev/null)
+   local rawserver="$1"
+   local option="$2"
+   local server="$rawserver"
+   local port="80"
+
+   if [[ "$rawserver" =~ ^\[([^]]+)\](:([0-9]+))?$ ]]; then
+       server="${BASH_REMATCH[1]}"
+       [ -n "${BASH_REMATCH[3]}" ] && port="${BASH_REMATCH[3]}"
+   elif [[ "$rawserver" != *:*:* && "$rawserver" == *:* ]]; then
+       server="${rawserver%:*}"
+       port="${rawserver##*:}"
    fi
 
    if [ "$option" = "server" ];then
@@ -215,6 +231,21 @@ parsehttpserver ()
    if [ "$option" = "port" ];then
        echo "$port"
    fi
+}
+
+# Format a host and port for URLs and xCAT endpoint variables.
+format_host_port ()
+{
+    local server="$1"
+    local port="$2"
+
+    server="${server#[}"
+    server="${server%]}"
+    if [[ "$server" == *:* ]]; then
+        printf '[%s]:%s\n' "$server" "$port"
+    else
+        printf '%s:%s\n' "$server" "$port"
+    fi
 }
 
 # Main
@@ -412,8 +443,8 @@ if [ "$MODE" = "4" ]; then # for statelite mode
     for i in `cat /proc/cmdline`; do
         KEY=`echo $i | awk -F= '{print $1}'`
         if [ "$KEY" =  "XCAT" ]; then
-            TMP=`echo $i | awk -F= '{print $2}'`
-            XCATSERVER=`echo $TMP | cut -d: -f1`
+            TMP=${i#XCAT=}
+            XCATSERVER=$(parsehttpserver "$TMP" 'server')
             grep 'XCATSERVER' /opt/xcat/xcatinfo > /dev/null  2>&1
             if [ $? -eq 0 ]; then
                 sed -i "s/XCATSERVER=.*/XCATSERVER=$XCATSERVER/" /opt/xcat/xcatinfo
@@ -434,8 +465,9 @@ if [ "$MODE" = "4" ]; then # for statelite mode
     if [ -f /opt/xcat/xcatinfo ]; then
         SIP=`grep 'XCATSERVER' /opt/xcat/xcatinfo |cut -d= -f2 | sed "s/'//g"` 
         HTTPPORT=`grep 'HTTPPORT' /opt/xcat/xcatinfo |cut -d= -f2 | sed "s/'//g"`
+        [ -z "$HTTPPORT" ] && HTTPPORT="80"
         if [ -n "$SIP" ]; then
-            download_postscripts $SIP:${HTTPPORT}
+            download_postscripts "$(format_host_port "$SIP" "$HTTPPORT")"
             if [ $? -eq 0 ]; then
                 downloaded=1
             fi
@@ -478,7 +510,7 @@ else # for common mode  MODE=1,2,3,5 (updatenode,moncfg,node deployment)
     if [ -n "$P_SIP" ]; then   # passed in with updatenode on -M/-m
         #SIP="${P_SIP}:${HTTPPORT}"
         SIP=${P_SIP}
-        download_postscripts ${P_SIP}:${HTTPPORT}
+        download_postscripts "$(format_host_port "$P_SIP" "$HTTPPORT")"
         if [ $? -eq 0 ]; then
             downloaded=1
         fi
@@ -505,7 +537,7 @@ else # for common mode  MODE=1,2,3,5 (updatenode,moncfg,node deployment)
             HTTPPORT=`grep 'HTTPPORT' /opt/xcat/xcatinfo |cut -d= -f2 | sed "s/'//g"`
             [ -z "$HTTPPORT" ] && HTTPPORT="80" 
             if [ -n "$SIP" ]; then
-                download_postscripts ${SIP}:${HTTPPORT}
+                download_postscripts "$(format_host_port "$SIP" "$HTTPPORT")"
                 if [ $? -eq 0 ]; then
                   downloaded=1
                 fi
@@ -520,8 +552,8 @@ else # for common mode  MODE=1,2,3,5 (updatenode,moncfg,node deployment)
          for i in `cat /proc/cmdline`; do
              KEY=`echo $i | awk -F= '{print $1}'`
              if [ "$KEY" =  "XCAT" ]; then
-                 TMP=`echo $i | awk -F= '{print $2}'`
-                 SIP=`echo $TMP | cut -d: -f1`
+                 TMP=${i#XCAT=}
+                 SIP=$(parsehttpserver "$TMP" 'server')
 
              elif [ "$KEY" = "XCATHTTPPORT" ];then
                  HTTPPORT=$(echo $i | awk -F= '{print $2}')   
@@ -530,7 +562,7 @@ else # for common mode  MODE=1,2,3,5 (updatenode,moncfg,node deployment)
          done
 
          if [ -n "$SIP" ]; then
-             download_postscripts "${SIP}:${HTTPPORT}"
+             download_postscripts "$(format_host_port "$SIP" "$HTTPPORT")"
              if [ $? -eq 0 ]; then
                  downloaded=1
              fi
@@ -603,15 +635,15 @@ else
   #get node name and download the mypostscript.$node file
   #try to get the node ip address that connects to the server.
   #then resolve the name of the ip
-  real_SIP=`getent hosts $SIP |awk {'print $1'}`
+  real_SIP=`getent hosts "$SIP" |awk {'print $1'}`
   if [ $? -ne 0 ]; then
     real_SIP=$SIP
   fi
 
-  NIP=`ip route get $real_SIP | head -n 1 | sed 's/^.*src//g' | awk {'print $1'}`
+  NIP=`ip route get "$real_SIP" | head -n 1 | sed 's/^.*src//g' | awk {'print $1'}`
   if [ $? -eq 0 ] && [ -n "$NIP" ]; then
     #resolve the name of the node from ip address
-    result=`getent hosts $NIP`
+    result=`getent hosts "$NIP"`
     if [ $? -eq 0 ]; then
       node1=`echo $result | awk {'print $2'}`
       node2=`echo $result | awk {'print $3'}`
@@ -641,11 +673,11 @@ echolog "info" "trying to get mypostscript from $SIP..."
 max_retries=2
 # try short hostname first
 if [ -n "$node_short" ]; then
-    download_mypostscript "${SIP}:${HTTPPORT}" $node_short $max_retries $TFTPDIR
+    download_mypostscript "$(format_host_port "$SIP" "$HTTPPORT")" "$node_short" "$max_retries" "$TFTPDIR"
     if [ $? -ne 0 ]; then
         # try long hostname
         if [ "$node" != "$node_short" ]; then
-          download_mypostscript "${SIP}:${HTTPPORT}" $node $postfix $max_retries $TFTPDIR
+          download_mypostscript "$(format_host_port "$SIP" "$HTTPPORT")" "$node" "$postfix" "$max_retries" "$TFTPDIR"
         fi
     fi
 fi
@@ -669,7 +701,7 @@ PATH=/$xcatpost:$PATH
 export PATH
 
 if [ -x /usr/bin/openssl ]; then
-     XCATSERVER="$SIP:3001"
+     XCATSERVER=$(format_host_port "$SIP" 3001)
      export XCATSERVER
      USEOPENSSLFORXCAT=1 #Though this is the only method going forward, flag to allow backward compatibility with 2.2 generated netboot images
      export USEOPENSSLFORXCAT
@@ -1053,21 +1085,21 @@ if [ $NODE_DEPLOYMENT -eq 1 ] || [ "$MODE" = "4" ] || [ "$MODE" = "6" ]; then
         echo "
 if [ \"\$return_value\" -eq \"0\" ]; then
     msgutil_r \$MASTER_IP \"debug\" \"node booted successfully, reporting status...\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
-    updateflag.awk \$MASTER 3002 \"installstatus booted\"
+    updateflag.awk \"\$MASTER_IP\" 3002 \"installstatus booted\"
 else
     msgutil_r \$MASTER_IP \"debug\" \"node boot failed, reporting status...\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
-    updateflag.awk \$MASTER 3002 \"installstatus failed\"
+    updateflag.awk \"\$MASTER_IP\" 3002 \"installstatus failed\"
 fi
         " >> /$xcatpost/mypostscript
     else
         echo "
 if [ \"\$return_value\" -eq \"0\" ]; then
     msgutil_r \$MASTER_IP \"debug\" \"node booted successfully, reporting status...\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
-    updateflag.awk \$MASTER 3002 \"installstatus booted\"
+    updateflag.awk \"\$MASTER_IP\" 3002 \"installstatus booted\"
     msgutil_r \$MASTER_IP \"info\" \"provision completed.(\$NODE)\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
 else
     msgutil_r \$MASTER_IP \"debug\" \"node boot failed, reporting status...\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
-    updateflag.awk \$MASTER 3002 \"installstatus failed\"
+    updateflag.awk \"\$MASTER_IP\" 3002 \"installstatus failed\"
     msgutil_r \$MASTER_IP \"error\" \"provision completed with error.(\$NODE)\" \"/var/log/xcat/xcat.log\" \"\$log_label\"
 fi
         " >> /$xcatpost/mypostscript

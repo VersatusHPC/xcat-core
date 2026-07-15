@@ -154,19 +154,19 @@ sub render_ctrl_agent_config {
     my %sockets = (
         dhcp4 => {
             'socket-type' => 'unix',
-            'socket-name' => $intent->{'dhcp4-socket'} || $self->_kea_control_socket('kea4-ctrl-socket'),
+            'socket-name' => $intent->{'dhcp4-socket'} || $self->control_socket_name('kea4-ctrl-socket'),
         },
     );
     if ( $intent->{dhcp6} || $intent->{'dhcp6-socket'} ) {
         $sockets{dhcp6} = {
             'socket-type' => 'unix',
-            'socket-name' => $intent->{'dhcp6-socket'} || $self->_kea_control_socket('kea6-ctrl-socket'),
+            'socket-name' => $intent->{'dhcp6-socket'} || $self->control_socket_name('kea6-ctrl-socket'),
         };
     }
     if ( $intent->{ddns} || $intent->{'ddns-socket'} ) {
         $sockets{d2} = {
             'socket-type' => 'unix',
-            'socket-name' => $intent->{'ddns-socket'} || $self->_kea_control_socket('kea-ddns-ctrl-socket'),
+            'socket-name' => $intent->{'ddns-socket'} || $self->control_socket_name('kea-ddns-ctrl-socket'),
         };
     }
 
@@ -1053,6 +1053,47 @@ sub _kea_socket_dir {
     }
 
     return '/var/run/kea';
+}
+
+sub control_socket_name {
+    my ( $self, $socket_name ) = @_;
+
+    # An explicit directory is an administrator override and must retain the
+    # absolute-path behavior used by older Kea releases.
+    return $self->_kea_control_socket($socket_name)
+      if defined $self->{kea_socket_dir};
+
+    # Path-restricted Kea resolves a basename under its compiled or
+    # KEA_CONTROL_SOCKET_DIR runtime directory.  A basename therefore remains
+    # valid both when xCAT validates the config and when systemd starts Kea
+    # with a distribution-specific runtime directory.
+    return $socket_name if $self->_uses_restricted_control_socket_dir();
+
+    return $self->_kea_control_socket($socket_name);
+}
+
+sub _uses_restricted_control_socket_dir {
+    my ($self) = @_;
+
+    return $self->{control_socket_basename} ? 1 : 0
+      if exists $self->{control_socket_basename};
+
+    my $version = $self->kea_version();
+    return 0 unless defined($version) && $version =~ /^(\d+)\.(\d+)(?:\.(\d+))?/;
+
+    my ( $major, $minor, $patch ) = ( $1, $2, defined($3) ? $3 : 0 );
+    return 1 if $major > 2;
+    return 0 if $major < 2;
+
+    # The control-socket directory restriction was backported independently
+    # to supported Kea branches rather than introduced at one monotonic
+    # version number.
+    return $patch >= 2 if $minor == 4;
+    return $patch >= 3 if $minor == 6;
+    return $patch >= 9 if $minor == 7;
+    return 1           if $minor >= 8;
+
+    return 0;
 }
 
 sub _kea_control_socket {

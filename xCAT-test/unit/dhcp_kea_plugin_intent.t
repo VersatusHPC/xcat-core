@@ -36,6 +36,13 @@ BEGIN {
     }
     sub getipaddr { return '10.0.0.1'; }
     sub my_ip_facing { return ( 0, '10.0.0.1' ); }
+    sub my_ip_facing_family { return ( 0, '2001:db8::1' ); }
+    sub format_uri_host {
+        my ($host) = @_;
+        $host = $_[1] if defined($host) && $host eq __PACKAGE__;
+        return "[$host]" if defined($host) && $host =~ /:/;
+        return $host;
+    }
     sub thishostisnot { return 0; }
     sub ip_forwarding_enabled { return 0; }
     sub nodeonmynet { return 1; }
@@ -86,6 +93,49 @@ my %network_entry = (
 ok(xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-leap15.6'), 'openSUSE Leap head node uses SUSE dhcpd interface key');
 ok(xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('leap15.6'), 'Leap head node osver uses SUSE dhcpd interface key');
 ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed'), 'generic openSUSE names do not enable Leap-specific dhcpd handling');
+
+{
+    # Regression: makenetworks stores some IPv6 networks as a literal in
+    # networks.net and a numeric prefix in networks.mask. Reverse-zone
+    # generation must consume that representation without looping.
+    no warnings 'redefine';
+    local *xCAT_plugin::dhcp::getipaddr = sub {
+        my ( $address, %options ) = @_;
+        return Math::BigInt->new('0x20010db8730900000000000000000000')
+          if $address eq '2001:db8:7309::' && $options{GetNumber};
+        return;
+    };
+
+    my ($zone, $error);
+    {
+        local $SIG{ALRM} = sub { die "IPv6 reverse-zone generation timed out\n" };
+        eval {
+            alarm 2;
+            $zone = xCAT_plugin::dhcp::getzonesfornet(
+                '2001:db8:7309::', '64'
+            );
+            alarm 0;
+            1;
+        } or $error = $@;
+        alarm 0;
+    }
+    is($error, undef, 'Kea DDNS reverse-zone generation terminates');
+    is(
+        $zone,
+        '0.0.0.0.9.0.3.7.8.b.d.0.1.0.0.2.ip6.arpa.',
+        'Kea DDNS accepts an IPv6 network with a separate numeric prefix mask'
+    );
+    is_deeply(
+        [ xCAT_plugin::dhcp::getzonesfornet('2001:db8:7309::', undef) ],
+        [],
+        'Kea DDNS rejects a missing IPv6 prefix without looping'
+    );
+    is_deeply(
+        [ xCAT_plugin::dhcp::getzonesfornet('2001:db8:7309::', '129') ],
+        [],
+        'Kea DDNS rejects an out-of-range IPv6 prefix without looping'
+    );
+}
 
 {
     my $tmpdir = tempdir(CLEANUP => 1);
@@ -173,6 +223,50 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
 }
 
 {
+    package DHCPKeaControlSocketBackend;
+    sub control_socket_name {
+        my ( $self, $name ) = @_;
+        return "shared-$name";
+    }
+    sub host_cmds_hook_path { return '/usr/lib64/kea/hooks/libdhcp_host_cmds.so'; }
+
+    package main;
+    no warnings 'redefine';
+    local *xCAT_plugin::dhcp::kea_ipv4_routes = sub {
+        return ([ '10.0.0.0', 'eth0', '255.255.255.0', '' ]);
+    };
+    local *xCAT_plugin::dhcp::kea_boot_client_classes = sub { return []; };
+    local *xCAT_plugin::dhcp::kea_option_defs = sub { return []; };
+    local *xCAT_plugin::dhcp::kea_global_option_data = sub { return []; };
+    local *xCAT_plugin::dhcp::kea_dhcp_lease_time = sub { return 43200; };
+    local *xCAT_plugin::dhcp::kea_control_agent_enabled = sub { return 1; };
+
+    my $backend = bless {}, 'DHCPKeaControlSocketBackend';
+    local $xCAT::Table::networks = DHCPKeaIntentNetTable->new( \%network_entry );
+    my $intent4 = xCAT_plugin::dhcp::kea_build_dhcp4_intent($backend, { eth0 => 1 });
+    is(
+        $intent4->{'control-socket'}{'socket-name'},
+        'shared-kea4-ctrl-socket',
+        'DHCPv4 and Control Agent use the shared Kea socket-name policy'
+    );
+
+    local $xCAT::Table::networks = DHCPKeaIntentNetTable->new(
+        {
+            net       => '2001:db8:7309::',
+            mask      => '64',
+            mgtifname => 'eth0',
+            domain    => 'cluster.test',
+        }
+    );
+    my $intent6 = xCAT_plugin::dhcp::kea_build_dhcp6_intent($backend, { eth0 => 1 });
+    is(
+        $intent6->{'control-socket'}{'socket-name'},
+        'shared-kea6-ctrl-socket',
+        'DHCPv6 and Control Agent use the shared Kea socket-name policy'
+    );
+}
+
+{
     no warnings 'redefine';
     local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
 
@@ -238,6 +332,56 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
 }
 
 {
+    # The same placeholder resolution and reverse-zone path must work when an
+    # IPv6 network stores its prefix in networks.mask instead of CIDR notation.
+    no warnings 'redefine';
+    local *xCAT_plugin::dhcp::kea_ddns_enabled = sub { 1 };
+    local *xCAT_plugin::dhcp::kea_ddns_key     = sub { ( 'HMAC-SHA256', 'YWJjMTIz' ); };
+    local *xCAT_plugin::dhcp::getipaddr = sub {
+        my ( $address, %options ) = @_;
+        return Math::BigInt->new('0x20010db8730900000000000000000000')
+          if $address eq '2001:db8:7309::' && $options{GetNumber};
+        return;
+    };
+    local $xCAT::Table::networks = DHCPKeaIntentNetTable->new(
+        {
+            net         => '2001:db8:7309::',
+            mask        => '64',
+            nameservers => '<xcatmaster>',
+            domain      => 'cluster.test',
+        }
+    );
+
+    my ($ddns_intent, $error);
+    {
+        local $SIG{ALRM} = sub { die "IPv6 Kea DDNS intent timed out\n" };
+        eval {
+            alarm 2;
+            $ddns_intent = xCAT_plugin::dhcp::kea_build_ddns_intent();
+            alarm 0;
+            1;
+        } or $error = $@;
+        alarm 0;
+    }
+
+    is($error, undef, 'IPv6 Kea DDNS intent generation terminates');
+    ok(
+        $ddns_intent && !$ddns_intent->{error},
+        'IPv6 Kea DDNS intent accepts a separate numeric prefix mask'
+    );
+    is(
+        $ddns_intent->{reverse_domains}[0]{name},
+        '0.0.0.0.9.0.3.7.8.b.d.0.1.0.0.2.ip6.arpa.',
+        'IPv6 Kea DDNS intent renders the expected reverse zone'
+    );
+    is(
+        $ddns_intent->{reverse_domains}[0]{'dns-servers'}[0]{'ip-address'},
+        '2001:db8::1',
+        'IPv6 Kea DDNS resolves <xcatmaster> to the IPv6-facing management address'
+    );
+}
+
+{
     # Regression: a service node (noderes.servicenode set, groups=service) must
     # get a Kea host reservation exactly like a regular compute node.  The Kea
     # reservation builder loops over every requested node without filtering on
@@ -249,7 +393,10 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
     sub getNodesAttribs {
         my ( $self, $nodes, $attrs ) = @_;
         my %out;
-        $out{$_} = [ $self->{rows}{$_} || {} ] for @$nodes;
+        foreach my $node (@$nodes) {
+            my $row = $self->{rows}{$node} || {};
+            $out{$node} = [ { map { exists($row->{$_}) ? ($_ => $row->{$_}) : () } @$attrs } ];
+        }
         return \%out;
     }
     sub close { return; }
@@ -302,6 +449,98 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
     is( $r->{'hw-address'},  '42:d7:c0:a8:c9:15', 'service node reservation carries the node MAC' );
     is( $r->{hostname},      'svc01',             'service node reservation carries the hostname' );
     is( $r->{'next-server'}, '192.168.201.20',    'service node reservation next-server resolves to the serving management IP' );
+}
+
+{
+    my %res_tables = (
+        noderes => DHCPKeaResTable->new(
+            {
+                'nodev6'     => { netboot => 'grub2',      tftpserver => '<xcatmaster>' },
+                'nodev6http' => { netboot => 'grub2-http', tftpserver => 'boot6.example.test' },
+                'nodev6tftp' => { netboot => 'grub2-tftp', tftpserver => 'boot6.example.test' },
+                'nodev6xnba' => { netboot => 'xnba',       tftpserver => 'boot6.example.test' },
+            }
+        ),
+        mac => DHCPKeaResTable->new(
+            {
+                'nodev6'     => { mac => '02:00:00:00:00:61' },
+                'nodev6http' => { mac => '02:00:00:00:00:62' },
+                'nodev6tftp' => { mac => '02:00:00:00:00:64' },
+                'nodev6xnba' => { mac => '02:00:00:00:00:63' },
+            }
+        ),
+        vpd => DHCPKeaResTable->new(
+            {
+                'nodev6'     => { uuid => '00112233-4455-6677-8899-aabbccddeeff' },
+                'nodev6http' => {},
+                'nodev6tftp' => {},
+                'nodev6xnba' => {},
+            }
+        ),
+    );
+
+    no warnings 'redefine';
+    local *xCAT::Table::new = sub {
+        my ( $class, $name ) = @_;
+        return $res_tables{$name};
+    };
+    my %node_addresses = (
+        nodev6             => '2001:db8:61::50',
+        nodev6http         => '2001:db8:62::50',
+        nodev6tftp         => '2001:db8:64::50',
+        nodev6xnba         => '2001:db8:63::50',
+        'boot6.example.test' => '2001:db8::10',
+    );
+    my $v6_getipaddr = sub {
+        my ( $host, %opt ) = @_;
+        return unless $opt{OnlyV6};
+        return $node_addresses{$host};
+    };
+    local *xCAT::NetworkUtils::getipaddr = $v6_getipaddr;
+    local *xCAT_plugin::dhcp::getipaddr = $v6_getipaddr;
+    local *xCAT::NetworkUtils::my_ip_facing_family = sub {
+        my ( $class, $peer, $family ) = @_;
+        return ( 1, 'unexpected address family' ) unless $family == 6;
+        return ( 0, '2001:db8::1' );
+    };
+    local *xCAT_plugin::dhcp::ipIsDynamic = sub { return 0; };
+
+    my @errors;
+    local $xCAT_plugin::dhcp::callback = sub {
+        my $resp = shift;
+        push @errors, @{ $resp->{error} } if $resp->{error};
+    };
+
+    my $backend = bless {}, 'DHCPKeaRes6Backend';
+    {
+        package DHCPKeaRes6Backend;
+        sub subnet_id_for_ip { return 61; }
+    }
+
+    my $reservations = xCAT_plugin::dhcp::kea_build_node_reservations6(
+        $backend,
+        {},
+        [qw(nodev6 nodev6http nodev6tftp nodev6xnba)]
+    );
+
+    is( scalar(@errors), 0, 'DHCPv6 reservations build without errors' );
+    is( scalar(@$reservations), 4, 'all known IPv6 nodes receive reservations' );
+
+    my %by_hostname = map { $_->{hostname} => $_ } @$reservations;
+    my $grub2 = $by_hostname{nodev6};
+    is( $grub2->{duid}, '00:04:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff', 'DHCPv6 reservation retains DUID-UUID matching' );
+    is( $grub2->{'option-data'}[0]{name}, 'bootfile-url', 'grub2 reservation carries RFC 5970 bootfile-url' );
+    is( $grub2->{'option-data'}[0]{data}, 'tftp://[2001:db8::1]/boot/grub2/grub2-nodev6', 'grub2 bootfile URL uses the IPv6-facing xCAT server and bracketed authority' );
+    ok( $grub2->{'option-data'}[0]{'always-send'}, 'grub2 bootfile URL is always sent' );
+
+    my $grub2_http = $by_hostname{nodev6http};
+    is( $grub2_http->{'hw-address'}, '02:00:00:00:00:62', 'DHCPv6 reservation retains hardware-address fallback' );
+    is( $grub2_http->{'option-data'}[0]{data}, 'tftp://[2001:db8::10]/boot/grub2/grub2-nodev6http', 'grub2-http firmware handoff still loads GRUB over TFTP from the configured IPv6 server' );
+
+    my $grub2_tftp = $by_hostname{nodev6tftp};
+    is( $grub2_tftp->{'option-data'}[0]{data}, 'tftp://[2001:db8::10]/boot/grub2/grub2-nodev6tftp', 'grub2-tftp receives the DHCPv6 bootfile URL advertised as supported on x86_64' );
+
+    ok( !exists($by_hostname{nodev6xnba}{'option-data'}), 'unsupported IPv6 netboot modes do not receive a GRUB bootfile URL' );
 }
 
 done_testing();

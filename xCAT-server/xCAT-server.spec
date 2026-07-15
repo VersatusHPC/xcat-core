@@ -69,7 +69,7 @@ Requires: initscripts
 Requires: chkconfig
 %endif
 %if 0%{?rhel} >= 10
-Requires: openssl
+Requires: openssl perl-IO-Socket-INET6 perl-Socket6
 %endif
 
 %if %fsm

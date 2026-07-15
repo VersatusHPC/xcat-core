@@ -22,6 +22,11 @@ sub read_file {
 my $spec = read_file('xCAT-server/xCAT-server.spec');
 unlike( $spec, qr/\bdnf\s+download\b/, 'xCAT-server RPM scripts do not download packages' );
 unlike( $spec, qr{/install/dhcp_pkgs}, 'xCAT-server RPM scripts do not write hidden DHCP package directories' );
+like(
+    $spec,
+    qr/%if 0%\{\?rhel\} >= 10\s+Requires: openssl perl-IO-Socket-INET6 perl-Socket6/s,
+    'EL10 xCAT server installation includes the modules required by dual-stack xcatd listeners'
+);
 
 my $anaconda = read_file('xCAT-server/lib/xcat/plugins/anaconda.pm');
 unlike( $anaconda, qr{/install/dhcp_pkgs}, 'copycds does not inject hidden DHCP package directories into pkgdir' );

@@ -23,6 +23,34 @@ use File::Basename;
 use Socket;
 use strict;
 
+sub _node_address_family
+{
+    my $node = shift;
+    return 4 if xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1);
+    return 6 if xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1);
+    return;
+}
+
+sub _facing_addresses_for_node
+{
+    my $node = shift;
+    my $family = _node_address_family($node);
+    return defined($family) && $family == 6
+      ? xCAT::NetworkUtils->my_ip_facing_family($node, 6)
+      : xCAT::NetworkUtils->my_ip_facing($node);
+}
+
+sub _resolve_server_for_node
+{
+    my ($node, $server) = @_;
+    my $family = _node_address_family($node);
+    return xCAT::NetworkUtils->getipaddr($server, OnlyV6 => 1)
+      if defined($family) && $family == 6;
+    return xCAT::NetworkUtils->getipaddr($server, OnlyV4 => 1)
+      if defined($family) && $family == 4;
+    return xCAT::NetworkUtils->getipaddr($server);
+}
+
 #-------------------------------------------------------------------------------
 
 =head1    Postage
@@ -416,7 +444,7 @@ sub makescript {
 
         unless ($master) {
             #the ip address of the mn facing the compute node
-            my @ipfnd = xCAT::NetworkUtils->my_ip_facing($node);
+            my @ipfnd = _facing_addresses_for_node($node);
             my $ipfndscalar = @ipfnd;
             unless ($ipfnd[0]) {
                 $master = $ipfnd[1];
@@ -578,11 +606,7 @@ sub makescript {
         }
 
 
-        my ($host, $ipaddr) = xCAT::NetworkUtils->gethostnameandip($master);
-        my $master_ip;
-        if ($ipaddr) {
-            $master_ip = "$ipaddr";
-        }
+        my $master_ip = _resolve_server_for_node($node, $master);
 
         unless($master_ip){
             my $rsp;
@@ -1584,7 +1608,7 @@ sub collect_all_attribs_for_tables_in_template
                                     $::GLOBAL_TAB_HASH{noderes}{$node}{xcatmaster} eq ""))
                             {
                                 my $value = undef;
-                                my @ipfnd = xCAT::NetworkUtils->my_ip_facing($node);
+                                my @ipfnd = _facing_addresses_for_node($node);
                                 my $ipfndscalar = @ipfnd;
                                 unless ($ipfnd[0]) {
                                     $value = $ipfnd[1];

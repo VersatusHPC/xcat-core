@@ -19,6 +19,26 @@ my $ADDNAMES;
 my $MACTOLINKLOCAL;
 
 
+sub _host_entry_matches
+{
+    my ($line, $node, $ip) = @_;
+    return 0 unless defined($line) && defined($node);
+
+    $line =~ s/^\s+//;
+    my ($line_ip, $primary_name) = split(/\s+/, $line, 3);
+    return 0 unless defined($line_ip) && length($line_ip);
+    return 1 if defined($ip)
+      && xCAT::NetworkUtils->isSameIPAddress($line_ip, $ip);
+    my $legacy_ipv4 = $line_ip =~ /^\d+\.\d+\.\d+\.\d+\z/;
+    return 0 unless $legacy_ipv4
+      || xCAT::NetworkUtils->isValidIPAddress($line_ip);
+    return 0 unless defined($primary_name);
+
+    return 1 if $primary_name eq $node;
+    return $primary_name =~ /^\Q$node\E\./ ? 1 : 0;
+}
+
+
 #############   TODO - add return code checking !!!!!
 
 
@@ -43,8 +63,7 @@ sub delnode
 
     while ($idx <= $#hosts)
     {
-        if (($ip and $hosts[$idx] =~ /^${ip}\s/)
-            or $hosts[$idx] =~ /^\d+\.\d+\.\d+\.\d+\s+${node}[\s\.\r]/)
+        if (_host_entry_matches($hosts[$idx], $node, $ip))
         {
             $hosts[$idx] = "";
         }
@@ -72,8 +91,7 @@ sub addnode
     # if this ip was already added then just update the entry
     while ($idx <= $#hosts)
     {
-        if ($hosts[$idx] =~ /^${ip}\s/
-            or $hosts[$idx] =~ /^\d+\.\d+\.\d+\.\d+\s+${node}[\s\.\r]/)
+        if (_host_entry_matches($hosts[$idx], $node, $ip))
         {
             if ($foundone)
             {
@@ -195,7 +213,7 @@ sub addotherinterfaces
         } else {
             ($itf, $ip) = split(/:/, $_);
         }
-        if ($ip && xCAT::NetworkUtils->isIpaddr($ip))
+        if ($ip && xCAT::NetworkUtils->isValidIPAddress($ip))
         {
             if ($itf =~ /^-/)
             {
@@ -228,7 +246,7 @@ sub delotherinterfaces
         } else {
             ($itf, $ip) = split(/:/, $_);
         }
-        if ($ip && xCAT::NetworkUtils->isIpaddr($ip))
+        if ($ip && xCAT::NetworkUtils->isValidIPAddress($ip))
         {
             if ($itf =~ /^-/)
             {
@@ -291,7 +309,7 @@ sub add_hosts_content {
         }
         else
         {
-            if (xCAT::NetworkUtils->isIpaddr($ip))
+            if (xCAT::NetworkUtils->isValidIPAddress($ip))
             {
                 addnode $callback, $nodename, $ip, $ref->{hostnames}, $domain;
             }
@@ -529,7 +547,7 @@ sub process_request
                 $domain = $::XCATSITEVALS{domain};
             }
 
-            if (xCAT::NetworkUtils->isIpaddr($_->{ip}))
+            if (xCAT::NetworkUtils->isValidIPAddress($_->{ip}))
             {
                 addnode $callback, $_->{node}, $_->{ip}, $_->{hostnames}, $domain;
             }

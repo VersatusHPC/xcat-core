@@ -756,19 +756,35 @@ sub get_server_nodes
     foreach my $node (@nodelist)
     {
         my $serv;
+        my $node_family = xCAT::NetworkUtils->getipaddr($node, OnlyV4 => 1)
+          ? 4
+          : xCAT::NetworkUtils->getipaddr($node, OnlyV6 => 1)
+          ? 6
+          : undef;
         if ($xcatmasters->{$node}->[0]->{xcatmaster})
         {
             # get ip of node xcatmaster attribute
             my $xcatmaster = $xcatmasters->{$node}->[0]->{xcatmaster};
-            $serv = xCAT::NetworkUtils->getipaddr($xcatmaster);
+            $serv = defined($node_family) && $node_family == 6
+              ? xCAT::NetworkUtils->getipaddr($xcatmaster, OnlyV6 => 1)
+              : defined($node_family) && $node_family == 4
+              ? xCAT::NetworkUtils->getipaddr($xcatmaster, OnlyV4 => 1)
+              : xCAT::NetworkUtils->getipaddr($xcatmaster);
         }
         elsif (!$skipfacing)
         {
             #  get ip facing node
-            my @servd = xCAT::NetworkUtils->my_ip_facing($node);
+            my @servd = defined($node_family) && $node_family == 6
+              ? xCAT::NetworkUtils->my_ip_facing_family($node, 6)
+              : xCAT::NetworkUtils->my_ip_facing($node);
             unless ($servd[0]) { $serv = $servd[1]; }
         }
         else{
+            next;
+        }
+        unless (defined($serv) && length($serv))
+        {
+            push(@{ $servernodes{''} }, $node);
             next;
         }
         chomp $serv;

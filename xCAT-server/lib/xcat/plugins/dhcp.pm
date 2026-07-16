@@ -67,6 +67,10 @@ my $iscsients;
 my $nodetypeents;
 my $chainents;
 my $tftpdir = xCAT::TableUtils->getTftpDir();
+my $kea_disjoint_reservations = 0;
+my $kea_local_dynamic_dhcp_owner = 0;
+my %kea_effective_service_owners;
+my %kea_local_server_cache;
 my $dhcpconffile = $^O eq 'aix' ? '/etc/dhcpsd.cnf' : '/etc/dhcpd.conf';
 my %dynamicranges; #track dynamic ranges defined to see if a host that resolves is actually a dynamic address
 my %netcfgs;
@@ -3156,6 +3160,8 @@ sub kea_build_node_reservations
 {
     my ( $backend, $config, $nodes ) = @_;
 
+    kea_prepare_reservation_ownership($nodes);
+
     my $nrtab    = xCAT::Table->new('noderes');
     my $chaintab = xCAT::Table->new('chain');
     my $nodetypetab = xCAT::Table->new('nodetype', -create => 0);
@@ -3180,6 +3186,8 @@ sub kea_build_node_reservations6
 {
     my ( $backend, $config, $nodes ) = @_;
 
+    kea_prepare_reservation_ownership($nodes);
+
     my $nrtab = xCAT::Table->new('noderes');
     my $mactab = xCAT::Table->new('mac');
     my $vpdtab = xCAT::Table->new('vpd', -create => 0);
@@ -3194,6 +3202,75 @@ sub kea_build_node_reservations6
     }
 
     return \@reservations;
+}
+
+sub kea_prepare_reservation_ownership
+{
+    my ($nodes) = @_;
+
+    $kea_disjoint_reservations = 0;
+    $kea_local_dynamic_dhcp_owner = 0;
+    %kea_effective_service_owners = ();
+    %kea_local_server_cache = ();
+
+    my @settings = xCAT::TableUtils->get_site_attribute('disjointdhcps');
+    return unless defined($settings[0]) && $settings[0] eq '1';
+    my @dhcp_servers = xCAT::ServiceNodeUtils->getSNList('dhcpserver');
+    return unless @dhcp_servers;
+    $kea_disjoint_reservations = 1;
+
+    my $owners = xCAT::ServiceNodeUtils->getSNformattedhash($nodes, 'xcat', 'MN');
+    if (ref($owners) eq 'HASH') {
+        foreach my $owner (keys %$owners) {
+            foreach my $node (@{ $owners->{$owner} || [] }) {
+                push @{ $kea_effective_service_owners{$node} }, $owner;
+            }
+        }
+    }
+
+    my $nettab = xCAT::Table->new('networks');
+    return unless $nettab;
+    foreach my $entry ($nettab->getAllAttribs('net', 'mask', 'dynamicrange', 'dhcpserver')) {
+        next unless $entry->{dynamicrange} && $entry->{dhcpserver};
+        if (kea_server_list_is_local($entry->{dhcpserver})) {
+            $kea_local_dynamic_dhcp_owner = 1;
+            last;
+        }
+    }
+    $nettab->close();
+}
+
+sub kea_server_list_is_local
+{
+    my ($servers) = @_;
+    return 0 unless $servers;
+
+    foreach my $server (split /,/, $servers) {
+        $server =~ s/^\s+|\s+$//g;
+        next unless length($server);
+        if (!exists($kea_local_server_cache{$server})) {
+            $kea_local_server_cache{$server} =
+              xCAT::NetworkUtils->thishostisnot($server) ? 0 : 1;
+        }
+        return 1 if $kea_local_server_cache{$server};
+    }
+
+    return 0;
+}
+
+sub kea_reservation_is_local
+{
+    my ( $node, $ip ) = @_;
+    return 1 unless $kea_disjoint_reservations;
+    return 1 if $kea_local_dynamic_dhcp_owner;
+
+    my $owners = $kea_effective_service_owners{$node};
+    if ($owners && @$owners) {
+        return 1 if kea_server_list_is_local(join(',', @$owners));
+        return 0;
+    }
+
+    return 1;
 }
 
 sub kea_node_reservations
@@ -3229,6 +3306,8 @@ sub kea_node_reservations
 
         my $ip = getipaddr($hname, OnlyV4 => 1);
         next unless $ip;
+        next unless kea_reservation_is_local($node, $ip);
+
         my ( $nxtsrv, $tftpserver ) = kea_next_server_for_node($node, $nrent);
 
         if (ipIsDynamic($ip)) {
@@ -3302,6 +3381,8 @@ sub kea_xnba_client_classes_for_nodes
 {
     my ($nodes) = @_;
 
+    kea_prepare_reservation_ownership($nodes);
+
     my $nrtab = xCAT::Table->new('noderes');
     my $mactab = xCAT::Table->new('mac');
     return [] unless $nrtab && $mactab;
@@ -3327,6 +3408,8 @@ sub kea_xnba_client_classes_for_nodes
             $hname ||= $node;
             next if $hname eq '*NOIP*';
             next if xCAT::NetworkUtils->node_is_ipv6_only($hname);
+            next unless kea_reservation_is_local($node);
+
             my ( $nxtsrv ) = kea_next_server_for_node($node, $nrent);
             next unless $nxtsrv;
 
@@ -3388,6 +3471,7 @@ sub kea_node_reservations6
 
         my $ip = getipaddr($hname, OnlyV6 => 1);
         next unless $ip;
+        next unless kea_reservation_is_local($node, $ip);
 
         if (ipIsDynamic($ip)) {
             $callback->({ error => ["Node $node has IPv6 address $ip which is inside the DHCP dynamic range. Move the node IP outside the dynamic range or adjust the range in the networks table."], errorcode => [1] });

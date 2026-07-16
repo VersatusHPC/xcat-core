@@ -84,12 +84,20 @@ BEGIN {
         return $host;
     }
     sub thishostisnot { return 0; }
+    sub ishostinsubnet { return 0; }
     sub ip_forwarding_enabled { return 0; }
     sub nodeonmynet { return 1; }
     $INC{'xCAT/NetworkUtils.pm'} = __FILE__;
 
     package xCAT::ServiceNodeUtils;
-    sub getSNList { return; }
+    our $service_nodes = {};
+    our $dhcp_servers = [];
+    sub getSNList {
+        return @{ $dhcp_servers || [] } if $_[-1] eq 'dhcpserver';
+        return;
+    }
+    sub get_ServiceNode { return $service_nodes; }
+    sub getSNformattedhash { return $service_nodes; }
     $INC{'xCAT/ServiceNodeUtils.pm'} = __FILE__;
 
     package xCAT::NodeRange;
@@ -713,13 +721,164 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
         );
     }
 
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'remote-service-node' => ['svc01'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
+
+        my $flat = xCAT_plugin::dhcp::kea_build_node_reservations(
+            $backend, {}, ['svc01']
+        );
+
+        is( scalar(@$flat), 1, 'site disjointdhcps does not filter reservations when no DHCP service node is enabled' );
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            '192.168.201.20' => ['svc01'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
+        @errors = ();
+        my $remote = xCAT_plugin::dhcp::kea_build_node_reservations(
+            $backend, {}, ['svc01']
+        );
+        is( scalar(@$remote), 0, 'disjoint DHCPv4 omits a node owned by another service node' );
+        is( scalar(@errors), 0, 'non-owning DHCPv4 server skips the node without an error' );
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'remote-service-node' => ['svc01'],
+        };
+        my @locality_checks;
+        local *xCAT::NetworkUtils::thishostisnot = sub {
+            my $server = $_[-1];
+            push @locality_checks, $server;
+            return $server eq 'dynamic-dhcp-owner' ? 0 : 1;
+        };
+        $res_tables{networks} = DHCPKeaIntentNetTable->new(
+            {
+                net          => '20.0.0.0',
+                mask         => '255.0.0.0',
+                dynamicrange => '20.0.0.1-20.0.0.2',
+                dhcpserver   => 'dynamic-dhcp-owner',
+            }
+        );
+
+        my $owned = xCAT_plugin::dhcp::kea_build_node_reservations(
+            $backend, {}, ['svc01']
+        );
+
+        is( scalar(@$owned), 1, 'global dynamic-range DHCP owner retains an unrelated IPv4 reservation like legacy dispatch' );
+        ok( xCAT_plugin::dhcp::kea_reservation_is_local('svc01', '192.168.201.22'), 'repeated reservation ownership lookup stays local' );
+        ok( xCAT_plugin::dhcp::kea_reservation_is_local('svc01', '192.168.201.23'), 'additional reservation ownership lookup stays local' );
+        is_deeply( \@locality_checks, ['dynamic-dhcp-owner'], 'local dynamic-range ownership short-circuits repeated locality checks' );
+
+        my $xnba_config = { Dhcp4 => { 'client-classes' => [] } };
+        xCAT_plugin::dhcp::kea_sync_xnba_client_classes(
+            $xnba_config, ['svc01']
+        );
+        ok(
+            scalar(@{ $xnba_config->{Dhcp4}{'client-classes'} }),
+            'global dynamic-range DHCP owner retains unrelated xNBA classes like legacy dispatch'
+        );
+        delete $res_tables{networks};
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'local-service-owner' => ['svc01'],
+        };
+        my @locality_checks;
+        local *xCAT::NetworkUtils::thishostisnot = sub {
+            my $server = $_[-1];
+            push @locality_checks, $server;
+            return $server eq 'local-service-owner' ? 0 : 1;
+        };
+        $res_tables{networks} = DHCPKeaIntentNetTable->new(
+            {
+                net          => '192.168.201.0',
+                mask         => '255.255.255.0',
+                dynamicrange => '192.168.201.100-192.168.201.200',
+                dhcpserver   => 'remote-dynamic-owner',
+            }
+        );
+
+        my $owned = xCAT_plugin::dhcp::kea_build_node_reservations(
+            $backend, {}, ['svc01']
+        );
+        delete $res_tables{networks};
+
+        is( scalar(@$owned), 1, 'local service owner retains the IPv4 reservation when the dynamic-range owner differs' );
+        is_deeply( \@locality_checks, [qw(remote-dynamic-owner local-service-owner)], 'dynamic and service ownership are combined with OR semantics' );
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'site-master' => ['svc01'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
+        my $saved_noderes = $res_tables{noderes};
+        $res_tables{noderes} = DHCPKeaResTable->new(
+            { 'svc01' => { netboot => 'xnba', tftpserver => '<xcatmaster>' } }
+        );
+
+        my $default_owner = xCAT_plugin::dhcp::kea_build_node_reservations(
+            $backend, {}, ['svc01']
+        );
+        $res_tables{noderes} = $saved_noderes;
+
+        is( scalar(@$default_owner), 0, 'disjoint DHCP uses the effective site-master owner when servicenode is unset' );
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'remote-service-node' => ['svc01'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
+        my $next_server_calls = 0;
+        local *xCAT_plugin::dhcp::kea_next_server_for_node = sub {
+            $next_server_calls++;
+            return ('192.168.201.20', '192.168.201.20');
+        };
+        my $config = { Dhcp4 => { 'client-classes' => [] } };
+
+        xCAT_plugin::dhcp::kea_sync_xnba_client_classes($config, ['svc01']);
+
+        is( scalar(@{ $config->{Dhcp4}{'client-classes'} }), 0, 'non-owning service node omits remote xNBA client classes' );
+        is( $next_server_calls, 0, 'non-owning xNBA node is filtered before IPv4 TFTP resolution' );
+    }
 }
 
 {
     my %res_tables = (
         noderes => DHCPKeaResTable->new(
             {
-                'nodev6'     => { netboot => 'grub2',      tftpserver => '<xcatmaster>' },
+                'nodev6'     => { netboot => 'grub2',      tftpserver => '<xcatmaster>', servicenode => 'sn01' },
                 'nodev6http' => { netboot => 'grub2-http', tftpserver => 'boot6.example.test' },
                 'nodev6tftp' => { netboot => 'grub2-tftp', tftpserver => 'boot6.example.test' },
                 'nodev6xnba' => { netboot => 'xnba',       tftpserver => 'boot6.example.test' },
@@ -870,6 +1029,49 @@ ok(!xCAT_plugin::dhcp::dhcpd_sysconfig_uses_interface_key('opensuse-tumbleweed')
         );
     }
 
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'sn01' => ['nodev6'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub { return 1; };
+        @errors = ();
+        my $remote = xCAT_plugin::dhcp::kea_build_node_reservations6(
+            $backend, {}, ['nodev6']
+        );
+        is( scalar(@$remote), 0, 'disjoint DHCPv6 omits a node owned by another service node' );
+        is( scalar(@errors), 0, 'non-owning DHCPv6 server skips the node without an error' );
+    }
+
+    {
+        local *xCAT::TableUtils::get_site_attribute = sub {
+            return $_[-1] eq 'disjointdhcps' ? ('1') : ();
+        };
+        local $xCAT::ServiceNodeUtils::dhcp_servers = ['configured-dhcp-service'];
+        local $xCAT::ServiceNodeUtils::service_nodes = {
+            'remote-service-node' => ['nodev6'],
+        };
+        local *xCAT::NetworkUtils::thishostisnot = sub {
+            return $_[-1] eq 'dynamic-dhcp6-owner' ? 0 : 1;
+        };
+        $res_tables{networks} = DHCPKeaIntentNetTable->new(
+            {
+                net          => '2001:db8:99::/64',
+                dynamicrange => '2001:db8:99::100/120',
+                dhcpserver   => 'dynamic-dhcp6-owner',
+            }
+        );
+
+        my $owned = xCAT_plugin::dhcp::kea_build_node_reservations6(
+            $backend, {}, ['nodev6']
+        );
+        delete $res_tables{networks};
+
+        is( scalar(@$owned), 1, 'global dynamic-range DHCP owner retains an unrelated IPv6 reservation like legacy dispatch' );
+    }
 }
 
 done_testing();

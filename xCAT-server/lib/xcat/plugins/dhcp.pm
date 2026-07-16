@@ -3211,7 +3211,6 @@ sub kea_node_reservations
         return [];
     }
 
-    my ( $nxtsrv, $tftpserver ) = kea_next_server_for_node($node, $nrent);
     my @reservations;
     my @macs = split(/\|/, $macent->{mac});
     foreach my $mace (@macs) {
@@ -3230,6 +3229,7 @@ sub kea_node_reservations
 
         my $ip = getipaddr($hname, OnlyV4 => 1);
         next unless $ip;
+        my ( $nxtsrv, $tftpserver ) = kea_next_server_for_node($node, $nrent);
 
         if (ipIsDynamic($ip)) {
             $callback->({ error => ["Node $node has IP $ip which is inside the DHCP dynamic range. Move the node IP outside the dynamic range or adjust the range in the networks table."], errorcode => [1] });
@@ -3322,11 +3322,14 @@ sub kea_xnba_client_classes_for_nodes
         my $macent = $macents && $macents->{$node} ? $macents->{$node}->[0] : undef;
         next unless $macent && $macent->{mac};
 
-        my ( $nxtsrv ) = kea_next_server_for_node($node, $nrent);
-        next unless $nxtsrv;
-
         foreach my $mace (split(/\|/, $macent->{mac})) {
-            my ($mac) = split(/!/, $mace);
+            my ( $mac, $hname ) = split(/!/, $mace);
+            $hname ||= $node;
+            next if $hname eq '*NOIP*';
+            next if xCAT::NetworkUtils->node_is_ipv6_only($hname);
+            my ( $nxtsrv ) = kea_next_server_for_node($node, $nrent);
+            next unless $nxtsrv;
+
             $mac = kea_normalize_mac($mac);
             next unless $mac;
             push @records, {
@@ -3365,6 +3368,7 @@ sub kea_node_reservations6
     my $nrent = $nrhash && $nrhash->{$node} ? $nrhash->{$node}->[0] : undef;
     my $macent = $machash && $machash->{$node} ? $machash->{$node}->[0] : undef;
     my $vpdent = $vpdhash && $vpdhash->{$node} ? $vpdhash->{$node}->[0] : undef;
+
     unless ($macent and $macent->{mac}) {
         $callback->({ warning => ["Unable to find mac address for $node"] });
         return [];

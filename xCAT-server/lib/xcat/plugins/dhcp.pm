@@ -2465,6 +2465,8 @@ sub kea_process_request
 
     my @deleted4;
     my @deleted6;
+    my @replaced4;
+    my @replaced6;
     my $reservations4 = [];
     my $reservations6 = [];
     my $client_classes_changed = 0;
@@ -2476,11 +2478,11 @@ sub kea_process_request
         $client_classes_changed = kea_remove_xnba_client_classes($loaded4, $nodes);
     } else {
         $reservations4 = kea_build_node_reservations($backend, $loaded4, $nodes);
-        $backend->upsert_reservations($loaded4, $reservations4);
+        $backend->upsert_reservations($loaded4, $reservations4, \@replaced4);
         $client_classes_changed = kea_sync_xnba_client_classes($loaded4, $nodes);
         if ($loaded6) {
             $reservations6 = kea_build_node_reservations6($backend, $loaded6, $nodes);
-            $backend->upsert_reservations($loaded6, $reservations6);
+            $backend->upsert_reservations($loaded6, $reservations6, \@replaced6);
         }
     }
 
@@ -2503,12 +2505,20 @@ sub kea_process_request
     if (kea_control_agent_live_enabled($backend)) {
         my $live4 = $opt->{d}
           ? $backend->live_delete_reservations(\@deleted4, service => ['dhcp4'])
-          : $backend->live_upsert_reservations($reservations4, service => ['dhcp4']);
+          : $backend->live_upsert_reservations(
+              $reservations4,
+              service            => ['dhcp4'],
+              stale_reservations => \@replaced4,
+          );
         my $live6 = { ok => 1 };
         if ($loaded6) {
             $live6 = $opt->{d}
               ? $backend->live_delete_reservations(\@deleted6, service => ['dhcp6'])
-              : $backend->live_upsert_reservations($reservations6, service => ['dhcp6']);
+              : $backend->live_upsert_reservations(
+                  $reservations6,
+                  service            => ['dhcp6'],
+                  stale_reservations => \@replaced6,
+              );
         }
         $live_ok = !$live4->{error} && !$live6->{error};
         if (!$live_ok) {

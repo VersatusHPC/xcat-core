@@ -52,8 +52,6 @@ This program module file, is a set of utilities used by xCAT daemon.
         none
 =cut
 
-#------------------------------------------------------------------------------
-
 sub validate {
 
 
@@ -90,7 +88,7 @@ sub validate {
     # check to see if peerhost is trusted
     foreach $rule (@sortedpolicies) {
 
-        if (($rule->{name} and $rule->{name} eq $peername) && ($rule->{rule} =~ /trusted/i)) {
+        if (($rule->{name} and $rule->{name} !~ /^%/ and $rule->{name} eq $peername) && ($rule->{rule} =~ /trusted/i)) {
             $peerstatus = "Trusted";
             last;
         }
@@ -105,17 +103,16 @@ sub validate {
         }
     }
 
-    # Get groups for peername
-    my $usergroups = xCAT::Utils->groups($peername);
+    my %principal_matches;
 
   RULE: foreach $rule (@sortedpolicies) {
         if ($rule->{name} and $rule->{name} ne '*') {
 
             #TODO: more complex matching (lists, wildcards)
-	    if (!$usergroups or index($usergroups,$rule->{name}) < 0) {
-		# If the user's group is empty, or usergroups doesn't contain rule name then...
-                next unless ($peername and $peername eq $rule->{name});
-	    }
+            $principal_matches{ $rule->{name} } =
+              xCAT::Utils->user_matches_policy_name($peername, $rule->{name})
+              unless exists($principal_matches{ $rule->{name} });
+            next unless $principal_matches{ $rule->{name} };
         }
         if ($rule->{name} and $rule->{name} eq '*') { #a name is required, but can be any name whatsoever....
             next unless ($peername);

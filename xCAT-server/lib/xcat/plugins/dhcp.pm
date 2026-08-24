@@ -211,24 +211,53 @@ sub _isc_static_host_fallback
     return _ubuntu_isc_omapi_limited() && !$::XCATSITEVALS{externaldhcpservers};
 }
 
-sub _delete_isc_static_host
+# The start/end markers _add_isc_static_host writes around a node's reservation. Both are
+# fully determined -- "#xCAT host declaration for <node> aka host <hostname> start" and
+# "} #xCAT host declaration for <node> aka host <hostname> end" -- so match that whole shape.
+# A looser /\Q$node\E\b/ matches at a hyphen, which makes node "compute" match the marker of
+# "compute-01" and act on the wrong host block. The end marker rides the closing-brace line,
+# so unlike the start marker it is NOT anchored at column 0.
+sub _isc_host_start_re
 {
     my $node = shift;
+    return qr/^#xCAT host declaration for \Q$node\E aka host \S+ start\s*$/;
+}
+
+sub _isc_host_end_re
+{
+    my $node = shift;
+    return qr/#xCAT host declaration for \Q$node\E aka host \S+ end\s*$/;
+}
+
+# Remove a node's static host block. Operates on the loaded dhcpd.conf (@dhcpconf) by
+# default; an explicit line list may be passed instead, in which case the filtered list is
+# returned and @dhcpconf is left alone, so the scan can be unit tested without file state.
+sub _delete_isc_static_host
+{
+    my $node     = shift;
+    my $explicit = scalar(@_);
+    my @lines    = $explicit ? @_ : @dhcpconf;
+
+    my $start_re = _isc_host_start_re($node);
+    my $end_re   = _isc_host_end_re($node);
 
     my @updated;
     my $skip = 0;
-    foreach my $line (@dhcpconf) {
-        if ($line =~ /^#xCAT host declaration for \Q$node\E\b.* start$/) {
+    foreach my $line (@lines) {
+        if ($line =~ $start_re) {
             $skip = 1;
             next;
         }
-        if ($skip && $line =~ /^#xCAT host declaration for \Q$node\E\b.* end$/) {
+        if ($skip && $line =~ $end_re) {
             $skip = 0;
             next;
         }
         push @updated, $line unless $skip;
     }
+
+    return @updated if $explicit;
     @dhcpconf = @updated;
+    return @updated;
 }
 
 sub _static_host_statements
@@ -259,6 +288,50 @@ sub _add_isc_static_host
     push @dhcpconf, "} #xCAT host declaration for $node aka host $hostname end\n";
 
     $restartdhcp = 1;
+}
+
+# Answer `makedhcp -q <node>` from the static host block _add_isc_static_host wrote into
+# dhcpd.conf, WITHOUT spawning omshell: on Ubuntu's ISC-limited releases the ISC DHCP 4.4
+# omshell can wedge at 100% CPU and never be reaped, which is exactly why the write paths
+# already avoid it. Returns ($nname, $ipaddr, $hwaddr) in the same shape as
+# _parse_omshell_host_output so listnode can print it unchanged. @lines defaults to the
+# loaded dhcpd.conf but is overridable so the parse can be unit tested without file state.
+sub _query_isc_static_host
+{
+    my $node  = shift;
+    my @lines = @_ ? @_ : @dhcpconf;
+
+    # A bare query does not populate @dhcpconf -- only the reconfigure paths read the file
+    # into it -- so read dhcpd.conf directly in that case. It is the source of truth for the
+    # static host blocks.
+    if (!@lines && $dhcpconffile && -r $dhcpconffile) {
+        if (open(my $dhfh, '<', $dhcpconffile)) {
+            @lines = <$dhfh>;
+            close($dhfh);
+        }
+    }
+
+    my $start_re = _isc_host_start_re($node);
+    my $end_re   = _isc_host_end_re($node);
+
+    my ($nname, $ipaddr, $hwaddr);
+    my $skip = 0;
+    foreach my $line (@lines) {
+        if ($line =~ $start_re) {
+            $skip  = 1;
+            $nname = $node;
+            next;
+        }
+        last if $skip && $line =~ $end_re;
+        next unless $skip;
+        if ($line =~ /^\s*hardware\s+ethernet\s+(.+?)\s*;/) {
+            $hwaddr = "hardware-address = $1";
+        } elsif ($line =~ /^\s*fixed-address\s+(.+?)\s*;/) {
+            $ipaddr = "ip-address = $1";
+        }
+    }
+
+    return ($nname, $ipaddr, $hwaddr);
 }
 
 sub _open_omshell_writer
@@ -420,6 +493,21 @@ sub listnode
     my $node     = shift;
     my $callback = shift;
     my $rsp;
+
+    # On Ubuntu's ISC-limited releases the omshell host query can wedge at 100% CPU and never
+    # be reaped, so answer from the static host block xCAT already wrote into dhcpd.conf and
+    # never spawn omshell. This runs before the omapi key lookup below, which is moot here.
+    if (_isc_static_host_fallback()) {
+        my ($sname, $sip, $shw) = _query_isc_static_host($node);
+        if ($sip) {
+            push @{ $rsp->{data} }, "$sname: $sip, $shw";
+            xCAT::MsgUtils->message("I", $rsp, $callback);
+        } else {
+            $rsp->{data}->[0] = "$node: no DHCP reservation found in $dhcpconffile";
+            xCAT::MsgUtils->message("I", $rsp, $callback);
+        }
+        return;
+    }
 
     my $settings = _omapi_settings($callback);
     return unless $settings;
@@ -1553,6 +1641,14 @@ sub process_request
         $rsp->{data}->[0] = $backend->{error};
         xCAT::MsgUtils->message("E", $rsp, $callback, 1);
         return;
+    }
+    if ( $backend->can('fallback_from') && ( my $from = $backend->fallback_from ) ) {
+        my $rsp = {};
+        $rsp->{data}->[0] =
+            "DHCP backend '$from' auto-selected for this OS is not installed; "
+          . "falling back to the available '" . $backend->name . "' backend. "
+          . "Install '$from' or set site.dhcpbackend to silence this.";
+        xCAT::MsgUtils->message("W", $rsp, $callback);
     }
     if ( $backend->name eq 'kea' && $statements ) {
         my $rsp = {};

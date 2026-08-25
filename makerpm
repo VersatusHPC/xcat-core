@@ -6,6 +6,7 @@
 #   ./makerpm xCAT-server
 #   ./makerpm xCAT x86_64
 # If you want verbose output:  export VERBOSE=1
+# If you want source rpms only:  export SRCONLY=1
 
 # set -x
 
@@ -30,6 +31,14 @@ function xcat_probe_cleanup {
    fi
 }
 
+function announcebuild {
+	if [ "$SPECBUILD" = "-bs" ]; then
+		echo "Building $RPMROOT/SRPMS/$1-snap*.src.rpm $EMBEDTXT..."
+	else
+		echo "Building $2 $EMBEDTXT..."
+	fi
+}
+
 # Make the noarch rpms
 function makenoarch {
 	RPMNAME=$1
@@ -42,7 +51,7 @@ function makenoarch {
 		rpm $QUIET -ba $RPMNAME/$RPMNAME.spec
 		RC=$?
 	else	# linux
-		echo "Building $RPMROOT/RPMS/noarch/$RPMNAME-$VER-snap*.noarch.rpm $EMBEDTXT..."
+		announcebuild "$RPMNAME-$VER" "$RPMROOT/RPMS/noarch/$RPMNAME-$VER-snap*.noarch.rpm"
 		# TODO: should fix this up, this is a hack for the new build machine
 		if [ $RPMNAME = "xCAT-UI" ]; then
 			# Only if the old compiler.jar file does not exist.....
@@ -66,7 +75,7 @@ function makenoarch {
 
 		tar --exclude .svn -czf $RPMROOT/SOURCES/$RPMNAME-$VER.tar.gz $RPMNAME
 		rm -f $RPMROOT/SRPMS/$RPMNAME-$VER*rpm $RPMROOT/RPMS/noarch/$RPMNAME-$VER*rpm
-		rpmbuild $QUIET -ta $RPMROOT/SOURCES/$RPMNAME-$VER.tar.gz --define "version $VER" $REL "$EASE"
+		rpmbuild $QUIET $TARBUILD $RPMROOT/SOURCES/$RPMNAME-$VER.tar.gz --define "version $VER" $REL "$EASE"
 		RC=$?
 
 		if [ $RPMNAME = "xCAT-UI" ]; then
@@ -159,8 +168,8 @@ function makexcat {
 		fi
 
 		rm -f $RPMROOT/SRPMS/$RPMNAME-$VER*rpm $RPMROOT/RPMS/$ARCH/$RPMNAME-$VER*rpm
-		echo "Building $RPMROOT/RPMS/$ARCH/$RPMNAME-$VER-snap*.$ARCH.rpm $EMBEDTXT..."
-		rpmbuild $QUIET -ba $RPMNAME/$RPMNAME.spec $TARGET --define "version $VER" $REL "$EASE"
+		announcebuild "$RPMNAME-$VER" "$RPMROOT/RPMS/$ARCH/$RPMNAME-$VER-snap*.$ARCH.rpm"
+		rpmbuild $QUIET $SPECBUILD $RPMNAME/$RPMNAME.spec $TARGET --define "version $VER" $REL "$EASE"
 		RC=$?
 		if [ "$RPMNAME" = "xCAT" ]; then
 			files=("bmcsetup" "getipmi")
@@ -202,8 +211,8 @@ function makegenesis {
 	cp $RPMNAME.spec $RPMROOT/SOURCES
 	cd - >/dev/null
 	rm -f $RPMROOT/SRPMS/$RPMNAME-$VER*rpm $RPMROOT/RPMS/noarch/$RPMNAME-$VER*rpm
-	echo "Building $RPMROOT/RPMS/noarch/$RPMNAME-$VER-snap*.noarch.rpm $EMBEDTXT..."
-	rpmbuild $QUIET -ba $DIR/$RPMNAME.spec --define "version $VER" $REL "$EASE"
+	announcebuild "$RPMNAME-$VER" "$RPMROOT/RPMS/noarch/$RPMNAME-$VER-snap*.noarch.rpm"
+	rpmbuild $QUIET $SPECBUILD $DIR/$RPMNAME.spec --define "version $VER" $REL "$EASE"
 }
 
 function makegenesisscripts {
@@ -222,8 +231,8 @@ function makegenesisscripts {
 	cp $DIR/$RPMNAME.spec $RPMROOT/SOURCES
 	cd - >/dev/null
 	rm -f $RPMROOT/SRPMS/$RPMNAME-$ARCH-$VER*rpm $RPMROOT/RPMS/noarch/$RPMNAME-$ARCH-$VER*rpm
-	echo "Building $RPMROOT/RPMS/noarch/$RPMNAME-$ARCH-$VER-snap*.noarch.rpm $EMBEDTXT..."
-	rpmbuild $QUIET -ba $DIR/$RPMNAME.spec $TARGET --define "version $VER" $REL "$EASE"
+	announcebuild "$RPMNAME-$ARCH-$VER" "$RPMROOT/RPMS/noarch/$RPMNAME-$ARCH-$VER-snap*.noarch.rpm"
+	rpmbuild $QUIET $SPECBUILD $DIR/$RPMNAME.spec $TARGET --define "version $VER" $REL "$EASE"
 }
 
 
@@ -259,6 +268,17 @@ if [ "$VERBOSE" = "1" -o "$VERBOSE" = "yes" ];then
 	QUIET=""
 else
 	QUIET="--quiet"
+fi
+if [ "$SRCONLY" = "1" -o "$SRCONLY" = "yes" ]; then
+	if [ "$OSNAME" = "AIX" ]; then
+		echo "Error: SRCONLY is not supported on AIX."
+		exit 1
+	fi
+	SPECBUILD="-bs"
+	TARBUILD="-ts"
+else
+	SPECBUILD="-ba"
+	TARBUILD="-ta"
 fi
 
 if [ "$OSNAME" = "AIX" ]; then

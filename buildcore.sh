@@ -315,6 +315,10 @@ fi
 
 setversionvars
 
+function srconly {
+    [ "$SRCONLY" = "1" -o "$SRCONLY" = "yes" ]
+}
+
 # Function for making the noarch rpms
 function maker {
     rpmname="$1"
@@ -322,9 +326,11 @@ function maker {
     if [ $? -ne 0 ]; then
         FAILEDRPMS="$FAILEDRPMS $rpmname"
     else
-        rm -f $DESTDIR/$rpmname*rpm
+        if ! srconly; then
+            rm -f $DESTDIR/$rpmname*rpm
+            mv $source/RPMS/$NOARCH/$rpmname-$VER*rpm $DESTDIR
+        fi
         rm -f $SRCDIR/$rpmname*rpm
-        mv $source/RPMS/$NOARCH/$rpmname-$VER*rpm $DESTDIR
         mv $source/SRPMS/$rpmname-$VER*rpm $SRCDIR
     fi
 }
@@ -375,9 +381,11 @@ if [ "$OSNAME" != "AIX" ]; then
             #./makerpm xCAT-genesis-scripts aarch64 "$EMBED"
             #if [ $? -ne 0 ]; then FAILEDRPMS="$FAILEDRPMS xCAT-genesis-scripts-aarch64"; fi
             if [ "$FAILEDRPMS" = "$ORIGFAILEDRPMS" ]; then    # all succeeded
-                rm -f $DESTDIR/xCAT-genesis-scripts*rpm
+                if ! srconly; then
+                    rm -f $DESTDIR/xCAT-genesis-scripts*rpm
+                    mv $source/RPMS/noarch/xCAT-genesis-scripts-*rpm $DESTDIR
+                fi
                 rm -f $SRCDIR/xCAT-genesis-scripts*rpm
-                mv $source/RPMS/noarch/xCAT-genesis-scripts-*rpm $DESTDIR
                 mv $source/SRPMS/xCAT-genesis-scripts-*rpm $SRCDIR
             fi
         fi
@@ -402,9 +410,11 @@ for rpmname in xCAT xCATsn; do
             done
         fi
         if [ "$FAILEDRPMS" = "$ORIGFAILEDRPMS" ]; then    # all succeeded
-            rm -f $DESTDIR/$rpmname-$SHORTSHORTVER*rpm
+            if ! srconly; then
+                rm -f $DESTDIR/$rpmname-$SHORTSHORTVER*rpm
+                mv $source/RPMS/*/$rpmname-$VER*rpm $DESTDIR
+            fi
             rm -f $SRCDIR/$rpmname-$SHORTSHORTVER*rpm
-            mv $source/RPMS/*/$rpmname-$VER*rpm $DESTDIR
             mv $source/SRPMS/$rpmname-$VER*rpm $SRCDIR
         fi
     fi

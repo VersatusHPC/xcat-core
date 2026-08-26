@@ -2,57 +2,64 @@
 use strict;
 use warnings;
 
-use FindBin;
+use File::Slurper qw(read_text write_text);
 use File::Spec;
+use File::Temp qw(tempdir);
+use FindBin;
 use Test::More;
 
-my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
-my $script_path = File::Spec->catfile( $repo_root, 'xCAT/postscripts/otherpkgs' );
+my $repo_root = File::Spec->catdir($FindBin::Bin, '..', '..');
+my $otherpkgs = File::Spec->catfile($repo_root, 'xCAT', 'postscripts', 'otherpkgs');
 
-plan skip_all => "$script_path not found" unless -r $script_path;
+is(system('bash', '-n', $otherpkgs), 0, 'the otherpkgs caller parses as Bash');
 
-open( my $fh, '<', $script_path ) or die "Unable to read $script_path: $!";
-my $script = do { local $/; <$fh> };
-close($fh);
+sub helper_output {
+    my (@command) = @_;
+    open(
+        my $fh,
+        '-|',
+        'bash', '-c',
+        '. "$1"; shift; "$@"',
+        'bash', $otherpkgs, @command,
+    ) or die "Unable to run $otherpkgs: $!";
+    my $output = do { local $/; <$fh> };
+    close($fh);
+    return ($? >> 8, $output);
+}
 
-# The postscript writes its repositories as [xcat-otherpkgs<index>]. The upgrade
-# below is scoped with --enablerepo=xcat-otherpkgs*, so the two have to agree or
-# the upgrade silently matches no repository at all.
-like(
-    $script,
-    qr/echo\s+"\[xcat-otherpkgs\$urlrepoindex\]"/,
-    'remote repositories are still defined as xcat-otherpkgs<index>'
-);
-like(
-    $script,
-    qr/echo\s+"\[xcat-otherpkgs\$localrepoindex\]"/,
-    'local repositories are still defined as xcat-otherpkgs<index>'
-);
+my ($status, $output) = helper_output('xcat_otherpkgs_repo_id', 0);
+is($status, 0, 'repository id construction succeeds');
+is($output, "xcat-otherpkgs0\n", 'the first repository uses the upgrade scope prefix');
 
-# Both the verbose echo and the command actually executed must carry the same
-# scoping, otherwise verbose output reports a command that was never run.
-my @scoped = $script =~ /\$yumcmd\s+-y\s+--disablerepo=\*\s+--enablerepo=xcat-otherpkgs\*\s+upgrade/g;
+($status, $output) = helper_output('xcat_otherpkgs_repo_id', 7);
+is($output, "xcat-otherpkgs7\n", 'local and remote repository indexes share one naming rule');
+
+($status, $output) = helper_output('xcat_yum_upgrade_otherpkgs', 'dnf', 'print');
+is($status, 0, 'rendering the scoped yum upgrade command succeeds');
 is(
-    scalar(@scoped),
-    2,
-    'the yum/dnf upgrade is scoped to the xcat-otherpkgs repositories in both the verbose echo and the executed command'
+    $output,
+    "dnf -y --disablerepo=* --enablerepo=xcat-otherpkgs* upgrade\n",
+    'verbose output comes from the same helper as execution',
 );
 
-# Counted rather than matched with unlike(), so that a failure reports the count
-# instead of dumping the whole postscript into the test output.
-my @unscoped = $script =~ /(\$yumcmd\s+-y\s+upgrade)/g;
-is(
-    scalar(@unscoped),
-    0,
-    'no unscoped yum/dnf upgrade remains, which would also apply unrelated distribution updates'
-);
+my $tools = tempdir(CLEANUP => 1);
+my $yum_log = File::Spec->catfile($tools, 'yum.log');
+my $fake_yum = File::Spec->catfile($tools, 'dnf');
+write_text($fake_yum, <<'SH');
+#!/bin/sh
+printf '%s\n' "$@" > "$XCAT_TEST_YUM_LOG"
+SH
+chmod 0755, $fake_yum or die "Unable to make $fake_yum executable: $!";
 
-# The install path must keep every repository enabled so that dependencies of
-# the otherpkgs packages can still be resolved from the distribution.
-like(
-    $script,
-    qr/\$yumcmd\s+-y\s+install\s+\$repo_pkgs/,
-    'the package install path is left unscoped so dependencies still resolve'
+{
+    local %ENV = (%ENV, XCAT_TEST_YUM_LOG => $yum_log);
+    ($status, $output) = helper_output('xcat_yum_upgrade_otherpkgs', $fake_yum);
+}
+is($status, 0, 'the scoped yum upgrade command succeeds');
+is_deeply(
+    [split /\n/, read_text($yum_log)],
+    ['-y', '--disablerepo=*', '--enablerepo=xcat-otherpkgs*', 'upgrade'],
+    'yum receives only the xcat-otherpkgs upgrade scope',
 );
 
 done_testing();

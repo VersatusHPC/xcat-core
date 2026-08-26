@@ -37,6 +37,36 @@ my $tftpdir = "/tftpboot";
 my $nonodestatus = 0;
 my %failurenodes = ();
 
+sub _advance_chain
+{
+    my ($ref, $callnodeset) = @_;
+
+    unless ($ref->{currchain}) {    #If no current chain, copy the default
+        $ref->{currchain} = $ref->{chain};
+    } elsif ($ref->{currchain} !~ /[,;]/) {
+        if ($ref->{currstate} and ($ref->{currchain} =~ /$ref->{currstate}/)) {
+            # 'boot' is the steady state a completed provision leaves behind,
+            # set by setdestiny once the install or netboot destiny is applied.
+            # Some installers advance the destiny more than once, so it has to
+            # survive being advanced again: replacing it with 'standby' would
+            # leave the node with no destiny that boots the installed system.
+            unless ($ref->{currchain} eq 'boot') {
+                $ref->{currchain} = 'standby';
+            }
+            $callnodeset = 0;
+        }
+    }
+    my @chain = split /[,;]/, $ref->{currchain};
+
+    $ref->{currstate} = shift @chain;
+    $ref->{currchain} = join(',', @chain);
+    unless ($ref->{currchain}) { #If we've gone off the end of the chain, have currchain stick
+        $ref->{currchain} = $ref->{currstate};
+    }
+
+    return $callnodeset;
+}
+
 #my $sitetab = xCAT::Table->new('site');
 #if ($sitetab) {
 #(my $ref1) = $sitetab->getAttribs({key => 'nodestatus'}, 'value');
@@ -837,28 +867,7 @@ sub nextdestiny {
             syslog("local4|err", "ERROR: node requested destiny update, no path in chain.currchain");
             return;    #Can't possibly do anything intelligent..
         }
-        unless ($ref->{currchain}) {    #If no current chain, copy the default
-            $ref->{currchain} = $ref->{chain};
-        } elsif ($ref->{currchain} !~ /[,;]/){
-            if ($ref->{currstate} and ($ref->{currchain} =~ /$ref->{currstate}/)) {
-                # 'boot' is the steady state a completed provision leaves behind,
-                # set by setdestiny once the install or netboot destiny is applied.
-                # Some installers advance the destiny more than once, so it has to
-                # survive being advanced again: replacing it with 'standby' would
-                # leave the node with no destiny that boots the installed system.
-                unless ($ref->{currchain} eq 'boot') {
-                    $ref->{currchain} = 'standby';
-                }
-                $callnodeset = 0;
-            }
-        }
-        my @chain = split /[,;]/, $ref->{currchain};
-
-        $ref->{currstate} = shift @chain;
-        $ref->{currchain} = join(',', @chain);
-        unless ($ref->{currchain}) { #If we've gone off the end of the chain, have currchain stick
-            $ref->{currchain} = $ref->{currstate};
-        }
+        $callnodeset = _advance_chain($ref, $callnodeset);
         $chaintab->setNodeAttribs($node, $ref); #$ref is in a state to commit back to db
 
         my %requ;

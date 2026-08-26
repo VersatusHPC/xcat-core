@@ -597,18 +597,21 @@ my $udp_listener = IO::Socket::INET->new(
 ) or BAIL_OUT("unable to open the UDP behavior listener: $!");
 my $udp_packet = File::Spec->catfile($root, 'udp-packet');
 write_file($udp_packet, "discovery-payload\n");
-my $source_port_probe = IO::Socket::INET->new(
-    LocalAddr => '0.0.0.0',
-    LocalPort => 301,
-    Proto     => 'udp',
+my @udp_sender_command = (
+    $udp_sender_binary, $udp_packet, '127.0.0.1', $udp_listener->sockport
 );
 SKIP: {
-    skip 'binding the legacy discovery source port requires privilege', 4
+    my $source_port_probe = IO::Socket::INET->new(
+        LocalAddr => '0.0.0.0',
+        LocalPort => 301,
+        Proto     => 'udp',
+    );
+    skip 'the legacy discovery source port is unavailable', 4
       unless $source_port_probe;
     close($source_port_probe);
 
     is(
-        system($udp_sender_binary, $udp_packet, '127.0.0.1', $udp_listener->sockport) >> 8,
+        system(@udp_sender_command) >> 8,
         0,
         'discovery UDP sender transmits an IPv4 datagram',
     );

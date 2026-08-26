@@ -16,6 +16,9 @@ use JSON;
 use URI::Escape;
 use LWP::Simple;
 use Cwd;
+use FindBin;
+use lib "$FindBin::Bin/xCAT-test/lib";
+use XCAT::Test::GitHubAction qw(package_install_command should_check_syntax);
 
 use Term::ANSIColor qw(:constants);
 $Term::ANSIColor::AUTORESET = 1;
@@ -369,7 +372,7 @@ sub install_xcat{
         }
     }
 
-    my $cmd = "sudo timeout 1200 env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y xcat --allow-remove-essential --allow-unauthenticated";
+    my $cmd = package_install_command('xcat');
     @output = runcmd("$cmd");
     if($::RUNCMD_RC){
         my $lastline = $output[-1];
@@ -404,7 +407,7 @@ sub install_xcat{
                print "[install_xcat] $cmd....[Pass]\n";
             }
         }
-        $cmd = "sudo timeout 1200 env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y xcat-probe --allow-remove-essential --allow-unauthenticated";
+        $cmd = package_install_command('xcat-probe');
         @output = runcmd("$cmd");
         if($::RUNCMD_RC){
             print RED "[install_xcat] $cmd ....[Failed]\n";
@@ -473,9 +476,7 @@ sub check_syntax{
         get_files_recursive("$dir", \@files);
 
         foreach my $file (@files) {
-            next if($file =~ /\/opt\/xcat\/share\/xcat\/netboot\/genesis\//);
-            next if($file =~ /\/opt\/xcat\/probe\//);
-            next if($file =~ /\/opt\/xcat\/share\/xcat\/tools\/autotest\/unit\//);
+            next unless should_check_syntax($file);
 
             @output = runcmd("file $file");
             if($output[0] =~ /perl /i){
@@ -510,7 +511,7 @@ sub check_syntax{
 # Return code:
 #--------------------------------------------------------
 sub run_fast_regression_test{
-    my $cmd = "sudo timeout 1200 env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y xcat-test --allow-remove-essential --allow-unauthenticated";
+    my $cmd = package_install_command('xcat-test');
     my @output = runcmd("$cmd");
     if($::RUNCMD_RC){
          print RED "[run_fast_regression_test] $cmd ....[Failed]\n";
@@ -617,6 +618,7 @@ sub mark_time{
 
 #===============Main Process=============================
 
+sub main {
 my @os_info = runcmd("cat /etc/os-release");
 print "Current OS information:\n";
 print Dumper \@os_info;
@@ -696,4 +698,9 @@ if($rst){
 }
 mark_time("run_fast_regression_test");
 
-exit 0;
+return 0;
+}
+
+exit main() unless caller;
+
+1;

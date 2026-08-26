@@ -3,49 +3,19 @@ use strict;
 use warnings;
 
 use FindBin;
-use File::Spec;
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use lib "$FindBin::Bin/../../perl-xCAT";
 use Test::More;
+use xCAT::Schema;
+use xCAT::xcatd;
 
-my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
-my $xcatd  = File::Spec->catfile( $repo_root, 'xCAT-server/lib/perl/xCAT/xcatd.pm' );
-my $daemon = File::Spec->catfile( $repo_root, 'xCAT-server/sbin/xcatd' );
-my $schema = File::Spec->catfile( $repo_root, 'perl-xCAT/xCAT/Schema.pm' );
-
-plan skip_all => 'xcatd.pm, xcatd or Schema.pm not found' unless -r $xcatd && -r $daemon && -r $schema;
-
-sub slurp {
-    open( my $fh, '<', $_[0] ) or die "Unable to read $_[0]: $!";
-    my $c = do { local $/; <$fh> };
-    close($fh);
-    return $c;
-}
-
-my $source        = slurp($xcatd);
-my $daemon_source = slurp($daemon);
-my $schema_source = slurp($schema);
-
-# xcatd.pm cannot be loaded here (dependencies), so lift out the secret set, the
-# command maps, and the redaction routines and evaluate them alone.
-my ($set)      = $source =~ /(my \@secret_attributes = qw\(.*?\);\s*my %secret_attribute = map.*?;)/s;
-my ($maps)     = $source =~ /(my %secret_command_options = \(.*?my %secret_site_keys = map.*?;)/s;
-my ($arg_sub)  = $source =~ /(sub redact_password_arg \{.*?\n\}\n)/s;
-my ($args_sub) = $source =~ /(sub redact_password_args \{.*?\n\}\n)/s;
-my ($cmd_sub)  = $source =~ /(sub redact_password \{.*?\n\}\n)/s;
-BAIL_OUT('could not extract the secret set from xcatd.pm')       unless $set;
-BAIL_OUT('could not extract the command maps from xcatd.pm')     unless $maps;
-BAIL_OUT('could not extract redact_password_arg from xcatd.pm')  unless $arg_sub;
-BAIL_OUT('could not extract redact_password_args from xcatd.pm') unless $args_sub;
-BAIL_OUT('could not extract redact_password from xcatd.pm')      unless $cmd_sub;
-eval "package RedactUnderTest; $set $maps $arg_sub $args_sub $cmd_sub 1;"
-  or BAIL_OUT("could not evaluate the redaction routines: $@");
-
-sub arg { return RedactUnderTest::redact_password_arg( 'xCAT::xcatd', $_[0] ); }
-sub cmd { return RedactUnderTest::redact_password( $_[0], $_[1] ); }
+sub arg { return xCAT::xcatd->redact_password_arg($_[0]); }
+sub cmd { return xCAT::xcatd->redact_password($_[0], $_[1]); }
 
 sub vec_ {
     my ( $command, @args ) = @_;
     my ( $redacted, $changed ) =
-      RedactUnderTest->redact_password_args( $command, \@args );
+      xCAT::xcatd->redact_password_args( $command, \@args );
     return ( join( ' ', @$redacted ), $changed );
 }
 
@@ -275,19 +245,23 @@ unlike( arg('prodkey.key=SEKRET'), qr/SEKRET/, 'a table-qualified product key is
 unlike( arg('tokenid=SEKRET'), qr/SEKRET/, 'an authentication token is redacted' );
 unlike( arg('token.tokenid=SEKRET'), qr/SEKRET/, 'a table-qualified token is redacted' );
 
-# Every attribute and column Schema.pm marks secret must be covered. Keep every
-# (attribute, column) pair so a removed table-qualified column is caught, not
+# Every attribute and column in the loaded schema that carries a secret must be
+# covered. Keep every pair so a removed table-qualified column is caught, not
 # masked by another pair that shares the attribute name.
 my @pairs;
-while ( $schema_source =~ /attr_name\s*=>\s*'([^']+)'(.{0,400}?)tabentry\s*=>\s*'([^']+)'/gs ) {
-    my ( $attr, $tabentry ) = ( $1, $3 );
-    next
-      unless $tabentry =~ /\.(password|passwd|authkey|privkey|adminpassword|sshpassword|community)$/i
-      or $tabentry eq 'prodkey.key';
-    push @pairs, [ $attr, $tabentry ];
+foreach my $object ( values %xCAT::Schema::defspec ) {
+    foreach my $definition ( @{ $object->{attrs} || [] } ) {
+        my $attr     = $definition->{attr_name};
+        my $tabentry = $definition->{tabentry};
+        next unless defined $attr and defined $tabentry;
+        next
+          unless $tabentry =~ /\.(password|passwd|authkey|privkey|adminpassword|sshpassword|community)$/i
+          or $tabentry eq 'prodkey.key';
+        push @pairs, [ $attr, $tabentry ];
+    }
 }
-ok( scalar(@pairs) > 0, 'Schema.pm yielded attributes mapped to secret columns' )
-  or BAIL_OUT('the Schema.pm mapping could not be parsed, so this test proves nothing');
+ok( scalar(@pairs) > 0, 'the loaded schema exposes attributes mapped to secret columns' )
+  or BAIL_OUT('the loaded schema did not expose secret mappings');
 
 my @uncovered;
 foreach my $pair (@pairs) {
@@ -295,19 +269,58 @@ foreach my $pair (@pairs) {
     push @uncovered, $attr   if arg("$attr=SEKRET")   =~ /SEKRET/;
     push @uncovered, $column if arg("$column=SEKRET") =~ /SEKRET/;
 }
-is_deeply( \@uncovered, [], 'every attribute and column Schema.pm marks secret is redacted' );
+is_deeply( \@uncovered, [], 'every attribute and column marked secret is redacted' );
 
-# validate() must redact the argument vector and still run the joined result
-# through redact_password, so every secret reaches syslog and the auditlog
-# table redacted.
-like( $source, qr/=\s*xCAT::xcatd->redact_password_args\(\$request->\{command\}->\[0\]/, 'validate() redacts the argument vector' );
-like( $source, qr/\$redacted_arglist\s*=\s*redact_password\b/, 'validate() redacts the arguments through redact_password' );
+my $dispatch_trace = xCAT::xcatd->format_dispatch_trace({
+    command   => ['rspconfig'],
+    noderange => [ 'node01', 'node02' ],
+    arg       => [ 'admin_passwd=SEKRET', 'general=visible' ],
+});
+unlike($dispatch_trace, qr/SEKRET/, 'the runtime dispatch trace does not contain the password');
+is(
+    $dispatch_trace,
+    'rspconfig node01,node02 admin_passwd=xxxxxxxx general=visible',
+    'the runtime dispatch trace keeps non-secret command context',
+);
 
-# The debug dispatch trace must not rebuild the command from the raw request.
-like( $daemon_source, qr/\(\$trace_args\)\s*=\s*xCAT::xcatd->redact_password_args\(\$req->\{command\}->\[0\]/,
-    'the dispatch trace builds its text from redacted arguments' );
+{
+    package RedactionPolicyTable;
+    sub getAllEntries {
+        return [ {
+            priority => 1,
+            name     => '*',
+            commands => '*',
+            rule     => 'allow',
+        } ];
+    }
+    sub close { return; }
+}
 
-# The auditlog table and syslog use the same redacted arguments.
-like( $source, qr/\$rsp->\{args\}->\[0\]\s*=\s*\$redacted_arglist/, 'the auditlog table stores the redacted arguments' );
+{
+    no warnings 'redefine';
+    local *xCAT::Table::new = sub { return bless {}, 'RedactionPolicyTable'; };
+    local %::XCATSITEVALS = ();
+
+    my $request = {
+        command    => ['rspconfig'],
+        arg        => ['admin_passwd=SEKRET'],
+        username   => ['operator'],
+        clienttype => ['cli'],
+    };
+    my @deferred;
+    ok(
+        xCAT::xcatd->validate(
+            'operator', 'client.example', $request, undef, \@deferred,
+        ),
+        'validate accepts the request through the test policy',
+    );
+    is($deferred[0], 'SA', 'validate selects the audit and syslog sinks');
+    unlike($deferred[1]->{syslogdata}->[0], qr/SEKRET/,
+        'the runtime syslog payload does not contain the password');
+    unlike($deferred[1]->{args}->[0], qr/SEKRET/,
+        'the runtime audit payload does not contain the password');
+    like($deferred[1]->{args}->[0], qr/admin_passwd=xxxxxxxx/,
+        'the runtime audit payload keeps the masked argument context');
+}
 
 done_testing();

@@ -1,58 +1,117 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+no warnings 'once';
 
 use FindBin;
-use File::Spec;
+use lib "$FindBin::Bin/../../xCAT-server/lib";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use lib "$FindBin::Bin/../../perl-xCAT";
+use Getopt::Long;
 use Test::More;
 
-my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
-my $plugin = File::Spec->catfile( $repo_root, 'xCAT-server/lib/xcat/plugins/dhcp.pm' );
+$ENV{XCATCFG} ||= 'SQLite:/tmp';
 
-plan skip_all => "$plugin not found" unless -r $plugin;
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/dhcp.pm";
+require $plugin;
 
-open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
-my $source = do { local $/; <$fh> };
-close($fh);
+{
+    package DHCPDispatchNetworks;
+    sub getAllEntries { return []; }
+}
 
-# The dispatch loop that fans a node-targeted makedhcp out to service nodes.
-my ($loop) = $source =~ m{
-    ( my \s+ %servingsn .*? foreach \s+ my \s+ \$s \s+ \(\@snlist\) .*? \n \s* \} \n )
-}sx;
+sub dispatch {
+    my (%case) = @_;
+    my @service_nodes = @{ $case{service_nodes} || [] };
+    my $mapping = $case{mapping} || {};
+    my @local_names = @{ $case{local_names} || ['mn'] };
+    my $is_service_node = $case{is_service_node} || 0;
 
-ok( $loop, 'the service node dispatch loop was located' )
-  or BAIL_OUT('dhcp.pm no longer matches the expected dispatch shape');
+    no warnings 'redefine';
+    local *xCAT::Table::new = sub { return bless {}, 'DHCPDispatchNetworks'; };
+    local *xCAT::TableUtils::get_site_attribute = sub {
+        return ('mn') if $_[-1] eq 'master';
+        return;
+    };
+    local *xCAT::ServiceNodeUtils::getSNList = sub { return @service_nodes; };
+    local *xCAT::ServiceNodeUtils::getSNformattedhash = sub { return $mapping; };
+    local *xCAT::NetworkUtils::determinehostname = sub { return @local_names; };
+    local *xCAT::Utils::isServiceNode = sub { return $is_service_node; };
+    local *xCAT::MsgUtils::trace = sub { return; };
+    local *xCAT::MsgUtils::message = sub { return; };
+    local @ARGV;
 
-like(
-    $loop,
-    qr/getSNformattedhash\(\\\@nodes/,
-    'the named nodes are mapped to their service nodes'
+    my $request = {
+        command               => ['makedhcp'],
+        arg                   => $case{args} || [],
+        _xcatpreprocessed     => [0],
+    };
+    $request->{node} = $case{nodes} if $case{nodes};
+
+    return xCAT_plugin::dhcp::preprocess_request($request, sub { });
+}
+
+sub destinations {
+    my ($requests) = @_;
+    return [ map { $_->{_xcatdest} // 'local' } @{$requests} ];
+}
+
+my $requests = dispatch(
+    nodes         => [qw(node01 node02)],
+    service_nodes => [qw(sn01 sn02)],
+    mapping       => { sn01 => [qw(node01 node02)] },
 );
-like(
-    $loop,
-    qr/next \s+ if \s+ \(keys\(%servingsn\) \s* && \s* !exists\(\$servingsn\{\$s\}\)\)/x,
-    'a service node serving none of the named nodes is skipped'
+is_deeply(
+    destinations($requests),
+    [qw(local sn01)],
+    'a named noderange reaches only the service node that serves it',
+);
+is_deeply($requests->[1]->{node}, [qw(node01 node02)], 'the selected service node receives its served nodes');
+
+$requests = dispatch(
+    nodes         => ['unknown'],
+    service_nodes => [qw(sn01 sn02)],
+    mapping       => {},
+);
+is_deeply(
+    destinations($requests),
+    [qw(local sn01 sn02)],
+    'an unmapped noderange retains the previous all-service-node fallback',
 );
 
-# Regenerating the networks must still reach every dhcp server, because a
-# dynamic range does not belong to any node.
-like(
-    $loop,
-    qr/unless \s* \(\$opt\{n\}\)/x,
-    'network regeneration is exempt from the node based restriction'
+$requests = dispatch(
+    args          => ['-n'],
+    service_nodes => [qw(sn01 sn02)],
+    mapping       => { sn01 => ['node01'] },
+);
+is_deeply(
+    destinations($requests),
+    [qw(local sn01 sn02)],
+    'network regeneration reaches every DHCP service node',
 );
 
-# Empty mapping must fall back to the previous fan-out rather than silently
-# dispatching to nothing.
-my ($guard) = $loop =~ /(next\s+if\s+\(keys\(%servingsn\)[^\n]*)/;
-like(
-    $guard,
-    qr/keys\(%servingsn\)\s*&&/,
-    'an unmapped noderange still reaches every service node'
+$requests = dispatch(
+    nodes         => ['sn01'],
+    service_nodes => [qw(sn01 sn02)],
+    mapping       => { sn01 => ['sn01'] },
+);
+is_deeply(
+    destinations($requests),
+    ['local'],
+    'a request for the service node itself is not dispatched back to it',
 );
 
-# The pre-existing conditions in the loop must survive.
-like( $loop, qr/scalar \@nodes == 1 and \$nodes\[0\] eq \$s/, 'the self dispatch guard is retained' );
-like( $loop, qr/\$issn && exists\(\$iphash\{\$s\}\)/,          'the service node self skip is retained' );
+$requests = dispatch(
+    nodes           => ['node02'],
+    service_nodes   => [qw(sn01 sn02)],
+    mapping         => { sn01 => ['node02'], sn02 => ['node02'] },
+    local_names     => ['sn02'],
+    is_service_node => 1,
+);
+is_deeply(
+    destinations($requests),
+    [qw(local mn sn01)],
+    'a service node dispatches to the manager and skips its own service-node address',
+);
 
 done_testing();

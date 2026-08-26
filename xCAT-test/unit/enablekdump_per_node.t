@@ -12,8 +12,6 @@ plan skip_all => 'enablekdump not found' unless -r $script;
 # The postscript uses GNU sed -i, which behaves differently on BSD.
 plan skip_all => 'postscript targets Linux nodes' unless $^O eq 'linux';
 
-my $source = read_file($script);
-
 # Run the RHEL NFS path of enablekdump against a scratch tree. The dump target
 # is a local directory standing in for the mounted NFS export, so we can check
 # what the postscript writes to it and to /etc/kdump.conf.
@@ -25,7 +23,7 @@ sub run_enablekdump {
         : "KDUMP_COMMANDLINE=\"\"\nKDUMP_COMMANDLINE_APPEND=\"\"\n";
 
     my $root = tempdir(CLEANUP => 1);
-    make_path("$root/etc/sysconfig", "$root/target", "$root/bin");
+    make_path("$root/etc/sysconfig", "$root/target", "$root/tmp", "$root/bin");
 
     # /etc/sysconfig/kdump must exist for the in-place seds to land.
     write_file("$root/etc/sysconfig/kdump", $sysconfig);
@@ -34,27 +32,27 @@ sub run_enablekdump {
     write_file("$root/bin/logger", "#!/bin/sh\nexit 0\n");
     chmod 0755, "$root/bin/logger";
 
-    my $src = $source;
-    # Redirect everything the postscript touches into the scratch tree.
-    $src =~ s{/etc/kdump\.conf}{$root/etc/kdump.conf}g;
-    $src =~ s{/etc/sysconfig/kdump}{$root/etc/sysconfig/kdump}g;
-    $src =~ s{/etc/dracut\.conf}{$root/etc/dracut.conf}g;
-    $src =~ s{/tmp/dracut\.conf}{$root/tmp/dracut.conf}g;
-    # No real NFS server: make the version probe empty so the mount is skipped;
-    # the per-node mkdir and kdump.conf rendering still run against the target.
-    $src =~ s{/usr/sbin/rpcinfo}{/bin/false}g;
-    $src =~ s{/bin/mount}{true}g;
-    $src =~ s{/bin/umount}{true}g;
-    # Point the staging mount point at the scratch target that stands in for the
-    # mounted NFS export.
-    $src =~ s{/mnt/kdumpsetup}{$root/target}g;
-
-    write_file("$root/enablekdump", $src);
-    chmod 0755, "$root/enablekdump";
-
     my $dump = "nfs://10.0.0.1/dumparea";
-    system(qq{cd '$root' && DUMP='$dump' XCAT='10.0.0.1:eth0' OSVER='$osver' }
-         . qq{ARCH='x86_64' NODE='$node' PATH="$root/bin:\$PATH" ./enablekdump >/dev/null 2>&1});
+    local %ENV = (
+        %ENV,
+        DUMP                     => $dump,
+        XCAT                     => '10.0.0.1:eth0',
+        OSVER                    => $osver,
+        ARCH                     => 'x86_64',
+        NODE                     => $node,
+        PATH                     => "$root/bin:$ENV{PATH}",
+        XCAT_KDUMP_XCATLIB       => "$root/xcatlib.sh",
+        XCAT_KDUMP_CONF          => "$root/etc/kdump.conf",
+        XCAT_KDUMP_SYSCONFIG     => "$root/etc/sysconfig/kdump",
+        XCAT_KDUMP_DRACUT_CONF   => "$root/etc/dracut.conf",
+        XCAT_KDUMP_DRACUT_STASH  => "$root/tmp/dracut.conf",
+        XCAT_KDUMP_RPCINFO       => '/bin/false',
+        XCAT_KDUMP_MOUNT_CMD     => '/bin/true',
+        XCAT_KDUMP_UMOUNT_CMD    => '/bin/true',
+        XCAT_KDUMP_MOUNT_PATH    => "$root/target",
+    );
+    system('bash', $script);
+    is($? >> 8, 0, "enablekdump succeeds for $osver on $node");
 
     return {
         root       => $root,

@@ -13,6 +13,7 @@ maximum_attempts=${XCAT_DISCOVERY_ATTEMPTS:-36}
 retry_seconds=${XCAT_DISCOVERY_RETRY_SECONDS:-5}
 ipmitool_command=${XCAT_IPMITOOL_COMMAND:-ipmitool}
 lldp_command=${XCAT_LLDP_COMMAND:-lldpcli}
+discovery_send_command=${XCAT_DISCOVERY_SEND_COMMAND:-/usr/libexec/xcat/genesis-udp-send}
 failure_code=DISCOVERY_FAILED
 failure_detail='Node discovery failed'
 failure_recovery='Check xCAT discovery policy and the management network'
@@ -74,14 +75,12 @@ read_value() {
 }
 
 send_packet() {
-    if [[ -n ${XCAT_DISCOVERY_SEND_COMMAND:-} ]]; then
-        "$XCAT_DISCOVERY_SEND_COMMAND" "$compressed_packet" "$XCATMASTER" "$XCATPORT"
-        return
-    fi
-
-    /usr/libexec/xcat/genesis-udp-send \
-        "$compressed_packet" "$XCATMASTER" "$XCATPORT"
+    "$discovery_send_command" "$compressed_packet" "$XCATMASTER" "$XCATPORT"
 }
+
+if [[ -n ${BASH_SOURCE[0]:-} && ${BASH_SOURCE[0]} != "$0" ]]; then
+    return 0
+fi
 
 trap finish_status EXIT HUP INT TERM
 

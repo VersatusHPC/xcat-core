@@ -12,8 +12,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#ifndef XCAT_GENESIS_DISCOVERY_SOURCE_PORT
+#define XCAT_GENESIS_DISCOVERY_SOURCE_PORT 301
+#endif
+
 enum {
-    SOURCE_PORT = 301,
+    SOURCE_PORT = XCAT_GENESIS_DISCOVERY_SOURCE_PORT,
     MAX_DATAGRAM = 65507,
 };
 

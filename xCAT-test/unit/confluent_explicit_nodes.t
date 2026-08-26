@@ -3,26 +3,30 @@ use strict;
 use warnings;
 
 use FindBin;
-use File::Spec;
 use Test::More;
 
-my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
-my $plugin = File::Spec->catfile( $repo_root, 'xCAT-server/lib/xcat/plugins/confluent.pm' );
+BEGIN {
+    $ENV{XCATROOT} = "$FindBin::Bin/../../xCAT-server";
+    $ENV{XCATCFG}  = 'SQLite:/tmp';
+    $INC{'Confluent/Client.pm'} = __FILE__;
+}
 
-plan skip_all => "$plugin not found" unless -r $plugin;
+{
+    package Confluent::Client;
+}
 
-open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
-my $source = do { local $/; <$fh> };
-close($fh);
+use lib "$FindBin::Bin/../../perl-xCAT";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use lib "$FindBin::Bin/../../xCAT-server/lib/xcat";
+use lib "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins";
 
-# A stand-in for the nodehm table, so the selection logic can be exercised
-# without a database. getNodesAttribs leaves out nodes that have no row, which
-# is what the plugin sees for a node that was never given console attributes.
+require confluent;
+
 {
     package StubNodehm;
-    sub new { my ( $class, %rows ) = @_; return bless { rows => {%rows} }, $class; }
+    sub new { my ($class, %rows) = @_; return bless { rows => { %rows } }, $class; }
     sub getNodesAttribs {
-        my ( $self, $noderange, $attrs ) = @_;
+        my ($self, $noderange) = @_;
         my %out;
         foreach my $node (@$noderange) {
             next unless exists $self->{rows}{$node};
@@ -31,94 +35,98 @@ close($fh);
         return \%out;
     }
     sub getAllNodeAttribs {
-        my ( $self, $attrs ) = @_;
+        my ($self) = @_;
         return map { { %{ $self->{rows}{$_} } } } sort keys %{ $self->{rows} };
     }
 }
 
-# Extract the node-selection block from preprocess_request and run it directly,
-# so this covers the shipped logic rather than a copy of it.
-my ($block) = $source =~ m{
-    ( my \s+ \@items; .*?
-      push \s+ \@nodes, \s* \$_->\{node\}; \s* \n \s* \} )
-}sx;
+my %rows = (
+    withcons   => { node => 'withcons',   cons => 'ipmi' },
+    withserial => { node => 'withserial', serialport => 0 },
+    nocons     => { node => 'nocons' },
+    withserver => { node => 'withserver', cons => 'ipmi', conserver => 'sn1.example' },
+);
+my $nodehm = StubNodehm->new(%rows);
 
-ok( $block, 'the node-selection block was located in preprocess_request()' )
-  or BAIL_OUT('confluent.pm no longer matches the expected node-selection shape');
+my ($nodes, $conservers, $allnodes) =
+  xCAT_plugin::confluent::_select_console_nodes(['nocons'], $nodehm, 'mn.example');
+is_deeply($nodes, ['nocons'], 'an explicitly named node without console attributes is configured');
+is($allnodes, 0, 'an explicit noderange is not treated as a full-table scan');
 
-sub select_nodes {
-    my ( $noderange, %rows ) = @_;
-    my $hmtab  = StubNodehm->new(%rows);
-    my $master = 'mn.example';
-    my %cons_hash;
-    my $code = 'sub { my ($noderange, $hmtab, $master, $cons_ref) = @_; my %cons_hash; '
-      . $block
-      . ' %$cons_ref = %cons_hash; return \@nodes; }';
-    my $sub = eval $code;
-    die "Unable to evaluate the extracted block: $@" if $@;
-    my $nodes = $sub->( $noderange, $hmtab, $master, \%cons_hash );
-    return ( $nodes, \%cons_hash );
+($nodes, $conservers) =
+  xCAT_plugin::confluent::_select_console_nodes(['neverdefined'], $nodehm, 'mn.example');
+is_deeply($nodes, ['neverdefined'], 'a node without a nodehm row keeps its explicit name');
+is_deeply($conservers->{'mn.example'}{nodes}, ['neverdefined'], 'a node without a conserver is routed to the manager');
+
+($nodes, $conservers) = xCAT_plugin::confluent::_select_console_nodes(
+    [qw(withserver withcons nocons)], $nodehm, 'mn.example'
+);
+is_deeply([sort @$nodes], [qw(nocons withcons withserver)], 'an explicit mixed noderange retains every requested node');
+is_deeply($conservers->{'sn1.example'}{nodes}, ['withserver'], 'an explicit conserver remains selected');
+is_deeply($conservers->{'mn.example'}{nodes}, [qw(withcons nocons)], 'manager-owned nodes retain their routing');
+
+($nodes, $conservers, $allnodes) =
+  xCAT_plugin::confluent::_select_console_nodes(undef, $nodehm, 'mn.example');
+is_deeply(
+    $nodes,
+    [qw(withcons withserial withserver)],
+    'a full-table scan still excludes nodes without console configuration',
+);
+is($allnodes, 1, 'an absent noderange is identified as a full-table scan');
+
+my @reshaped = xCAT_plugin::confluent::_flatten_node_rows(
+    [
+        { withcons => [ { node => 'withcons', cons => 'ipmi' } ] },
+        { neverdefined => [] },
+    ],
+    1,
+);
+is(scalar(@reshaped), 2, 'both explicit lookup results survive reshaping');
+my ($carried) = grep { ($_->{node} || '') eq 'neverdefined' } @reshaped;
+ok($carried, 'a missing nodehm row gains the explicit node name');
+ok(!grep({ !defined($_->{node}) || $_->{node} eq '' } @reshaped), 'no reshaped entry has an empty node name');
+
+sub preprocess_nodes {
+    my (@requested) = @_;
+    no warnings qw(once redefine);
+    local $::CONSERVER = 0;
+    local $::LOCAL     = 0;
+    local $::HELP      = 0;
+    local $::DEBUG     = 0;
+    local $::VERSION   = 0;
+    local $::VERBOSE   = 0;
+    local *xCAT::Utils::isServiceNode = sub { return 0; };
+    local *xCAT::NetworkUtils::determinehostname = sub { return ('mn.example'); };
+    local *xCAT::TableUtils::get_site_Master = sub { return 'mn.example'; };
+    local *xCAT::Table::new = sub {
+        my (undef, $name) = @_;
+        die "Unexpected table $name" unless $name eq 'nodehm';
+        return $nodehm;
+    };
+
+    return xCAT_plugin::confluent::preprocess_request(
+        {
+            command             => ['makeconfluentcfg'],
+            node                => \@requested,
+            arg                 => [],
+            _xcatpreprocessed   => [0],
+        },
+        sub { },
+    );
 }
 
-my %rows = (
-    withcons    => { node => 'withcons',    cons => 'ipmi' },
-    withserial  => { node => 'withserial',  serialport => 0 },
-    nocons      => { node => 'nocons' },
-    withserver  => { node => 'withserver',  cons => 'ipmi', conserver => 'sn1.example' },
-);
+my $requests = preprocess_nodes('neverdefined');
+is(scalar(@$requests), 1, 'the production preprocessor returns one manager request');
+is($requests->[0]{_xcatdest}, 'mn.example', 'the production preprocessor targets the manager');
+is_deeply($requests->[0]{node}, ['neverdefined'],
+    'the production preprocessor keeps an explicit node without a nodehm row');
 
-# An explicitly named node is configured even with no console attributes, and
-# even with no nodehm row at all. The administrator asked for it by name.
-my ( $explicit ) = select_nodes( ['nocons'], %rows );
-is_deeply( $explicit, ['nocons'], 'an explicitly named node with no console attributes is still configured' );
-
-my ( $missing ) = select_nodes( ['neverdefined'], %rows );
-is_deeply( $missing, ['neverdefined'], 'an explicitly named node with no nodehm row is configured under its own name' );
-
-my ( $mixed ) = select_nodes( [ 'withcons', 'nocons' ], %rows );
-is_deeply( [ sort @$mixed ], [ 'nocons', 'withcons' ], 'an explicit noderange keeps both console-configured and console-less nodes' );
-
-# Scanning the whole table must not change: nodes with no console configuration
-# are still skipped, so every node in the cluster is not swept into confluent.
-my ( $all ) = select_nodes( undef, %rows );
-is_deeply(
-    [ sort @$all ],
-    [ 'withcons', 'withserial', 'withserver' ],
-    'a full table scan still skips nodes that have no console configuration'
-);
-ok( !grep( { $_ eq 'nocons' } @$all ), 'a console-less node is not picked up by a full table scan' );
-
-# Conserver routing is unaffected.
-my ( undef, $cons_hash ) = select_nodes( [ 'withserver', 'withcons' ], %rows );
-is_deeply( $cons_hash->{'sn1.example'}{nodes}, ['withserver'], 'a node keeps its explicit conserver' );
-is_deeply( $cons_hash->{'mn.example'}{nodes}, ['withcons'], 'a node with no conserver falls back to the management node' );
-
-# makeconfluentcfg looks the named nodes up a second time and reshapes the
-# result. A node with no nodehm row yields an undefined entry there too, and
-# without the node name it reaches confluent as an empty name rather than as
-# the node that was asked for.
-my ($adjust) = $source =~ m{
-    ( my \s+ \@tmpcfgents1; \s*\n
-      \s* foreach \s+ my \s+ \$ent \s+ \(\@cfgents1\) .*?
-      \n \s* \} \n \s* \} \n )
-}sx;
-
-ok( $adjust, 'the explicit-node lookup adjustment was located in makeconfluentcfg()' )
-  or BAIL_OUT('confluent.pm no longer matches the expected lookup-adjustment shape');
-
-my $adjust_sub = eval 'sub { my (@cfgents1) = @_; ' . $adjust . ' return \@tmpcfgents1; }';
-die "Unable to evaluate the extracted adjustment: $@" if $@;
-
-my $reshaped = $adjust_sub->(
-    { withcons => [ { node => 'withcons', cons => 'ipmi' } ] },
-    { neverdefined => [] },
-);
-is( scalar(@$reshaped), 2, 'both named nodes survive the lookup adjustment' );
-my ($carried) = grep { ($_->{node} || '') eq 'neverdefined' } @$reshaped;
-ok( $carried, 'a named node with no nodehm row keeps its name through the adjustment' );
-ok(
-    !grep( { !defined( $_->{node} ) || $_->{node} eq '' } @$reshaped ),
-    'no entry reaches confluent with an empty node name'
-);
+$requests = preprocess_nodes('withserver');
+is(scalar(@$requests), 2, 'an external conserver adds a second production request');
+my %by_destination = map { $_->{_xcatdest} => $_ } @$requests;
+is_deeply($by_destination{'mn.example'}{node}, ['withserver'],
+    'the manager request keeps the explicit node');
+is_deeply($by_destination{'sn1.example'}{node}, ['withserver'],
+    'the conserver request keeps the explicit node');
 
 done_testing();

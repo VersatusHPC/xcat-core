@@ -7,7 +7,9 @@ use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin;
 use IO::Select;
+use IO::Socket::INET;
 use IPC::Open3;
+use Socket qw(sockaddr_in);
 use Symbol qw(gensym);
 use Test::More;
 
@@ -512,17 +514,50 @@ like( $recipe, qr/-std=c17.*-Werror/s,
 like( $recipe, qr{\$\{libexecdir\}/xcat/genesis-udp-send},
     'discovery UDP sender is packaged' );
 
-my $udp_sender = read_file($udp_sender_source);
-like( $udp_sender, qr/^\s*SOURCE_PORT = 301,$/m,
-    'discovery sender uses the legacy privileged source port' );
-like( $udp_sender, qr/^\s*hints\.ai_family = AF_UNSPEC;$/m,
-    'discovery sender resolves both address families' );
-like( $udp_sender, qr/source4->sin_port = htons\(SOURCE_PORT\)/,
-    'discovery sender binds the IPv4 source port' );
-like( $udp_sender, qr/source6->sin6_port = htons\(SOURCE_PORT\)/,
-    'discovery sender binds the IPv6 source port' );
-like( read_file($discover_script), qr{/usr/libexec/xcat/genesis-udp-send},
-    'discovery uses the source-port-aware UDP sender' );
+my $udp_sender_binary = File::Spec->catfile($root, 'genesis-udp-send');
+my $compiler = $ENV{CC} || 'cc';
+is(
+    system(
+        $compiler, '-std=c17', '-Wall', '-Wextra', '-Wpedantic', '-Werror',
+        $udp_sender_source, '-o', $udp_sender_binary,
+    ) >> 8,
+    0,
+    'discovery UDP sender builds with strict warnings',
+);
+my $udp_listener = IO::Socket::INET->new(
+    LocalAddr => '127.0.0.1',
+    LocalPort => 0,
+    Proto     => 'udp',
+) or BAIL_OUT("unable to open the UDP behavior listener: $!");
+my $udp_packet = File::Spec->catfile($root, 'udp-packet');
+write_file($udp_packet, "discovery-payload\n");
+my $source_port_probe = IO::Socket::INET->new(
+    LocalAddr => '0.0.0.0',
+    LocalPort => 301,
+    Proto     => 'udp',
+);
+SKIP: {
+    skip 'binding the legacy discovery source port requires privilege', 4
+      unless $source_port_probe;
+    close($source_port_probe);
+
+    is(
+        system($udp_sender_binary, $udp_packet, '127.0.0.1', $udp_listener->sockport) >> 8,
+        0,
+        'discovery UDP sender transmits an IPv4 datagram',
+    );
+    my @ready = IO::Select->new($udp_listener)->can_read(5);
+    ok(@ready, 'discovery UDP datagram reaches the listener');
+    unless (@ready) {
+        skip 'the UDP sender produced no datagram', 2;
+        last SKIP;
+    }
+    my $datagram = '';
+    my $peer = recv($udp_listener, $datagram, 65535, 0);
+    is($datagram, "discovery-payload\n", 'discovery UDP payload is unchanged');
+    my ($source_port) = sockaddr_in($peer);
+    is($source_port, 301, 'discovery UDP sender uses the legacy source port');
+}
 
 my $image = read_file(
     File::Spec->catfile(

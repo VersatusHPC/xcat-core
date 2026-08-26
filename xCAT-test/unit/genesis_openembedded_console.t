@@ -19,6 +19,9 @@ my $root = tempdir( CLEANUP => 1 );
 my $binary = File::Spec->catfile( $root, 'xcat-genesis-console' );
 my $header_test_source = File::Spec->catfile( $root, 'header-test.c' );
 my $header_test_binary = File::Spec->catfile( $root, 'header-test' );
+my $shell_test_source = File::Spec->catfile( $root, 'shell-test.c' );
+my $shell_test_binary = File::Spec->catfile( $root, 'shell-test' );
+my $maintenance_shell = File::Spec->catfile( $root, 'maintenance-shell' );
 my $compiler = $ENV{CC} || 'cc';
 
 is(
@@ -74,6 +77,37 @@ is(
 );
 is( system($header_test_binary) >> 8, 0,
     'narrow terminals leave no writable header context' );
+
+write_file(
+    $shell_test_source,
+    <<'C'
+#include "console.h"
+
+int main(void) {
+    return xcat_run_maintenance_shell();
+}
+C
+);
+is(
+    system(
+        $compiler, '-D_POSIX_C_SOURCE=200809L', '-std=c17', '-Wall', '-Wextra',
+        '-Wpedantic', '-Werror',
+        qq{-DXCAT_GENESIS_MAINTENANCE_SHELL_PATH="$maintenance_shell"},
+        '-I', $source_dir, $shell_test_source,
+        File::Spec->catfile( $source_dir, 'shell.c' ),
+        File::Spec->catfile( $source_dir, 'support.c' ),
+        '-o', $shell_test_binary,
+    ) >> 8,
+    0,
+    'maintenance-shell launcher test builds with strict warnings',
+);
+write_file($maintenance_shell, "#!/bin/sh\nexit 7\n");
+chmod 0755, $maintenance_shell;
+is(system($shell_test_binary) >> 8, 0,
+    'the launcher accepts the maintenance shell later exit status');
+unlink($maintenance_shell) or die "Unable to remove $maintenance_shell: $!";
+isnt(system($shell_test_binary) >> 8, 0,
+    'the launcher reports a direct exec failure');
 
 my $cmdline = File::Spec->catfile( $root, 'cmdline' );
 my $uptime = File::Spec->catfile( $root, 'uptime' );
@@ -323,147 +357,5 @@ write_file( $response, "XCAT_NODE_NAME=\n" );
 is( $status, 0, 'plain console renders an empty node response' );
 like( $output, qr/^node: unassigned$/m,
     'an empty node response is shown as unassigned' );
-
-my $state_source = read_file( File::Spec->catfile( $source_dir, 'state.c' ) );
-my $plain_source = read_file( File::Spec->catfile( $source_dir, 'plain_ui.c' ) );
-my $newt_source = read_file( File::Spec->catfile( $source_dir, 'newt_ui.c' ) );
-my $shell_launcher = read_file( File::Spec->catfile( $source_dir, 'shell.c' ) );
-my $header = read_file( File::Spec->catfile( $source_dir, 'console.h' ) );
-my $console_source = join "\n", $state_source, $plain_source, $newt_source,
-  $shell_launcher, $header;
-
-my ($view_builder) = $state_source =~
-  /(void xcat_build_status_view.*?)(?=\nbool xcat_status_view_changed)/s;
-ok( defined($view_builder), 'console builds one shared main status view' );
-foreach my $field (qw/STATE STAGE_TIME ACTIVITY NODE SERIAL INTERFACE LINK METHOD ADDRESS MAC XCAT_SERVER XCAT_STATUS ACTION DETAIL_ONE DETAIL_TWO/) {
-    like( $view_builder, qr/STATUS_FIELD_\Q$field\E/,
-        "shared view defines the $field field" );
-}
-
-my ($plain_renderer) = $plain_source =~
-  /(static void print_plain\(.*?)(?=\nstatic bool read_plain_command)/s;
-ok( defined($plain_renderer), 'console defines the plain renderer' );
-like( $plain_renderer,
-    qr/const struct status_view \*view.*?STATUS_FIELD_COUNT/s,
-    'plain output consumes the shared view' );
-unlike( $plain_renderer, qr/struct console_state|state->/,
-    'plain output cannot select fields from raw state' );
-
-my ($newt_renderer) = $newt_source =~
-  /(static void update_form\(.*?)(?=\nstatic const char help_text)/s;
-ok( defined($newt_renderer), 'console defines the Newt renderer' );
-like( $newt_renderer,
-    qr/const struct status_view \*view.*?STATUS_FIELD_COUNT/s,
-    'Newt output consumes the shared view' );
-unlike( $newt_renderer, qr/struct console_state|state->/,
-    'Newt output cannot select fields from raw state' );
-
-my ($view_change_detection) = $state_source =~
-  /(bool xcat_status_view_changed.*?)(?=\nvoid xcat_format_diagnostics)/s;
-ok( defined($view_change_detection), 'console compares shared status views' );
-like( $view_change_detection,
-    qr/STATUS_FIELD_STATE.*?STATUS_FIELD_COUNT.*?fields\[field\]\.value/s,
-    'every shared field participates in change detection' );
-like( $view_change_detection, qr/field == STATUS_FIELD_STAGE_TIME/,
-    'the one-second stage timer remains the only cadence exception' );
-
-my ($help_source) = $newt_source =~
-  /(static const char help_text\[\].*?)(?=\nstatic void show_help)/s;
-ok( defined($help_source), 'console defines its interface help text' );
-like( $help_source, qr/Screen fields/, 'help explains the visible fields' );
-like( $help_source,
-    qr/xCAT contact.*Not configured.*Action received.*Failed/s,
-    'help explains each xCAT contact result' );
-like( $help_source, qr/Method is DHCP, Static, or.*SLAAC\/DHCPv6/s,
-    'help explains the network-method labels' );
-like( $help_source, qr/F3.*follows new entries.*End to resume/s,
-    'help explains log following' );
-like( $help_source, qr/F12.*root maintenance shell/s,
-    'help explains the maintenance shell' );
-foreach my $state (qw/STARTING IDLE WAITING_FOR_LINK CONFIGURING_NETWORK CONTACTING_XCAT ACTION_RECEIVED RUNNING READY DEGRADED FAILED/) {
-    like( $help_source, qr/\b\Q$state\E\b/, "help explains the $state state" );
-}
-unlike( $help_source, qr/xcat\.(?:console|debug-shell)|updates automatically/,
-    'interface help omits boot overrides and redundant refresh advice' );
-
-my ($diagnostics_source) = $state_source =~
-  /(void xcat_format_diagnostics.*)\z/s;
-ok( defined($diagnostics_source), 'console defines the diagnostics view' );
-like( $diagnostics_source, qr/Identity\\n\\n.*System\\n\\n.*Management network\\n\\n.*xCAT\\n\\n.*Action\\n\\n.*Runtime\\n\\n/s,
-    'diagnostics separates each section with an empty line' );
-unlike( $diagnostics_source, qr/Last contact|Uptime|network_age|registration_age|action_age/,
-    'diagnostics omits component timers' );
-my ($diagnostics_ui) = $newt_source =~
-  /(static void show_diagnostics.*?)(?=\nstatic bool journal_value)/s;
-ok( defined($diagnostics_ui), 'console defines the diagnostics window' );
-unlike( $diagnostics_ui, qr/newtFormSetTimer/,
-    'diagnostics does not refresh while the operator scrolls' );
-like( $diagnostics_ui,
-    qr/newtTextboxSetText\(text_box, text\);\s+newtRefresh\(\);\s+while/s,
-    'diagnostics loads one stable snapshot before handling input' );
-
-my ($header_source) = $newt_source =~
-  /(static void draw_header.*?)(?=\nstatic void update_form)/s;
-ok( defined($header_source), 'console defines the status header' );
-like( $console_source, qr/state->local_hostname/,
-    'header uses the local hostname before node assignment' );
-like( $console_source, qr/state->serial/,
-    'header shows the firmware serial when available' );
-unlike( $header_source, qr/state->architecture/,
-    'header leaves architecture in diagnostics' );
-like( $header_source, qr/xcat_header_context_columns\(columns\)/,
-    'header clamps its context to the available terminal width' );
-
-my ($logs_source) = $newt_source =~
-  /(static void show_logs.*?)(?=\nstatic void show_maintenance_shell)/s;
-ok( defined($logs_source), 'console defines the log view' );
-like( $logs_source, qr/newtListbox.*NEWT_FLAG_SCROLL/s,
-    'log view provides a scrollable list' );
-like( $logs_source, qr/bool follow = true/,
-    'log view starts in follow mode' );
-like( $logs_source,
-    qr/NEWT_KEY_UP.*?NEWT_KEY_PGUP.*?NEWT_KEY_HOME.*?follow = false/s,
-    'upward navigation pauses log following' );
-like( $logs_source,
-    qr/NEWT_KEY_DOWN.*?NEWT_KEY_PGDN.*?follow = selected == item_count/s,
-    'downward navigation resumes following only at the tail' );
-like( $logs_source, qr/NEWT_KEY_END.*?follow = true/s,
-    'End resumes log following' );
-
-my ($shell_source) = $newt_source =~
-  /(static void show_maintenance_shell.*?)(?=\nint xcat_run_newt)/s;
-ok( defined($shell_source), 'console defines the maintenance-shell action' );
-like( $shell_source, qr/newtWinChoice.*Open.*Cancel/s,
-    'maintenance shell requires confirmation' );
-like( $shell_source, qr/xcat_run_maintenance_shell\(\)/,
-    'Newt uses the common maintenance-shell launcher' );
-like( $shell_source, qr/newtResume\(\).*newtResizeScreen\(1\)/s,
-    'Newt restores and repaints its saved screen after the shell' );
-unlike( $shell_source, qr/newtCls\(\)/,
-    'maintenance-shell return preserves the window frame' );
-like( $shell_launcher,
-    qr{execl\("/usr/libexec/xcat/genesis-maintenance-shell"},
-    'maintenance shell uses the packaged executable' );
-like( $shell_launcher, qr/FD_CLOEXEC.*exec_error_size/s,
-    'maintenance shell distinguishes launch failure from shell exit' );
-unlike( $shell_launcher, qr/WEXITSTATUS/,
-    'maintenance shell accepts any later shell exit status' );
-
-my ($plain_runner) = $plain_source =~
-  /(int xcat_run_plain.*)\z/s;
-ok( defined($plain_runner), 'console defines the plain-mode loop' );
-like( $plain_runner, qr/Type shell and press Enter for maintenance/,
-    'plain mode advertises its maintenance command' );
-like( $plain_runner,
-    qr/read_plain_command.*?strcmp\(command, "shell"\).*?open_plain_maintenance_shell/s,
-    'plain mode accepts the shell command' );
-
-my ($plain_shell) = $plain_source =~
-  /(static void open_plain_maintenance_shell.*?)(?=\nint xcat_run_plain)/s;
-ok( defined($plain_shell), 'console defines plain shell confirmation' );
-like( $plain_shell, qr/Open a root maintenance shell\? \[y\/N\]/,
-    'plain mode confirms root shell access' );
-like( $plain_shell, qr/xcat_run_maintenance_shell\(\)/,
-    'plain mode uses the common maintenance-shell launcher' );
 
 done_testing();

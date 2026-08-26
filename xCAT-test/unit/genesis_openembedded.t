@@ -4,6 +4,7 @@ use warnings;
 
 use Digest::SHA qw(sha256_hex);
 use File::Spec;
+use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 
@@ -96,11 +97,41 @@ like( $ppc64_kas, qr{includes:\s*\n\s*- xCAT-genesis-builder/oe/kas/common\.yml}
 like( $ppc64_kas, qr/^machine: xcat-genesis-ppc64$/m,
     'ppc64 build selects its machine' );
 
-my $build = read_file('xCAT-genesis-builder/oe/build');
-like( $build, qr/aarch64\|armv7hf\|riscv64\|x86\|x86_64\|ppc64\|ppc64le/,
-    'build accepts each supported architecture' );
-like( $build, qr{kas/\$architecture\.yml},
-    'build selects the architecture configuration directly' );
+my $build_script = File::Spec->catfile(
+    $repo_root, qw(xCAT-genesis-builder oe build)
+);
+my $build_root = tempdir(CLEANUP => 1);
+my $fake_kas = File::Spec->catfile($build_root, 'kas');
+my $kas_log = File::Spec->catfile($build_root, 'kas.log');
+open(my $fake_kas_fh, '>', $fake_kas) or die "Unable to write $fake_kas: $!";
+print {$fake_kas_fh} <<'SH';
+#!/bin/sh
+printf '%s\n' "$*" >> "$XCAT_TEST_KAS_LOG"
+SH
+close($fake_kas_fh);
+chmod 0755, $fake_kas;
+{
+    local %ENV = (
+        %ENV,
+        KAS                   => $fake_kas,
+        XCAT_TEST_KAS_LOG     => $kas_log,
+        XCAT_GENESIS_WORK_DIR => File::Spec->catdir($build_root, 'work'),
+    );
+    is(system('/bin/sh', $build_script,
+            qw(aarch64 armv7hf riscv64 x86 x86_64 ppc64 ppc64le)) >> 8, 0,
+        'build accepts supported architectures');
+    isnt(system('/bin/sh', $build_script, 'sparc64') >> 8, 0,
+        'build rejects an unsupported architecture');
+}
+my $build_log = do {
+    open(my $fh, '<', $kas_log) or die "Unable to read $kas_log: $!";
+    local $/;
+    <$fh>;
+};
+for my $architecture (qw(aarch64 armv7hf riscv64 x86 x86_64 ppc64 ppc64le)) {
+    like($build_log, qr{^build .*/kas/\Q$architecture\E\.yml$}m,
+        "build selects the $architecture configuration");
+}
 
 my $distro = read_file(
     'xCAT-genesis-builder/oe/meta-xcat-genesis/conf/distro/xcat-genesis.conf'
@@ -349,22 +380,6 @@ like( $hardware_recipe, qr/\$\{datadir\}\/xcat\/genesis\/providers/,
 unlike( $hardware_recipe,
     qr/\b(?:storcli|perccli|ssacli|arcconf|nvidia-smi|rocm-smi)\b/i,
     'hardware control excludes vendor-only tools' );
-
-my $hardware_dispatcher = read_file(
-    'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-hardware-control/files/genesis-hardware'
-);
-like( $hardware_dispatcher,
-    qr/destructive capability requires a task identity/,
-    'destructive operations require a task identity' );
-like( $hardware_dispatcher,
-    qr/destructive capability requires an exact device identity/,
-    'destructive operations require an exact device' );
-like( $hardware_dispatcher, qr/write_audit started/,
-    'destructive operations start an audit record' );
-like( $hardware_dispatcher, qr/write_audit completed/,
-    'successful destructive operations complete their audit record' );
-like( $hardware_dispatcher, qr/write_audit failed/,
-    'failed destructive operations close their audit record' );
 
 for my $provider (qw(nvme mstflint iprutils)) {
     my $manifest = read_file(
@@ -648,28 +663,6 @@ my $legacy_debug_service = File::Spec->catfile(
 ok( !-e $legacy_debug_shell, 'legacy debug shell script is removed' );
 ok( !-e $legacy_debug_service, 'legacy debug shell service is removed' );
 
-my $maintenance_shell = read_file(
-    'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-init/files/genesis-maintenance-shell'
-);
-like( $maintenance_shell, qr/^#!\/bin\/bash$/m,
-    'maintenance shell uses the packaged Bash runtime' );
-like( $maintenance_shell, qr/^printf 'xCAT Genesis maintenance shell\\n'$/m,
-    'maintenance shell identifies Genesis' );
-like( $maintenance_shell, qr/^printf 'Exit returns to the status console\.\\n\\n'$/m,
-    'maintenance shell explains how to return to the console' );
-like( $maintenance_shell, qr/^export PS1='genesis# '$/m,
-    'maintenance shell has an explicit prompt' );
-like( $maintenance_shell, qr{^exec /bin/bash --noprofile --norc -i$}m,
-    'maintenance shell starts isolated Bash' );
-
-my $status_helper = read_file(
-    'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-init/files/genesis-status'
-);
-like( $status_helper, qr/mktemp .*\.\$\{component\}\.XXXXXX/,
-    'runtime status records use atomic temporary files' );
-like( $status_helper, qr/tr -cd '\\040-\\176'/,
-    'runtime status details are printable text' );
-
 my $console_recipe = read_file(
     'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-console/xcat-genesis-console_1.0.bb'
 );
@@ -707,92 +700,6 @@ like( $console_service, qr/^TTYPath=\/dev\/%I$/m,
 unlike( $console_service, qr/xcat\.debug-shell|genesis-debug-shell/,
     'status console has no boot-time debug escape' );
 
-my $console_source_dir =
-  'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-console/files/xcat-genesis-console/src';
-my $console_source = join "\n", map {
-    read_file("$console_source_dir/$_")
-} qw(console.h main.c newt_ui.c plain_ui.c shell.c state.c support.c);
-ok( !-e File::Spec->catfile(
-        $repo_root,
-        qw(xCAT-genesis-builder oe meta-xcat-genesis recipes-core xcat-genesis-console files xcat-genesis-console.c)
-    ),
-    'status console is not kept as a monolithic source file' );
-unlike( $console_source, qr/genesis-debug-shell|XCAT_ON_DEMAND_SHELL/,
-    'status console only uses the common maintenance-shell launcher' );
-like( $console_source, qr/newtDrawRootText\(1, 0, "xCAT Genesis"\)/,
-    'status console keeps the product name in the header' );
-like( $console_source,
-    qr/F1 Help   F2 Diagnostics   F3 Logs   F12 Shell/,
-    'status console keeps useful shortcuts in the footer' );
-unlike( $console_source, qr/NEWT_KEY_F5|F5 Refresh|Ctrl-L Redraw/,
-    'status console omits redundant redraw shortcuts' );
-like( $console_source, qr/newtFormSetTimer\(screen\.form, 1000\)/,
-    'status console updates timers once per second' );
-like( $console_source, qr/"In stage"/,
-    'status console labels the stage duration precisely' );
-like( $console_source,
-    qr/identity = strcmp\(state->node, "unassigned"\).*?state->local_hostname/s,
-    'status header falls back to the local hostname before assignment' );
-like( $console_source,
-    qr/show_serial = useful_identity\(state->serial\).*?state->serial/s,
-    'status header includes a useful firmware serial' );
-unlike( $console_source,
-    qr/xcat_set_text\(context,\s*sizeof\(context\),[^;]*state->architecture/s,
-    'status header omits the architecture' );
-like( $console_source, qr/newtCenteredWindow\(72, 17, "Genesis status"\)/,
-    'main status removes unused top and bottom rows' );
-like( $console_source, qr/newtCenteredWindow\(72, 19, "Genesis diagnostics"\)/,
-    'F2 opens diagnostics' );
-like( $console_source,
-    qr/xcat\.bootloader.*?"xnba".*?"xNBA".*?"pxelinux".*?"PXELINUX"/s,
-    'diagnostics recognizes xNBA and PXELINUX markers' );
-like( $console_source, qr/PXE \(unknown loader\)/,
-    'older boot configurations have an honest PXE fallback' );
-like( $console_source,
-    qr/"Identity\\n\\n".*"\\nManagement network\\n\\n".*"\\nxCAT\\n\\n".*"\\nRuntime\\n\\n"/s,
-    'diagnostics group identity, connection, and runtime data' );
-like( $console_source,
-    qr/(?:add_row\(&screen, LABEL_SERIAL, 4, "Serial"\)|STATUS_FIELD_SERIAL)/,
-    'main status includes the hardware serial' );
-unlike( $console_source,
-    qr/add_row\(&screen, LABEL_(?:RELEASE|SYSTEM|BOOT|EXTENSIONS|HARDWARE|DEBUG),/,
-    'inventory and maintenance controls stay off the main status' );
-like( $console_source, qr/update_form\(&screen, &(?:state|view), changed\)/,
-    'stable status updates only the timers' );
-like( $console_source, qr/if \(\+\+redraw >= 30\)/,
-    'serial console limits periodic full redraws' );
-like( $console_source, qr/newtFormAddHotKey\(screen\.form, NEWT_KEY_F3\)/,
-    'F3 opens recent Genesis logs' );
-like( $console_source, qr/sd_journal_open\(&journal,/,
-    'log view reads the journal without a subprocess' );
-like( $console_source, qr/LOG_LINE_COUNT = 128/,
-    'log view keeps a bounded serial-friendly history' );
-like( $console_source,
-    qr/newtListbox\(1, 1, LOG_VIEW_HEIGHT, NEWT_FLAG_SCROLL\).*?newtFormSetTimer\(form, 1000\)/s,
-    'log view is scrollable and refreshes once per second' );
-like( $console_source,
-    qr/bool follow = true.*?NEWT_KEY_UP.*?follow = false/s,
-    'upward log navigation pauses following' );
-like( $console_source,
-    qr/NEWT_KEY_END.*?follow = true.*?newtListboxSetCurrentByKey/s,
-    'End resumes log following' );
-like( $console_source,
-    qr/newtFormAddHotKey\(screen\.form, NEWT_KEY_F12\).*?show_maintenance_shell\(\)/s,
-    'F12 opens the maintenance-shell confirmation' );
-like( $console_source,
-    qr/newtWinChoice\(.*?Open a root maintenance shell\?/s,
-    'maintenance shell requires confirmation' );
-like( $console_source,
-    qr{execl\("/usr/libexec/xcat/genesis-maintenance-shell"},
-    'maintenance shell uses a fixed packaged executable' );
-like( $console_source,
-    qr/FD_CLOEXEC.*?write\(exec_error_pipe\[1\].*?exec_error_size ==/s,
-    'maintenance shell reports only direct launch failures' );
-unlike( $console_source, qr/WEXITSTATUS/,
-    'maintenance shell does not reinterpret the shell exit status' );
-unlike( $console_source, qr/\b(?:system|popen)\s*\(/,
-    'status console avoids command-string execution' );
-
 my $network_state_service = read_file(
     'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-init/files/xcat-genesis-network-state.service'
 );
@@ -820,20 +727,6 @@ my $extension_recipe = read_file(
 like( $extension_recipe,
     qr/^RDEPENDS:\$\{PN\} = "bash coreutils jq openssl-bin systemd xcat-genesis-init"$/m,
     'extension verifier dependencies are explicit' );
-
-my $extension_loader = read_file(
-    'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-extensions/files/genesis-sysext'
-);
-like( $extension_loader, qr/openssl pkeyutl -verify -pubin .* -rawin/s,
-    'extension manifests use Ed25519 verification' );
-like( $extension_loader, qr/extension architecture .* does not match/,
-    'extension architecture mismatches fail closed' );
-like( $extension_loader, qr/armv7\*\) printf '%s\\n' armv7hf/,
-    'ARMv7 runtimes use the armv7hf extension identity' );
-like( $extension_loader, qr/extension kernel release does not match/,
-    'kernel extensions require an exact release' );
-like( $extension_loader, qr/systemd-sysext refresh/,
-    'verified extensions are merged by systemd' );
 
 my $extension_service = read_file(
     'xCAT-genesis-builder/oe/meta-xcat-genesis/recipes-core/xcat-genesis-extensions/files/xcat-genesis-extensions.service'

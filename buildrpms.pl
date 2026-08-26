@@ -42,11 +42,15 @@ use File::Path qw(make_path remove_tree);
 use File::Slurper qw(read_text write_text);
 use File::Temp qw(tempdir tempfile);
 use FindBin qw($Bin);
+use lib "$Bin/xCAT-buildkit/lib/perl";
 use Fcntl qw(:flock);           # per-target build lock (concurrency guard; see main())
 use Getopt::Long qw(GetOptions);
 use POSIX qw(strftime);
 use Parallel::ForkManager;
 use Pod::Usage qw(pod2usage);
+use xCAT::Build::Repository qw(
+  default_packages finalize_repository remove_release_alias write_release_alias
+);
 
 use autodie;
 use autodie qw(cp);
@@ -121,22 +125,7 @@ $DISTRO = "alma" if $DISTRO eq "almalinux";
 # (xcat-dep/mockbuild-all.pl, via `buildrpms.pl --package xCAT-genesis-base`)
 # and shipped in the per-EL repo xcat-dep/rh<N>, NOT in the flat xcat-core. The
 # build logic further down still supports `--package xCAT-genesis-base`.
-my @PACKAGES = qw(
-    perl-xCAT
-    xCAT
-    xCATsn
-    xCAT-buildkit
-    xCAT-client
-    xCAT-confluent
-    xCAT-genesis-scripts
-    xCAT-openbmc-py
-    xCAT-probe
-    xCAT-rmc
-    xCAT-server
-    xCAT-test
-    xCAT-vlan
-    xCAT-release
-);
+my @PACKAGES = default_packages();
 
 # The arch-native packages: their rpms carry the target arch. Everything else in @PACKAGES
 # is noarch and byte-identical on every arch, so `--native-only` builds just these -- a
@@ -694,11 +683,10 @@ sub createrepo_dir {
 # src.rpm enters the binary repomd, and index the SRPMS repo separately.
 sub index_repo {
     my ($repodir) = @_;
-    my $alias = "$repodir/xCAT-release-latest.noarch.rpm";
 
     # The stable bootstrap filename is a direct-download convenience, not a
     # second package. Keep it out of repository metadata.
-    unlink $alias if -f $alias;
+    remove_release_alias($repodir);
     say "Creating repository $repodir";
     # Drop the top-level stray src.rpm and the mock logs (build.log/root.log/...)
     # that mock leaves in the resultdir, so the dir is directly deployable (upstream
@@ -712,21 +700,6 @@ sub index_repo {
 sub update_repo {
     my ($target) = @_;
     index_repo("dist/$target/rpms");
-}
-
-sub write_release_alias {
-    my ($repodir) = @_;
-    my $alias = "$repodir/xCAT-release-latest.noarch.rpm";
-
-    # glob() returns a wildcard-free pattern verbatim even when the file does not exist, so
-    # guard on the rpm actually being present. Without this, a partial build that does not
-    # produce xCAT-release (e.g. buildrpms.pl --package xCAT-genesis-base) would try to cp a
-    # nonexistent rpm here and die.
-    my @release_rpms = grep { -f } glob("$repodir/xCAT-release-$VERSION-$RELEASE.noarch.rpm");
-    if (@release_rpms == 1) {
-        cp $release_rpms[0], $alias or die "cp $release_rpms[0] -> $alias: $!";
-        chmod 0644, $alias;
-    }
 }
 
 sub sign_rpms {
@@ -864,13 +837,15 @@ sub merge_core_repos {
     # xCAT-release-latest stable bootstrap alias. The alias MUST be created AFTER the final
     # metadata pass so write_release_alias can unlink it before createrepo and keep it out of
     # the repository index.
-    index_repo($out);
-    if ($opts{gpg_sign}) {
-        $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
-        sign_repo_dir($out, $opts{gpg_key_name});
-    }
-    write_repo_metadata_dir($out);
-    write_release_alias($out);
+    finalize_repository(
+        index => sub { index_repo($out); },
+        sign => $opts{gpg_sign} ? sub {
+            $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
+            sign_repo_dir($out, $opts{gpg_key_name});
+        } : undef,
+        metadata => sub { write_repo_metadata_dir($out); },
+        alias => sub { write_release_alias($out, $VERSION, $RELEASE); },
+    );
     return 0;
 }
 
@@ -1060,7 +1035,7 @@ sub main {
     # Signing regenerates repository metadata, so create the direct-download
     # alias only after the final metadata pass.
     for my $target ($opts{targets}->@*) {
-        write_release_alias("dist/$target/rpms");
+        write_release_alias("dist/$target/rpms", $VERSION, $RELEASE);
     }
 
     exit(0);

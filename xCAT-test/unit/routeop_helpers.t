@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use File::Copy qw(copy);
 use File::Spec;
 use File::Temp qw(tempfile);
 use FindBin;
@@ -11,17 +12,9 @@ my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $routeop = File::Spec->catfile( $repo_root, 'xCAT', 'postscripts', 'routeop' );
 my $xcatlib = File::Spec->catfile( $repo_root, 'xCAT', 'postscripts', 'xcatlib.sh' );
 
-open( my $routeop_fh, '<', $routeop ) or die "Unable to read $routeop: $!";
-my $routeop_source = do { local $/; <$routeop_fh> };
-close($routeop_fh);
-
-my ($definitions) =
-  $routeop_source =~ /\A(.*?)(?=^if \[ "\$op" = "add" \]; then)/ms;
-BAIL_OUT('Unable to extract routeop function definitions') unless $definitions;
-
 my ( $runner_fh, $runner ) = tempfile( UNLINK => 1 );
-print {$runner_fh} $definitions;
 print {$runner_fh} <<'BASH';
+source "$ROUTE_TEST_SCRIPT"
 
 case "$ROUTE_TEST_ACTION" in
     classify)
@@ -81,7 +74,12 @@ close($runner_fh);
 
 sub run_routeop_helper {
     my (%environment) = @_;
-    local %ENV = ( %ENV, %environment, ROUTE_TEST_XCATLIB => $xcatlib );
+    local %ENV = (
+        %ENV,
+        %environment,
+        ROUTE_TEST_SCRIPT  => $routeop,
+        ROUTE_TEST_XCATLIB => $xcatlib,
+    );
 
     open(
         my $fh,
@@ -193,5 +191,22 @@ foreach my $case (@route_exists_cases) {
         query         => $case->[8],
     );
 }
+
+my ( $standalone_fh, $standalone ) = tempfile( UNLINK => 1 );
+close($standalone_fh);
+copy( $routeop, $standalone ) or die "Unable to copy routeop: $!";
+chmod( 0755, $standalone ) or die "Unable to make routeop executable: $!";
+
+open(
+    my $caller_fh,
+    '-|',
+    'bash', '--noprofile', '--norc',
+    $standalone, 'noop', 'invalid-mask', 'invalid-mask', '0.0.0.0', 'eth0'
+) or die "Unable to run standalone routeop: $!";
+my $caller_output = do { local $/; <$caller_fh> };
+close($caller_fh);
+is($? >> 8, 1, 'a standalone routeop reaches normal argument validation');
+like($caller_output, qr/Error: invalid format of netmask invalid-mask\./,
+    'a standalone routeop does not depend on a companion helper file');
 
 done_testing();

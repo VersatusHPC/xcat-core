@@ -123,6 +123,14 @@ sub option_spec {
     );
 }
 
+sub usage_lines {
+    return (
+        'Usage:',
+        '  nodestat [noderange] [-m|--usemon] [-p|powerstat] [-f|--usefping] [-u|--updatedb]',
+        '  nodestat [-h|--help|-v|--version]',
+    );
+}
+
 sub preprocess_request
 {
     my $req = shift;
@@ -1231,9 +1239,7 @@ sub usage
     my $cb  = shift;
     my $retcode=shift;
     my $rsp = {};
-    $rsp->{data}->[0] = "Usage:";
-    $rsp->{data}->[1] = "  nodestat [noderange] [-m|--usemon] [-p|powerstat] [-f|--usefping] [-u|--updatedb]";
-    $rsp->{data}->[2] = "  nodestat [-h|--help|-v|--version]";
+    @{ $rsp->{data} } = usage_lines();
     if($retcode){
        $rsp->{errorcode}->[0]=$retcode;
     }

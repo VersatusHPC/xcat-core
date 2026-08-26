@@ -152,7 +152,9 @@ print {$fake_mktemp_fh} "#!/bin/sh\nexit 99\n";
 close($fake_mktemp_fh) or die "close fake mktemp: $!";
 chmod(0755, "$fake_bin/mktemp") or die "chmod fake mktemp: $!";
 
-{
+SKIP: {
+    skip 'root execution would use go-xcat global diagnostic paths', 4
+      if $> == 0;
     local $ENV{PATH} = "$fake_bin:$ENV{PATH}";
     my $stderr = gensym;
     my $pid = open3(my $stdin, my $stdout, $stderr, 'bash', '-s', '--', '-h');
@@ -165,10 +167,13 @@ chmod(0755, "$fake_bin/mktemp") or die "chmod fake mktemp: $!";
     my $output = do { local $/; <$stdout> };
     my $errors = do { local $/; <$stderr> };
     waitpid($pid, 0);
-    is($? >> 8, 0, 'go-xcat executes from standard input');
-    like($output, qr/^Usage:/m,
-        'standard-input execution reaches the main program');
-    unlike($errors, qr/mktemp|return:/,
+    my $status = $? >> 8;
+    is($status, 1, 'an unprivileged standard-input execution is rejected');
+    like($errors, qr/Must be run by UID=0/,
+        'the standard-input execution reports the root requirement');
+    unlike($errors, qr/return:/,
+        'standard-input execution does not mistake the script for a sourced file');
+    unlike($errors, qr/mktemp/,
         'standard-input execution keeps the hardened command path');
 }
 

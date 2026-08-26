@@ -1,54 +1,114 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+## no critic (Modules::RequireFilenameMatchesPackage, TestingAndDebugging::ProhibitNoStrict)
 
 use FindBin;
-use File::Spec;
 use Test::More;
 
-my $plugin = File::Spec->catfile( $FindBin::Bin, '..', '..',
-    'xCAT-server', 'lib', 'xcat', 'plugins', 'mknb.pm' );
-plan skip_all => 'mknb.pm not found' unless -r $plugin;
+BEGIN {
+    package xCAT::Utils;
+    $INC{'xCAT/Utils.pm'} = __FILE__;
 
-open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
-my $source = do { local $/; <$fh> };
-close($fh);
+    package xCAT::TableUtils;
+    $INC{'xCAT/TableUtils.pm'} = __FILE__;
 
-# mknb.pm needs a management node to load, so lift the routine out and drive
-# the real code on its own.
-my ($routine) = $source =~ /(sub genesis_lzma_command \{.*?\n\}\n)/s;
-BAIL_OUT('could not extract genesis_lzma_command from mknb.pm') unless $routine;
-eval "package MknbCompressor; $routine 1;" or BAIL_OUT("could not evaluate: $@");
+    package xCAT::NetworkUtils;
+    $INC{'xCAT/NetworkUtils.pm'} = __FILE__;
 
-sub command { return MknbCompressor::genesis_lzma_command(@_); }
+    package xCAT::NodeRange;
+    sub import {
+        my $caller = caller;
+        no strict 'refs';
+        *{"${caller}::noderange"} = sub { return; };
+    }
+    $INC{'xCAT/NodeRange.pm'} = __FILE__;
+}
 
-# Debian and Ubuntu ship both names, and lzma is the one the plugin has always
-# used, so nothing changes on those systems.
-is( command( 1, 1 ), 'lzma -C crc32 -9', 'lzma is used when it is there' );
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/mknb.pm";
+require $plugin;
 
-# Red Hat ships xz alone.
-is( command( 0, 1 ), 'xz --format=lzma -C crc32 -9',
-    'xz stands in for lzma when only xz is there' );
+is(
+    xCAT_plugin::mknb::genesis_lzma_command(1, 1),
+    'lzma -C crc32 -9',
+    'lzma is used when it is available',
+);
+is(
+    xCAT_plugin::mknb::genesis_lzma_command(0, 1),
+    'xz --format=lzma -C crc32 -9',
+    'xz writes the lzma container when lzma is unavailable',
+);
+is(
+    xCAT_plugin::mknb::genesis_lzma_command(0, 0),
+    undef,
+    'no lzma command is selected when neither program is available',
+);
 
-# The gzip path below the caller handles a system with neither.
-is( command( 0, 0 ), undef, 'nothing is returned when neither program is there' );
+is_deeply(
+    xCAT_plugin::mknb::_genesis_lzma_plan(0, 1, '/tftpboot', 'x86_64', 'token'),
+    {
+        command     => 'xz --format=lzma -C crc32 -9',
+        staging     => '/tftpboot/xcat/genesis.fs.x86_64.lzma.token',
+        destination => '/tftpboot/xcat/genesis.fs.x86_64.lzma',
+    },
+    'the compressor plan preserves the staging and final lzma paths',
+);
+is(
+    xCAT_plugin::mknb::_genesis_lzma_plan(0, 0, '/tftpboot', 'x86_64', 'token'),
+    undef,
+    'the caller receives no lzma plan and can fall back to gzip',
+);
 
-# The container has to stay the one the file name promises. "xz" on its own
-# writes the xz container, which the file name does not describe and which a
-# reader of a .lzma file cannot open.
-my ($xz_form) = command( 0, 1 ) =~ /--format=(\S+)/;
-is( $xz_form, 'lzma', 'xz is asked for the lzma container, not its own' );
+my $plan = xCAT_plugin::mknb::_genesis_lzma_plan(
+    0, 1, '/tftpboot', 'x86_64', 'token',
+);
+my (@messages, @commands, @moves, @removed);
+my $created = xCAT_plugin::mknb::_create_genesis_lzma(
+    $plan,
+    '/tmp/genesis-build',
+    'x86_64',
+    '/tftpboot',
+    sub { push @messages, @_ },
+    sub { push @commands, $_[0]; return 0; },
+    sub { push @removed, $_[0]; return 1; },
+    sub { push @moves, [@_]; return 1; },
+);
+is($created, '/tftpboot/xcat/genesis.fs.x86_64.lzma',
+    'a successful compression returns the published initrd path');
+is_deeply(
+    \@commands,
+    ['cd /tmp/genesis-build; find . | cpio -o -H newc | xz --format=lzma -C crc32 -9 > /tftpboot/xcat/genesis.fs.x86_64.lzma.token'],
+    'the selected compressor writes the unique staging path',
+);
+is_deeply(
+    \@moves,
+    [[
+        '/tftpboot/xcat/genesis.fs.x86_64.lzma.token',
+        '/tftpboot/xcat/genesis.fs.x86_64.lzma',
+    ]],
+    'a successful compression publishes the staging image atomically',
+);
+is_deeply(\@removed, [], 'a successful compression keeps the staging image for rename');
 
-# The caller has to take the command from the routine, and the name of the
-# written file must not change with it.
-like( $source, qr/genesis_lzma_command\(-x "\/usr\/bin\/lzma", -x "\/usr\/bin\/xz"\)/,
-    'the caller asks the routine which program to run' );
-like( $source, qr/cpio -o -H newc \| \$lzma_command > \$tftpdir\/xcat\/genesis\.fs\.\$arch\.lzma\.\$suffix/,
-    'the chosen command writes the same file under the same suffix' );
-
-# The fallback to gzip and the atomic rename both have to survive.
-like( $source, qr/falling back to gzip/, 'the gzip fallback is still reported' );
-like( $source, qr/move\("\$tftpdir\/xcat\/genesis\.fs\.\$arch\.lzma\.\$suffix"/,
-    'the finished image is still renamed into place' );
+(@messages, @commands, @moves, @removed) = ();
+$created = xCAT_plugin::mknb::_create_genesis_lzma(
+    $plan,
+    '/tmp/genesis-build',
+    'x86_64',
+    '/tftpboot',
+    sub { push @messages, @_ },
+    sub { push @commands, $_[0]; return 7; },
+    sub { push @removed, $_[0]; return 1; },
+    sub { push @moves, [@_]; return 1; },
+);
+is($created, undef, 'a failed compression leaves the caller on the gzip fallback');
+is_deeply(
+    \@removed,
+    ['/tftpboot/xcat/genesis.fs.x86_64.lzma.token'],
+    'a failed compression removes its staging image',
+);
+is_deeply(\@moves, [], 'a failed compression is never published');
+like($messages[-1]->{data}[0], qr/falling back to gzip/,
+    'a failed compression reports the gzip fallback');
 
 done_testing();

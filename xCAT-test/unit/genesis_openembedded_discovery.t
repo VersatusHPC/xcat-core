@@ -67,6 +67,21 @@ sub run_script {
     return system( '/bin/bash', $script ) >> 8;
 }
 
+sub run_script_from_stdin {
+    my ( $script, $environment ) = @_;
+    local %ENV = ( %ENV, %{$environment} );
+    open( my $source, '<', $script )
+      or die "Unable to read $script: $!";
+    open( my $pipe, '|-', '/bin/bash' )
+      or die "Unable to run $script through standard input: $!";
+    while ( my $line = <$source> ) {
+        print {$pipe} $line;
+    }
+    close($source);
+    close($pipe);
+    return $? >> 8;
+}
+
 sub read_callback_before_eof {
     my ( $script, $environment, $input ) = @_;
     local %ENV = ( %ENV, %{$environment} );
@@ -251,6 +266,57 @@ write_file( File::Spec->catfile( $bin, 'network-refresh' ), <<'SH', 0755 );
 printf 'network-refresh %s\n' "$1" >>"$XCAT_TEST_LOG"
 SH
 
+my $sender_probe = File::Spec->catfile( $bin, 'sender-probe' );
+my $sender_probe_log = File::Spec->catfile( $root, 'sender-probe.log' );
+write_file( $sender_probe, <<'SH', 0755 );
+#!/bin/sh
+printf '%s\n' "$@" >"$XCAT_TEST_SENDER_LOG"
+SH
+{
+    local %ENV = (
+        %ENV,
+        XCAT_DISCOVERY_SEND_COMMAND => $sender_probe,
+        XCAT_TEST_SENDER_LOG        => $sender_probe_log,
+    );
+    is(
+        system(
+            '/bin/bash', '-c',
+            'source "$1"; compressed_packet=$2; XCATMASTER=$3; XCATPORT=$4; send_packet',
+            'genesis-discovery-sender-test', $discover_script,
+            '/tmp/request.xml.gz', '192.0.2.10', '3001',
+        ) >> 8,
+        0,
+        'the sourceable discovery sender invokes the selected command',
+    );
+}
+is(
+    read_file($sender_probe_log),
+    "/tmp/request.xml.gz\n192.0.2.10\n3001\n",
+    'the discovery sender passes the packet and endpoint unchanged',
+);
+{
+    local %ENV = %ENV;
+    delete $ENV{XCAT_DISCOVERY_SEND_COMMAND};
+    my ( $sender_in, $sender_out );
+    my $sender_err = gensym;
+    my $sender_pid = open3(
+        $sender_in, $sender_out, $sender_err,
+        '/bin/bash', '-c',
+        'source "$1"; compressed_packet=$2; XCATMASTER=$3; XCATPORT=$4; send_packet',
+        'genesis-discovery-sender-default-test', $discover_script,
+        '/tmp/request.xml.gz', '192.0.2.10', '3001',
+    );
+    close($sender_in);
+    my $sender_stderr = do { local $/; <$sender_err> };
+    waitpid( $sender_pid, 0 );
+    isnt( $? >> 8, 0, 'the missing packaged discovery sender fails' );
+    like(
+        $sender_stderr,
+        qr{: /usr/libexec/xcat/genesis-udp-send: },
+        'normal discovery executes the packaged UDP sender',
+    );
+}
+
 my %environment = (
     PATH                         => "$bin:$ENV{PATH}",
     XCAT_DISCOVERY_ATTEMPTS      => 1,
@@ -279,8 +345,8 @@ my %environment = (
     XCAT_UPTIME_FILE    => $uptime,
 );
 
-is( run_script( $discover_script, \%environment ), 0,
-    'discovery accepts an xCAT node match' );
+is( run_script_from_stdin( $discover_script, \%environment ), 0,
+    'discovery accepts an xCAT node match through standard input' );
 my $packet = read_file($packet_file);
 like( $packet, qr{<command>findme</command>},
     'discovery sends a findme request' );

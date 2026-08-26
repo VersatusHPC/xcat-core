@@ -203,24 +203,29 @@ GO_XCAT_INSTALL_LIST=(perl-xcat xcat-client xcat xcat-buildkit
 	elilo-xcat grub2-xcat ipmitool-xcat syslinux-xcat
 	xcat-genesis-base-amd64 xcat-genesis-base-ppc64 xnba-undi)
 # The package list of all the packages should be uninstalled
-GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
-	goconserver xCAT-SoftLayer xCAT-confluent xCAT-csm xCAT-genesis-builder
+GO_XCAT_GENESIS_RPM_UNINSTALL_LIST=(
 	xCAT-genesis-openembedded-x86 xCAT-genesis-openembedded-x86_64
 	xCAT-genesis-openembedded-ppc64 xCAT-genesis-openembedded-ppc64le
 	xCAT-genesis-openembedded-armv7hf xCAT-genesis-openembedded-aarch64
-	xCAT-genesis-openembedded-riscv64
+	xCAT-genesis-openembedded-riscv64)
+GO_XCAT_GENESIS_DEB_UNINSTALL_LIST=(
+	xcat-genesis-openembedded-x86 xcat-genesis-openembedded-x86-64
+	xcat-genesis-openembedded-ppc64 xcat-genesis-openembedded-ppc64le
+	xcat-genesis-openembedded-armv7hf xcat-genesis-openembedded-aarch64
+	xcat-genesis-openembedded-riscv64)
+GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
+	goconserver xCAT-SoftLayer xCAT-confluent xCAT-csm xCAT-genesis-builder
+	"${GO_XCAT_GENESIS_RPM_UNINSTALL_LIST[@]}"
 	xCAT-openbmc-py xCAT-probe xCAT-test xCAT-vlan xCATsn xCAT-UI-deps
     xCAT-buildkit conserver-xcat yaboot-xcat)
 # For Debian/Ubuntu, it will need a slightly different package list
 type dpkg >/dev/null 2>&1 &&
 GO_XCAT_UNINSTALL_LIST=("${GO_XCAT_INSTALL_LIST[@]}"
 	goconserver xcat-confluent xcat-probe xcat-test xcat-vlan xcatsn
-	xcat-genesis-openembedded-x86 xcat-genesis-openembedded-x86-64
-	xcat-genesis-openembedded-ppc64 xcat-genesis-openembedded-ppc64le
-	xcat-genesis-openembedded-armv7hf xcat-genesis-openembedded-aarch64
-	xcat-genesis-openembedded-riscv64
+	"${GO_XCAT_GENESIS_DEB_UNINSTALL_LIST[@]}"
     xcat-buildkit conserver-xcat)
 
+GO_XCAT_CALLER_PATH=$PATH
 PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH
 EL9_EPEL_TEST_RPM="perl-Crypt-CBC"
@@ -486,8 +491,6 @@ function debug_trace()
 
 	return "${rc}"
 }
-
-internal_setup
 
 # Check operating system
 function check_os()
@@ -2342,6 +2345,15 @@ function boo_boo_if_bad()
 #              |       _|            _|
 #
 # Main program goes here.
+
+if [[ -n ${BASH_SOURCE[0]} && ${BASH_SOURCE[0]} != "$0" ]]; then
+	PATH=$GO_XCAT_CALLER_PATH
+	export PATH
+	unset GO_XCAT_CALLER_PATH
+	return 0
+fi
+
+internal_setup
 
 declare -a GO_XCAT_YES=()
 GO_XCAT_ACTION=""

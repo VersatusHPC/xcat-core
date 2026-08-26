@@ -7,6 +7,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifndef XCAT_GENESIS_MAINTENANCE_SHELL_PATH
+#define XCAT_GENESIS_MAINTENANCE_SHELL_PATH "/usr/libexec/xcat/genesis-maintenance-shell"
+#endif
+
 enum xcat_console_limit {
     VALUE_SIZE = 192,
     DETAIL_SIZE = 161,

@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 int xcat_run_maintenance_shell(void) {
+    const char *shell_path = XCAT_GENESIS_MAINTENANCE_SHELL_PATH;
     int exec_error_pipe[2] = {-1, -1};
     int exec_error = 0;
     ssize_t exec_error_size = 0;
@@ -34,8 +35,7 @@ int xcat_run_maintenance_shell(void) {
         if (xcat_set_signal_handler(SIGINT, SIG_DFL) == 0 &&
             xcat_set_signal_handler(SIGTERM, SIG_DFL) == 0 &&
             xcat_set_signal_handler(SIGHUP, SIG_DFL) == 0) {
-            execl("/usr/libexec/xcat/genesis-maintenance-shell", "genesis-maintenance-shell",
-                  (char *)NULL);
+            execl(shell_path, "genesis-maintenance-shell", (char *)NULL);
         }
         exec_error = errno;
         {

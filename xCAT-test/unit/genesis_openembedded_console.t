@@ -49,6 +49,53 @@ sub read_file {
     return $contents;
 }
 
+my $symbol_tool = $ENV{NM};
+if ( !defined($symbol_tool) ) {
+    ($symbol_tool) = grep { -x $_ }
+      map { File::Spec->catfile( $_, 'nm' ) }
+      File::Spec->path();
+}
+BAIL_OUT('unable to find nm for the console artifact check')
+  unless $symbol_tool;
+open( my $symbol_stream, '-|', $symbol_tool, '-u', $binary )
+  or BAIL_OUT("unable to inspect the console test binary: $!");
+my $undefined_symbols = do { local $/; <$symbol_stream> };
+close($symbol_stream);
+is( $? >> 8, 0, 'console undefined symbols are readable' );
+unlike(
+    $undefined_symbols,
+    qr/(?:^|\s)_?(?:system|popen)(?:@[A-Za-z0-9_.]+)?\s*$/m,
+    'console does not delegate commands through a shell',
+);
+
+SKIP: {
+    skip 'the newt and systemd development headers are unavailable', 3
+      unless -r '/usr/include/newt.h'
+      && -r '/usr/include/systemd/sd-journal.h';
+
+    my $newt_object = File::Spec->catfile( $root, 'newt_ui.o' );
+    my $newt_build_status = system(
+            $compiler, '-D_POSIX_C_SOURCE=200809L', '-std=c17',
+            '-Wall', '-Wextra', '-Wpedantic', '-Werror', '-I', $source_dir,
+            '-c', File::Spec->catfile( $source_dir, 'newt_ui.c' ),
+            '-o', $newt_object,
+        ) >> 8;
+    is( $newt_build_status, 0,
+        'newt console UI builds with strict warnings' );
+    skip 'the newt console object did not build', 2
+      if $newt_build_status != 0;
+    open( my $newt_symbol_stream, '-|', $symbol_tool, '-u', $newt_object )
+      or BAIL_OUT("unable to inspect the newt console object: $!");
+    my $newt_undefined_symbols = do { local $/; <$newt_symbol_stream> };
+    close($newt_symbol_stream);
+    is( $? >> 8, 0, 'newt console undefined symbols are readable' );
+    unlike(
+        $newt_undefined_symbols,
+        qr/(?:^|\s)_?(?:system|popen)(?:@[A-Za-z0-9_.]+)?\s*$/m,
+        'newt console does not delegate commands through a shell',
+    );
+}
+
 write_file(
     $header_test_source,
     <<'C'

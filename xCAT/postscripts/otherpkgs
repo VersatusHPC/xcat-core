@@ -24,6 +24,30 @@
 
 #enable debug
 #set -x
+
+xcat_otherpkgs_repo_id()
+{
+    printf 'xcat-otherpkgs%s\n' "$1"
+}
+
+xcat_yum_upgrade_otherpkgs()
+{
+    local xcat_yum_command=$1
+    local xcat_yum_mode=${2:-run}
+
+    if [ "$xcat_yum_mode" = print ]; then
+        printf '%s\n' "$xcat_yum_command -y --disablerepo=* --enablerepo=xcat-otherpkgs* upgrade"
+        return
+    fi
+
+    "$xcat_yum_command" -y '--disablerepo=*' \
+        '--enablerepo=xcat-otherpkgs*' upgrade
+}
+
+if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
+    return 0
+fi
+
 if [ -n "$LOGLABEL" ]; then
     log_label=$LOGLABEL
 else
@@ -683,9 +707,10 @@ while [ $op_index -le $OTHERPKGS_INDEX ]; do
          for url in ${OTHERPKGDIRLIST_INTERNET[@]}
          do
             if [ $hasyum -eq 1 ] || [ $haszypper -eq 1 ] ; then
+                repoid=$(xcat_otherpkgs_repo_id "$urlrepoindex")
                 REPOFILE="$repo_base/xCAT-otherpkgs$urlrepoindex.repo"
-                echo "[xcat-otherpkgs$urlrepoindex]" > $REPOFILE
-                echo "name=xcat-otherpkgs$urlrepoindex" >> $REPOFILE
+                echo "[$repoid]" > $REPOFILE
+                echo "name=$repoid" >> $REPOFILE
                 echo "baseurl=$url" >> $REPOFILE
                 echo "enabled=1" >> $REPOFILE
                 echo "gpgcheck=0" >> $REPOFILE
@@ -784,9 +809,10 @@ while [ $op_index -le $OTHERPKGS_INDEX ]; do
 	        index=$(array_get_size repo_path)
                 localrepoindex=$[urlrepoindex+index]
 		if [ $hasyum -eq 1 ] || [ $haszypper -eq 1 ] ; then
+	            repoid=$(xcat_otherpkgs_repo_id "$localrepoindex")
 	            REPOFILE="$repo_base/xCAT-otherpkgs$localrepoindex.repo"
-	            echo "[xcat-otherpkgs$localrepoindex]" > $REPOFILE
-	            echo "name=xcat-otherpkgs$localrepoindex" >> $REPOFILE
+	            echo "[$repoid]" > $REPOFILE
+	            echo "name=$repoid" >> $REPOFILE
 	            if [ $mounted -eq 0 ]; then
 		        echo "baseurl=http://$whole_path" >> $REPOFILE
 	            else
@@ -882,9 +908,9 @@ EOF`
     #that running otherpkgs does not also apply unrelated distribution updates.
     if [ $hasyum -eq 1 ]; then
         if [ $VERBOSE  ]; then
-          echo "$envlist $yumcmd -y --disablerepo=* --enablerepo=xcat-otherpkgs* upgrade"
+          echo "$envlist $(xcat_yum_upgrade_otherpkgs "$yumcmd" print)"
         fi
-        result=`eval $envlist $yumcmd -y --disablerepo=* --enablerepo=xcat-otherpkgs* upgrade 2>&1`
+        result=`eval $envlist xcat_yum_upgrade_otherpkgs "$yumcmd" 2>&1`
         R=$?
         if [ $R -ne 0 ]; then
               RETURNVAL=$R

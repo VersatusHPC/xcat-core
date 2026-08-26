@@ -1,64 +1,60 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+no warnings 'once';
 
 use FindBin;
-use File::Spec;
+use lib "$FindBin::Bin/../../perl-xCAT";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use lib "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins";
 use Test::More;
 
-my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/syncfiles.pm";
+require $plugin;
 
-sub slurp {
-    my ($rel) = @_;
-    my $path = File::Spec->catfile( $repo_root, $rel );
-    return unless -r $path;
-    open( my $fh, '<', $path ) or die "Unable to read $path: $!";
-    my $c = do { local $/; <$fh> };
-    close($fh);
-    return $c;
+sub run_syncfiles {
+    my (@args) = @_;
+    my @subrequests;
+    no warnings 'redefine';
+    local *xCAT_plugin::syncfiles::noderange = sub { return $_[0]; };
+    local *xCAT::SvrUtils::getsynclistfile = sub {
+        return { node01 => '/install/custom/sync-a,/install/custom/sync-b' };
+    };
+    local *xCAT::MsgUtils::message = sub { return; };
+    local @ARGV;
+    local $::RCP;
+
+    xCAT_plugin::syncfiles::process_request(
+        {
+            command          => ['syncfiles'],
+            arg              => \@args,
+            _xcat_clienthost => ['node01'],
+        },
+        sub { },
+        sub { push @subrequests, $_[0] },
+    );
+    return \@subrequests;
 }
 
-my $syncfiles  = slurp('xCAT-server/lib/xcat/plugins/syncfiles.pm');
-my $updatenode = slurp('xCAT-server/lib/xcat/plugins/updatenode.pm');
-my $xdsh       = slurp('xCAT-server/lib/xcat/plugins/xdsh.pm');
+my $requests = run_syncfiles();
+is(scalar(@$requests), 2, 'one xdcp request is emitted for each sync list');
+foreach my $index (0 .. $#$requests) {
+    my $synclist = $index == 0
+      ? '/install/custom/sync-a'
+      : '/install/custom/sync-b';
+    is_deeply($requests->[$index]->{command}, ['xdcp'], 'the subrequest invokes xdcp');
+    is_deeply($requests->[$index]->{username}, ['root'], 'the xdcp identity uses the consumer arrayref contract');
+    is_deeply($requests->[$index]->{node}, ['node01'], 'the xdcp request targets the requesting node');
+    is_deeply($requests->[$index]->{arg}, ['-F', $synclist], 'the xdcp request names its sync list');
+    is_deeply($requests->[$index]->{env}, ["DSH_RSYNC_FILE=$synclist"], 'the sync list is exported to xdcp');
+}
 
-plan skip_all => 'plugins not found'
-  unless defined($syncfiles) && defined($updatenode) && defined($xdsh);
-
-# The xdcp subrequest has to state the identity the sync runs as.
-my ($call) = $syncfiles =~ /(\$subreq->\(\{[^}]*command\s*=>\s*\['xdcp'\][^}]*\})/s;
-ok( $call, 'the xdcp subrequest was located in syncfiles' )
-  or BAIL_OUT('syncfiles.pm no longer matches the expected subrequest shape');
-
-like( $call, qr/username\s*=>/, 'the xdcp subrequest names a username' );
-
-# It must be an array reference. A bare string was the original form of this
-# change and broke the non-hierarchical path, because the consumers index it as
-# $request->{username}->[0].
-like(
-    $call,
-    qr/username\s*=>\s*\['root'\]/,
-    'the username is the arrayref form the consumers index into'
+$requests = run_syncfiles('-r', 'scp');
+is_deeply(
+    $requests->[0]->{arg},
+    ['-F', '/install/custom/sync-a', '-r', 'scp'],
+    'the requested remote-copy command is carried into xdcp',
 );
-unlike(
-    $call,
-    qr/username\s*=>\s*'root'\s*,/,
-    'the username is not a bare string, which would not survive ->[0]'
-);
-
-# The consumers this has to satisfy, pinned so the shape cannot drift apart.
-like(
-    $xdsh,
-    qr/\$ENV\{DSH_FROM_USERID\}\s*=\s*\$request->\{username\}->\[0\]/,
-    'xdsh still derives DSH_FROM_USERID from the request username'
-);
-
-# updatenode makes the same xdcp call and already passes a username. The two
-# should not diverge again.
-like(
-    $updatenode,
-    qr/command\s*=>\s*\["xdcp"\][^;]*username\s*=>/s,
-    'updatenode still passes a username on its own xdcp call'
-);
+is_deeply($requests->[0]->{username}, ['root'], 'the remote-copy variant retains the xdcp identity');
 
 done_testing();

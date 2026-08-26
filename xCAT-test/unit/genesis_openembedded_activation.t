@@ -64,26 +64,33 @@ like(
     'DEB service nodes recommend the first-class ppc64le image',
 );
 
-my $go_xcat = slurp_repo_file('xCAT-server/share/xcat/tools/go-xcat');
-unlike(
-    $go_xcat,
-    qr/GO_XCAT_LIBRARY_ONLY/,
-    'go-xcat cannot be disabled by an inherited test environment variable',
-);
+my $go_xcat_path =
+  "$FindBin::Bin/../../xCAT-server/share/xcat/tools/go-xcat";
+open(
+    my $go_xcat_fh,
+    '-|',
+    'bash', '-c',
+    'source "$1" || exit 1; printf "rpm:%s\\ndeb:%s\\n" '
+      . '"${GO_XCAT_GENESIS_RPM_UNINSTALL_LIST[*]}" '
+      . '"${GO_XCAT_GENESIS_DEB_UNINSTALL_LIST[*]}"',
+    'bash', $go_xcat_path,
+) or die "Unable to load $go_xcat_path: $!";
+my $go_xcat_plan = do { local $/; <$go_xcat_fh> };
+close($go_xcat_fh);
+is($? >> 8, 0, 'go-xcat can be sourced without running its main program');
 for my $architecture (qw(x86 x86_64 ppc64 ppc64le armv7hf aarch64 riscv64)) {
     like(
-        $go_xcat,
-        qr/\bxCAT-genesis-openembedded-\Q$architecture\E\b/,
-        "go-xcat removes the $architecture RPM image",
+        $go_xcat_plan,
+        qr/^rpm:.*\bxCAT-genesis-openembedded-\Q$architecture\E\b/m,
+        "the RPM uninstall plan includes the $architecture image",
     );
     (my $deb_architecture = $architecture) =~ tr/_/-/;
     like(
-        $go_xcat,
-        qr/\bxcat-genesis-openembedded-\Q$deb_architecture\E\b/,
-        "go-xcat removes the $architecture DEB image",
+        $go_xcat_plan,
+        qr/^deb:.*\bxcat-genesis-openembedded-\Q$deb_architecture\E\b/m,
+        "the DEB uninstall plan includes the $architecture image",
     );
 }
-
 my $mknb_pod = slurp_repo_file('xCAT-client/pods/man8/mknb.8.pod');
 like(
     $mknb_pod,

@@ -5,6 +5,8 @@ use warnings;
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
+use IPC::Open3;
+use Symbol qw(gensym);
 use Test::More;
 
 my $go_xcat = "$FindBin::Bin/../../xCAT-server/share/xcat/tools/go-xcat";
@@ -16,20 +18,7 @@ print {$driver_fh} <<'DRIVER';
 #!/bin/bash
 set -euo pipefail
 
-function_body=$(
-    for function_name in \
-        add_xcat_dep_common_repo_yum_or_zypper \
-        xcat_dep_common_repo_configured \
-        refresh_xcat_dep_repository_ids
-    do
-        awk -v name="$function_name" '
-            $0 == "function " name "()" { copy = 1 }
-            copy { print }
-            copy && /^}$/ { exit }
-        ' "$GO_XCAT_SOURCE"
-    done
-)
-eval "$function_body"
+source "$GO_XCAT_SOURCE"
 
 TMP_DIR=$TEST_TMP
 GO_XCAT_DEFAULT_BASE_URL=https://repo.example.invalid
@@ -129,14 +118,7 @@ print {$template_fh} <<'DRIVER';
 #!/bin/bash
 set -euo pipefail
 
-function_body=$(
-    awk '
-        /^function add_repo_by_url_yum_or_zypper\(\)/ { copy = 1 }
-        copy { print }
-        copy && /^}$/ { exit }
-    ' "$GO_XCAT_SOURCE"
-)
-eval "$function_body"
+source "$GO_XCAT_SOURCE"
 
 TMP_DIR=$TEST_TMP
 GO_XCAT_DEFAULT_INSTALL_PATH=/install/xcat
@@ -161,5 +143,33 @@ like(read_file($template_log), qr/^skip_if_unavailable=1$/m,
     'the generated common repository stays optional during outages');
 like(read_file($template_log), qr/^repo_gpgcheck=1$/m,
     'the generated common repository verifies signed metadata');
+
+my $fake_bin = "$tmpdir/fake-bin";
+make_path($fake_bin);
+open(my $fake_mktemp_fh, '>', "$fake_bin/mktemp")
+  or die "open fake mktemp: $!";
+print {$fake_mktemp_fh} "#!/bin/sh\nexit 99\n";
+close($fake_mktemp_fh) or die "close fake mktemp: $!";
+chmod(0755, "$fake_bin/mktemp") or die "chmod fake mktemp: $!";
+
+{
+    local $ENV{PATH} = "$fake_bin:$ENV{PATH}";
+    my $stderr = gensym;
+    my $pid = open3(my $stdin, my $stdout, $stderr, 'bash', '-s', '--', '-h');
+    open(my $source_fh, '<', $go_xcat) or die "open $go_xcat: $!";
+    while (my $line = <$source_fh>) {
+        print {$stdin} $line;
+    }
+    close($source_fh) or die "close $go_xcat: $!";
+    close($stdin) or die "close go-xcat stdin: $!";
+    my $output = do { local $/; <$stdout> };
+    my $errors = do { local $/; <$stderr> };
+    waitpid($pid, 0);
+    is($? >> 8, 0, 'go-xcat executes from standard input');
+    like($output, qr/^Usage:/m,
+        'standard-input execution reaches the main program');
+    unlike($errors, qr/mktemp|return:/,
+        'standard-input execution keeps the hardened command path');
+}
 
 done_testing();

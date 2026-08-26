@@ -6,7 +6,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin;
-use lib "$FindBin::Bin/../../xCAT-buildkit/lib/perl";
+use lib "$FindBin::Bin/../../build-utils/lib";
 use Test::More;
 use xCAT::Build::Repository qw(
   default_packages finalize_repository remove_release_alias write_release_alias

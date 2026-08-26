@@ -1003,40 +1003,38 @@ sub main {
           . "       refusing to index/sign a partial repository.\n";
     }
 
-    for my $target ($opts{targets}->@*) {
-        $pm->start and next;                          # no chroot ident: update_repo runs no mock
-        $SIG{INT} = $SIG{TERM} = 'DEFAULT';
+    finalize_repository(
+        index => sub {
+            for my $target ($opts{targets}->@*) {
+                $pm->start and next;                  # no chroot ident: update_repo runs no mock
+                $SIG{INT} = $SIG{TERM} = 'DEFAULT';
 
-        update_repo($target);
+                update_repo($target);
 
-        $pm->finish;
-    }
-    $pm->wait_all_children;
+                $pm->finish;
+            }
+            $pm->wait_all_children;
 
-    # Gate: a failed repo index (update_repo die) must not be signed as if complete.
-    if (@CHILD_FAILURES) {
-        die "FATAL: repo update failed for: @CHILD_FAILURES\n"
-          . "       refusing to sign an incomplete repository.\n";
-    }
-
-    if ($opts{gpg_sign}) {
-        $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
-        for my $target ($opts{targets}->@*) {
-            sign_rpms($target);
-        }
-    }
-
-    # Emit deployable repo metadata (after signing, so the .repo gpgkey line matches
-    # the freshly written repomd.xml.key).
-    for my $target ($opts{targets}->@*) {
-        write_repo_metadata($target);
-    }
-
-    # Signing regenerates repository metadata, so create the direct-download
-    # alias only after the final metadata pass.
-    for my $target ($opts{targets}->@*) {
-        write_release_alias("dist/$target/rpms", $VERSION, $RELEASE);
-    }
+            # A failed index must not be signed as if it were complete.
+            if (@CHILD_FAILURES) {
+                die "FATAL: repo update failed for: @CHILD_FAILURES\n"
+                  . "       refusing to sign an incomplete repository.\n";
+            }
+        },
+        sign => $opts{gpg_sign} ? sub {
+            $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
+            sign_rpms($_) for $opts{targets}->@*;
+        } : undef,
+        metadata => sub {
+            # Signing regenerates the indexes, so emit deployable metadata next.
+            write_repo_metadata($_) for $opts{targets}->@*;
+        },
+        alias => sub {
+            # Keep the direct-download alias out of the repository indexes.
+            write_release_alias("dist/$_/rpms", $VERSION, $RELEASE)
+              for $opts{targets}->@*;
+        },
+    );
 
     exit(0);
 }

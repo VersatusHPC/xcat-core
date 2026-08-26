@@ -23,7 +23,10 @@
 #=cut
 #-------------------------------------------------------------------------------
 
-if [ "$(uname -s|tr 'A-Z' 'a-z')" = "linux" ];then
+# Load the common postscript functions before defining routeop's local
+# compatibility functions.  This preserves the historical override order.
+if [[ ${BASH_SOURCE[0]} == "$0" ]] && \
+   [ "$(uname -s|tr 'A-Z' 'a-z')" = "linux" ]; then
    str_dir_name=`dirname $0`
    if [ -f $str_dir_name/xcatlib.sh ]; then
        . $str_dir_name/xcatlib.sh
@@ -33,38 +36,6 @@ if [ "$(uname -s|tr 'A-Z' 'a-z')" = "linux" ];then
        . /xcatpost/xcatlib.sh
    fi
 fi
-if [ -n "$LOGLABEL" ]; then
-    log_label=$LOGLABEL
-else
-    log_label="xcat"
-fi
-op=$1
-
-net=$2
-mask=$3
-gw=$4
-if [ -n "$5" ]; then
-    ifname=$5
-fi
-
-# use nummask to know whether the netmask format is 255.255.255.0 or CIDR (a number)
-nummask=0
-echo $mask | grep -E "^[.0123456789]+$" > /dev/null
-if [ $? -ne 0 ]; then
-    echo "Error: invalid format of netmask $mask."
-    exit 1
-else
-    echo $mask | grep -E "^[0123456789]+$" > /dev/null
-    if [ $? -eq 0 ]; then # only has digital
-        nummask=1    # the netmask is the length of network mask.
-        if [ $mask -ge 128 ]; then
-            echo "Error: invalid format of netmask $mask."
-            exit 1
-        fi
-    fi
-fi
-
-
 
 function debianpreconf(){
     #create the config sub dir
@@ -1043,6 +1014,41 @@ rm_persistent_route()
 }
 
 
+
+if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
+    return 0
+fi
+
+if [ -n "$LOGLABEL" ]; then
+    log_label=$LOGLABEL
+else
+    log_label="xcat"
+fi
+op=$1
+
+net=$2
+mask=$3
+gw=$4
+if [ -n "$5" ]; then
+    ifname=$5
+fi
+
+# use nummask to know whether the netmask format is 255.255.255.0 or CIDR (a number)
+nummask=0
+echo $mask | grep -E "^[.0123456789]+$" > /dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: invalid format of netmask $mask."
+    exit 1
+else
+    echo $mask | grep -E "^[0123456789]+$" > /dev/null
+    if [ $? -eq 0 ]; then # only has digital
+        nummask=1    # the netmask is the length of network mask.
+        if [ $mask -ge 128 ]; then
+            echo "Error: invalid format of netmask $mask."
+            exit 1
+        fi
+    fi
+fi
 
 if [ "$op" = "add" ]; then
     result=$(route_exists $net $mask $gw)

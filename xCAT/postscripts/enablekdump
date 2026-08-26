@@ -6,8 +6,16 @@
 
 if [ "$(uname -s|tr 'A-Z' 'a-z')" = "linux" ];then
    str_dir_name=`dirname $0`
-   . $str_dir_name/xcatlib.sh
+   . "${XCAT_KDUMP_XCATLIB:-$str_dir_name/xcatlib.sh}"
 fi
+
+KDUMP_CONF=${XCAT_KDUMP_CONF:-/etc/kdump.conf}
+KDUMP_SYSCONFIG=${XCAT_KDUMP_SYSCONFIG:-/etc/sysconfig/kdump}
+DRACUT_CONF=${XCAT_KDUMP_DRACUT_CONF:-/etc/dracut.conf}
+DRACUT_STASH=${XCAT_KDUMP_DRACUT_STASH:-/tmp/dracut.conf}
+RPCINFO=${XCAT_KDUMP_RPCINFO:-/usr/sbin/rpcinfo}
+MOUNT_CMD=${XCAT_KDUMP_MOUNT_CMD:-/bin/mount}
+UMOUNT_CMD=${XCAT_KDUMP_UMOUNT_CMD:-/bin/umount}
 
 
 # create /etc/sysconfig/network-scripts/
@@ -97,7 +105,7 @@ if [ ! -z "$DUMP" ]; then
     [ -z "$NODE" ] && NODE=$(hostname -s)
 
     # the $KDIP:$KDPATH directory will be used to generate the initrd for kdump service
-    MOUNTPATH="/mnt/kdumpsetup"
+    MOUNTPATH=${XCAT_KDUMP_MOUNT_PATH:-/mnt/kdumpsetup}
     mkdir -p $MOUNTPATH
 
     if [ "$KDPROTO" = "nfs" ]; then
@@ -182,13 +190,13 @@ EOF
                 restartservice kdump
                 retval=$?
             else
-                /bin/mount -o nolock $KDIP:$KDPATH $MOUNTPATH
+                $MOUNT_CMD -o nolock $KDIP:$KDPATH $MOUNTPATH
 	        KDTEMPPATH=${KDPATH//\//\\\/}
 	        KDTEMPPATH="nfs:\/\/${KDIP}${KDTEMPPATH}\/${NODE}"
-	        sed -i "s/^KDUMP_SAVEDIR=.*$/KDUMP_SAVEDIR=\"${KDTEMPPATH}\"/" /etc/sysconfig/kdump
-                sed -i "s/^KDUMP_COPY_KERNEL=.*$/KDUMP_COPY_KERNEL=\"no\"/" /etc/sysconfig/kdump
-                sed -i "s/^KDUMP_PRESCRIPT=.*$/KDUMP_PRESCRIPT=\"\/tmp\/createdir\"/" /etc/sysconfig/kdump
-                sed -i "s/^KDUMP_REQUIRED_PROGRAMS=.*$/KDUMP_REQUIRED_PROGRAMS=\"\/tmp\/createdir\"/" /etc/sysconfig/kdump
+	        sed -i "s/^KDUMP_SAVEDIR=.*$/KDUMP_SAVEDIR=\"${KDTEMPPATH}\"/" "$KDUMP_SYSCONFIG"
+                sed -i "s/^KDUMP_COPY_KERNEL=.*$/KDUMP_COPY_KERNEL=\"no\"/" "$KDUMP_SYSCONFIG"
+                sed -i "s/^KDUMP_PRESCRIPT=.*$/KDUMP_PRESCRIPT=\"\/tmp\/createdir\"/" "$KDUMP_SYSCONFIG"
+                sed -i "s/^KDUMP_REQUIRED_PROGRAMS=.*$/KDUMP_REQUIRED_PROGRAMS=\"\/tmp\/createdir\"/" "$KDUMP_SYSCONFIG"
                 TEMPDELAY=$(($RANDOM%30))
                 #work around for the kdump on sles 11.2
                 echo "/bin/mkdir -p /root/tmp/" > /tmp/createdir
@@ -210,7 +218,7 @@ EOF
             fi
 	else
             if (pmatch $OSVER "rhel[78]*") || (pmatch $OSVER "rhels[78]*");then
-               nfsvers=$(/usr/sbin/rpcinfo -p $KDIP|grep -w nfs|awk /tcp/'{print $2}'|sort)
+               nfsvers=$($RPCINFO -p $KDIP|grep -w nfs|awk /tcp/'{print $2}'|sort)
                nfsver=0
                if [ -n "$nfsvers" ]; then
                    for i in $nfsvers
@@ -228,9 +236,9 @@ EOF
                        fi
                    done
                    if [ $nfsver -ne 0 ]; then
-                       /bin/mount -o vers=$nfsver $KDIP:$KDPATH $MOUNTPATH
+                       $MOUNT_CMD -o vers=$nfsver $KDIP:$KDPATH $MOUNTPATH
                    else
-                       /bin/mount -o nolock $KDIP:$KDPATH $MOUNTPATH
+                       $MOUNT_CMD -o nolock $KDIP:$KDPATH $MOUNTPATH
                    fi
                else
                    /bin/echo "nfs server is not available"
@@ -240,12 +248,12 @@ EOF
                # it must exist now, at deploy time.
                mkdir -p $MOUNTPATH/$NODE/var/crash
 
-               echo "nfs $KDIP:$KDPATH" > /etc/kdump.conf
-               echo "default shell" >> /etc/kdump.conf
-               echo "path /$NODE/var/crash" >> /etc/kdump.conf
-               echo "core_collector makedumpfile -c --message-level 1 -d 31" >> /etc/kdump.conf
+               echo "nfs $KDIP:$KDPATH" > "$KDUMP_CONF"
+               echo "default shell" >> "$KDUMP_CONF"
+               echo "path /$NODE/var/crash" >> "$KDUMP_CONF"
+               echo "core_collector makedumpfile -c --message-level 1 -d 31" >> "$KDUMP_CONF"
                #strip "xcat" out of the initramfs for kdump
-               echo "dracut_args --omit \"xcat\"" >> /etc/kdump.conf
+               echo "dracut_args --omit \"xcat\"" >> "$KDUMP_CONF"
                #strip the unnecessary kernel options from /proc/cmdline
                #the modified "cmdline" will be used as the kernel options
                #for kdump initramfs; otherwise, the "service kdump restart" will fail
@@ -257,7 +265,7 @@ EOF
                              kdumpcmdline="$kdumpcmdline $i "
                        fi
                done
-               sed -i "s#^[\t ]*KDUMP_COMMANDLINE=\"#KDUMP_COMMANDLINE=\"$kdumpcmdline#" /etc/sysconfig/kdump
+               sed -i "s#^[\t ]*KDUMP_COMMANDLINE=\"#KDUMP_COMMANDLINE=\"$kdumpcmdline#" "$KDUMP_SYSCONFIG"
                if (pmatch $OSVER "rhel7*") || (pmatch $OSVER "rhels7*"); then
                    # The RHEL7 kdump initramfs refuses to continue unless root=
                    # names a valid filesystem, checked by dracut-cmdline at crash
@@ -269,16 +277,16 @@ EOF
                    # root= token starts after the opening quote or whitespace,
                    # so suffixes of other options (foo-root=, rd.foo.root=) stay.
                    sed -i -e '/^[\t ]*KDUMP_COMMANDLINE_APPEND="/{:a;s/\([" \t]\)root=[^ \t"]*[ \t]*/\1/;ta}' \
-                          -e "s#^[\t ]*KDUMP_COMMANDLINE_APPEND=\"#KDUMP_COMMANDLINE_APPEND=\"root=nfs:$KDIP:$KDPATH/$NODE #" /etc/sysconfig/kdump
+                          -e "s#^[\t ]*KDUMP_COMMANDLINE_APPEND=\"#KDUMP_COMMANDLINE_APPEND=\"root=nfs:$KDIP:$KDPATH/$NODE #" "$KDUMP_SYSCONFIG"
                fi
-               [ -f /etc/dracut.conf ] && mv /etc/dracut.conf  /tmp/dracut.conf
+               [ -f "$DRACUT_CONF" ] && mv "$DRACUT_CONF" "$DRACUT_STASH"
                restartservice kdump
                retval=$?
-               [ -f /tmp/dracut.conf ] && mv /tmp/dracut.conf /etc/dracut.conf
+               [ -f "$DRACUT_STASH" ] && mv "$DRACUT_STASH" "$DRACUT_CONF"
 	    elif (pmatch $OSVER "fedora*") || (pmatch $OSVER "rhel6*") || (pmatch $OSVER "rhels6*") || [ -f /etc/fedora-release ] || [ -f /etc/redhat-release ];then
-                /bin/mount -o nolock $KDIP:$KDPATH $MOUNTPATH
-		echo "net $KDIP:$KDPATH" > /etc/kdump.conf
-                echo "link_delay 180" >> /etc/kdump.conf
+                $MOUNT_CMD -o nolock $KDIP:$KDPATH $MOUNTPATH
+		echo "net $KDIP:$KDPATH" > "$KDUMP_CONF"
+                echo "link_delay 180" >> "$KDUMP_CONF"
 		#/etc/init.d/kdump restart
 		restartservice kdump
 		retval=$?
@@ -286,7 +294,7 @@ EOF
 	fi
     fi
 
-    /bin/umount -l $MOUNTPATH
+    $UMOUNT_CMD -l $MOUNTPATH
 else
     /bin/echo "The kdump server is not configured"
 fi

@@ -10,10 +10,8 @@ use Test::More;
 my $repo_root  = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $script_dir = File::Spec->catdir( $repo_root, 'xCAT-server', 'share', 'xcat', 'install', 'scripts' );
 
-# One script serves every installer, so one file is exercised here.
-my @scripts = map { File::Spec->catfile( $script_dir, $_ ) } qw(getinstdisk);
-plan skip_all => 'getinstdisk not found' if grep { !-r $_ } @scripts;
-our $script;
+my $script = File::Spec->catfile( $script_dir, 'getinstdisk' );
+plan skip_all => 'getinstdisk not found' unless -r $script;
 
 sub slurp {
     open( my $fh, '<', $_[0] ) or die "Unable to read $_[0]: $!";
@@ -22,26 +20,18 @@ sub slurp {
     return $c;
 }
 
-# The script reads /proc/partitions and writes under /tmp, so each scenario
-# runs a copy with those paths moved into its own sandbox, and a stub udevadm
-# serves the device properties from fixture files.
+# Each scenario runs the shipped script through its explicit path overrides,
+# while a stub udevadm serves device properties from fixture files.
 sub run_scenario {
     my (%disk) = @_;
+    my $vroc0 = delete $disk{_vroc0};
+    my $vroc  = delete $disk{_vroc};
+    my $xen   = delete $disk{_xen};
     my $sandbox = tempdir( CLEANUP => 1 );
     my $fixdir  = "$sandbox/fix";
     my $bindir  = "$sandbox/bin";
     mkdir $fixdir;
     mkdir $bindir;
-
-    my $body = slurp($script);
-    $body =~ s{/proc/partitions}{$sandbox/partitions}g;
-    $body =~ s{/tmp/xcat\.install_disk}{$sandbox/xcat.install_disk}g;
-    $body =~ s{/tmp/xcat\.getinstalldisk}{$sandbox/xcat.getinstalldisk}g;
-    $body =~ s{/dev/md/Volume0}{$sandbox/md/Volume0}g;
-    $body =~ s{"/dev/xvda"}{"$sandbox/xvda"}g;
-    open( my $sh, '>', "$sandbox/getinstdisk" ) or die $!;
-    print $sh $body;
-    close($sh);
 
     open( my $parts, '>', "$sandbox/partitions" ) or die $!;
     print $parts "major minor  #blocks  name\n\n";
@@ -84,23 +74,26 @@ UDEV
     close($udev);
     chmod 0755, "$bindir/udevadm";
 
-    local $ENV{FIXDIR}     = $fixdir;
-    local $ENV{PATH}       = "$bindir:$ENV{PATH}";
-    local $ENV{MASTER_IP}  = '';
-    system("sh $sandbox/getinstdisk >$sandbox/log 2>&1");
+    local $ENV{FIXDIR} = $fixdir;
+    local $ENV{PATH} = "$bindir:$ENV{PATH}";
+    local $ENV{MASTER_IP} = '';
+    local $ENV{XCAT_GETINSTDISK_PARTITIONS} = "$sandbox/partitions";
+    local $ENV{XCAT_GETINSTDISK_RESULT} = "$sandbox/xcat.install_disk";
+    local $ENV{XCAT_GETINSTDISK_TMPDIR} = "$sandbox/xcat.getinstalldisk";
+    local $ENV{XCAT_GETINSTDISK_VROC_VOLUME0_0} = $vroc0 ? '/dev/loop0' : "$sandbox/no-vroc0";
+    local $ENV{XCAT_GETINSTDISK_VROC_VOLUME0} = $vroc ? '/dev/loop0' : "$sandbox/no-vroc";
+    local $ENV{XCAT_GETINSTDISK_XEN_XVDA} = $xen ? '/dev/loop0' : "$sandbox/no-xen";
+    system("sh '$script' >'$sandbox/log' 2>&1");
+    my $status = $? >> 8;
     my $chosen = -r "$sandbox/xcat.install_disk" ? slurp("$sandbox/xcat.install_disk") : '';
     chomp $chosen;
-    return $chosen;
+    my $log = slurp("$sandbox/log");
+    return wantarray ? ( $chosen, $status, $log ) : $chosen;
 }
 
-# Every scenario asserts against both copies of the script.
 sub selects {
     my ( $expected, $name, %disk ) = @_;
-    for my $candidate (@scripts) {
-        local $script = $candidate;
-        my $variant = ( File::Spec->splitpath($candidate) )[2];
-        is( run_scenario(%disk), $expected, "$name ($variant)" );
-    }
+    is( run_scenario(%disk), $expected, $name );
     return;
 }
 
@@ -165,17 +158,27 @@ selects( '/dev/xvdb', 'the better driver group wins among Xen disks',
     xvda => { driver => 'vbd' },
     xvdb => { driver => 'ahci' } );
 
-# Every installer includes the one script, which carries the fallbacks and the
-# logging that the separate RHEL 10 copy used to hold on its own.
-my $common = slurp( $scripts[0] );
+SKIP: {
+    skip '/dev/loop0 is required for fallback behavior', 3 unless -b '/dev/loop0';
+    selects( '/dev/md/Volume0_0', 'the VROC volume is preferred as the fallback',
+        _vroc0 => 1 );
+    selects( '/dev/md/Volume0', 'the alternate VROC name is accepted',
+        _vroc => 1 );
+    selects( '/dev/xvda', 'the Xen block device is used as a fallback',
+        _xen => 1 );
+}
+
+my ( $fallback, $status, $log ) = run_scenario();
+is($fallback, '/dev/sda', 'no disks fall back to the documented default');
+is($status, 0, 'the default fallback succeeds without msgutil_r');
+unlike($log, qr/msgutil_r: (?:not found|command not found)/,
+    'the optional failure logger is not invoked when unavailable');
+
+# The installer include is shipped text and remains a valid wiring contract.
 ok( !-e File::Spec->catfile( $script_dir, 'getinstdisk.rhels10' ),
     'the RHEL 10 copy of the script is gone' );
 like( slurp( File::Spec->catfile( $script_dir, 'pre.rhels10' ) ),
     qr{/share/xcat/install/scripts/getinstdisk#},
     'the RHEL 10 installer includes the common script' );
-like( $common, qr{-b /dev/md/Volume0_0}, 'the common script keeps the VROC fallback' );
-like( $common, qr{-b "/dev/xvda"},       'the common script carries the Xen fallback' );
-like( $common, qr{command -v msgutil_r [^\n]*\n\s*msgutil_r },
-    'the failure log is guarded, because one installer does not define it' );
 
 done_testing();

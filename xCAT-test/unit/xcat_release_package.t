@@ -102,6 +102,27 @@ finalize_repository(
 is_deeply(\@steps, [qw(index metadata alias)],
     'unsigned repository finalization still creates the alias last');
 
+my @targets = qw(el9-x86_64 el9-ppc64le);
+@steps = ();
+finalize_repository(
+    index => sub { push @steps, map { "index:$_" } @targets; },
+    sign => sub { push @steps, map { "sign:$_" } @targets; },
+    metadata => sub { push @steps, map { "metadata:$_" } @targets; },
+    alias => sub { push @steps, map { "alias:$_" } @targets; },
+);
+is_deeply(
+    \@steps,
+    [
+        qw(
+          index:el9-x86_64 index:el9-ppc64le
+          sign:el9-x86_64 sign:el9-ppc64le
+          metadata:el9-x86_64 metadata:el9-ppc64le
+          alias:el9-x86_64 alias:el9-ppc64le
+        )
+    ],
+    'multi-target repository phases finish before the next phase starts',
+);
+
 done_testing();
 
 sub assert_repo_security {

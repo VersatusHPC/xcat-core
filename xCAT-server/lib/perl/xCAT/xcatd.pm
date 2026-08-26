@@ -653,6 +653,24 @@ sub redact_password_args {
     return (\@redacted, $changed);
 }
 
+sub format_dispatch_trace {
+    my ($class, $request) = @_;
+    my $command = $request->{command}->[0];
+    my $trace = "$command ";
+
+    if (exists($request->{noderange}) && defined($request->{noderange}->[0])) {
+        $trace .= join(',', @{ $request->{noderange} }) . ' ';
+    }
+
+    if (exists($request->{arg})) {
+        my ($redacted) = $class->redact_password_args($command, $request->{arg});
+        $trace .= join(' ', @$redacted) . ' ';
+        $trace =~ s/(.+) $/$1/g;
+    }
+
+    return $trace;
+}
+
 # --------------------------------------------------------------------------------
 
 =head3 redact_password

@@ -2278,19 +2278,7 @@ sub dispatch_request {
     my $old_sig_chld = $SIG{CHLD};
 
     # ----used for trace start---------
-    my $str_cmd = $req->{command}->[0] . " ";
-    if (exists($req->{noderange}) && defined($req->{noderange}->[0])) {
-        my $tmpstr = join(",", @{$req->{noderange}});
-        $str_cmd .= "$tmpstr ";
-    }
-
-    if (exists($req->{arg})) {
-        my ($trace_args) = xCAT::xcatd->redact_password_args($req->{command}->[0], $req->{arg});
-        foreach my $arg (@$trace_args) {
-            $str_cmd .= $arg . " ";
-        }
-        $str_cmd =~ s/(.+) $/$1/g;
-    }
+    my $str_cmd = xCAT::xcatd->format_dispatch_trace($req);
     xCAT::MsgUtils->trace(0, "D", "xcatd: dispatch request '$str_cmd' to plugin '$modname'");
 
     # ----used for trace end---------

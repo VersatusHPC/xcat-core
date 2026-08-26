@@ -19,9 +19,13 @@
 #-----------------------------------------------------------
 
 install_disk=""
-install_disk_file="/tmp/xcat.install_disk"
+install_disk_file=${XCAT_GETINSTDISK_RESULT:-/tmp/xcat.install_disk}
 
-tmpdir="/tmp/xcat.getinstalldisk"
+tmpdir=${XCAT_GETINSTDISK_TMPDIR:-/tmp/xcat.getinstalldisk}
+partitions_file=${XCAT_GETINSTDISK_PARTITIONS:-/proc/partitions}
+vroc_volume0_0_probe=${XCAT_GETINSTDISK_VROC_VOLUME0_0:-/dev/md/Volume0_0}
+vroc_volume0_probe=${XCAT_GETINSTDISK_VROC_VOLUME0:-/dev/md/Volume0}
+xen_xvda_probe=${XCAT_GETINSTDISK_XEN_XVDA:-/dev/xvda}
 mkdir -p $tmpdir
 
 has_awk=$(find /usr/* -name "awk")
@@ -33,14 +37,14 @@ tmpfile="$tmpdir/getinstalldisk_"
 if [ -z "$install_disk" ]; then
 
     echo "[get_install_disk]Contents of /proc/partitions:"
-    cat /proc/partitions
+    cat "$partitions_file"
     echo ""
 
     # Get all partitions and disks from /proc/partitions file
     if [ -z "$has_awk" ]; then
-        entries=$(cat /proc/partitions | sed 's/  */ /g' | cut -d " " -f5 | grep -v "name" | grep -E '^(x?v|s|h)d|^nvme')
+        entries=$(cat "$partitions_file" | sed 's/  */ /g' | cut -d " " -f5 | grep -v "name" | grep -E '^(x?v|s|h)d|^nvme')
     else
-        entries=$(awk -F ' '  '{print $4}' /proc/partitions | grep -v "name" | grep -E '^(x?v|s|h)d|^nvme')
+        entries=$(awk -F ' '  '{print $4}' "$partitions_file" | grep -v "name" | grep -E '^(x?v|s|h)d|^nvme')
     fi
 
     # Classify entries by DEVTYPE
@@ -230,14 +234,14 @@ rm -rf $tmpdir;
 
 # Auto-sense an Intel RSTe/VROC software RAID and use it if no other install
 # disk was found, before falling back to the hard-coded default below.
-if [ -z "$install_disk" ] && [ -b /dev/md/Volume0_0 ]; then
+if [ -z "$install_disk" ] && [ -b "$vroc_volume0_0_probe" ]; then
     install_disk="/dev/md/Volume0_0"
-elif [ -z "$install_disk" ] && [ -b /dev/md/Volume0 ]; then
+elif [ -z "$install_disk" ] && [ -b "$vroc_volume0_probe" ]; then
     install_disk="/dev/md/Volume0"
 fi
 
 # Enable boot in Xen VM
-if [ -z "$install_disk" ] && [ -b "/dev/xvda" ]; then
+if [ -z "$install_disk" ] && [ -b "$xen_xvda_probe" ]; then
     install_disk="/dev/xvda"
     echo "[get_install_disk]Choosing default install_disk $install_disk."
 fi

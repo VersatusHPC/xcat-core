@@ -319,6 +319,44 @@ sub genesis_lzma_command {
     return;
 }
 
+sub _genesis_lzma_plan {
+    my ($have_lzma, $have_xz, $tftpdir, $arch, $suffix) = @_;
+    my $command = genesis_lzma_command($have_lzma, $have_xz);
+    return unless $command;
+
+    my $destination = "$tftpdir/xcat/genesis.fs.$arch.lzma";
+    return {
+        command     => $command,
+        staging     => "$destination.$suffix",
+        destination => $destination,
+    };
+}
+
+sub _create_genesis_lzma {
+    my ($plan, $tempdir, $arch, $tftpdir, $callback, $run, $remove, $rename) = @_;
+    return unless $plan;
+
+    $run ||= sub {
+        system($_[0]);
+        return $? >> 8;
+    };
+    $remove ||= sub { return unlink($_[0]); };
+    $rename ||= sub { return move($_[0], $_[1]); };
+
+    $callback->({ data => ["Creating genesis.fs.$arch.lzma in $tftpdir/xcat"] });
+    my $status = $run->(
+        "cd $tempdir; find . | cpio -o -H newc | $plan->{command} > $plan->{staging}"
+    );
+    if ($status) {
+        $callback->({ data => ["Creating genesis.fs.$arch.lzma in $tftpdir/xcat failed, falling back to gzip"] });
+        $remove->($plan->{staging});
+        return;
+    }
+
+    $rename->($plan->{staging}, $plan->{destination});
+    return $plan->{destination};
+}
+
 sub process_request {
     my $request  = shift;
     my $callback = shift;
@@ -591,26 +629,21 @@ sub process_request {
         system("ssh-keygen -t rsa -f $tempdir/etc/ssh_host_rsa_key -C '' -N ''");
         system("ssh-keygen -t dsa -f $tempdir/etc/ssh_host_dsa_key -C '' -N ''");
     }
-    my $lzma_exit_value = 1;
     if ($invisibletouch) {
         my $done = 0;
         # Build each image under a unique suffix and atomically rename it into
         # place, so concurrent mknb runs sharing $tftpdir cannot read or clobber
         # a half-written genesis.fs.
         my $suffix = xCAT::Utils::genpassword(24);
-        my $lzma_command = genesis_lzma_command(-x "/usr/bin/lzma", -x "/usr/bin/xz");
-        if ($lzma_command) {    #let's reclaim some of that size...
-            $callback->({ data => ["Creating genesis.fs.$arch.lzma in $tftpdir/xcat"] });
-            system("cd $tempdir; find . | cpio -o -H newc | $lzma_command > $tftpdir/xcat/genesis.fs.$arch.lzma.$suffix");
-            $lzma_exit_value = $? >> 8;
-            if ($lzma_exit_value) {
-                $callback->({ data => ["Creating genesis.fs.$arch.lzma in $tftpdir/xcat failed, falling back to gzip"] });
-                unlink("$tftpdir/xcat/genesis.fs.$arch.lzma.$suffix");
-            } else {
-                move("$tftpdir/xcat/genesis.fs.$arch.lzma.$suffix", "$tftpdir/xcat/genesis.fs.$arch.lzma");
-                $done        = 1;
-                $initrd_file = "$tftpdir/xcat/genesis.fs.$arch.lzma";
-            }
+        my $lzma_plan = _genesis_lzma_plan(
+            -x "/usr/bin/lzma", -x "/usr/bin/xz", $tftpdir, $arch, $suffix
+        );
+        my $lzma_file = _create_genesis_lzma(
+            $lzma_plan, $tempdir, $arch, $tftpdir, $callback
+        );
+        if ($lzma_file) {
+            $done        = 1;
+            $initrd_file = $lzma_file;
         }
 
         if (not $done) {

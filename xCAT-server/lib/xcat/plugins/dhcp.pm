@@ -211,12 +211,9 @@ sub _isc_static_host_fallback
     return _ubuntu_isc_omapi_limited() && !$::XCATSITEVALS{externaldhcpservers};
 }
 
-# The start/end markers _add_isc_static_host writes around a node's reservation. Both are
-# fully determined -- "#xCAT host declaration for <node> aka host <hostname> start" and
-# "} #xCAT host declaration for <node> aka host <hostname> end" -- so match that whole shape.
-# A looser /\Q$node\E\b/ matches at a hyphen, which makes node "compute" match the marker of
-# "compute-01" and act on the wrong host block. The end marker rides the closing-brace line,
-# so unlike the start marker it is NOT anchored at column 0.
+# Match the whole marker _add_isc_static_host writes: a looser /\Q$node\E\b/ ends at a
+# hyphen, so node "compute" would match "compute-01" and act on the wrong block. The end
+# marker rides the closing-brace line, so it is not anchored at column 0.
 sub _isc_host_start_re
 {
     my $node = shift;
@@ -229,9 +226,8 @@ sub _isc_host_end_re
     return qr/#xCAT host declaration for \Q$node\E aka host \S+ end\s*$/;
 }
 
-# Remove a node's static host block. Operates on the loaded dhcpd.conf (@dhcpconf) by
-# default; an explicit line list may be passed instead, in which case the filtered list is
-# returned and @dhcpconf is left alone, so the scan can be unit tested without file state.
+# Remove a node's static host block from @dhcpconf, or from an explicit line list when one
+# is passed -- which leaves @dhcpconf alone, so the scan is testable without file state.
 sub _delete_isc_static_host
 {
     my $node     = shift;
@@ -290,20 +286,15 @@ sub _add_isc_static_host
     $restartdhcp = 1;
 }
 
-# Answer `makedhcp -q <node>` from the static host block _add_isc_static_host wrote into
-# dhcpd.conf, WITHOUT spawning omshell: on Ubuntu's ISC-limited releases the ISC DHCP 4.4
-# omshell can wedge at 100% CPU and never be reaped, which is exactly why the write paths
-# already avoid it. Returns ($nname, $ipaddr, $hwaddr) in the same shape as
-# _parse_omshell_host_output so listnode can print it unchanged. @lines defaults to the
-# loaded dhcpd.conf but is overridable so the parse can be unit tested without file state.
+# Answer `makedhcp -q <node>` from dhcpd.conf rather than omshell, which on Ubuntu's ISC
+# 4.4 can wedge at 100% CPU and never be reaped -- the same reason the write paths avoid it.
+# Returns the shape _parse_omshell_host_output does, so listnode prints it unchanged.
 sub _query_isc_static_host
 {
     my $node  = shift;
     my @lines = @_ ? @_ : @dhcpconf;
 
-    # A bare query does not populate @dhcpconf -- only the reconfigure paths read the file
-    # into it -- so read dhcpd.conf directly in that case. It is the source of truth for the
-    # static host blocks.
+    # Only the reconfigure paths populate @dhcpconf, so a bare query reads the file itself.
     if (!@lines && $dhcpconffile && -r $dhcpconffile) {
         if (open(my $dhfh, '<', $dhcpconffile)) {
             @lines = <$dhfh>;

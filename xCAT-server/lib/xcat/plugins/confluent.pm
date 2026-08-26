@@ -36,6 +36,59 @@ my $usage_string =
 
 my $version_string = xCAT::Utils->Version();
 
+sub _select_console_nodes {
+    my ($noderange, $hmtab, $master) = @_;
+    my @items;
+    my $allnodes = 1;
+
+    if ($noderange && @$noderange > 0) {
+        $allnodes = 0;
+        my $hmcache = $hmtab->getNodesAttribs(
+            $noderange, [ 'node', 'serialport', 'cons', 'conserver' ]
+        );
+        foreach my $node (@$noderange) {
+            my $ent = $hmcache->{$node}->[0];
+            $ent = { node => $node } unless $ent;
+            push @items, $ent;
+        }
+    } else {
+        @items = $hmtab->getAllNodeAttribs(
+            [ 'node', 'serialport', 'cons', 'conserver' ]
+        );
+    }
+
+    my @nodes;
+    my %cons_hash;
+    foreach (@items) {
+        next if $allnodes
+          && ((!defined($_->{cons})) || ($_->{cons} eq ''))
+          && !defined($_->{serialport});
+        my $conserver = defined($_->{conserver}) ? $_->{conserver} : $master;
+        push @{ $cons_hash{$conserver}{nodes} }, $_->{node};
+        push @nodes, $_->{node};
+    }
+
+    return (\@nodes, \%cons_hash, $allnodes);
+}
+
+sub _flatten_node_rows {
+    my ($entries, $carry_node_name) = @_;
+    my @rows;
+
+    foreach my $ent (@$entries) {
+        foreach my $node (keys %$ent) {
+            my $row = $ent->{$node}->[0];
+            if ($carry_node_name) {
+                $row = {} unless $row;
+                $row->{node} = $node unless defined($row->{node});
+            }
+            push @rows, $row;
+        }
+    }
+
+    return @rows;
+}
+
 sub handled_commands {
     return {
         makeconfluentcfg => "confluent"
@@ -105,37 +158,9 @@ sub preprocess_request {
     my $master = xCAT::TableUtils->get_site_Master();
     if (!$master) { $master = hostname(); }
 
-    my %cons_hash = ();
-    my $hmtab     = xCAT::Table->new('nodehm');
-    my @items;
-    my $allnodes = 1;
-    if ($noderange && @$noderange > 0) {
-        $allnodes = 0;
-        my $hmcache = $hmtab->getNodesAttribs($noderange, [ 'node', 'serialport', 'cons', 'conserver' ]);
-        foreach my $node (@$noderange) {
-            my $ent = $hmcache->{$node}->[0]; #$hmtab->getNodeAttribs($node,['node', 'serialport','cons', 'conserver']);
-            #A node named on the command line may have no nodehm row at all. Carry
-            #its name through anyway, otherwise the entry below is an undefined
-            #reference and the node reaches confluent with an empty name.
-            unless ($ent) { $ent = { node => $node }; }
-            push @items, $ent;
-        }
-    } else {
-        $allnodes = 1;
-        @items = $hmtab->getAllNodeAttribs([ 'node', 'serialport', 'cons', 'conserver' ]);
-    }
-
-    my @nodes = ();
-    foreach (@items) {
-        #skip if 'cons' is not defined for this node, unless serialport suggests otherwise.
-        #This only applies while scanning every node in the table. A node named
-        #explicitly on the command line was asked for by the administrator, so it is
-        #configured whether or not it has a console method.
-        if ($allnodes and ((!defined($_->{cons})) || ($_->{cons} eq "")) and !defined($_->{serialport})) { next; }
-        if (defined($_->{conserver})) { push @{ $cons_hash{ $_->{conserver} }{nodes} }, $_->{node}; }
-        else { push @{ $cons_hash{$master}{nodes} }, $_->{node}; }
-        push @nodes, $_->{node};
-    }
+    my $hmtab = xCAT::Table->new('nodehm');
+    my ($nodes, $cons_hash, $allnodes) =
+      _select_console_nodes($noderange, $hmtab, $master);
 
     #send all nodes to the MN
     if (!$isSN && !$::CONSERVER) { #If -c flag is set, do not add the all nodes to the management node
@@ -148,14 +173,14 @@ sub preprocess_request {
         $reqcopy->{'_xcatdest'} = $master;
         $reqcopy->{_xcatpreprocessed}->[0] = 1;
         $reqcopy->{'_allnodes'} = $allnodes; # the original command comes with nodes or not
-        if ($allnodes == 1) { @nodes = (); }
-        $reqcopy->{node} = \@nodes;
+        if ($allnodes == 1) { @$nodes = (); }
+        $reqcopy->{node} = $nodes;
         push @requests, $reqcopy;
         if ($::LOCAL) { return \@requests; }
     }
 
     # send to conserver hosts
-    foreach my $cons (keys %cons_hash) {
+    foreach my $cons (keys %$cons_hash) {
 
         #print "cons=$cons\n";
         my $doit = 0;
@@ -170,7 +195,7 @@ sub preprocess_request {
             $reqcopy->{'_xcatdest'} = $cons;
             $reqcopy->{_xcatpreprocessed}->[0] = 1;
             $reqcopy->{'_allnodes'} = [$allnodes]; # the original command comes with nodes or not
-            $reqcopy->{node} = $cons_hash{$cons}{nodes};
+            $reqcopy->{node} = $cons_hash->{$cons}{nodes};
             my $no = $reqcopy->{node};
 
             #print "node=@$no\n";
@@ -246,39 +271,9 @@ sub makeconfluentcfg {
         @cfgents3 = $mptab->getNodesAttribs($nodes, [ 'node', 'mpa', 'id' ]);
 
         # Adjust the data structure to make the result consistent with the getAllNodeAttribs() call we make if a noderange was not specified
-        my @tmpcfgents1;
-        foreach my $ent (@cfgents1)
-        {
-            foreach my $nodeent (keys %$ent)
-            {
-                #A named node may have no nodehm row, which leaves an undefined
-                #entry that reaches confluent as an empty node name. The key here
-                #is the node, so carry the name through instead.
-                my $row = $ent->{$nodeent}->[0];
-                $row = {} unless ($row);
-                $row->{node} = $nodeent unless (defined($row->{node}));
-                push @tmpcfgents1, $row;
-            }
-        }
-        @cfgents1    = @tmpcfgents1;
-        @tmpcfgents1 = ();
-        foreach my $ent (@cfgents2)
-        {
-            foreach my $nodeent (keys %$ent)
-            {
-                push @tmpcfgents1, $ent->{$nodeent}->[0];
-            }
-        }
-        @cfgents2    = @tmpcfgents1;
-        @tmpcfgents1 = ();
-        foreach my $ent (@cfgents3)
-        {
-            foreach my $nodeent (keys %$ent)
-            {
-                push @tmpcfgents1, $ent->{$nodeent}->[0];
-            }
-        }
-        @cfgents3 = @tmpcfgents1;
+        @cfgents1 = _flatten_node_rows(\@cfgents1, 1);
+        @cfgents2 = _flatten_node_rows(\@cfgents2, 0);
+        @cfgents3 = _flatten_node_rows(\@cfgents3, 0);
     } else {
         @cfgents1 = $hmtab->getAllNodeAttribs([ 'cons', 'serialport', 'mgt', 'conserver', 'termserver', 'termport', 'consoleondemand' ]);
         @cfgents2 = $nodepostab->getAllNodeAttribs([ 'rack', 'u', 'chassis', 'slot', 'room' ]);

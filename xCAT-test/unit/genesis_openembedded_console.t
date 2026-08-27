@@ -55,23 +55,29 @@ if ( !defined($symbol_tool) ) {
       map { File::Spec->catfile( $_, 'nm' ) }
       File::Spec->path();
 }
-BAIL_OUT('unable to find nm for the console artifact check')
-  unless $symbol_tool;
-open( my $symbol_stream, '-|', $symbol_tool, '-u', $binary )
-  or BAIL_OUT("unable to inspect the console test binary: $!");
-my $undefined_symbols = do { local $/; <$symbol_stream> };
-close($symbol_stream);
-is( $? >> 8, 0, 'console undefined symbols are readable' );
-unlike(
-    $undefined_symbols,
-    qr/(?:^|\s)_?(?:system|popen)(?:@[A-Za-z0-9_.]+)?\s*$/m,
-    'console does not delegate commands through a shell',
-);
+SKIP: {
+    skip 'nm is unavailable for the console artifact check', 2
+      unless $symbol_tool;
+    my $symbol_stream;
+    unless (open( $symbol_stream, '-|', $symbol_tool, '-u', $binary )) {
+        skip "unable to inspect the console test binary: $!", 2;
+        last SKIP;
+    }
+    my $undefined_symbols = do { local $/; <$symbol_stream> };
+    close($symbol_stream);
+    is( $? >> 8, 0, 'console undefined symbols are readable' );
+    unlike(
+        $undefined_symbols,
+        qr/(?:^|\s)_?(?:system|popen)(?:@[A-Za-z0-9_.]+)?\s*$/m,
+        'console does not delegate commands through a shell',
+    );
+}
 
 SKIP: {
-    skip 'the newt and systemd development headers are unavailable', 3
+    skip 'the newt console build dependencies are unavailable', 3
       unless -r '/usr/include/newt.h'
-      && -r '/usr/include/systemd/sd-journal.h';
+      && -r '/usr/include/systemd/sd-journal.h'
+      && $symbol_tool;
 
     my $newt_object = File::Spec->catfile( $root, 'newt_ui.o' );
     my $newt_build_status = system(
@@ -84,8 +90,11 @@ SKIP: {
         'newt console UI builds with strict warnings' );
     skip 'the newt console object did not build', 2
       if $newt_build_status != 0;
-    open( my $newt_symbol_stream, '-|', $symbol_tool, '-u', $newt_object )
-      or BAIL_OUT("unable to inspect the newt console object: $!");
+    my $newt_symbol_stream;
+    unless (open( $newt_symbol_stream, '-|', $symbol_tool, '-u', $newt_object )) {
+        skip "unable to inspect the newt console object: $!", 2;
+        last SKIP;
+    }
     my $newt_undefined_symbols = do { local $/; <$newt_symbol_stream> };
     close($newt_symbol_stream);
     is( $? >> 8, 0, 'newt console undefined symbols are readable' );
@@ -102,8 +111,13 @@ write_file(
 #include "console.h"
 
 #include <assert.h>
+#include <string.h>
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "shell-path") == 0) {
+        return strcmp(XCAT_GENESIS_MAINTENANCE_SHELL_PATH,
+                      "/usr/libexec/xcat/genesis-maintenance-shell");
+    }
     assert(xcat_header_context_columns(0) == 0);
     assert(xcat_header_context_columns(19) == 0);
     assert(xcat_header_context_columns(20) == 0);
@@ -124,6 +138,8 @@ is(
 );
 is( system($header_test_binary) >> 8, 0,
     'narrow terminals leave no writable header context' );
+is( system($header_test_binary, 'shell-path') >> 8, 0,
+    'console defaults to the packaged maintenance shell' );
 
 write_file(
     $shell_test_source,

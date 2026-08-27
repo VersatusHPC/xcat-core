@@ -61,7 +61,6 @@ SKIP: {
     my $symbol_stream;
     unless (open( $symbol_stream, '-|', $symbol_tool, '-u', $binary )) {
         skip "unable to inspect the console test binary: $!", 2;
-        last SKIP;
     }
     my $undefined_symbols = do { local $/; <$symbol_stream> };
     close($symbol_stream);
@@ -73,11 +72,21 @@ SKIP: {
     );
 }
 
+my $newt_probe_source = File::Spec->catfile( $root, 'newt-probe.c' );
+write_file(
+    $newt_probe_source,
+    <<'C'
+#include <newt.h>
+#include <systemd/sd-journal.h>
+int main(void) { return 0; }
+C
+);
+my $newt_probe_status = system(
+        $compiler, '-std=c17', '-fsyntax-only', $newt_probe_source,
+    ) >> 8;
 SKIP: {
     skip 'the newt console build dependencies are unavailable', 3
-      unless -r '/usr/include/newt.h'
-      && -r '/usr/include/systemd/sd-journal.h'
-      && $symbol_tool;
+      if $newt_probe_status != 0 || !$symbol_tool;
 
     my $newt_object = File::Spec->catfile( $root, 'newt_ui.o' );
     my $newt_build_status = system(
@@ -93,7 +102,6 @@ SKIP: {
     my $newt_symbol_stream;
     unless (open( $newt_symbol_stream, '-|', $symbol_tool, '-u', $newt_object )) {
         skip "unable to inspect the newt console object: $!", 2;
-        last SKIP;
     }
     my $newt_undefined_symbols = do { local $/; <$newt_symbol_stream> };
     close($newt_symbol_stream);

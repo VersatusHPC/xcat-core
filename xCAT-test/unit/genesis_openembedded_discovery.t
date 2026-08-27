@@ -346,8 +346,8 @@ my %environment = (
     XCAT_UPTIME_FILE    => $uptime,
 );
 
-is( run_script_from_stdin( $discover_script, \%environment ), 0,
-    'discovery accepts an xCAT node match through standard input' );
+is( run_script( $discover_script, \%environment ), 0,
+    'discovery accepts an xCAT node match when executed normally' );
 my $packet = read_file($packet_file);
 like( $packet, qr{<command>findme</command>},
     'discovery sends a findme request' );
@@ -393,6 +393,24 @@ like(
     ),
     qr/^STATE=READY$/m,
     'discovery publishes completion'
+);
+my %stdin_environment = (
+    %environment,
+    XCAT_NETWORK_FILE => File::Spec->catfile( $root, 'missing-network' ),
+);
+my $stdin_status = File::Spec->catfile(
+    $state_dir, 'status', 'discovery.env'
+);
+unlink($stdin_status) if -e $stdin_status;
+isnt(
+    run_script_from_stdin( $discover_script, \%stdin_environment ),
+    0,
+    'standard-input execution reaches the main discovery path',
+);
+like(
+    read_file($stdin_status),
+    qr/^CODE=DISCOVERY_NETWORK_STATE_MISSING$/m,
+    'standard-input execution publishes the missing-network failure',
 );
 $environment{XCAT_TEST_LOGGER_FAIL} = 1;
 is( run_script( $discover_script, \%environment ), 0,
@@ -641,11 +659,7 @@ sub exercise_udp_sender {
         "$case{name} transmits a datagram",
     );
     my @ready = IO::Select->new($case{listener})->can_read(5);
-    ok(@ready, "$case{name} reaches the listener");
-    unless (@ready) {
-        skip "$case{name} produced no datagram", 2;
-        return;
-    }
+    ok(@ready, "$case{name} reaches the listener") or return 0;
     my $datagram = '';
     my $peer = recv($case{listener}, $datagram, 65535, 0);
     is($datagram, "discovery-payload\n", "$case{name} preserves the payload");
@@ -656,6 +670,7 @@ sub exercise_udp_sender {
     } else {
         ok($source_port > 0, "$case{name} receives an ephemeral source port");
     }
+    return 1;
 }
 
 SKIP: {
@@ -669,7 +684,7 @@ SKIP: {
         binary => $udp_sender_unprivileged,
         host => '127.0.0.1', listener => $listener,
         name => 'unprivileged IPv4 discovery UDP sender',
-    );
+    ) or skip 'unprivileged IPv4 sender produced no datagram', 2;
 }
 
 SKIP: {
@@ -683,7 +698,7 @@ SKIP: {
         binary => $udp_sender_unprivileged,
         host => '::1', listener => $listener, ipv6 => 1,
         name => 'unprivileged IPv6 discovery UDP sender',
-    );
+    ) or skip 'unprivileged IPv6 sender produced no datagram', 2;
 }
 
 SKIP: {
@@ -703,7 +718,7 @@ SKIP: {
         binary => $udp_sender_binary,
         host => '127.0.0.1', listener => $listener, source_port => 301,
         name => 'IPv4 discovery UDP sender',
-    );
+    ) or skip 'IPv4 sender produced no datagram', 2;
 }
 
 SKIP: {
@@ -723,7 +738,7 @@ SKIP: {
         binary => $udp_sender_binary,
         host => '::1', listener => $listener, ipv6 => 1, source_port => 301,
         name => 'IPv6 discovery UDP sender',
-    );
+    ) or skip 'IPv6 sender produced no datagram', 2;
 }
 
 my $image = read_file(

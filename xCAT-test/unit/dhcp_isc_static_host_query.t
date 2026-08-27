@@ -11,15 +11,9 @@ use Test::More;
 
 $ENV{XCATCFG} ||= 'SQLite:/tmp';
 
-# Regression: `makedhcp -q <node>` on Ubuntu's ISC-limited releases (<22.04)
-# must answer from the static host block in dhcpd.conf and NEVER spawn omshell.
-# Ubuntu's ISC DHCP 4.4 omshell can wedge at 100% CPU (unreapable) on a host
-# query, which used to hang the CI provisioning retry loop forever on focal.
-#
-# It also guards the end-marker matching: _add_isc_static_host emits the end
-# marker on the closing-brace line ("} #xCAT host declaration for ... end"),
-# which is NOT anchored at column 0, so a "^#xCAT...end" regex never matches and
-# the scan would run past the node's block into the next one.
+# `makedhcp -q <node>` must answer from dhcpd.conf and never spawn omshell: Ubuntu's ISC
+# DHCP 4.4 omshell can wedge at 100% CPU, unreapable, which hung the CI provisioning retry
+# loop on focal.
 my $source_dhcp_plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/dhcp.pm";
 if ( -f $source_dhcp_plugin ) {
     require $source_dhcp_plugin;
@@ -72,15 +66,8 @@ ok('ubuntu20.04' =~ /^ubuntu(20|20\.04|22|22\.04)/, 'ubuntu20.04 is ISC-omapi-li
 ok('ubuntu22.04' =~ /^ubuntu(20|20\.04|22|22\.04)/, 'ubuntu22.04 is ISC-omapi-limited');
 ok('ubuntu24.04' !~ /^ubuntu(20|20\.04|22|22\.04)/, 'ubuntu24.04 is NOT ISC-omapi-limited (uses Kea)');
 
-# ---------------------------------------------------------------------------
-# Regression: the host-block markers must match the node name EXACTLY.
-#
-# Both scans matched /^#xCAT host declaration for \Q$node\E\b.* start$/. \b matches at the
-# hyphen, so node "compute" also matches "compute-01"'s marker -- the query can answer with a
-# different node's address, and the delete can remove a different node's reservation. The
-# markers _add_isc_static_host writes are fully determined ("... for <node> aka host <host>
-# start" / "} ... end"), so anchor on that whole shape instead.
-# ---------------------------------------------------------------------------
+# A node name that prefixes another must not match its block: "compute" answering with
+# "compute-01"'s address, or deleting its reservation.
 my @similar = (
     "#xCAT host declaration for compute aka host compute start\n",
     "host compute {\n",

@@ -8,8 +8,9 @@ use File::Temp qw(tempdir);
 use FindBin;
 use IO::Select;
 use IO::Socket::INET;
+use IO::Socket::IP;
 use IPC::Open3;
-use Socket qw(sockaddr_in);
+use Socket qw(sockaddr_in sockaddr_in6);
 use Symbol qw(gensym);
 use Test::More;
 
@@ -581,51 +582,148 @@ like( $recipe, qr{\$\{libexecdir\}/xcat/genesis-udp-send},
     'discovery UDP sender is packaged' );
 
 my $udp_sender_binary = File::Spec->catfile($root, 'genesis-udp-send');
+my $udp_sender_unprivileged =
+  File::Spec->catfile($root, 'genesis-udp-send-unprivileged');
 my $compiler = $ENV{CC} || 'cc';
+my $udp_build_status = system(
+    $compiler, '-std=c17', '-Wall', '-Wextra', '-Wpedantic', '-Werror',
+    $udp_sender_source, '-o', $udp_sender_binary,
+) >> 8;
+is($udp_build_status, 0, 'discovery UDP sender builds with strict warnings');
+my $udp_unprivileged_build_status = system(
+    $compiler, '-DXCAT_GENESIS_DISCOVERY_SOURCE_PORT=0',
+    '-std=c17', '-Wall', '-Wextra', '-Wpedantic', '-Werror',
+    $udp_sender_source, '-o', $udp_sender_unprivileged,
+) >> 8;
 is(
-    system(
-        $compiler, '-std=c17', '-Wall', '-Wextra', '-Wpedantic', '-Werror',
-        $udp_sender_source, '-o', $udp_sender_binary,
-    ) >> 8,
+    $udp_unprivileged_build_status,
     0,
-    'discovery UDP sender builds with strict warnings',
+    'discovery UDP sender supports an unprivileged behavior build',
 );
-my $udp_listener = IO::Socket::INET->new(
-    LocalAddr => '127.0.0.1',
-    LocalPort => 0,
-    Proto     => 'udp',
-) or BAIL_OUT("unable to open the UDP behavior listener: $!");
 my $udp_packet = File::Spec->catfile($root, 'udp-packet');
+my $empty_udp_packet = File::Spec->catfile($root, 'empty-udp-packet');
 write_file($udp_packet, "discovery-payload\n");
-my @udp_sender_command = (
-    $udp_sender_binary, $udp_packet, '127.0.0.1', $udp_listener->sockport
-);
-SKIP: {
-    my $source_port_probe = IO::Socket::INET->new(
-        LocalAddr => '0.0.0.0',
-        LocalPort => 301,
-        Proto     => 'udp',
-    );
-    skip 'the legacy discovery source port is unavailable', 4
-      unless $source_port_probe;
-    close($source_port_probe);
+write_file($empty_udp_packet, '');
 
-    is(
-        system(@udp_sender_command) >> 8,
+SKIP: {
+    skip 'the discovery UDP sender did not build', 4
+      if $udp_build_status != 0;
+    isnt(system($udp_sender_binary) >> 8, 0,
+        'discovery UDP sender rejects missing arguments');
+    isnt(
+        system($udp_sender_binary, $udp_packet, '127.0.0.1', '0') >> 8,
         0,
-        'discovery UDP sender transmits an IPv4 datagram',
+        'discovery UDP sender rejects an invalid destination port',
     );
-    my @ready = IO::Select->new($udp_listener)->can_read(5);
-    ok(@ready, 'discovery UDP datagram reaches the listener');
+    isnt(
+        system(
+            $udp_sender_binary, File::Spec->catfile($root, 'missing-packet'),
+            '127.0.0.1', '9',
+        ) >> 8,
+        0,
+        'discovery UDP sender rejects a missing packet',
+    );
+    isnt(
+        system($udp_sender_binary, $empty_udp_packet, '127.0.0.1', '9') >> 8,
+        0,
+        'discovery UDP sender rejects an empty packet',
+    );
+}
+
+sub exercise_udp_sender {
+    my (%case) = @_;
+    is(
+        system(
+            $case{binary}, $udp_packet, $case{host},
+            $case{listener}->sockport,
+        ) >> 8,
+        0,
+        "$case{name} transmits a datagram",
+    );
+    my @ready = IO::Select->new($case{listener})->can_read(5);
+    ok(@ready, "$case{name} reaches the listener");
     unless (@ready) {
-        skip 'the UDP sender produced no datagram', 2;
-        last SKIP;
+        skip "$case{name} produced no datagram", 2;
+        return;
     }
     my $datagram = '';
-    my $peer = recv($udp_listener, $datagram, 65535, 0);
-    is($datagram, "discovery-payload\n", 'discovery UDP payload is unchanged');
-    my ($source_port) = sockaddr_in($peer);
-    is($source_port, 301, 'discovery UDP sender uses the legacy source port');
+    my $peer = recv($case{listener}, $datagram, 65535, 0);
+    is($datagram, "discovery-payload\n", "$case{name} preserves the payload");
+    my ($source_port) = $case{ipv6} ? sockaddr_in6($peer) : sockaddr_in($peer);
+    if (defined $case{source_port}) {
+        is($source_port, $case{source_port},
+            "$case{name} uses source port $case{source_port}");
+    } else {
+        ok($source_port > 0, "$case{name} receives an ephemeral source port");
+    }
+}
+
+SKIP: {
+    skip 'the unprivileged discovery UDP sender did not build', 4
+      if $udp_unprivileged_build_status != 0;
+    my $listener = IO::Socket::INET->new(
+        LocalAddr => '127.0.0.1', LocalPort => 0, Proto => 'udp',
+    );
+    skip 'the IPv4 loopback UDP listener is unavailable', 4 unless $listener;
+    exercise_udp_sender(
+        binary => $udp_sender_unprivileged,
+        host => '127.0.0.1', listener => $listener,
+        name => 'unprivileged IPv4 discovery UDP sender',
+    );
+}
+
+SKIP: {
+    skip 'the unprivileged discovery UDP sender did not build', 4
+      if $udp_unprivileged_build_status != 0;
+    my $listener = IO::Socket::IP->new(
+        LocalHost => '::1', LocalPort => 0, Proto => 'udp',
+    );
+    skip 'the IPv6 loopback UDP listener is unavailable', 4 unless $listener;
+    exercise_udp_sender(
+        binary => $udp_sender_unprivileged,
+        host => '::1', listener => $listener, ipv6 => 1,
+        name => 'unprivileged IPv6 discovery UDP sender',
+    );
+}
+
+SKIP: {
+    skip 'the discovery UDP sender did not build', 4
+      if $udp_build_status != 0;
+    my $source_port_probe = IO::Socket::INET->new(
+        LocalAddr => '0.0.0.0', LocalPort => 301, Proto => 'udp',
+    );
+    skip 'the legacy IPv4 discovery source port is unavailable', 4
+      unless $source_port_probe;
+    close($source_port_probe);
+    my $listener = IO::Socket::INET->new(
+        LocalAddr => '127.0.0.1', LocalPort => 0, Proto => 'udp',
+    );
+    skip 'the IPv4 loopback UDP listener is unavailable', 4 unless $listener;
+    exercise_udp_sender(
+        binary => $udp_sender_binary,
+        host => '127.0.0.1', listener => $listener, source_port => 301,
+        name => 'IPv4 discovery UDP sender',
+    );
+}
+
+SKIP: {
+    skip 'the discovery UDP sender did not build', 4
+      if $udp_build_status != 0;
+    my $source_port_probe = IO::Socket::IP->new(
+        LocalHost => '::', LocalPort => 301, Proto => 'udp',
+    );
+    skip 'the legacy IPv6 discovery source port is unavailable', 4
+      unless $source_port_probe;
+    close($source_port_probe);
+    my $listener = IO::Socket::IP->new(
+        LocalHost => '::1', LocalPort => 0, Proto => 'udp',
+    );
+    skip 'the IPv6 loopback UDP listener is unavailable', 4 unless $listener;
+    exercise_udp_sender(
+        binary => $udp_sender_binary,
+        host => '::1', listener => $listener, ipv6 => 1, source_port => 301,
+        name => 'IPv6 discovery UDP sender',
+    );
 }
 
 my $image = read_file(

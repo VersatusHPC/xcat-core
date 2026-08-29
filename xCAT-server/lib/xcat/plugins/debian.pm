@@ -507,6 +507,52 @@ sub copycd
     }
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 subiquity_kcmdline
+
+    Build the kernel command line for a Subiquity (Ubuntu live installer) diskful install.
+
+    boot=casper: without it casper never processes netboot=nfs -- it scans the local disks,
+    finds no live media and panics into the initramfs shell, which PXE-loops.
+
+    nfsroot must be a literal IP: casper mounts the live filesystem with klibc's nfsmount,
+    which has no resolver. The ds= URL is fetched later by cloud-init, where DNS works, so it
+    keeps the install server's name.
+
+    toram: casper copies the squashfs to RAM and unmounts the NFS source, so nothing holds the
+    network root at shutdown. Without it a process doing I/O to it blocks uninterruptibly,
+    systemd-shutdown waits forever and the node never reboots into the disk it just installed.
+    casper parses only nfsroot= and takes the whole value as the path, so mount options cannot
+    be appended; toram is its supported alternative. It does mean the node needs memory for the
+    live filesystem on top of the installer -- roughly 1.5G on 24.04 -- or it dies part-way
+    through and reboots into the installer again, which looks like a boot-flip failure. See
+    docs/source/troubleshooting/os_installation/ubuntu_subiquity_memory.rst.
+
+    Arguments:
+        $base       the command line built so far
+        $nfsip      the install server as a literal IP, for casper's klibc nfsmount
+        $pkgdir     the install media path exported over NFS
+        $instserver the install server name, for the cloud-init seed URL
+        $httpport   the xCAT HTTP port
+        $node       the node being installed
+    Returns:
+        the completed command line
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub subiquity_kcmdline {
+    my ($base, $nfsip, $pkgdir, $instserver, $httpport, $node) = @_;
+
+    my $kcmdline = $base;
+    $kcmdline .= " autoinstall ip=dhcp boot=casper netboot=nfs nfsroot=${nfsip}:${pkgdir} toram";
+    $kcmdline .= " ds=nocloud-net;s=http://${instserver}:${httpport}/install/autoinst/${node}/";
+    $kcmdline .= " ---";
+
+    return $kcmdline;
+}
+
 sub mkinstall {
     xCAT::MsgUtils->message("S", "Doing debian mkinstall");
     my $request  = shift;
@@ -986,9 +1032,16 @@ sub mkinstall {
             my $kcmdline = "nofb utf8 auto xcatd=" . $instserver;
 
             if (using_subiquity($os,$tmplfile)) {
-                $kcmdline .= " autoinstall ip=dhcp netboot=nfs nfsroot=${instserver}:${pkgdir}";
-                $kcmdline .= " ds=nocloud-net;s=http://${instserver}:${httpport}/install/autoinst/${node}/";
-                $kcmdline .= " ---";
+                # Fail here rather than handing casper a name: klibc's nfsmount cannot resolve
+                # one, so the node would panic "can't parse IP address" at boot, on the node,
+                # with nothing said on the management node.
+                my $nfsip = xCAT::NetworkUtils->getipaddr($instserver);
+                unless ($nfsip) {
+                    xCAT::MsgUtils->report_node_error($callback, $node,
+                        "Could not resolve the install server '$instserver' to an address. The Ubuntu live installer mounts its root with klibc nfsmount, which cannot resolve names, so nfsroot must be an address.");
+                    next;
+                }
+                $kcmdline = subiquity_kcmdline($kcmdline, $nfsip, $pkgdir, $instserver, $httpport, $node);
             } else {
                 $kcmdline .= " url=http://${instserver}:$httpport/install/autoinst/$node";
                 $kcmdline .= " mirror/http/hostname=${instserver}:$httpport";

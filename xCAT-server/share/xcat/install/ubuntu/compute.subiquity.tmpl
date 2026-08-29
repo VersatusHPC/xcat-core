@@ -66,8 +66,14 @@ autoinstall:
       sed -i '/^\.\.\.$/d' /autoinstall.yaml
       cat /tmp/partitionfile >> /autoinstall.yaml
       echo "=== DNS setup ==="
+      # glibc's resolver discards a nameserver line naming a host, so writing the xcatmaster
+      # *name* leaves the installer -- and the in-target apt that inherits this file -- with no
+      # DNS. Resolve it here, while the live installer's DHCP resolv.conf still works.
+      xcatmaster_host="#TABLE:noderes:$NODE:xcatmaster#"
+      xcatmaster_ip="$(getent ahostsv4 "$xcatmaster_host" | awk '{print $1; exit}')"
+      [ -n "$xcatmaster_ip" ] || xcatmaster_ip="$xcatmaster_host"
       rm -f /etc/resolv.conf
-      echo "nameserver #TABLE:noderes:$NODE:xcatmaster#" >/etc/resolv.conf
+      echo "nameserver $xcatmaster_ip" >/etc/resolv.conf
       echo "domain #TABLE:site:key=domain:value#" >>/etc/resolv.conf
       echo "=== early-commands complete ==="
   late-commands:
@@ -100,5 +106,12 @@ autoinstall:
     cp ./#HOSTNAME#.post /target/root/post.script;
     curtin in-target --target /target /root/post.script;
     } >>/target/var/log/xcat/xcat.log 2>&1'
+    # Flip the node to local-disk boot, or it PXE-loops back into the installer on reboot.
+    # "next" is the request xcatd's install monitor answers with "nodeset <node> next". Send it
+    # from the live installer, retried, and log a failure rather than silently reinstalling. A
+    # monitor that died and never came back is a separate problem; see #7759 -- but one that
+    # accepts the connection and then never answers would block a bare read forever and hang the
+    # install here, so both reads are bounded.
+    - ['bash', '-c', 'xm=#XCATVAR:XCATMASTER#; ok=0; for i in 1 2 3 4 5; do if exec 3<>/dev/tcp/$xm/3002; then read -r -t 10 r <&3 || true; printf "next\n" >&3; if read -r -t 10 r <&3; then ok=1; fi; exec 3>&- 3<&-; [ "$ok" = 1 ] && break; fi; sleep 5; done; if [ "$ok" != 1 ]; then echo "xcat: FAILED to flip $(hostname) to local-disk boot via $xm:3002; the node will PXE back into the installer" >>/target/var/log/xcat/xcat.log; fi; exit 0']
   error-commands:
     - tar -c --ignore-failed-read --transform='s/^/#HOSTNAME#-logs\//' /var/crash /var/log/installer /tmp/pre-install.log /autoinstall.yaml 2>/dev/null |nc -l 8080

@@ -37,4 +37,21 @@ for my $ctl (@controls) {
     }
 }
 
+# build-ubunturepo carries its own copy of the architecture list -- which arches the arch-specific
+# packages are built for, the reprepro "Architectures:" line, and mklocalrepo.sh's uname-to-dpkg
+# map. A control file that lists riscv64 while the builder does not produces no riscv64 deb and a
+# repository whose Release says otherwise, which is what apt reports as "Unable to locate package
+# xcat". The builder is a shell script with the list inline, so this checks the text.
+{
+    my $builder = "$root/build-ubunturepo";
+    SKIP: {
+        skip 'build-ubunturepo is not in this tree', scalar(@arches) unless -f $builder;
+        open my $fh, '<', $builder or die "read $builder: $!";
+        local $/; my $text = <$fh>; close $fh;
+        for my $a (@arches) {
+            ok($text =~ /\Q$a\E/, "build-ubunturepo knows the $a architecture");
+        }
+    }
+}
+
 done_testing();

@@ -331,12 +331,12 @@ then
             fi
             packages="$match"
         fi
-        target_archs=(amd64 ppc64el)
+        target_archs=(amd64 ppc64el riscv64)
         for file in $packages
         do
             file_low=`echo $file | tr '[A-Z]' '[a-z]'`
             if [ "$file" = "xCAT" -o "$file" = "xCAT-genesis-scripts" -o "$file" = "xCATsn" ]; then
-                target_archs="amd64 ppc64el"
+                target_archs="amd64 ppc64el riscv64"
             else
                 target_archs="all"
             fi
@@ -440,7 +440,7 @@ then
 
     for dist in $dists; do
         # for all releases moving forward, support amd64 and ppc64el
-        tmp_out_arch="amd64 ppc64el"
+        tmp_out_arch="amd64 ppc64el riscv64"
         if [ "$dist" = "saucy" ]; then
             # for older releases of Ubuntu that does not support ppc64el
             tmp_out_arch="amd64"
@@ -495,11 +495,11 @@ __EOF__
 . /etc/lsb-release
 cd `dirname $0`
 host_arch=`uname -m`
-if [ "$host_arch" != "ppc64le" ];then
-    host_arch="amd64"
-else
-    host_arch="ppc64el"
-fi
+case "$host_arch" in
+    ppc64le) host_arch="ppc64el" ;;
+    riscv64) host_arch="riscv64" ;;
+    *)       host_arch="amd64" ;;
+esac
 echo deb [arch=$host_arch] file://"`pwd`" $DISTRIB_CODENAME main > /etc/apt/sources.list.d/xcat-core.list
 __EOF__
 
@@ -589,7 +589,7 @@ then
 
     #create the conf/distributions file
     for dist in $dists; do
-        tmp_out_arch="amd64 ppc64el"
+        tmp_out_arch="amd64 ppc64el riscv64"
         if [ "$dist" = "saucy" ]; then
             # for older releases of Ubuntu that does not support ppc64el
             tmp_out_arch="amd64"
@@ -647,11 +647,11 @@ __EOF__
 . /etc/lsb-release
 cd `dirname $0`
 host_arch=`uname -m`
-if [ "$host_arch" != "ppc64le" ];then
-    host_arch="amd64"
-else
-    host_arch="ppc64el"
-fi
+case "$host_arch" in
+    ppc64le) host_arch="ppc64el" ;;
+    riscv64) host_arch="riscv64" ;;
+    *)       host_arch="amd64" ;;
+esac
 echo deb [arch=$host_arch] file://"`pwd`" $DISTRIB_CODENAME main > /etc/apt/sources.list.d/xcat-dep.list
 __EOF__
 

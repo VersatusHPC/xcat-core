@@ -40,8 +40,16 @@ $::hostiphash{'v4.cluster'}{hostip} = '10.1.2.3';
 is(xCAT::NetworkUtils->getipaddr('v4.cluster', OnlyV4 => 1), '10.1.2.3',
     'an IPv4 cache entry is still served to an OnlyV4 caller');
 
-# An unrestricted caller keeps its cache hit, whatever family it holds.
-is(xCAT::NetworkUtils->getipaddr('mn.cluster'), '2001:db8::1',
-    'a caller that did not ask for IPv4 still gets the cached address');
+# An OnlyV4 lookup must not rewrite the entry it skipped. It asked for IPv4 for
+# itself; every unrestricted caller of the same host still gets what was cached.
+# This needs a name that really resolves, or the lookup fails, nothing is written,
+# and the assertion passes for the wrong reason.
+$::hostiphash{'localhost'}{hostip} = '2001:db8::1';
+my $resolved = xCAT::NetworkUtils->getipaddr('localhost', OnlyV4 => 1);
+plan skip_all => 'localhost does not resolve to IPv4 here'
+  unless defined($resolved) && $resolved !~ /:/;
+is($resolved, '127.0.0.1', 'OnlyV4 resolves past the cached IPv6 entry');
+is(xCAT::NetworkUtils->getipaddr('localhost'), '2001:db8::1',
+    'the OnlyV4 lookup left the cached address alone for unrestricted callers');
 
 done_testing();

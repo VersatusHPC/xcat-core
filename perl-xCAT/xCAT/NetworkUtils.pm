@@ -298,6 +298,11 @@ sub getipaddr
       && $::hostiphash{$iporhost}
       && $::hostiphash{$iporhost}{hostip}
       && $::hostiphash{$iporhost}{hostip} =~ /:/;
+
+    # When the bypass below fires, this lookup resolves for itself and must leave the
+    # cached answer alone: overwriting it would change what every unrestricted caller
+    # of the same host gets next, and none of them asked for IPv4.
+    my $keep_cached = $extraarguments{OnlyV4} && $cached_v6;
     if (
         ((not $extraarguments{OnlyV6}) and (not $extraarguments{GetAllAddresses}))
         and (not($extraarguments{OnlyV4} and $cached_v6))
@@ -331,7 +336,7 @@ sub getipaddr
             @addrinfo=Socket6::getaddrinfo($iporhost, 0, $reqfamily, SOCK_STREAM, 6);
         }
         my ($family, $socket, $protocol, $ip, $name) = splice(@addrinfo, 0, 5);
-        unless($reqfamily == AF_INET6){
+        unless($reqfamily == AF_INET6 or $keep_cached){
             if($isip){
                if($name){
                    $::hostiphash{$iporhost}{hostip}=$name;
@@ -350,10 +355,10 @@ sub getipaddr
                     $bignumber->badd($_);
                 }
                 push(@returns, $bignumber);
-                $::hostiphash{$iporhost}{Number}=$returns[0];
+                $::hostiphash{$iporhost}{Number}=$returns[0] unless $keep_cached;
             } else {
                 push @returns, (Socket6::getnameinfo($ip, Socket6::NI_NUMERICHOST()))[0];
-                $::hostiphash{$iporhost}{hostip}=$returns[0];
+                $::hostiphash{$iporhost}{hostip}=$returns[0] unless $keep_cached;
             }
             if (scalar @addrinfo and $extraarguments{GetAllAddresses}) {
                 ($family, $socket, $protocol, $ip, $name) = splice(@addrinfo, 0, 5);
@@ -384,7 +389,7 @@ sub getipaddr
 
         my $myip=inet_ntoa($packed_ip);
 
-        unless($isip) {
+        unless($isip or $keep_cached) {
             $::hostiphash{$iporhost}{hostip}=$myip;
         }
 

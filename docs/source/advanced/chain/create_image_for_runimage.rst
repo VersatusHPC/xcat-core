@@ -3,6 +3,8 @@
 How to prepare a image for ``runimage`` in ``chain``
 ====================================================
 
+.. note:: This procedure applies to the legacy Genesis image. The OpenEmbedded Genesis image refuses ``runimage`` and reports ``UNSAFE_LEGACY_ACTION``. Build a signed system extension with ``xCAT-genesis-builder/oe/export-extension`` instead.
+
 * The things needed
     * The pkgs, scripts or other files that you needed
     * The runme.sh script that you create to operate the needed files

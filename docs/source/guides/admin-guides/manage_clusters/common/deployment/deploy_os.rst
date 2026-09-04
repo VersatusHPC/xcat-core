@@ -7,7 +7,7 @@ XCAT use '**nodeset**' command to associate a specific image to a node which wil
 
 There are more attributes of nodeset used for some specific purpose or specific machines, for example:
 
-* **runimage**: If you would like to run a task after deployment, you can define that task with this attribute.
+* **runimage**: If you would like to run a task after deployment, you can define that task with this attribute. The legacy Genesis image runs this task. The OpenEmbedded Genesis image refuses it; build a signed system extension with ``xCAT-genesis-builder/oe/export-extension``.
 * **runcmd**: This instructs the node to boot to the xCAT nbfs environment and proceed to configure BMC for basic remote access.  This causes the IP, netmask, gateway, username, and password to be programmed according to the configuration table.
 * **shell**: This instructs the node to boot to the xCAT genesis environment, and present a shell prompt on console.  The node will also be able to be sshed into and have utilities such as wget, tftp, scp, nfs, and cifs.  It will have storage drivers available for many common systems.
 

@@ -17,6 +17,8 @@ Currently only the ``bmcsetup`` command is officially supplied by xCAT to run to
 
     runimage=<URL>
 
+.. note:: ``runimage`` runs on the legacy Genesis image only. The OpenEmbedded Genesis image refuses the action and reports ``UNSAFE_LEGACY_ACTION``. On OpenEmbedded, build a signed system extension with ``xCAT-genesis-builder/oe/export-extension``.
+
 **URL** is a string which can be run by ``wget`` to download the image from the URL. The example could be: ::
 
     runimage=http://<IP of xCAT Management Node>/<dir>/image.tgz

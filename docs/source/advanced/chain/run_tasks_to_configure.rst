@@ -8,4 +8,6 @@ Run the ``nodeset`` command to set the tasks for the compute node and ``rpower <
 
 In this example, the ``runimage`` will be run first, and then the image <image_name> will be deployed to the node.
 
+.. note:: ``runimage`` runs on the legacy Genesis image only. The OpenEmbedded Genesis image refuses the action; package the task as a signed system extension with ``xCAT-genesis-builder/oe/export-extension``.
+
 

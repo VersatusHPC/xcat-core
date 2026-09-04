@@ -17,7 +17,9 @@ use File::Spec;
 
 my $root = File::Spec->rel2abs(dirname(__FILE__) . '/../..');
 my $builder = "$root/builddebs.pl";
-plan skip_all => "builddebs.pl is not in this tree" unless -f $builder;
+# A skip here would pass on a tree where builddebs.pl was renamed, and the map
+# would go uncovered without a red run.
+BAIL_OUT("builddebs.pl is not in this tree") unless -f $builder;
 
 open my $fh, '<', $builder or die "read $builder: $!";
 my $text = do { local $/; <$fh> };
@@ -62,10 +64,16 @@ sub arch_for {
     return ($arch, $line);
 }
 
+# The default arm answers for every machine the map does not name. apt has no
+# xCAT packages for these, but amd64 is what the map returned before riscv64 was
+# added, and a new arm must not move them.
 my %expected = (
     'x86_64'  => 'amd64',
     'ppc64le' => 'ppc64el',
     'riscv64' => 'riscv64',
+    'aarch64' => 'amd64',
+    's390x'   => 'amd64',
+    'i686'    => 'amd64',
 );
 
 for my $machine (sort keys %expected) {
@@ -75,5 +83,12 @@ for my $machine (sort keys %expected) {
     like($line, qr/^deb \[arch=\S+\] file:\/\/.* noble main$/,
         "the sources.list entry for $machine keeps its shape");
 }
+
+# uname prints nothing when it cannot read the machine name. The default arm must
+# still answer, because apt rejects a sources line that carries an empty arch=.
+my ($empty_arch, $empty_line) = arch_for('');
+is($empty_arch, 'amd64', 'mklocalrepo.sh asks apt for amd64 when uname says nothing');
+like($empty_line, qr/^deb \[arch=\S+\] file:\/\/.* noble main$/,
+    'the sources.list entry keeps its shape when uname says nothing');
 
 done_testing();

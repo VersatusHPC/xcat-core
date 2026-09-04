@@ -178,11 +178,43 @@ sub handled_commands
     return { makedhcp => "dhcp", };
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 _deployed_omapi_algorithm
+
+    Descriptions: Read the algorithm the OMAPI key stanza of a dhcpd.conf declares.
+    Arguments:    the path of the dhcpd.conf to read; $dhcpconffile by default
+    Returns:      the algorithm name in lower case, or undef when the file names none
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub _deployed_omapi_algorithm
+{
+    my $file = shift || $dhcpconffile;
+
+    open( my $conf, '<', $file ) or return;
+    my $algorithm;
+    my $inkey = 0;
+    while ( my $line = <$conf> ) {
+        if ( $line =~ /^\s*key\s+\S+\s*\{/ ) { $inkey = 1; next; }
+        next unless $inkey;
+        if ( $line =~ /^\s*algorithm\s+([^;\s]+)\s*;/ ) { $algorithm = lc($1); last; }
+        $inkey = 0 if $line =~ /^\s*\}/;
+    }
+    close($conf);
+    return $algorithm;
+}
+
 sub _omapi_settings
 {
     my $cb = shift || $callback;
 
-    my $settings = xCAT::DHCP::OmapiPolicy->settings();
+    # omshell authenticates against the stanza dhcpd already loaded. Only makedhcp -n
+    # rewrites that stanza, so a site that names no algorithm keeps the deployed one until
+    # then, and an omshell that cannot name an algorithm keeps working across an upgrade.
+    my $settings = xCAT::DHCP::OmapiPolicy->settings(
+        deployed_algorithm => _deployed_omapi_algorithm() );
     if ($settings->{error}) {
         $cb->({ error => [ $settings->{error} ], errorcode => [1] }) if $cb;
         syslog("local4|err", $settings->{error});

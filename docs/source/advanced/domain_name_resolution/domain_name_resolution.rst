@@ -93,7 +93,19 @@ Edit **/etc/resolv.conf** to contain the cluster domain value you set in the sit
 Legacy ISC DHCP and BIND TSIG Key Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. New installations on Enterprise Linux 9 or later and Ubuntu 20.04 or later set **hmac-sha256**. Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 leave **dhcpomapialgorithm** unset because their bundled ``omshell`` does not support the ``key-algorithm`` command. If **dhcpomapialgorithm** is not set, including on an existing installation, xCAT continues to use **hmac-md5** for compatibility. HMAC-MD5 is not approved for FIPS mode; a FIPS-mode site that needs OMAPI must provide an ``omshell`` supporting ``key-algorithm`` and set a SHA-2 algorithm explicitly. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
+xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. If **dhcpomapialgorithm** is not set, xCAT uses **hmac-sha256**. HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
+
+New installations on Enterprise Linux 9 or later and Ubuntu 20.04 or later set **hmac-sha256**. New installations on Enterprise Linux 8, Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 set **hmac-md5**, because their bundled ``omshell`` does not support the ``key-algorithm`` command.
+
+An upgrade does not change the algorithm under a running cluster:
+
+* A site that sets **dhcpomapialgorithm** keeps that value.
+* A site that sets no value keeps the algorithm the ``dhcpd.conf`` OMAPI key stanza declares. Run ``makedhcp -n`` to write a stanza with the current default.
+* ``makedns`` replaces a ``named.conf`` key stanza that does not declare the algorithm xCAT signs with, and restarts ``named``. A management node in FIPS mode that names no algorithm moves to **hmac-sha256** at the first ``makedns``.
+
+To keep legacy ISC DHCP OMAPI and BIND DDNS on HMAC-MD5, set the attribute before the upgrade: ::
+
+      chdef -t site dhcpomapialgorithm=hmac-md5
 
 To use another supported algorithm, set **dhcpomapialgorithm** in the site table and update the matching **passwd** table secret. Supported values are **hmac-md5**, **hmac-sha1**, **hmac-sha224**, **hmac-sha256**, **hmac-sha384**, and **hmac-sha512**. For example: ::
 

@@ -19,7 +19,18 @@ sub settings {
 
     my $raw_algorithm      = _site_value( 'dhcpomapialgorithm', %args );
     my $algorithm_explicit = defined($raw_algorithm) && $raw_algorithm ne '';
-    my $algorithm          = $class->normalize_algorithm($raw_algorithm);
+
+    # A key stanza that is already written wins over the default. An upgraded cluster that
+    # names no algorithm keeps the one its running daemon and its clients already agree on.
+    unless ($algorithm_explicit) {
+        my $deployed = $args{deployed_algorithm};
+        if ( defined($deployed) && $deployed ne '' ) {
+            my $normalized = $class->normalize_algorithm($deployed);
+            $raw_algorithm = $normalized if $normalized;
+        }
+    }
+
+    my $algorithm = $class->normalize_algorithm($raw_algorithm);
     unless ($algorithm) {
         return {
             error => "Invalid site.dhcpomapialgorithm value '$raw_algorithm'. Valid values are: "
@@ -58,7 +69,9 @@ sub settings {
 sub normalize_algorithm {
     my ( $class, $algorithm ) = @_;
 
-    $algorithm = 'hmac-md5' unless defined($algorithm) && $algorithm ne '';
+    # hmac-md5 is not approved for FIPS mode. named starts with no complaint about an
+    # md5 key stanza and then answers SERVFAIL to every update signed with that key.
+    $algorithm = 'hmac-sha256' unless defined($algorithm) && $algorithm ne '';
     $algorithm = trim($algorithm);
     $algorithm = lc($algorithm);
 
@@ -76,19 +89,30 @@ sub algorithm_rr_type {
 sub new_install_default_algorithm {
     my ( $class, %args ) = @_;
 
+    return unless $args{is_new_install};
+    return 'hmac-sha256' if $class->omshell_takes_key_algorithm(%args);
+
+    # The site table pins hmac-md5 for a platform whose omshell cannot name an algorithm.
+    # Without the entry the installation would take the hmac-sha256 default and its OMAPI
+    # would authenticate against the wrong algorithm.
+    return 'hmac-md5';
+}
+
+sub omshell_takes_key_algorithm {
+    my ( $class, %args ) = @_;
+
     my $platform = $args{platform};
     my $os       = $args{os};
 
-    return unless $args{is_new_install};
-    return 'hmac-sha256'
+    return 1
       if defined($platform) && $platform =~ /^el(\d+)\b/i && $1 >= 9;
     if ( defined($os) && $os =~ /^ubuntu,(\d+\.\d+(?:\.\d+)*)\b/i ) {
         my $ubuntu_version = $1;
         require xCAT::Utils;
-        return 'hmac-sha256'
+        return 1
           if xCAT::Utils->version_cmp( $ubuntu_version, '20.04' ) >= 0;
     }
-    return;
+    return 0;
 }
 
 sub normalize_key_name {

@@ -60,9 +60,13 @@ is(
             privkey        => 'legacy-secret',
         }
     ),
-"key \"xcat_key\" {\n\talgorithm hmac-md5;\n\tsecret \"legacy-secret\";\n};\n\n",
-    'default DDNS key remains xcat_key with hmac-md5'
+"key \"xcat_key\" {\n\talgorithm hmac-sha256;\n\tsecret \"legacy-secret\";\n};\n\n",
+    'default DDNS key is xcat_key with hmac-sha256'
 );
+
+# The two-argument sign_tsig interface produces an HMAC-MD5 signature only, so the
+# threshold checks below drive a site that names hmac-md5.
+my $legacy_md5 = omapi_settings( dhcpomapialgorithm => 'hmac-md5' );
 
 my $sha512 = omapi_settings(
     dhcpomapialgorithm => 'hmac-sha512',
@@ -135,7 +139,7 @@ subtest 'Net::DNS threshold controls DDNS policy and signing' => sub {
             sub {
                 xCAT_plugin::ddns::ddns_sign_update(
                     {
-                        omapi_settings => $defaults,
+                        omapi_settings => $legacy_md5,
                         privkey        => 'legacy-secret',
                     },
                     $update

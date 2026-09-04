@@ -2925,9 +2925,11 @@ sub kea_build_dhcp4_intent
         my $interface = $netif;
         my $remote = 0;
         if ($interface =~ /!remote!\S*/) {
+            # A !remote! network reaches this server through a DHCP relay. Kea picks
+            # the subnet from the giaddr of the relay, and a reservation must name a
+            # subnet, so declare the subnet although no local interface faces it.
             $remote = 1;
             $interface =~ s/!remote!\s*(.*)$/$1/;
-            next unless $dhcp_interfaces{'!remote!'};
         } else {
             next unless $dhcp_interfaces{$interface};
         }

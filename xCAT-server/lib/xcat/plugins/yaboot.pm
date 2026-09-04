@@ -16,6 +16,7 @@ use xCAT::Usage;
 
 my %breaknetbootnodes;
 our %normalnodes;
+my %failurenodes;
 my $dhcpconf      = "/etc/dhcpd.conf";
 my $globaltftpdir = xCAT::TableUtils->getTftpDir();
 
@@ -102,12 +103,7 @@ sub setstate {
         my @ipfnd = xCAT::NetworkUtils->my_ip_facing($node);
 
         if ($ipfnd[0] == 1) {
-            $::YABOOT_callback->(
-                {
-                    error     => [ $ipfnd[1] ],
-                    errorcode => [1]
-                });
-            return;
+            return (1, $ipfnd[1]);
         }
         elsif ($ipfnd[0] == 2) {
             my $servicenodes = $nrhash{$node}->[0];
@@ -117,29 +113,11 @@ sub setstate {
 
                     # We are in the service node pools, print error if no facing ip.
                     if (xCAT::InstUtils->is_me($sn)) {
-                        my @myself = xCAT::NetworkUtils->determinehostname();
-                        my $myname = $myself[ (scalar @myself) - 1 ];
-                        $::YABOOT_callback->(
-                            {
-                                error => [
-                                    "$myname: $ipfnd[1] on service node $sn"
-                                ],
-                                errorcode => [1]
-                            }
-                        );
-                        return;
+                        return (1, "$::myxcatname: $ipfnd[1] on service node $sn");
                     }
                 }
             } else {
-                $::YABOOT_callback->(
-                    {
-                        error => [
-                            "$myname: $ipfnd[1]"
-                        ],
-                        errorcode => [1]
-                    }
-                );
-                return;
+                return (1, "$::myxcatname: $ipfnd[1]");
             }
         } else {
             $ipfn = $ipfnd[1];
@@ -226,7 +204,7 @@ sub setstate {
                             my $inetn = xCAT::NetworkUtils->getipaddr($node);
                             unless ($inetn) {
                                 syslog("local1|err", "xCAT unable to resolve IP for $node in yaboot plugin");
-                                return;
+                                return (1, "xCAT unable to resolve IP for $node in yaboot plugin.");
                             }
                         } else { #TODO: actually, should possibly default to xCAT image?
                             print $pcfg "bye\n";
@@ -286,7 +264,7 @@ sub setstate {
             my $inetn = xCAT::NetworkUtils->getipaddr($node);
             unless ($inetn) {
                 syslog("local1|err", "xCAT unable to resolve IP for $node in yaboot plugin");
-                return;
+                return (1, "xCAT unable to resolve IP for $node in yaboot plugin.");
             }
         } else {    #TODO: actually, should possibly default to xCAT image?
             print $pcfg "bye\n";
@@ -294,8 +272,8 @@ sub setstate {
         }
         my $ip = xCAT::NetworkUtils->getipaddr($node);
         unless ($ip) {
-            syslog("local1|err", "xCAT unable to resolve IP in yaboot plugin");
-            return;
+            syslog("local1|err", "xCAT unable to resolve IP for $node in yaboot plugin");
+            return (1, "xCAT unable to resolve IP for $node in yaboot plugin.");
         }
         my $mactab = xCAT::Table->new('mac');
         my %ipaddrs;
@@ -342,7 +320,7 @@ sub setstate {
 
     }
 
-    return;
+    return (0, "");
 }
 
 
@@ -479,6 +457,10 @@ sub process_request {
     my $command = $::YABOOT_request->{command}->[0];
     %breaknetbootnodes = ();
     %normalnodes       = ();
+    %failurenodes      = ();
+
+    my @hostinfo = xCAT::NetworkUtils->determinehostname();
+    $::myxcatname = $hostinfo[-1];
 
     my @args;
 
@@ -621,8 +603,9 @@ sub process_request {
 
             ($rc, $errstr) = setstate($_, \%bphash, $chainhash, $machash, $tftpdir, $nrhash, $linuximghash);
             if ($rc) {
+                $failurenodes{$_} = 1;
                 $response{node}->[0]->{errorcode}->[0] = $rc;
-                $response{node}->[0]->{errorc}->[0]    = $errstr;
+                $response{node}->[0]->{error}->[0]     = $errstr;
                 $::YABOOT_callback->(\%response);
             }
         }
@@ -864,6 +847,15 @@ sub process_request {
             $rsp->{error}->[0] = "Failed in running end prescripts.  Processing will still continue.\n";
             $::YABOOT_callback->($rsp);
         }
+    }
+
+    # Return error codes if there are failed nodes
+    if (%failurenodes) {
+        my $rsp;
+        $rsp->{errorcode}->[0] = 1;
+        $rsp->{error}->[0]     = "Failed to generate yaboot configurations for some node(s) on $::myxcatname. Check xCAT log file for more details.";
+        $::YABOOT_callback->($rsp);
+        return;
     }
 }
 

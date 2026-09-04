@@ -247,6 +247,17 @@ sub genUUID
     return $uuid;
 }
 
+# The OS CSPRNG. On Linux in FIPS mode the kernel serves this device from the
+# validated DRBG, so genpassword needs no userspace generator and no new module.
+our $RANDOM_DEVICE = '/dev/urandom';
+
+my @PASSWORD_ALPHABET = ('a' .. 'z', 'A' .. 'Z', '0' .. '9');
+
+# 256 is not a multiple of 62. Discard the bytes at or above this bound, or the
+# first eight letters of the alphabet come out more often than the rest.
+my $PASSWORD_BYTE_LIMIT =
+  int(256 / scalar(@PASSWORD_ALPHABET)) * scalar(@PASSWORD_ALPHABET);
+
 #--------------------------------------------------------------------------------
 
 =head3    genpassword
@@ -256,30 +267,45 @@ sub genUUID
     Returns:
       string of requested length or 8
     Globals:
-        none
+        $RANDOM_DEVICE - the character device that supplies the random bytes
     Error:
-        none
+        dies when the random device cannot be read
     Example:
          my $salt = genpassword(8);
     Comments:
-        none
+        Callers use the result as secret material - the DDNS TSIG key, the
+        ISC DHCP OMAPI key, BMC passwords. Perl rand is a drand48 generator
+        seeded with 32 bits, so it cannot supply these. This routine dies
+        rather than return a value the OS CSPRNG did not produce.
 =cut
 
 #--------------------------------------------------------------------------------
 sub genpassword
 {
-
-    #Generate a pseudo-random password of specified length
     my $length = shift;
     unless ($length) { $length = 8; }
+
+    open(my $random, '<:raw', $RANDOM_DEVICE)
+      or die "xCAT::Utils::genpassword: cannot open $RANDOM_DEVICE: $!";
+
     my $password = '';
-    my $characters =
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
     while (length($password) < $length)
     {
-        $password .= substr($characters, int(rand 63), 1);
+        my $bytes = '';
+        my $count = read($random, $bytes, $length - length($password));
+        unless ($count)
+        {
+            close($random);
+            die "xCAT::Utils::genpassword: cannot read $RANDOM_DEVICE: $!";
+        }
+        foreach my $byte (unpack('C*', $bytes))
+        {
+            next if $byte >= $PASSWORD_BYTE_LIMIT;
+            $password .=
+              $PASSWORD_ALPHABET[ $byte % scalar(@PASSWORD_ALPHABET) ];
+        }
     }
+    close($random);
     return $password;
 }
 

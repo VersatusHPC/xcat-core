@@ -54,6 +54,32 @@ my $expected = 'ab9af';
         'genpassword reports the random device it could not read');
 }
 
+# A device that returns only discarded bytes must stop the routine, not spin.
+# The fixture holds far more of them than a bounded run can read, so the routine
+# has to stop at its own limit and not at the end of the file. The alarm makes a
+# routine that never stops fail rather than hang the suite.
+{
+    my $rejected = "$dir/rejected.fixture";
+    open(my $rejected_handle, '>:raw', $rejected) or die "open $rejected: $!";
+    print {$rejected_handle} chr(0xff) x 65536;
+    close($rejected_handle);
+
+    local $xCAT::Utils::RANDOM_DEVICE = $rejected;
+    my $password = eval {
+        local $SIG{ALRM} = sub { die "genpassword did not stop\n" };
+        alarm 30;
+        my $result = xCAT::Utils::genpassword(8);
+        alarm 0;
+        $result;
+    };
+    my $error = $@;
+    alarm 0;
+    ok(!defined $password,
+        'genpassword returns nothing when the device discards every byte');
+    like($error, qr/no usable byte/,
+        'genpassword stops after a bounded number of reads');
+}
+
 {
     $CORE_RNG_CALLS = 0;
     my $password = xCAT::Utils::genpassword(32);

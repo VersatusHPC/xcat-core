@@ -513,8 +513,12 @@ sub build_diskstruct {
 
             #Setting default values of a virtual disk backed by a file at hd*.
             my $diskhash;
-            $disk =~ s/=(.*)//;
-            my $model = $1;
+            # A failed substitution leaves $1 as the last successful capture, which can come
+            # from a match made by a caller. Read $1 only when this substitution matches.
+            my $model;
+            if ($disk =~ s/=(.*)//) {
+                $model = $1;
+            }
             unless ($model) {
 
                 #if not defined, model will stay undefined like above
@@ -1579,8 +1583,12 @@ sub createstorage {
     if ($mastername and $size) {
         return 1, "Can not specify both a master to clone and size(s)";
     }
-    $filename =~ s/=(.*)//;
-    my $model = $1;
+    # A failed substitution leaves $1 as the last successful capture, which can come from a
+    # match made by a caller. Read $1 only when this substitution matches.
+    my $model;
+    if ($filename =~ s/=(.*)//) {
+        $model = $1;
+    }
     unless ($model) {
 
         #if not defined, model will stay undefined like above

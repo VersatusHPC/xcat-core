@@ -1579,6 +1579,29 @@ sub update_namedconf {
     }
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 ddns_update_summary
+
+    Descriptions: Name the records that a dynamic DNS update carries.
+    Arguments: the Net::DNS::Update object
+    Returns: the records as one comma separated string
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub ddns_update_summary {
+    my ($update) = @_;
+
+    my @records;
+    foreach my $record ($update->update) {
+        my $text = $record->string;
+        $text =~ s/\s+/ /g;
+        push @records, $text;
+    }
+    return join(', ', @records);
+}
+
 # Send a signed dynamic DNS update, retrying transient rejections. Right after a zone (re)load named
 # can reply NOTAUTH, or SERVFAIL before the zone is ready to accept dynamic updates; both are
 # recoverable, so retry a few times (pausing on SERVFAIL). Returns 0 only when the update was
@@ -1586,7 +1609,11 @@ sub update_namedconf {
 # this returns non-zero. (The previous inline loop fell through to success after exhausting its
 # retries on NOTAUTH/SERVFAIL, so makedns claimed success even when the update was never accepted.)
 sub send_ddns_update {
-    my ($ctx, $resolver, $update, $zone, $entry) = @_;
+    my ($ctx, $resolver, $update, $zone) = @_;
+
+    # The caller sends the last batch of a zone after its foreach ends, and a foreach
+    # variable does not survive the loop. Take the records from the update itself.
+    my $entry = ddns_update_summary($update);
 
     for my $attempt (1 .. 3) {
         ddns_sign_update($ctx, $update);
@@ -1713,12 +1740,12 @@ sub add_or_delete_records {
                 $numreqs -= 1;
                 if ($numreqs == 0) {
                     $numreqs = 300;
-                    return 1 if send_ddns_update($ctx, $resolver, $update, $zone, $entry);
+                    return 1 if send_ddns_update($ctx, $resolver, $update, $zone);
                     $update = Net::DNS::Update->new($zone);   #new empty request
                 }
             }
             if ($numreqs != 300) { #either no entries at all to begin with or a perfect multiple of 300
-                return 1 if send_ddns_update($ctx, $resolver, $update, $zone, $entry);
+                return 1 if send_ddns_update($ctx, $resolver, $update, $zone);
 
                 # sometimes resolver does not work if the update zone request sent so quick
                 sleep 1;

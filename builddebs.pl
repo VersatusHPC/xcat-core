@@ -313,6 +313,9 @@ sub write_repo_metadata {
     my ($repodir) = @_;
 
     # Point apt at this directory, for a locally built repo.
+    #
+    # The map runs on the machine that installs xCAT, not in the build, so it stays
+    # in the script and not in BuildUtils.
     write_script("$repodir/mklocalrepo.sh", <<'SCRIPT');
 . /etc/lsb-release
 cd `dirname $0`

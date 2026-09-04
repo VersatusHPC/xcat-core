@@ -10,7 +10,7 @@ check:rc==0
 cmd:sleep 20
 cmd:ps -e | grep -E "dhcpd|kea-dhcp4" | grep -v grep
 check:rc==0
-cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then systemctl status kea-dhcp4; elif cat /etc/*release | grep Ubuntu >/dev/null; then service isc-dhcp-server status; else service dhcpd status; fi
+cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then dhcpd_unit=kea-dhcp4; elif cat /etc/*release | grep Ubuntu >/dev/null; then dhcpd_unit=isc-dhcp-server; else dhcpd_unit=dhcpd; fi; systemctl status $dhcpd_unit
 check:output=~running
 cmd:if [ -f "/etc/dhcp/dhcpd.conf.bak" ]; then mv -f /etc/dhcp/dhcpd.conf.bak /etc/dhcp/dhcpd.conf; elif [ -f "/etc/dhcpd.conf.bak" ]; then mv -f /etc/dhcpd.conf.bak /etc/dhcpd.conf; fi; if [ -f "/etc/kea/kea-dhcp4.conf.bak" ]; then mv -f /etc/kea/kea-dhcp4.conf.bak /etc/kea/kea-dhcp4.conf; fi
 end
@@ -161,7 +161,7 @@ os:Linux
 label:cn_os_ready,dhcp
 cmd:makedhcp -a -d
 check:rc==0
-cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then systemctl restart kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then service isc-dhcp-server restart; else service dhcpd restart; fi
+cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then dhcpd_unit=kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then dhcpd_unit=isc-dhcp-server; else dhcpd_unit=dhcpd; fi; systemctl restart $dhcpd_unit
 cmd:makedhcp -q $$CN
 check:rc==0
 check:output!~$$CN
@@ -173,7 +173,7 @@ os:ubuntu
 label:cn_os_ready,dhcp
 cmd:makedhcp -a -d
 check:rc==0
-cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then systemctl restart kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then service isc-dhcp-server restart; else service dhcpd restart; fi
+cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then dhcpd_unit=kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then dhcpd_unit=isc-dhcp-server; else dhcpd_unit=dhcpd; fi; systemctl restart $dhcpd_unit
 cmd:if [ -f /var/lib/kea/kea-leases4.csv ]; then cat /var/lib/kea/kea-leases4.csv | grep $$CN; elif [ -f /var/lib/dhcp/dhcpd.leases ]; then cat /var/lib/dhcp/dhcpd.leases | grep $$CN;  fi
 check:output!~$$CN
 cmd:makedhcp -a
@@ -184,7 +184,7 @@ os:Linux
 label:cn_os_ready,dhcp
 cmd:makedhcp -d $$CN
 check:rc==0
-cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then systemctl restart kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then service isc-dhcp-server restart; else service dhcpd restart; fi
+cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then dhcpd_unit=kea-dhcp4; elif cat /etc/*release | grep -qi ubuntu; then dhcpd_unit=isc-dhcp-server; else dhcpd_unit=dhcpd; fi; systemctl restart $dhcpd_unit
 cmd:makedhcp -q $$CN
 check:output!~$$CN
 cmd:makedhcp -a

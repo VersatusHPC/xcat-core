@@ -711,6 +711,15 @@ sub getUnits {
     }
 }
 
+# default_storagemodel: the storage model of a node whose vmstoragemodel is empty.
+#
+# The model names the volume of the node, createstorage builds that name, and libvirt reads
+# the bus of the disk out of it. scsi keeps every architecture on sd*, which is the only disk
+# controller the riscv64 virt machine has.
+sub default_storagemodel {
+    return 'scsi';
+}
+
 # guest_arch_profile: the libvirt domain type and <os> settings for one guest.
 #
 # The architecture of the guest comes from the node, not from the hypervisor. A node whose
@@ -4307,8 +4316,7 @@ sub dohyp {
 
     foreach $node (sort (keys %{ $hyphash{$hyp}->{nodes} })) {
         unless ($confdata->{vm}->{$node}->[0]->{storagemodel}) {
-            # Storage model is not set, default to  scsi for all architectures
-            $confdata->{vm}->{$node}->[0]->{storagemodel} = "scsi";
+            $confdata->{vm}->{$node}->[0]->{storagemodel} = default_storagemodel();
         }
         if ($confdata->{$hyp}->{cpu_thread}) {
             $confdata->{vm}->{$node}->[0]->{cpu_thread} = $confdata->{$hyp}->{cpu_thread};

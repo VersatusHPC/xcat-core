@@ -14,7 +14,8 @@ my $content = do { local $/; <$source_fh> };
 close($source_fh) or die "close $source: $!";
 
 my @routines;
-for my $name (qw(createstorage build_diskstruct guest_arch_profile getUnits)) {
+for my $name (qw(createstorage build_diskstruct guest_arch_profile getUnits
+    default_storagemodel)) {
     my ($routine) = $content =~ /^(sub \Q$name\E\s*\{.*?^\})/ms;
     BAIL_OUT("could not extract $name from kvm.pm") unless $routine;
     push(@routines, $routine);
@@ -81,8 +82,14 @@ is(volume_dev(storagemodel => 'virtio'), 'vda',
     'vmstoragemodel=virtio names a vd* volume');
 
 # createstorage on its own defaults to ide. Nothing in the product reaches this today, because
-# dohyp sets scsi first; the assertion is here so that a change to that default is visible.
+# dohyp gives every node the default storage model first.
 is(volume_dev(), 'hda', 'createstorage alone defaults to an hd* volume');
+
+# So the sd* name of a node with no vmstoragemodel rests on that default, and a riscv64 node
+# rests on the sd* name. Drive the two together, so a change to the default fails here rather
+# than on a riscv64 node that stops booting.
+is(volume_dev(storagemodel => KVMStore::default_storagemodel()), 'sda',
+    'the default storage model names an sd* volume');
 
 # build_diskstruct reads $1 the same way, for a disk backed by a plain file. The device name
 # and the bus of that disk must come from the node, not from a match made elsewhere.

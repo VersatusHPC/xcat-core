@@ -1,11 +1,11 @@
-xcatsn (2.5.0-2) stable; urgency=low
+xcatsn (2.19.0-snap202609021931) stable; urgency=low
 
   * Initial Debian build
 
- -- Mark Hamzy <hamzy@us.ibm.com>  Fri, 29 Apr 2011 14:40:34 -0500
+ -- xCAT Build <xcat-build@xcat.org>  Wed, 02 Sep 2026 20:56:04 +0000
 
 xcatsn (2.5.0-1) stable; urgency=low
 
   * Initial Release
 
- -- OCF xCAT <xcat@ocf.co.uk>  Mon, 25 Oct 2010 09:00:00 -0000
+ -- xCAT Build <xcat-build@xcat.org>  Wed, 02 Sep 2026 20:56:04 +0000

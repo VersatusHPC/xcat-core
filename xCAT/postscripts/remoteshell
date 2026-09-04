@@ -376,7 +376,12 @@ if ssh-keygen -t ed25519 -f /tmp/ed25519_key -P "" &>/dev/null ; then
   else
 	#This is an error message
 	ERR_MSG=`sed -n 's%.*<error>\(.*\)</error>.*%\1%p' /tmp/ssh_ed25519_hostkey`
-	logger -s -t $log_label -p local4.err Error: $ERR_MSG
+	# The management node generates an ed25519 host key only when it can. In FIPS
+	# mode ssh-keygen refuses the type, so /etc/xcat/hostkeys holds no ed25519 key
+	# and the node keeps its own. That is expected, not an error: log to syslog only
+	# (no -s) and without the word "Error" so it does not pollute postscript output
+	# (e.g. updatenode's "output !~ error" check).
+	logger -t $log_label -p local4.info "remoteshell: ssh_host_ed25519_key unavailable, skipping ($ERR_MSG)"
   fi
   rm /tmp/ssh_ed25519_hostkey
 fi

@@ -338,7 +338,9 @@ cmd:cp -f /etc/hosts /etc/hosts.xcattestbak
 cmd:echo "10.1.1.200 testnode1" >> /etc/hosts
 cmd:makedns -n
 check:rc==0
-cmd:chdef testnode1 netboot=yaboot addkcmdline=debug
+# The management node has no interface on 10.1.1.0/24. The kickstart template reads
+# noderes.xcatmaster and falls back to my_ip_facing when that field is empty.
+cmd:chdef testnode1 netboot=yaboot addkcmdline=debug xcatmaster=`lsdef -t site -i master | awk -F= '/master=/{print $2}'`
 check:rc==0
 cmd:mkdef "rhels6.99-ppc64-install-compute" -u profile=compute provmethod=install osvers=rhels6.99 osarch=ppc64
 cmd:mkdir -p /install/rhels6.99/ppc64/ppc/{chrp,ppc64}

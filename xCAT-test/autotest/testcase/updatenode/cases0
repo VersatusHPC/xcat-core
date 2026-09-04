@@ -27,7 +27,7 @@ cmd:echo "/etc/hosts -> /etc/hosts" > /install/custom/install/__GETNODEATTR($$CN
 check:rc==0
 cmd:echo "/etc/resolv.conf -> /etc/resolv.conf" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
@@ -44,7 +44,7 @@ check:rc==0
 cmd:xdsh $$CN diff /etc/resolv.conf /tmp/resolv.conf
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 end
 
@@ -60,7 +60,7 @@ cmd:echo "/tmp/syncfile/test1.txt -> /tmp/testx.txt" > /install/custom/install/_
 check:rc==0
 cmd:echo "/tmp/syncfile/test2.txt -> /tmp/testy.txt" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
@@ -73,7 +73,7 @@ cmd:xdsh $$CN "cat /tmp/testy.txt"
 check:output=~test2
 cmd:xdsh $$CN "rm -rf /tmp/testx.txt /tmp/testy.txt"
 check:rc==0
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /tmp/syncfile/ /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 end
@@ -89,7 +89,7 @@ cmd:echo "test2" > /tmp/sync/test2.txt
 check:rc==0
 cmd:echo "/tmp/sync/* -> /tmp/" > /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
@@ -102,7 +102,7 @@ cmd:xdsh $$CN "cat /tmp/test2.txt"
 check:output=~test2
 cmd:xdsh $$CN "rm -rf /tmp/test1.txt /tmp/test2.txt"
 check:rc==0
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /tmp/sync /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
@@ -124,7 +124,7 @@ cmd:echo "/tmp/prog1/conf1.tmpl -> /prog1/conf1" >> /install/custom/install/__GE
 cmd:echo "/tmp/prog1/conf2.tmpl -> /prog1/conf2" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/tmp/prog2/conf1 /tmp/prog2/conf2 -> /prog2" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/etc/common_hosts -> /home/" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
@@ -159,7 +159,7 @@ check:output=~conf1
 check:output=~conf2
 cmd:xdsh $$CN "ls -l /home"
 check:output=~hosts
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 end
@@ -211,14 +211,14 @@ cmd:chmod a+x /tmp/file.post
 cmd:echo "/tmp/file.post -> /tmp/file.post" > /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "EXECUTEALWAYS:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/tmp/file.post" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
 cmd:xdsh $$CN "cat /tmp/test"
 check:rc==0
 check:output=~hello
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
@@ -232,14 +232,14 @@ cmd:scp /tmp/append1 root@$$CN:/tmp
 cmd:echo "/tmp/append1 -> /append1" > /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "APPEND:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/tmp/append2 -> /tmp/append1" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
 cmd:xdsh $$CN "cat /tmp/append1"
 check:rc==0
 check:output=~line2
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
@@ -271,7 +271,7 @@ cmd:echo "/tmp/updatenode_syncfile_MERGE/passwd -> /etc/passwd" >> /tmp/updateno
 cmd:echo "/tmp/updatenode_syncfile_MERGE/shadow -> /etc/shadow" >> /tmp/updatenode_syncfile_MERGE/compute.synclist
 cmd:echo "/tmp/updatenode_syncfile_MERGE/group -> /etc/group" >> /tmp/updatenode_syncfile_MERGE/compute.synclist
 cmd:cat   /tmp/updatenode_syncfile_MERGE/compute.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/tmp/updatenode_syncfile_MERGE/compute.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/tmp/updatenode_syncfile_MERGE/compute.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:rc==0
@@ -295,7 +295,7 @@ cmd:xdsh $$CN "mv -f /tmp/updatenode_syncfile_MERGE/shadow /etc/shadow"
 check:rc==0
 cmd:xdsh  $$CN "rm -rf /tmp/updatenode_syncfile_MERGE"
 check:rc==0
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /tmp/updatenode_syncfile_MERGE
 check:rc==0
@@ -407,7 +407,7 @@ cmd:mkdir -p /install/custom/install/__GETNODEATTR($$CN,os)__/
 check:rc==0
 cmd:echo "/etc/hosts -> /etc/hosts" > /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:echo "echo hello > /tmp/updatenode_P_script" > /tmp/script1
 check:rc==0
@@ -437,7 +437,7 @@ check:rc==0
 cmd:xdsh $$CN "cat /tmp/updatenode_P_script"
 check:rc==0
 check:output=~hello
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
@@ -568,7 +568,7 @@ cmd:echo "EXECUTE:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.
 cmd:echo "/tmp/file.post1" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "EXECUTEALWAYS:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/tmp/file.post2" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:output=~File synchronization has completed 
@@ -609,7 +609,7 @@ cmd:echo "EXECUTE:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.
 cmd:echo "/tmp/file.post1" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "EXECUTEALWAYS:" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 cmd:echo "/tmp/file.post2" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
 cmd:updatenode $$C2 -F
 check:output=~File synchronization has completed
@@ -619,7 +619,7 @@ check:rc!=0
 cmd:xdsh $$C2 "cat /tmp/test2"
 check:rc!=0
 check:output!~hello2
-cmd:chdef -t osimage -o  __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=
+cmd:chdef -t osimage -o  __GETNODEATTR($$CN,provmethod)__ synclists=
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.synclist
 check:rc==0
@@ -629,7 +629,7 @@ end
 start:updatenode_syncfile_EXECUTEALWAYS_src_dst_diff
 label:others,updatenode
 description:this teast case is to verify pr #5888. 
-cmd:lsdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute -z >> /tmp/myimage.stanza
+cmd:lsdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ -z >> /tmp/myimage.stanza
 cmd:xdsh $$CN rm /tmp/h /tmp/script.sh  /root/script2.sh /tmp/script2.sh /tmp/script3.sh 
 cmd:xdsh $$CN rm /tmp/test /tmp/test2 /root/test3 /root/test1
 cmd:echo "echo hello >> /tmp/test" > /tmp/script.sh
@@ -652,7 +652,7 @@ cmd:echo "/tmp/script.sh" >> /install/custom/install/__GETNODEATTR($$CN,os)__/co
 cmd:echo "/tmp/script2.sh" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
 cmd:echo "/root/script3.sh" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
 cmd:echo "/root/script1.sh" >> /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
-cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ synclists=/install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
 check:rc==0
 cmd:updatenode $$CN -F
 check:output=~File synchronization has completed for nodes:\s*"$$CN"\s*
@@ -667,7 +667,7 @@ cmd:xdsh $$CN ls /tmp/test3
 check:rc==0
 cmd:xdsh $$CN ls /tmp/test1
 check:rc==0
-cmd:if [ -e /tmp/myimage.stanza ]; then rmdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute; cat /tmp/myimage.stanza | mkdef -z; rm -rf /tmp/myimage.stanza; fi
+cmd:if [ -e /tmp/myimage.stanza ]; then rmdef -t osimage -o __GETNODEATTR($$CN,provmethod)__; cat /tmp/myimage.stanza | mkdef -z; rm -rf /tmp/myimage.stanza; fi
 check:rc==0
 cmd:rm -rf /install/custom/install/__GETNODEATTR($$CN,os)__/compute.$$OS.srcdstdiff.synclist
 check:rc==0

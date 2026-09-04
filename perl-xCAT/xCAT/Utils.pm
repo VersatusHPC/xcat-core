@@ -354,7 +354,8 @@ my $PASSWORD_BYTE_LIMIT =
     Globals:
         $RANDOM_DEVICE - the character device that supplies the random bytes
     Error:
-        dies when the random device cannot be read
+        dies when the random device cannot be read, or gives no usable byte
+        within the read limit
     Example:
          my $salt = genpassword(8);
     Comments:
@@ -370,18 +371,29 @@ sub genpassword
     my $length = shift;
     unless ($length) { $length = 8; }
 
-    open(my $random, '<:raw', $RANDOM_DEVICE)
-      or die "xCAT::Utils::genpassword: cannot open $RANDOM_DEVICE: $!";
+    # Each pass discards the biased bytes, so the number of passes is not fixed.
+    # A device that returns only discarded bytes must stop the routine. One pass
+    # per wanted character is the worst a real device reaches; the rest of this
+    # bound is margin, because /dev/urandom discards 8 values in 256.
+    my $reads_left = 10 * $length + 100;
 
+    my $random   = _open_random_device();
     my $password = '';
+    my $error;
     while (length($password) < $length)
     {
-        my $bytes = '';
-        my $count = read($random, $bytes, $length - length($password));
-        unless ($count)
+        unless ($reads_left--)
         {
-            close($random);
-            die "xCAT::Utils::genpassword: cannot read $RANDOM_DEVICE: $!";
+            $error = "xCAT::Utils::genpassword: $RANDOM_DEVICE gave no usable byte within the read limit";
+            last;
+        }
+        my $bytes = eval {
+            _read_random_bytes($random, $length - length($password));
+        };
+        if ($@)
+        {
+            $error = $@;
+            last;
         }
         foreach my $byte (unpack('C*', $bytes))
         {
@@ -391,6 +403,7 @@ sub genpassword
         }
     }
     close($random);
+    die $error if $error;
     return $password;
 }
 

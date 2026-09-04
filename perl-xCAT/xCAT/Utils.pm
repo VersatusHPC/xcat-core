@@ -153,6 +153,93 @@ sub clroptionvars
     return 0;
 }
 
+# The OS CSPRNG. The Linux kernel serves this device from its own ChaCha20
+# generator in drivers/char/random.c, not from the crypto API DRBG that
+# /proc/crypto lists. The read does not block, in FIPS mode or out of it.
+our $RANDOM_DEVICE = '/dev/urandom';
+
+#-------------------------------------------------------------
+
+=head3 _open_random_device
+    Opens the random device for reading raw bytes
+    Arguments:
+        none
+    Returns:
+        an open file handle on $RANDOM_DEVICE
+    Globals:
+        $RANDOM_DEVICE - the character device that supplies the random bytes
+    Error:
+        dies when the random device cannot be opened
+
+=cut
+
+#-------------------------------------------------------
+sub _open_random_device
+{
+    open(my $random, '<:raw', $RANDOM_DEVICE)
+      or die "xCAT::Utils: cannot open $RANDOM_DEVICE: $!";
+    return $random;
+}
+
+#-------------------------------------------------------------
+
+=head3 _read_random_bytes
+    Reads an exact count of bytes from an open random device
+    Arguments:
+        an open file handle on the random device
+        the number of bytes wanted
+    Returns:
+        a string of exactly that many bytes
+    Error:
+        dies when the device gives no more bytes
+
+=cut
+
+#-------------------------------------------------------
+sub _read_random_bytes
+{
+    my ($random, $count) = @_;
+
+    my $bytes = '';
+    while (length($bytes) < $count)
+    {
+        my $chunk = '';
+        my $got = read($random, $chunk, $count - length($bytes));
+        unless ($got)
+        {
+            die "xCAT::Utils: cannot read $RANDOM_DEVICE: $!";
+        }
+        $bytes .= $chunk;
+    }
+    return $bytes;
+}
+
+#-------------------------------------------------------------
+
+=head3 _random_bytes
+    Reads an exact count of bytes from the random device
+    Arguments:
+        the number of bytes wanted
+    Returns:
+        a string of exactly that many bytes
+    Error:
+        dies when the random device cannot be opened or read
+
+=cut
+
+#-------------------------------------------------------
+sub _random_bytes
+{
+    my ($count) = @_;
+
+    my $random = _open_random_device();
+    my $bytes  = eval { _read_random_bytes($random, $count) };
+    my $error  = $@;
+    close($random);
+    die $error if $error;
+    return $bytes;
+}
+
 #-------------------------------------------------------------
 
 =head3 genUUID
@@ -163,6 +250,10 @@ sub clroptionvars
         string representation of a UUDv4,
             for example: f16196d1-7534-41c1-a0ae-a9633b030583
             for example: f16196d1-7534-41c1-a0ae-a9633b030583
+    Globals:
+        $RANDOM_DEVICE - the character device that supplies the random bytes
+    Error:
+        dies when the random device cannot be read
 
 =cut
 
@@ -195,8 +286,8 @@ sub genUUID
         $timemid->brsft(32);
         $timehigh->brsft(48);
         $timehigh->bior('0x1000'); #add in version, don't bother stripping out the high bits since by the year 5236, none of this should matter
-        my $clockseq = rand(8191); #leave the top three bits alone.  We could leave just top two bits, but it's unneeded
-                                   #also, randomness matters very little, as the time+mac is here
+        # 13 bits, so the RFC 4122 variant bits below stay clear.
+        my $clockseq = unpack('n', _random_bytes(2)) & 0x1fff;
         $clockseq = $clockseq | 0x8000;    #RFC4122 variant
                                            #time to assemble...
         $timelow  = $timelow->bstr();
@@ -234,22 +325,16 @@ sub genUUID
         $uuid .= "-" . unpack("H*", pack("C*", @data));
         return $uuid;
     }
-    srand();    #Many note this as bad practice, however, forks are going on..
-    my $uuid;
-    $uuid =
-      sprintf("%08x-%04x-4%03x-",
-        int(rand(4294967295)),
-        int(rand(65535)), int(rand(4095)));
-    my $num = 32768;
-    $num = $num | int(rand(16383));
-    $uuid .=
-      sprintf("%04x-%04x%08x", $num, int(rand(65535)), int(rand(4294967295)));
-    return $uuid;
-}
 
-# The OS CSPRNG. On Linux in FIPS mode the kernel serves this device from the
-# validated DRBG, so genpassword needs no userspace generator and no new module.
-our $RANDOM_DEVICE = '/dev/urandom';
+    # xcatd mints the REST API token id here, so the bits are credential
+    # material and must come from the OS CSPRNG.
+    my @bytes = unpack('C*', _random_bytes(16));
+    $bytes[6] = ($bytes[6] & 0x0f) | 0x40;    #RFC4122 version 4
+    $bytes[8] = ($bytes[8] & 0x3f) | 0x80;    #RFC4122 variant
+    return sprintf(
+        '%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x',
+        @bytes);
+}
 
 my @PASSWORD_ALPHABET = ('a' .. 'z', 'A' .. 'Z', '0' .. '9');
 

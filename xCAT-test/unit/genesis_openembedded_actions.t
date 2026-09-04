@@ -245,6 +245,14 @@ for my $case (
         "$case->[0] reports its migration status" );
 }
 
+( $status, $log, $record ) = run_action('runimage');
+like(
+    $record,
+    qr/^RECOVERY=Use runcmd with an action packaged in this Genesis image$/m,
+    'the runimage refusal names a task that xCAT can assign' );
+unlike( $record, qr/system extension/,
+    'the runimage refusal does not name a build-time image feature' );
+
 for my $action (qw(boot reboot)) {
     ( $status, $log, $record ) = run_action( $action, ipmi => 1 );
     is( $status, 0, "$action action completes" );

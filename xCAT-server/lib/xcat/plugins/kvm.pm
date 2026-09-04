@@ -1508,6 +1508,32 @@ sub vnc_password_rejected {
     return ($errstr =~ /Cipher backend does not support DES/) ? 1 : 0;
 }
 
+#-------------------------------------------------------
+
+=head3 set_graphics_listen
+
+    Descriptions: Point a graphics element at one listen address.
+    Arguments: the graphics element, the listen address
+    Returns: nothing
+
+=cut
+
+#-------------------------------------------------------
+sub set_graphics_listen {
+    my ($graphics, $address) = @_;
+    return unless defined($graphics);
+    $graphics->setAttribute("listen", $address);
+
+    # libvirt copies the listen attribute into a child listen element, and a stored domain
+    # description carries that child. libvirt refuses a description where the two disagree.
+    foreach my $listen ($graphics->findnodes("./listen")) {
+        $listen->setAttribute("type",    "address");
+        $listen->setAttribute("address", $address);
+        $listen->removeAttribute("network");
+    }
+    return;
+}
+
 sub makedom {
     my $node  = shift;
     my $cdloc = shift;
@@ -1556,7 +1582,7 @@ sub makedom {
         } else {
             $graphics->setAttribute("passwd", genpassword(8));
         }
-        $graphics->setAttribute("listen", '0.0.0.0');
+        set_graphics_listen($graphics, '0.0.0.0');
     }
     $xml = $parseddom->toString();
     foreach my $attempt (1, 2) {
@@ -1579,11 +1605,16 @@ sub makedom {
         last unless vnc_password_rejected($errstr);
 
         # A node that does not start is worse than a console without a password, so give up
-        # the password on this emulator only, and record it.
-        xCAT::MsgUtils->trace(0, "w",
-            "kvm: $node: the emulator refused the VNC password, so the domain starts with an unlocked console");
+        # the password on this emulator only. An unlocked VNC console reaches the boot shell
+        # of the node, so bind the console to the loopback address of the hypervisor.
         $graphics->removeAttribute("passwd");
+        set_graphics_listen($graphics, '127.0.0.1');
         $xml = $parseddom->toString();
+        xCAT::MsgUtils->trace(0, "w",
+            "kvm: $node: the emulator refused the VNC password, so the domain starts with an unlocked console on the hypervisor loopback address");
+        xCAT::SvrUtils::sendmsg(
+            "Warning - the emulator refused the VNC password. The console of this node has no password, so it is bound to the loopback address of the hypervisor and rvidconsole cannot reach it.",
+            $callback, $node);
     }
     if ($errstr) { return (undef, $errstr); }
     if ($dom) {

@@ -307,7 +307,7 @@ cmd:sn4bip=`lsdef sn4b |grep -w ip|awk -F= '{print $2}'`;grep $sn4bip /etc/hosts
 check:rc==0
 cmd:sn4beth0ip=`lsdef sn4b |grep -w nicips.eth0|awk -F= '{print $2}'`;grep $sn4beth0ip /etc/hosts
 check:rc==0
-cmd:cp -f /etc/hosts.bak /etc/hosts
+cmd:mv -f /etc/hosts.bak /etc/hosts
 cmd:noderm sn4b;if [ -e /tmp/sn4bdef ]; then cat /tmp/sn4bdef |mkdef -z;fi
 cmd:rmdef -t group -o regextest;if [ -e /tmp/regextestdef ]; then cat /tmp/regextestdef |mkdef -z;fi
 end

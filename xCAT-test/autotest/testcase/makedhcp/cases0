@@ -202,6 +202,8 @@ check:output=~testnetwork
 cmd:mkdef -t node -o testnode ip=100.100.100.2 groups=all mac=42:3d:0a:05:27:0b
 check:rc==0
 cmd:cat /etc/hosts
+cmd:cp -f /etc/hosts /etc/hosts.makedhcp_remote_network.bak
+check:rc==0
 cmd:echo -e "\n100.100.100.2 testnode" >> /etc/hosts
 check:rc==0
 cmd:cat /etc/hosts
@@ -223,5 +225,6 @@ cmd:noderm testnode
 check:rc==0
 cmd:chtab -d netname=testnetwork networks
 check:rc==0
-cmd:cp -f /etc/hosts.bak /etc/hosts
+cmd:mv -f /etc/hosts.makedhcp_remote_network.bak /etc/hosts
+check:rc==0
 end

@@ -1,0 +1,399 @@
+#!/usr/bin/env perl
+
+# xCAT must not pick hmac-md5 when no algorithm is configured. hmac-md5 is not approved for
+# FIPS mode: named starts with no complaint about an md5 key stanza and then answers SERVFAIL
+# to every update signed with that key, so makedns fails on a FIPS management node.
+#
+# Run this test with XCATROOT set to the tree under test. xCAT::Table does
+# "use lib $::XCATROOT/lib/perl", so an installed /opt/xcat shadows the modules under test:
+#   XCATROOT=$PWD/xCAT-server prove xCAT-test/unit/ddns_tsig_default_algorithm.t
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../xCAT-server/lib";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use lib "$FindBin::Bin/../../perl-xCAT";
+
+use File::Temp qw(tempfile);
+use Test::More;
+
+$ENV{XCATCFG}  ||= 'SQLite:/tmp';
+$ENV{XCATROOT} ||= "$FindBin::Bin/../../xCAT-server";
+
+my $ddns_plugin_path = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/ddns.pm";
+if ( -f $ddns_plugin_path ) { require $ddns_plugin_path; }
+else                        { require xCAT_plugin::ddns; }
+
+my $dhcp_plugin_path = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/dhcp.pm";
+if ( -f $dhcp_plugin_path ) { require $dhcp_plugin_path; }
+else                        { require xCAT_plugin::dhcp; }
+
+BAIL_OUT('xCAT::DHCP::OmapiPolicy->normalize_algorithm is missing')
+  unless xCAT::DHCP::OmapiPolicy->can('normalize_algorithm');
+BAIL_OUT('xCAT_plugin::ddns::update_namedconf is missing')
+  unless defined( &xCAT_plugin::ddns::update_namedconf );
+BAIL_OUT('xCAT_plugin::dhcp::_omapi_settings is missing')
+  unless defined( &xCAT_plugin::dhcp::_omapi_settings );
+
+# KEY RR algorithm numbers, as ddns_sign_update writes them for old Net::DNS.
+my %ALGORITHM_OF_RR_TYPE = (
+    157 => 'hmac-md5',
+    161 => 'hmac-sha1',
+    162 => 'hmac-sha224',
+    163 => 'hmac-sha256',
+    164 => 'hmac-sha384',
+    165 => 'hmac-sha512',
+);
+
+my $SECRET = 'c2VjcmV0LXNlY3JldC1zZWNyZXQtc2VjcmV0LXNlY3I=';
+
+my $no_key   = "options {\n};\n";
+my $md5_key  = key_stanza('hmac-md5');
+my $sha_key  = key_stanza('hmac-sha256');
+
+subtest 'the policy default is an algorithm a FIPS named accepts' => sub {
+    is( xCAT::DHCP::OmapiPolicy->normalize_algorithm(undef),
+        'hmac-sha256', 'no value gives hmac-sha256' );
+    is( xCAT::DHCP::OmapiPolicy->normalize_algorithm(''),
+        'hmac-sha256', 'an empty value gives hmac-sha256' );
+
+    my $settings = omapi_settings();
+    is( $settings->{algorithm}, 'hmac-sha256',
+        'settings default to hmac-sha256' );
+    is( $settings->{key_rr_type}, 163, 'the KEY RR type follows the default' );
+    ok( !$settings->{algorithm_explicit},
+        'the default is not reported as an administrator choice' );
+    ok( $settings->{needs_omshell_key_algorithm},
+        'omshell is told the algorithm the default selects' );
+};
+
+subtest 'an installation whose omshell cannot name an algorithm pins hmac-md5' => sub {
+    for my $platform (qw(el8)) {
+        is(
+            xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
+                is_new_install => 1, platform => $platform ),
+            'hmac-md5',
+            "a new $platform installation pins hmac-md5 in the site table"
+        );
+    }
+    for my $os ( 'ubuntu,18.04', 'sles,15.6', 'opensuse-leap,15.6' ) {
+        is(
+            xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
+                is_new_install => 1, os => $os ),
+            'hmac-md5',
+            "a new $os installation pins hmac-md5 in the site table"
+        );
+    }
+    is(
+        xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
+            is_new_install => 1, platform => 'el9' ),
+        'hmac-sha256',
+        'a new el9 installation still pins hmac-sha256'
+    );
+    is(
+        xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
+            is_new_install => 0, platform => 'el9' ),
+        undef,
+        'an existing installation is left alone'
+    );
+};
+
+subtest 'a deployed key wins over the default, and the site table wins over both' => sub {
+    my $deployed = omapi_settings( deployed_algorithm => 'hmac-sha384' );
+    is( $deployed->{algorithm}, 'hmac-sha384',
+        'an unconfigured site takes the algorithm already deployed' );
+    is( $deployed->{key_rr_type}, 164, 'the KEY RR type follows the deployed key' );
+    ok( !$deployed->{algorithm_explicit},
+        'a deployed algorithm is not an administrator choice' );
+
+    my $chosen = omapi_settings(
+        site_algorithm     => 'hmac-sha512',
+        deployed_algorithm => 'hmac-md5',
+    );
+    is( $chosen->{algorithm}, 'hmac-sha512',
+        'the site table wins over the deployed key' );
+
+    my $unreadable = omapi_settings( deployed_algorithm => 'hmac-nonsense' );
+    is( $unreadable->{algorithm}, 'hmac-sha256',
+        'a deployed value that names no known algorithm falls back to the default' );
+};
+
+subtest 'makedhcp keeps the algorithm the running dhcpd.conf declares' => sub {
+    my $read_deployed = xCAT_plugin::dhcp->can('_deployed_omapi_algorithm');
+    ok( $read_deployed, 'makedhcp reads the algorithm dhcpd.conf declares' )
+      or return;
+
+    my $md5_conf = dhcpd_conf('hmac-md5');
+    is( $read_deployed->($md5_conf),
+        'hmac-md5', 'the deployed algorithm is read out of dhcpd.conf' );
+
+    my $settings = dhcp_omapi_settings($md5_conf);
+    is( $settings->{algorithm}, 'hmac-md5',
+        'makedhcp signs OMAPI with the algorithm dhcpd already loaded' );
+    ok( !$settings->{needs_omshell_key_algorithm},
+        'omshell keeps the legacy command format for that key' );
+
+    my ( undef, $empty ) = tempfile( UNLINK => 1 );
+    is( dhcp_omapi_settings($empty)->{algorithm},
+        'hmac-sha256',
+        'a dhcpd.conf with no key stanza takes the default' );
+};
+
+subtest 'makedns replaces an md5 key stanza when the site names no algorithm' => sub {
+    my $result = run_makedns( named_conf => $md5_key, site_algorithm => undef );
+
+    is( $result->{named_algorithm}, 'hmac-sha256',
+        'the stanza a FIPS named answers SERVFAIL for is replaced' );
+    is( $result->{signing_algorithm}, 'hmac-sha256',
+        'the update is signed with the replacement algorithm' );
+    is( $result->{restartneeded}, 1, 'named is restarted for the new stanza' );
+};
+
+subtest 'makedns generates a new key with the default algorithm' => sub {
+    my $result = run_makedns( named_conf => $no_key, site_algorithm => undef );
+
+    is( $result->{named_algorithm}, 'hmac-sha256',
+        'a key created where none existed uses hmac-sha256' );
+    is( $result->{signing_algorithm}, 'hmac-sha256',
+        'the update is signed with hmac-sha256' );
+};
+
+subtest 'a site that names hmac-md5 keeps hmac-md5' => sub {
+    my $result = run_makedns( named_conf => $md5_key, site_algorithm => 'hmac-md5' );
+
+    is( $result->{named_algorithm}, 'hmac-md5',
+        'the administrator choice is not replaced' );
+    is( $result->{signing_algorithm}, 'hmac-md5',
+        'the update is signed with hmac-md5' );
+    is( $result->{restartneeded}, 0, 'named is not restarted' );
+};
+
+subtest 'a matching stanza is left alone' => sub {
+    my $result = run_makedns( named_conf => $sha_key, site_algorithm => undef );
+
+    is( $result->{named_algorithm}, 'hmac-sha256', 'the stanza is unchanged' );
+    is( $result->{restartneeded},   0,             'named is not restarted' );
+};
+
+done_testing();
+
+#---------------------------------------------------------------------------
+
+=head3 key_stanza
+
+    Description: Build a named.conf holding one xcat_key stanza.
+    Arguments:   the algorithm the stanza declares
+    Returns:     the file content
+
+=cut
+
+#---------------------------------------------------------------------------
+sub key_stanza {
+    my ($algorithm) = @_;
+
+    return <<"NAMED";
+options {
+};
+key "xcat_key" {
+\talgorithm $algorithm;
+\tsecret "$SECRET";
+};
+NAMED
+}
+
+#---------------------------------------------------------------------------
+
+=head3 dhcpd_conf
+
+    Description: Write a scratch dhcpd.conf holding one OMAPI key stanza.
+    Arguments:   the algorithm the stanza declares
+    Returns:     the path of the file
+
+=cut
+
+#---------------------------------------------------------------------------
+sub dhcpd_conf {
+    my ($algorithm) = @_;
+
+    my ( $fh, $path ) = tempfile( UNLINK => 1 );
+    print {$fh} <<"DHCPD";
+#xCAT generated dhcp configuration
+omapi-port 7911;
+key xcat_key {
+  algorithm $algorithm;
+  secret "$SECRET";
+};
+omapi-key xcat_key;
+DHCPD
+    close($fh) or die "Unable to close $path: $!";
+    return $path;
+}
+
+#---------------------------------------------------------------------------
+
+=head3 omapi_settings
+
+    Description: Resolve the OMAPI policy for one site, with no xCAT database.
+    Arguments:   site_algorithm, deployed_algorithm
+    Returns:     the settings hash reference
+
+=cut
+
+#---------------------------------------------------------------------------
+sub omapi_settings {
+    my (%args) = @_;
+
+    my $settings = xCAT::DHCP::OmapiPolicy->settings(
+        site_values => {
+            dhcpomapialgorithm => $args{site_algorithm},
+            dhcpomapikeyname   => undef,
+            dhcpomshellpath    => undef,
+        },
+        deployed_algorithm => $args{deployed_algorithm},
+    );
+    die "Unusable OMAPI settings: $settings->{error}" if $settings->{error};
+    return $settings;
+}
+
+#---------------------------------------------------------------------------
+
+=head3 dhcp_omapi_settings
+
+    Description: Run the makedhcp OMAPI policy against one scratch dhcpd.conf.
+    Arguments:   the path of the dhcpd.conf to read
+    Returns:     the settings hash reference
+
+=cut
+
+#---------------------------------------------------------------------------
+sub dhcp_omapi_settings {
+    my ($path) = @_;
+
+    no warnings qw(redefine once);
+    local *xCAT::TableUtils::get_site_attribute = sub { return; };
+    local %::XCATSITEVALS = ();
+    local $xCAT_plugin::dhcp::dhcpconffile = $path;
+    return xCAT_plugin::dhcp::_omapi_settings( sub { die "@_" } );
+}
+
+#---------------------------------------------------------------------------
+
+=head3 run_makedns
+
+    Description: Run update_namedconf over a scratch named.conf, then sign one update
+                 with the context that run produced.
+    Arguments:   named_conf (the file content), site_algorithm (undef for none)
+    Returns:     hash reference with named_algorithm, signing_algorithm, restartneeded
+
+=cut
+
+#---------------------------------------------------------------------------
+sub run_makedns {
+    my (%args) = @_;
+
+    my ( $named_fh, $named_path ) = tempfile( UNLINK => 1 );
+    print {$named_fh} $args{named_conf};
+    close($named_fh) or die "Unable to close $named_path: $!";
+
+    my $settings = omapi_settings( site_algorithm => $args{site_algorithm} );
+
+    my $ctx = {
+        omapi_settings => $settings,
+        privkey        => $SECRET,
+        zonesdir       => '/tmp',
+        dbdir          => '/tmp',
+        zonestotouch   => {},
+        adzones        => {},
+        dnsupdaters    => [],
+        adservers      => [],
+        restartneeded  => 0,
+    };
+
+    no warnings qw(redefine once);
+    local *xCAT_plugin::ddns::get_conf             = sub { return $named_path; };
+    local *xCAT_plugin::ddns::ensure_ddns_key_file = sub { return; };
+    local *xCAT::TableUtils::get_site_attribute    = sub { return; };
+    local *xCAT::Utils::runcmd                     = sub { return (); };
+    local *xCAT::Utils::isAIX                      = sub { return 0; };
+    local *xCAT::Utils::isLinux                    = sub { return 1; };
+    local *xCAT::Table::new = sub { return bless {}, 'Local::TSIG::PasswdTable'; };
+
+    my $update = Local::TSIG::Update->new();
+    {
+        # Old Net::DNS signs every algorithm except MD5 through a KEY RR, so the recorded
+        # call names the algorithm this run selected.
+        local $Net::DNS::VERSION = '1.25';
+        xCAT_plugin::ddns::update_namedconf( $ctx, 0 );
+        xCAT_plugin::ddns::ddns_sign_update( $ctx, $update );
+    }
+
+    open( my $result_fh, '<', $named_path )
+      or die "Unable to read $named_path: $!";
+    local $/;
+    my $contents = <$result_fh>;
+    close($result_fh) or die "Unable to close $named_path: $!";
+
+    my ($named_algorithm) =
+      ( $contents =~ /key\s+"?xcat_key"?[^{]*\{[^}]*?algorithm\s+([^;\s]+)\s*;/s );
+
+    return {
+        named_algorithm   => defined($named_algorithm) ? lc($named_algorithm) : undef,
+        signing_algorithm => signing_algorithm($update),
+        restartneeded     => $ctx->{restartneeded} ? 1 : 0,
+    };
+}
+
+#---------------------------------------------------------------------------
+
+=head3 signing_algorithm
+
+    Description: Name the TSIG algorithm one recorded sign_tsig call selects.
+    Arguments:   the recording update object
+    Returns:     the algorithm name, or "keyfile" for the key-file interface
+
+=cut
+
+#---------------------------------------------------------------------------
+sub signing_algorithm {
+    my ($update) = @_;
+
+    my $calls = $update->{sign_tsig_calls};
+    is( scalar( @{$calls} ), 1, 'the update is signed once' );
+    my $args = $calls->[0];
+
+    return 'keyfile' if @{$args} == 1 && !ref( $args->[0] );
+    return 'hmac-md5' if @{$args} == 2;
+
+    my $rr_type = $args->[0]->algorithm;
+    return $ALGORITHM_OF_RR_TYPE{$rr_type} || "KEY RR algorithm $rr_type";
+}
+
+{
+
+    package Local::TSIG::Update;
+
+    sub new {
+        return bless { sign_tsig_calls => [] }, shift;
+    }
+
+    sub sign_tsig {
+        my ( $self, @args ) = @_;
+        push @{ $self->{sign_tsig_calls} }, \@args;
+        return;
+    }
+}
+
+{
+
+    package Local::TSIG::PasswdTable;
+
+    sub setAttribs {
+        return 1;
+    }
+
+    sub getAttribs {
+        return;
+    }
+}

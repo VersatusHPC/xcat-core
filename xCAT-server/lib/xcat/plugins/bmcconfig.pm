@@ -17,15 +17,10 @@ sub handled_commands {
     };
 }
 
-sub genpassword {
-    my $length   = shift;
-    my $password = '';
-    my $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
-    while (length($password) < $length) {
-        $password .= substr($characters, int(rand 63), 1);
-    }
-    return $password;
+sub genpassword
+{
+    # One generator, in xCAT::Utils, so this secret comes from the OS CSPRNG.
+    return xCAT::Utils::genpassword(@_);
 }
 
 sub net_parms {

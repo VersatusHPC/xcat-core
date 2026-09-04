@@ -1814,18 +1814,8 @@ sub find_nameserver_for_dns {
 
 sub genpassword
 {
-
-    #Generate a pseudo-random password of specified length
-    my $length   = shift;
-    my $password = '';
-    my $characters =
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
-    while (length($password) < $length)
-    {
-        $password .= substr($characters, int(rand 63), 1);
-    }
-    return $password;
+    # One generator, in xCAT::Utils, so this secret comes from the OS CSPRNG.
+    return xCAT::Utils::genpassword(@_);
 }
 
 sub makedns_usage

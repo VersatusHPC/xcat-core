@@ -1025,11 +1025,10 @@ sub build_xmldesc {
     }
     $xtree{devices}->{graphics}->{autoport} = 'yes';
     $xtree{devices}->{graphics}->{listen}   = '0.0.0.0';
-    if ($confdata->{vm}->{$node}->[0]->{vidpassword}) {
-        $xtree{devices}->{graphics}->{password} = $confdata->{vm}->{$node}->[0]->{vidpassword};
-    } else {
-        $xtree{devices}->{graphics}->{password} = genpassword(8);
-    }
+
+    # No VNC password here. libvirt reads "passwd", so "password" never reached a domain, and
+    # mkvm stores this description in the kvm_nodedata table. makedom sets the password on the
+    # domain it starts.
     if (defined($hypcpumodel) and $hypcpumodel eq 'ppc64') {
         $xtree{devices}->{emulator}->{content} = "/usr/bin/qemu-system-ppc64";
     }
@@ -1488,6 +1487,27 @@ sub xhrm_satisfy {
     return $rc;
 }
 
+#-------------------------------------------------------
+
+=head3 vnc_password_rejected
+
+    Descriptions: Tell if libvirt reports an emulator that cannot do VNC password
+                  authentication.
+    Arguments: the libvirt error text
+    Returns: 1 when the emulator refused the VNC password, 0 otherwise
+
+=cut
+
+#-------------------------------------------------------
+sub vnc_password_rejected {
+    my ($errstr) = @_;
+    return 0 unless defined($errstr) and not ref($errstr);
+
+    # VNC password authentication is DES. A qemu built without a DES cipher backend exits
+    # before the monitor comes up. Older builds name the algorithm DES-RFB.
+    return ($errstr =~ /Cipher backend does not support DES/) ? 1 : 0;
+}
+
 sub makedom {
     my $node  = shift;
     my $cdloc = shift;
@@ -1539,17 +1559,31 @@ sub makedom {
         $graphics->setAttribute("listen", '0.0.0.0');
     }
     $xml = $parseddom->toString();
-    eval {
-        if ($::XCATSITEVALS{persistkvmguests}) {
-            $dom = $hypconn->define_domain($xml);
-            $dom->create()
-        } else {
-            $dom = $hypconn->create_domain($xml);
+    foreach my $attempt (1, 2) {
+        $dom    = undef;
+        $errstr = undef;
+        eval {
+            if ($::XCATSITEVALS{persistkvmguests}) {
+                $dom = $hypconn->define_domain($xml);
+                $dom->create()
+            } else {
+                $dom = $hypconn->create_domain($xml);
+            }
+        };
+        if ($@) { $errstr = $@; }
+        if (ref $errstr) {
+            $errstr = ":" . $errstr->{message};
         }
-    };
-    if ($@) { $errstr = $@; }
-    if (ref $errstr) {
-        $errstr = ":" . $errstr->{message};
+        last if not $errstr or $attempt == 2;
+        last unless defined($graphics) and $graphics->hasAttribute("passwd");
+        last unless vnc_password_rejected($errstr);
+
+        # A node that does not start is worse than a console without a password, so give up
+        # the password on this emulator only, and record it.
+        xCAT::MsgUtils->trace(0, "w",
+            "kvm: $node: the emulator refused the VNC password, so the domain starts with an unlocked console");
+        $graphics->removeAttribute("passwd");
+        $xml = $parseddom->toString();
     }
     if ($errstr) { return (undef, $errstr); }
     if ($dom) {

@@ -50,7 +50,22 @@ install() {
     # getdestiny makes its request file with mktemp. Without it the node reports no
     # destiny, so xcatd never moves nodelist.status past powering-on.
     dracut_install mktemp
-    dracut_install dhclient lldpad
+    dracut_install lldpad
+
+    # RHEL 10 packages no ISC dhcp-client. Install whichever client the build root carries;
+    # doxcat chooses between them at run time.
+    if command -v dhclient >/dev/null 2>&1; then
+        dracut_install dhclient
+    elif command -v dhcpcd >/dev/null 2>&1; then
+        dracut_install dhcpcd
+        # dhcpcd runs these on every lease. They write resolv.conf, the hostname and
+        # ntp.conf, which is the work dhclient-script does for the ISC client.
+        dracut_install /usr/libexec/dhcpcd-run-hooks
+        for _dhcpcd_hook in /usr/libexec/dhcpcd-hooks/*; do
+            _dracut_install_opt "$_dhcpcd_hook"
+        done
+        _dracut_install_opt /etc/dhcpcd.conf
+    fi
 
     # OpenSSH 9.8 moved the per-connection work into sshd-session, which sshd execs by
     # absolute path. Without it every connection to Genesis is refused.

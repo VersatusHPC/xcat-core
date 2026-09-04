@@ -230,9 +230,11 @@ for ((step = 1; ; step++)); do
                     'Review the node chain and xcatd logs'
             ;;
         runimage)
+            # A system extension is built into the image, so it cannot carry a
+            # task that xCAT assigns to one node.
             fail_action UNSAFE_LEGACY_ACTION \
                 'Unsigned runimage actions are not supported' \
-                'Package the operation as a signed Genesis system extension'
+                'Use runcmd with an action packaged in this Genesis image'
             ;;
         configraid)
             fail_action LEGACY_STORAGE_ACTION \

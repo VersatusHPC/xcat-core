@@ -69,6 +69,33 @@ sub _genesis_boot_arch {
     return $arch;
 }
 
+#-------------------------------------------------------
+
+=head3  _genesis_runimage_refusal
+
+    Descriptions:
+        Report why the Genesis image for an architecture cannot run a
+        runimage task.
+    Arguments:
+        $directory - the tftp root
+        $arch - the Genesis boot architecture
+    Returns:
+        The error text for the node, or undef when runimage is available.
+
+=cut
+
+#-------------------------------------------------------
+sub _genesis_runimage_refusal {
+    my ($directory, $arch) = @_;
+
+    # mknb writes genesis.exact-arch.<arch> for the OpenEmbedded Genesis
+    # export and removes it when it builds the legacy image.
+    return unless -r "$directory/xcat/genesis.exact-arch.$arch";
+    return "The OpenEmbedded Genesis image for $arch does not run runimage. "
+      . "Use runcmd with an action packaged in the image, or install the "
+      . "legacy Genesis image for $arch.";
+}
+
 sub _genesis_uses_power_console {
     my ($arch) = @_;
     return $arch eq 'ppc64' || $arch eq 'ppc64le';
@@ -620,6 +647,14 @@ sub setdestiny {
                 next;
             }
             my $arch = _genesis_boot_arch($tftpdir, $ent->{arch});
+            if ($state =~ /^runimage/) {
+                my $refusal = _genesis_runimage_refusal($tftpdir, $arch);
+                if ($refusal) {
+                    xCAT::MsgUtils->report_node_error($callback, $_, $refusal);
+                    $failurenodes{$_} = 1;
+                    next;
+                }
+            }
             my $ent = $resents->{$_}->[0]; #$restab->getNodeAttribs($_,[qw(xcatmaster)]);
             my $master;
             my $kcmdline = "quiet ";

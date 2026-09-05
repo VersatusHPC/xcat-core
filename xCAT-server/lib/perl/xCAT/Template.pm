@@ -1764,13 +1764,22 @@ sub subiquity_install_mac {
     return $macaddress;
 }
 
+sub ubuntu_subiquity_arch
+{
+    # nodetype.arch of the node being templated. The same fallback ubuntu_subiquity_release
+    # uses, and empty when the table cannot be read.
+    my $nodetype_tab = xCAT::Table->new('nodetype');
+    my $ent = $nodetype_tab ? $nodetype_tab->getNodeAttribs($node, ['arch']) : undef;
+    return ($ent && $ent->{arch}) ? $ent->{arch} : '';
+}
+
 sub ubuntu_subiquity_apt_mirror
 {
-    # Apt mirror for Subiquity installs. site.ubuntu_apt_mirror overrides; otherwise default to the
-    # public archive. The minimal live-server install media is not a complete package source, so a
-    # real mirror is always required -- set site.ubuntu_apt_mirror to a local full mirror for
-    # airgapped clusters (or to a geo/ports mirror as needed).
-    my $default = 'http://archive.ubuntu.com/ubuntu';
+    # Apt mirror for Subiquity installs. site.ubuntu_apt_mirror overrides; otherwise take the
+    # archive that serves the node architecture. The minimal live-server install media is not a
+    # complete package source, so a real mirror is always required -- set site.ubuntu_apt_mirror
+    # to a local full mirror for airgapped clusters.
+    my $default = xCAT::Utils->ubuntu_apt_mirror(ubuntu_subiquity_arch());
     my $site_tab = xCAT::Table->new('site');
     return $default unless $site_tab;
     my $ent = $site_tab->getAttribs({ key => 'ubuntu_apt_mirror' }, 'value');

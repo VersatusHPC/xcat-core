@@ -4886,6 +4886,30 @@ sub debian_arch {
 }
 
 ###################################################################################
+#subroutine ubuntu_apt_mirror
+#Usage: give the Ubuntu archive that serves an architecture.
+#Input Params:
+#       $arch: the xCAT or the Debian architecture name, for example ppc64le or ppc64el
+#Return value:
+#       the base URL of the archive that carries packages for that architecture
+###################################################################################
+# archive.ubuntu.com carries amd64 and i386 only; every other architecture is on
+# ports.ubuntu.com. Neither host serves the other's packages, so one URL cannot serve
+# a mixed-architecture cluster.
+my %PRIMARY_APT_ARCH = map { $_ => 1 } qw(amd64 i386 x86_64 x86);
+my $PRIMARY_APT_MIRROR = 'http://archive.ubuntu.com/ubuntu';
+my $PORTS_APT_MIRROR   = 'http://ports.ubuntu.com/ubuntu-ports';
+
+sub ubuntu_apt_mirror {
+    my $arch = shift;
+    $arch = shift if (defined $arch and $arch =~ /xCAT::Utils/);
+    # An unnamed architecture keeps the archive xCAT used before ports was distinguished.
+    return $PRIMARY_APT_MIRROR unless defined $arch and length $arch;
+    return $PRIMARY_APT_MIRROR if $PRIMARY_APT_ARCH{ lc $arch };
+    return $PORTS_APT_MIRROR;
+}
+
+###################################################################################
 #subroutine xcat_arch_from_debian
 #Usage: give the xCAT architecture for the architecture the Ubuntu media reports.
 #Input Params:

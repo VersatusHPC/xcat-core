@@ -287,6 +287,29 @@ subtest 'a key stanza that names no algorithm is repaired' => sub {
     is( $result->{restartneeded}, 1, 'named is restarted for the repaired stanza' );
 };
 
+subtest 'Kea DDNS to an external server takes the algorithm that server holds' => sub {
+    my $kea_key = xCAT_plugin::dhcp->can('kea_ddns_key');
+    ok( $kea_key, 'the Kea D2 key reader is present' ) or return;
+
+    no warnings qw(redefine once);
+    local *xCAT::TableUtils::get_site_attribute = sub { return; };
+    local *xCAT::Utils::osver = sub { return 'el10'; };
+    local *xCAT::Table::new = sub { return bless {}, 'Local::TSIG::KeaPasswdTable'; };
+    my ( undef, $missing ) = tempfile( UNLINK => 1 );
+    unlink($missing);
+    local $xCAT_plugin::dhcp::ddns_key_path = $missing;
+
+    local %::XCATSITEVALS = ( externaldns => 1 );
+    my ($external_algorithm) = $kea_key->();
+    is( $external_algorithm, 'HMAC-MD5',
+        'no key file on an external-DNS cluster falls to hmac-md5' );
+
+    local %::XCATSITEVALS = ();
+    my ($local_algorithm) = $kea_key->();
+    is( $local_algorithm, 'HMAC-SHA256',
+        'no key file on a cluster xCAT manages falls to the default' );
+};
+
 done_testing();
 
 #---------------------------------------------------------------------------
@@ -696,4 +719,13 @@ sub read_file {
     my $contents = <$fh>;
     close($fh) or die "Unable to close $path: $!";
     return $contents;
+}
+
+{
+
+    package Local::TSIG::KeaPasswdTable;
+
+    sub getAttribs {
+        return { password => 'kea-secret' };
+    }
 }

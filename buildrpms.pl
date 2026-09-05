@@ -840,32 +840,40 @@ EOF2
     Descriptions: Read back the WORKTREE / DIRTY_FILE lines a per-arch build recorded.
 
                   Any input built from a changed tree makes the merged repo unreproducible,
-                  so the answer is the union of every input that reports one. An input with
-                  no buildinfo, or none with the field, gives undef -- reported as unknown,
-                  never as clean.
+                  so the answer is the union of every input that reports one.
+
+                  The answer is per INPUT, not per file read. An input with no buildinfo,
+                  or none carrying the field, leaves the state of the rpms it contributed
+                  unknown, and the merged repo is then unknown too -- never clean on the
+                  evidence of the inputs that did report. A dirty input outranks that: its
+                  files are in the merged repo whatever the other inputs say.
 
     Arguments   : @dirs - the per-arch input repo directories
-    Returns     : the porcelain text, '' when every input was clean, or undef
+    Returns     : the porcelain text when any input was dirty, '' when EVERY input
+                  reported clean, undef when any input did not report
 
 =cut
 
 #-------------------------------------------------------------------------------
 sub input_worktree_status {
     my (@dirs) = @_;
-    my ($seen, @dirty) = (0);
+    my @dirty;
+    my $unknown = @dirs ? 0 : 1;
     for my $d (@dirs) {
-        my $bf = "$d/buildinfo.txt";
-        next unless -f $bf;
-        open(my $fh, '<', $bf) or next;
-        while (my $line = <$fh>) {
-            chomp $line;
-            $seen = 1        if $line =~ /^WORKTREE=/;
-            push @dirty, $1  if $line =~ /^DIRTY_FILE=(.*)$/;
+        my $seen = 0;
+        if (open(my $fh, '<', "$d/buildinfo.txt")) {
+            while (my $line = <$fh>) {
+                chomp $line;
+                $seen = 1        if $line =~ /^WORKTREE=/;
+                push @dirty, $1  if $line =~ /^DIRTY_FILE=(.*)$/;
+            }
+            close $fh;
         }
-        close $fh;
+        $unknown = 1 unless $seen;
     }
-    return undef unless $seen;
-    return join("\n", @dirty);
+    return join("\n", @dirty) if @dirty;
+    return undef if $unknown;
+    return '';
 }
 
 sub merge_core_repos {

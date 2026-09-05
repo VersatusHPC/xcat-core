@@ -82,8 +82,8 @@ is(
         is_new_install => 1,
         platform       => 'el8'
     ),
-    'hmac-md5',
-    'new EL8 installations pin hmac-md5 in the site table'
+    'hmac-sha256',
+    'new EL8 installations default to hmac-sha256'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(

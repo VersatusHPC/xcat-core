@@ -70,14 +70,6 @@ subtest 'the policy default is an algorithm a FIPS named accepts' => sub {
 };
 
 subtest 'an installation whose omshell cannot name an algorithm pins hmac-md5' => sub {
-    for my $platform (qw(el8)) {
-        is(
-            xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
-                is_new_install => 1, platform => $platform ),
-            'hmac-md5',
-            "a new $platform installation pins hmac-md5 in the site table"
-        );
-    }
     for my $os ( 'ubuntu,18.04', 'sles,15.6', 'opensuse-leap,15.6' ) {
         is(
             xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
@@ -86,12 +78,17 @@ subtest 'an installation whose omshell cannot name an algorithm pins hmac-md5' =
             "a new $os installation pins hmac-md5 in the site table"
         );
     }
-    is(
-        xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
-            is_new_install => 1, platform => 'el9' ),
-        'hmac-sha256',
-        'a new el9 installation still pins hmac-sha256'
-    );
+
+    # The omshell of dhcp-server-4.3.6-50.el8_10 runs key-algorithm hmac-sha256 against a
+    # dhcpd that declares that algorithm, and cannot connect without the command.
+    for my $platform (qw(el8 el9 el10)) {
+        is(
+            xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
+                is_new_install => 1, platform => $platform ),
+            'hmac-sha256',
+            "a new $platform installation pins hmac-sha256"
+        );
+    }
     is(
         xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
             is_new_install => 0, platform => 'el9' ),

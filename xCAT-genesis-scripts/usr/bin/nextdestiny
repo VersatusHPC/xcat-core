@@ -43,7 +43,41 @@ done
 
 [[ -n $destination ]] || usage
 
-temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/nextdestiny.XXXXXX") || exit 1
+#---
+# make_temporary_dir / make_temporary_file
+# Descriptions: build a private temporary path under a directory.
+# Arguments: the path prefix.
+# Returns: the path on stdout, non-zero when it cannot be created.
+# The legacy Genesis image carries no mktemp, so a name built from the pid is the fallback.
+# That image has one user and a fresh /tmp on every boot.
+#---
+make_temporary_dir() {
+	local prefix=$1 dir
+
+	if command -v mktemp > /dev/null 2>&1; then
+		mktemp -d "$prefix.XXXXXX"
+		return
+	fi
+	dir=$prefix.$$
+	rm -rf -- "$dir" || return 1
+	mkdir -m 0700 -- "$dir" || return 1
+	printf '%s\n' "$dir"
+}
+
+make_temporary_file() {
+	local prefix=$1 file
+
+	if command -v mktemp > /dev/null 2>&1; then
+		mktemp "$prefix.XXXXXX"
+		return
+	fi
+	file=$prefix.$$
+	rm -f -- "$file" || return 1
+	(umask 0177 && : > "$file") || return 1
+	printf '%s\n' "$file"
+}
+
+temporary_dir=$(make_temporary_dir "${TMPDIR:-/tmp}/nextdestiny") || exit 1
 request_file=$temporary_dir/request.xml
 response_file=$temporary_dir/response.xml
 
@@ -120,7 +154,7 @@ if [[ -n $metadata_file ]]; then
 		metadata_dir=/
 	fi
 	[[ -d $metadata_dir ]] || exit 1
-	metadata_temporary=$(mktemp "$metadata_dir/.nextdestiny.XXXXXX") || exit 1
+	metadata_temporary=$(make_temporary_file "$metadata_dir/.nextdestiny") || exit 1
 	{
 		printf 'XCAT_NODE_NAME=%s\n' "$(extract_element name)"
 		printf 'XCAT_DESTINY=%s\n' "$destiny"

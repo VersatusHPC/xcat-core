@@ -117,25 +117,23 @@ subtest 'a deployed key wins over the default, and the site table wins over both
         'a deployed value that names no known algorithm falls back to the default' );
 };
 
-subtest 'makedhcp keeps the algorithm the running dhcpd.conf declares' => sub {
-    my $read_deployed = xCAT_plugin::dhcp->can('_deployed_omapi_algorithm');
-    ok( $read_deployed, 'makedhcp reads the algorithm dhcpd.conf declares' )
+subtest 'makedhcp reads the algorithm makedns recorded, and never lowers the default' => sub {
+    my $read_deployed = xCAT_plugin::dhcp->can('_ddns_key_algorithm');
+    ok( $read_deployed, 'makedhcp reads the shared DDNS key file' )
       or return;
 
-    my $md5_conf = dhcpd_conf('hmac-md5');
-    is( $read_deployed->($md5_conf),
-        'hmac-md5', 'the deployed algorithm is read out of dhcpd.conf' );
+    is( $read_deployed->( ddns_key_file('hmac-sha512') ),
+        'hmac-sha512', 'the algorithm is read out of the key file' );
 
-    my $settings = dhcp_omapi_settings($md5_conf);
-    is( $settings->{algorithm}, 'hmac-md5',
-        'makedhcp signs OMAPI with the algorithm dhcpd already loaded' );
-    ok( !$settings->{needs_omshell_key_algorithm},
-        'omshell keeps the legacy command format for that key' );
+    is( dhcp_omapi_settings( ddns_key_file('hmac-sha512') )->{algorithm},
+        'hmac-sha512', 'a key file stronger than the default raises it' );
+
+    is( dhcp_omapi_settings( ddns_key_file('hmac-md5') )->{algorithm},
+        'hmac-sha256', 'a key file weaker than the default does not lower it' );
 
     my ( undef, $empty ) = tempfile( UNLINK => 1 );
     is( dhcp_omapi_settings($empty)->{algorithm},
-        'hmac-sha256',
-        'a dhcpd.conf with no key stanza takes the default' );
+        'hmac-sha256', 'a missing key file takes the default' );
 };
 
 subtest 'makedns replaces an md5 key stanza when the site names no algorithm' => sub {
@@ -317,34 +315,6 @@ NAMED
 
 #---------------------------------------------------------------------------
 
-=head3 dhcpd_conf
-
-    Description: Write a scratch dhcpd.conf holding one OMAPI key stanza.
-    Arguments:   the algorithm the stanza declares
-    Returns:     the path of the file
-
-=cut
-
-#---------------------------------------------------------------------------
-sub dhcpd_conf {
-    my ($algorithm) = @_;
-
-    my ( $fh, $path ) = tempfile( UNLINK => 1 );
-    print {$fh} <<"DHCPD";
-#xCAT generated dhcp configuration
-omapi-port 7911;
-key xcat_key {
-  algorithm $algorithm;
-  secret "$SECRET";
-};
-omapi-key xcat_key;
-DHCPD
-    close($fh) or die "Unable to close $path: $!";
-    return $path;
-}
-
-#---------------------------------------------------------------------------
-
 =head3 omapi_settings
 
     Description: Resolve the OMAPI policy for one site, with no xCAT database.
@@ -385,9 +355,30 @@ sub dhcp_omapi_settings {
 
     no warnings qw(redefine once);
     local *xCAT::TableUtils::get_site_attribute = sub { return; };
+    local *xCAT::Utils::osver = sub { return 'el10'; };
     local %::XCATSITEVALS = ();
-    local $xCAT_plugin::dhcp::dhcpconffile = $path;
+    local $xCAT_plugin::dhcp::ddns_key_path = $path;
     return xCAT_plugin::dhcp::_omapi_settings( sub { die "@_" } );
+}
+
+#---------------------------------------------------------------------------
+
+=head3 ddns_key_file
+
+    Description: Write a scratch /etc/xcat/ddns.key naming one algorithm.
+    Arguments:   the algorithm the key file declares
+    Returns:     the path of the file
+
+=cut
+
+#---------------------------------------------------------------------------
+sub ddns_key_file {
+    my ($algorithm) = @_;
+
+    my ( $fh, $path ) = tempfile( UNLINK => 1 );
+    print {$fh} qq{key "xcat_key" {\n\talgorithm $algorithm;\n\tsecret "$SECRET";\n};\n};
+    close($fh) or die "Unable to close $path: $!";
+    return $path;
 }
 
 #---------------------------------------------------------------------------

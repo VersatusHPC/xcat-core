@@ -31,14 +31,17 @@ sub settings {
     my $raw_algorithm      = _site_value( 'dhcpomapialgorithm', %args );
     my $algorithm_explicit = defined($raw_algorithm) && $raw_algorithm ne '';
 
-    # A key stanza that is already written wins over the default. An upgraded cluster that
-    # names no algorithm keeps the one its running daemon and its clients already agree on.
+    # named.conf and dhcpd.conf declare one key name. Both writers resolve the algorithm
+    # from this policy, so the default must not depend on which file the caller read.
     unless ($algorithm_explicit) {
-        my $deployed = $args{deployed_algorithm};
-        if ( defined($deployed) && $deployed ne '' ) {
-            my $normalized = $class->normalize_algorithm($deployed);
-            $raw_algorithm = $normalized if $normalized;
-        }
+        $raw_algorithm = $class->default_algorithm(%args);
+
+        # A deployed stanza can only raise the default, never lower it. A rule that lets a
+        # deployed hmac-md5 win pulls one writer back down while the other moves up.
+        my $deployed = $class->known_algorithm( $args{deployed_algorithm} );
+        $raw_algorithm = $deployed
+          if defined($deployed)
+          && $STRENGTH{$deployed} > $STRENGTH{$raw_algorithm};
     }
 
     my $algorithm = $class->normalize_algorithm($raw_algorithm);
@@ -82,12 +85,32 @@ sub normalize_algorithm {
 
     # hmac-md5 is not approved for FIPS mode. named starts with no complaint about an
     # md5 key stanza and then answers SERVFAIL to every update signed with that key.
-    $algorithm = 'hmac-sha256' unless defined($algorithm) && $algorithm ne '';
-    $algorithm = trim($algorithm);
-    $algorithm = lc($algorithm);
+    return 'hmac-sha256' unless defined($algorithm) && $algorithm ne '';
+    return $class->known_algorithm($algorithm);
+}
+
+sub known_algorithm {
+    my ( $class, $algorithm ) = @_;
+
+    return unless defined($algorithm) && $algorithm ne '';
+    $algorithm = lc( trim($algorithm) );
 
     return $algorithm if $ALGORITHMS{$algorithm};
     return;
+}
+
+sub default_algorithm {
+    my ( $class, %args ) = @_;
+
+    # xCAT does not manage an external DNS server and cannot rekey one. That server holds
+    # the hmac-md5 key xCAT signed with before, and dhcpd updates the same server.
+    my $external = exists( $args{external} )
+      ? $args{external}
+      : _site_value( 'externaldns', %args );
+    return 'hmac-md5' if $external;
+
+    return 'hmac-md5' if $class->omshell_pinned_to_md5(%args);
+    return 'hmac-sha256';
 }
 
 sub algorithm_rr_type {
@@ -107,7 +130,8 @@ sub algorithm_strength {
 sub keeps_deployed_algorithm {
     my ( $class, $settings, $deployed ) = @_;
 
-    $deployed = $class->normalize_algorithm($deployed) or return 0;
+    # A stanza with no algorithm line names no algorithm to keep. Repair it.
+    $deployed = $class->known_algorithm($deployed) or return 0;
     return $deployed eq $settings->{algorithm} if $settings->{algorithm_explicit};
 
     return $class->algorithm_strength($deployed) >=
@@ -124,6 +148,40 @@ sub new_install_default_algorithm {
     # Without the entry the installation would take the hmac-sha256 default and its OMAPI
     # would authenticate against the wrong algorithm.
     return 'hmac-md5';
+}
+
+sub omshell_pinned_to_md5 {
+    my ( $class, %args ) = @_;
+
+    my ( $platform, $os ) = $class->_platform_and_os(%args);
+
+    # The omshell of SLES 12, SLES 15, openSUSE Leap 15 and Ubuntu 18.04 has no
+    # key-algorithm command, so it authenticates only against an hmac-md5 OMAPI key.
+    # A platform this routine does not recognise takes the hmac-sha256 default.
+    return 1 if defined($os) && $os =~ /^(?:sles|opensuse[a-z-]*)\b/i;
+    if ( defined($os) && $os =~ /^ubuntu,(\d+\.\d+(?:\.\d+)*)\b/i ) {
+        my $ubuntu_version = $1;
+        require xCAT::Utils;
+        return 1 if xCAT::Utils->version_cmp( $ubuntu_version, '20.04' ) < 0;
+    }
+    return 0;
+}
+
+sub _platform_and_os {
+    my ( $class, %args ) = @_;
+
+    return ( $args{platform}, $args{os} )
+      if defined( $args{platform} ) || defined( $args{os} );
+
+    # Both writers must read the platform the same way, or they pin different algorithms.
+    my ( $platform, $os );
+    eval {
+        require xCAT::Utils;
+        $platform = xCAT::Utils->osver('platform');
+        $os       = xCAT::Utils->osver('all');
+        1;
+    };
+    return ( $platform, $os );
 }
 
 sub omshell_takes_key_algorithm {

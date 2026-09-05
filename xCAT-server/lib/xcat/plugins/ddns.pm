@@ -305,13 +305,6 @@ sub process_request {
     my $slave      = 0;
     my $VERBOSE;
 
-    $ctx->{omapi_settings} = xCAT::DHCP::OmapiPolicy->settings();
-    if ($ctx->{omapi_settings}->{error}) {
-        xCAT::SvrUtils::sendmsg([ 1, $ctx->{omapi_settings}->{error} ], $callback);
-        umask($oldmask);
-        return;
-    }
-
     # Since the mandatory rpm perl-Net-DNS for makedns on sles12 (perl-Net-DNS-0.73-1.28)  has a bug,
     # user has to update it to a newer version
     my @rpminfo = `rpm -qi perl-Net-DNS`;
@@ -362,6 +355,15 @@ sub process_request {
 
     # ddns_tsig_algorithm reads this. Both the -e flag and site.externaldns are settled here.
     $ctx->{external} = $external;
+
+    # The policy answers with the external flag, so resolve it only after the -e flag is
+    # read. makedhcp resolves the same policy, and the two must reach the same algorithm.
+    $ctx->{omapi_settings} = xCAT::DHCP::OmapiPolicy->settings(external => $external);
+    if ($ctx->{omapi_settings}->{error}) {
+        xCAT::SvrUtils::sendmsg([ 1, $ctx->{omapi_settings}->{error} ], $callback);
+        umask($oldmask);
+        return;
+    }
 
     if ($help)
     {

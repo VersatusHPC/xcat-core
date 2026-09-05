@@ -93,16 +93,16 @@ Edit **/etc/resolv.conf** to contain the cluster domain value you set in the sit
 Legacy ISC DHCP and BIND TSIG Key Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. If **dhcpomapialgorithm** is not set, xCAT uses **hmac-sha256**. HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
+xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. The ``named.conf`` key stanza and the ``dhcpd.conf`` key stanza declare the same key, and the ``zone`` statements of ``dhcpd.conf`` point ``dhcpd`` at that stanza, so both files must name one algorithm. ``makedns`` and ``makedhcp`` read the same policy to select it.
 
-New installations on Enterprise Linux 8 or later and Ubuntu 20.04 or later set **hmac-sha256**. New installations on Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 set **hmac-md5**, because their bundled ``omshell`` does not support the ``key-algorithm`` command.
+If **dhcpomapialgorithm** is not set, xCAT uses **hmac-sha256**. HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
 
-An upgrade does not change the algorithm under a running cluster:
+xCAT keeps **hmac-md5** where **hmac-sha256** cannot work:
 
-* A site that sets **dhcpomapialgorithm** keeps that value.
-* A site that sets no value keeps the algorithm the ``dhcpd.conf`` OMAPI key stanza declares. Run ``makedhcp -n`` to write a stanza with the current default.
-* ``makedns`` replaces a ``named.conf`` key stanza that does not declare the algorithm xCAT signs with, and restarts ``named``. A management node in FIPS mode that names no algorithm moves to **hmac-sha256** at the first ``makedns``. ``makedns`` does not lower the algorithm of a stanza that already names a stronger one.
-* A cluster that uses an external DNS server (**site.externaldns**, or ``makedns -e``) and sets no value keeps **hmac-md5**. xCAT does not manage that server and cannot rekey it. To move an external server to another algorithm, add the key there first, then set **dhcpomapialgorithm** and the matching **passwd** table secret.
+* On Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15, whose bundled ``omshell`` does not support the ``key-algorithm`` command and can authenticate only against an hmac-md5 OMAPI key.
+* On a cluster that uses an external DNS server (**site.externaldns**, or ``makedns -e``). xCAT does not manage that server and cannot rekey it. To move an external server to another algorithm, add the key there first, then set **dhcpomapialgorithm** and the matching **passwd** table secret.
+
+On every other platform a site that sets no value moves to **hmac-sha256**. ``makedns`` replaces a ``named.conf`` key stanza that names a weaker algorithm and restarts ``named``; ``makedhcp -n`` writes the same algorithm into ``dhcpd.conf``. A stanza that already names a stronger algorithm is kept, and raises the algorithm both files use.
 
 To keep legacy ISC DHCP OMAPI and BIND DDNS on HMAC-MD5, set the attribute before the upgrade: ::
 

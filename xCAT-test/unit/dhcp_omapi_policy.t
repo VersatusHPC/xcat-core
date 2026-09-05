@@ -52,8 +52,9 @@ is(
     'default omshell preamble names the algorithm it signs with'
 );
 
-# A key that a daemon already loaded wins over the default, so an upgrade keeps a
-# management node whose omshell cannot name an algorithm on the key it can use.
+# A deployed key raises the default and never lowers it. named.conf and dhcpd.conf
+# declare one key name, so a deployed hmac-md5 that wins on one side and loses on the
+# other leaves the two files naming the same key two ways.
 my $deployed = xCAT::DHCP::OmapiPolicy->settings(
     site_values => {
         dhcpomapialgorithm => undef,
@@ -62,12 +63,23 @@ my $deployed = xCAT::DHCP::OmapiPolicy->settings(
     },
     deployed_algorithm => 'hmac-md5',
 );
-is( $deployed->{algorithm}, 'hmac-md5',
-    'a deployed hmac-md5 key wins over the default' );
+is( $deployed->{algorithm}, 'hmac-sha256',
+    'a deployed hmac-md5 key does not lower the default' );
 ok( !$deployed->{algorithm_explicit},
     'a deployed algorithm is not an administrator choice' );
-ok( !$deployed->{needs_omshell_key_algorithm},
-    'omshell keeps the legacy command format for a deployed MD5 key' );
+ok( $deployed->{needs_omshell_key_algorithm},
+    'omshell is told the algorithm the default selects' );
+
+my $stronger = xCAT::DHCP::OmapiPolicy->settings(
+    site_values => {
+        dhcpomapialgorithm => undef,
+        dhcpomapikeyname   => undef,
+        dhcpomshellpath    => undef,
+    },
+    deployed_algorithm => 'hmac-sha512',
+);
+is( $stronger->{algorithm}, 'hmac-sha512',
+    'a deployed key stronger than the default raises it' );
 
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(

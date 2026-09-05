@@ -70,6 +70,9 @@ my $nodetypeents;
 my $chainents;
 my $tftpdir = xCAT::TableUtils->getTftpDir();
 our $dhcpconffile = $^O eq 'aix' ? '/etc/dhcpsd.cnf' : '/etc/dhcpd.conf';
+
+# makedns writes this file with the algorithm the named.conf key stanza declares.
+our $ddns_key_path = "/etc/xcat/ddns.key";
 my %dynamicranges; #track dynamic ranges defined to see if a host that resolves is actually a dynamic address
 my %netcfgs;
 our $distro = xCAT::Utils->osver();
@@ -180,41 +183,37 @@ sub handled_commands
 
 #-------------------------------------------------------------------------------
 
-=head3 _deployed_omapi_algorithm
+=head3 _ddns_key_algorithm
 
-    Descriptions: Read the algorithm the OMAPI key stanza of a dhcpd.conf declares.
-    Arguments:    the path of the dhcpd.conf to read; $dhcpconffile by default
+    Descriptions: Read the TSIG algorithm the shared DDNS key file declares. makedns
+                  writes that file with the algorithm the named.conf key stanza holds.
+    Arguments:    the path of the key file to read; $ddns_key_path by default
     Returns:      the algorithm name in lower case, or undef when the file names none
 
 =cut
 
 #-------------------------------------------------------------------------------
-sub _deployed_omapi_algorithm
+sub _ddns_key_algorithm
 {
-    my $file = shift || $dhcpconffile;
+    my $file = shift || $ddns_key_path;
 
-    open( my $conf, '<', $file ) or return;
-    my $algorithm;
-    my $inkey = 0;
-    while ( my $line = <$conf> ) {
-        if ( $line =~ /^\s*key\s+\S+\s*\{/ ) { $inkey = 1; next; }
-        next unless $inkey;
-        if ( $line =~ /^\s*algorithm\s+([^;\s]+)\s*;/ ) { $algorithm = lc($1); last; }
-        $inkey = 0 if $line =~ /^\s*\}/;
-    }
-    close($conf);
-    return $algorithm;
+    open( my $key, '<', $file ) or return;
+    local $/;
+    my $contents = <$key>;
+    close($key);
+    my ($algorithm) = $contents =~ /algorithm\s+([A-Za-z0-9-]+)\s*;/;
+    return defined($algorithm) ? lc($algorithm) : undef;
 }
 
 sub _omapi_settings
 {
     my $cb = shift || $callback;
 
-    # omshell authenticates against the stanza dhcpd already loaded. Only makedhcp -n
-    # rewrites that stanza, so a site that names no algorithm keeps the deployed one until
-    # then, and an omshell that cannot name an algorithm keeps working across an upgrade.
+    # The dhcpd.conf key stanza and the named.conf key stanza carry one key name, and the
+    # "zone ... { key ...; }" statements point dhcpd at that stanza. Take the algorithm
+    # from the same policy makedns uses, and the floor from the key file makedns writes.
     my $settings = xCAT::DHCP::OmapiPolicy->settings(
-        deployed_algorithm => _deployed_omapi_algorithm() );
+        deployed_algorithm => _ddns_key_algorithm() );
     if ($settings->{error}) {
         $cb->({ error => [ $settings->{error} ], errorcode => [1] }) if $cb;
         syslog("local4|err", $settings->{error});
@@ -3218,7 +3217,7 @@ sub kea_ddns_enabled
 
 sub kea_ddns_key
 {
-    my $key_path = "/etc/xcat/ddns.key";
+    my $key_path = $ddns_key_path;
     if (open(my $fh, '<', $key_path)) {
         local $/;
         my $contents = <$fh>;

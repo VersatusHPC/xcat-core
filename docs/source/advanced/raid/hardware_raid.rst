@@ -13,6 +13,8 @@ There are two commands (``diskdiscover`` and ``configraid``) shipped in ``xCAT-g
 * **diskdiscover** : Scan disk devices in xcat genesis system, give out disks and RAID arrays information.
 * **configraid** : Delete RAID arrays, create RAID arrays in xcat genesis system.
 
+.. note:: ``configraid`` runs on the legacy Genesis image only. The OpenEmbedded Genesis image ships no ``configraid`` action, so it refuses ``runcmd=configraid`` and reports ``ACTION_COMMAND_NOT_APPROVED``. On OpenEmbedded, build a signed system extension with ``xCAT-genesis-builder/oe/export-extension``.
+
 Following sections show how to use ``diskdiscover`` and ``configraid``, we assume ``cn1`` is compute node in all examples.
 
 Discovering disk devices

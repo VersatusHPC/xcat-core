@@ -78,7 +78,7 @@ nm_conn_for_dev() {
 }
 
 nm_show() {
-    local dev=$1 conn method addrs a ip pfx mtu kf
+    local dev=$1 conn method addrs a ip pfx mtu kf link_mtu
     conn=$(nm_conn_for_dev "$dev")
     if [ -z "$conn" ]; then echo "nic_cfg: no NetworkManager connection for device $dev"; return 1; fi
     echo "NAME=$conn"
@@ -106,6 +106,12 @@ nm_show() {
         mtu=$(awk -F= '/^[[:space:]]*mtu=/{print $2; exit}' "$kf")
     fi
     [ -n "$mtu" ] && [ "$mtu" != "auto" ] && echo "MTU=$mtu"
+    # The profile above is what the device gets at its next activation. configeth also sets
+    # the MTU on the live link when it does not restart the NIC, and no profile the device is
+    # running carries that value. Report the link, so a case reads the applied MTU and not
+    # only the declared one.
+    link_mtu=$(ip -o link show dev "$dev" 2>/dev/null | sed -n 's/.*[[:space:]]mtu[[:space:]]\([0-9]\{1,\}\).*/\1/p')
+    [ -n "$link_mtu" ] && echo "LINK_MTU=$link_mtu"
     # Raw keyfile so anything not normalized above (extra params, slaves, vlan id, ...)
     # is still visible and greppable by the case's check: lines.
     if [ -r "$kf" ]; then echo "# --- $kf ---"; cat "$kf"; fi

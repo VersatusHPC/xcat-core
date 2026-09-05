@@ -80,9 +80,9 @@ is( genimage_mirror( 'x86_64', 'http://br.archive.ubuntu.com/ubuntu' ),
 # There is no xCAT database here, so xCAT::Table->new returns nothing and Template.pm takes
 # its own no-site-table path -- which is the default this test is about.
 
-no warnings 'redefine';
+no warnings 'redefine', 'once';
 local *xCAT::Table::new = sub { return; };
-use warnings 'redefine';
+use warnings 'redefine', 'once';
 
 is( xCAT::Template::ubuntu_subiquity_apt_mirror('/install/ubuntu24.04.4/ppc64el'),
     $PORTS, 'a Subiquity install of a ppc64el image uses ports' );

@@ -1764,13 +1764,38 @@ sub subiquity_install_mac {
     return $macaddress;
 }
 
+#--------------------------------------------------------------------------------
+
+=head3 ubuntu_subiquity_arch
+
+    The architecture of the image a Subiquity install writes. copycd puts the media under
+    /install/<osvers>/<arch>, so the media directory names it. A caller with no media
+    directory reads nodetype.arch for the node, as ubuntu_subiquity_release does.
+
+=cut
+
+#--------------------------------------------------------------------------------
+sub ubuntu_subiquity_arch
+{
+    my ($media_dir) = @_;
+    my ($arch) = ( $media_dir || '' )
+      =~ m{/(amd64|i386|x86_64|x86|ppc64el|ppc64le|ppc64|arm64|armhf|s390x|riscv64)(?:/|,|$)};
+    return $arch if $arch;
+
+    my $nodetype_tab = xCAT::Table->new('nodetype');
+    my $nodetype_ent = $nodetype_tab ? $nodetype_tab->getNodeAttribs( $node, ['arch'] ) : undef;
+    return ( $nodetype_ent && $nodetype_ent->{arch} ) ? $nodetype_ent->{arch} : '';
+}
+
 sub ubuntu_subiquity_apt_mirror
 {
-    # Apt mirror for Subiquity installs. site.ubuntu_apt_mirror overrides; otherwise default to the
-    # public archive. The minimal live-server install media is not a complete package source, so a
-    # real mirror is always required -- set site.ubuntu_apt_mirror to a local full mirror for
-    # airgapped clusters (or to a geo/ports mirror as needed).
-    my $default = 'http://archive.ubuntu.com/ubuntu';
+    my ($media_dir) = @_;
+
+    # Apt mirror for Subiquity installs. site.ubuntu_apt_mirror overrides; otherwise default to
+    # the public mirror that carries this architecture. The minimal live-server install media is
+    # not a complete package source, so a real mirror is always required -- set
+    # site.ubuntu_apt_mirror to a local full mirror for airgapped clusters.
+    my $default = xCAT::Utils->ubuntu_mirror_url( ubuntu_subiquity_arch($media_dir) );
     my $site_tab = xCAT::Table->new('site');
     return $default unless $site_tab;
     my $ent = $site_tab->getAttribs({ key => 'ubuntu_apt_mirror' }, 'value');
@@ -1783,7 +1808,7 @@ sub ubuntu_subiquity_apt_config
     my $use_deb822 = ubuntu_subiquity_uses_deb822_sources($media_dir);
     my @otherpkg_sources = ubuntu_subiquity_otherpkg_sources();
 
-    my $online_mirror = ubuntu_subiquity_apt_mirror();
+    my $online_mirror = ubuntu_subiquity_apt_mirror($media_dir);
     if ($online_mirror) {
         # Online install: use the configured archive as the primary apt mirror so
         # Subiquity/curtin can fetch whatever the minimal media lacks. No

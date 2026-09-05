@@ -256,11 +256,12 @@ unless ($onlyinitrd) {
     # independent (one URL serves all releases); the codename comes from the osimage's osvers.
     # The parser below expects the entry as "<url> <codename>".
     unless (@pkgdir_internet) {
-        # site.ubuntu_apt_mirror overrides; otherwise default to the public archive. A live-server
-        # ISO is never a complete debootstrap source, so a real mirror is always required here.
+        # site.ubuntu_apt_mirror overrides; otherwise default to the public mirror that carries
+        # this architecture. A live-server ISO is never a complete debootstrap source, so a real
+        # mirror is always required here.
         my @aptmirror = xCAT::TableUtils->get_site_attribute("ubuntu_apt_mirror");
         my $mirror = (defined $aptmirror[0] && length $aptmirror[0])
-                   ? $aptmirror[0] : 'http://archive.ubuntu.com/ubuntu';
+                   ? $aptmirror[0] : xCAT::Utils->ubuntu_mirror_url($arch);
         (my $codename = $osver) =~ s/^ubuntu//;
         # Strip ONLY a trailing third component. A bare s/\.\d+$// also strips the minor from a
         # two-part osvers (ubuntu26.04 -> "26"), which misses the %cn map below and reaches
@@ -273,8 +274,8 @@ unless ($onlyinitrd) {
         # (ignores the rest); every entry becomes a line in the chroot's sources.list. The compute
         # pkglist pulls from main + universe (busybox-static, dracut*), and needs the -updates /
         # -security pockets too -- e.g. openssh-server depends on a security-updated openssh-client
-        # absent from the base release pocket. archive.ubuntu.com (and standard mirrors) serve all
-        # three pockets from the one base URL.
+        # absent from the base release pocket. archive.ubuntu.com, ports.ubuntu.com (and standard
+        # mirrors) serve all three pockets from the one base URL.
         foreach my $pocket ($codename, "$codename-updates", "$codename-security") {
             push @pkgdir_internet, "$mirror $pocket main universe";
         }

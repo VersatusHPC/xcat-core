@@ -12,8 +12,11 @@ Distribution: %{?_distribution:%{_distribution}}%{!?_distribution:%{_vendor}}
 Prefix: /opt/xcat
 BuildRoot: /var/tmp/%{name}-%{version}-%{release}-root
 
-# Pod::Html ships inside the core perl package on SUSE; there is no perl-Pod-Html
-%if !0%{?suse_version}
+# There is no perl-Pod-Html on SUSE: pod2man and Pod::Html ship in the perl package.
+# Name perl there, or the buildroot has no pod2man and %build fails.
+%if 0%{?suse_version}
+BuildRequires: perl
+%else
 BuildRequires: perl-Pod-Html
 %endif
 

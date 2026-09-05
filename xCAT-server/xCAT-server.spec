@@ -58,11 +58,16 @@ Requires: perl-Net-Telnet perl-Net-DNS perl-Crypt-CBC perl-Crypt-Rijndael
 # and skipped where it cannot. The dependency generator still turns that "use DB_File"
 # into a hard perl(DB_File) requirement; drop it there too, appending to any filter the
 # build root already set. Every other platform keeps the hard requirement it has today.
+# Leap has no perl-DB_File; it ships DB_File in perl-core-DB_File.
+%if 0%{?suse_version}
+Requires: perl-core-DB_File
+%else
 %if 0%{?rhel} >= 10
 Recommends: perl-DB_File
 %global __requires_exclude %{?__requires_exclude:%{__requires_exclude}|}^perl\\(DB_File\\)$
 %else
 Requires: perl-DB_File
+%endif
 %endif
 %endif
 Obsoletes: atftp-xcat

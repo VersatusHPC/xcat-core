@@ -19,8 +19,11 @@ BuildRoot: /var/tmp/%{name}-%{version}-%{release}-root
 %define s390x %(if [ "$s390x" = "1" ];then echo 1; else echo 0; fi)
 %define nots390x %(if [ "$s390x" = "1" ];then echo 0; else echo 1; fi)
 
-# Pod::Html ships inside the core perl package on SUSE; there is no perl-Pod-Html
-%if !0%{?suse_version}
+# There is no perl-Pod-Html on SUSE: pod2man and Pod::Html ship in the perl package.
+# Name perl there, or the buildroot has no pod2man and %build fails.
+%if 0%{?suse_version}
+BuildRequires: perl
+%else
 BuildRequires: perl-Pod-Html
 %endif
 

@@ -7,7 +7,7 @@ Standards-Version: 3.9.4
 
 Package: xcat-genesis-scripts-ppc64el
 Architecture: all
-Depends: xcat-genesis-base-ppc64el (>= 2.13.10)
+Depends: xcat-genesis-base-ppc64el (>= 2.13.10), gawk
 Conflicts: xcat-genesis-scripts, xcat-genesis-scripts-ppc64
 Replaces: xcat-genesis-scripts, xcat-genesis-scripts-ppc64
 Description: xCAT genesis

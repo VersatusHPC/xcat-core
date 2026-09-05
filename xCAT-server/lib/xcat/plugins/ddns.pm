@@ -1353,16 +1353,18 @@ sub update_namedconf {
                         push @keyblock, $line;
                     } while ($line !~ /^\};/);
                     # named matches a TSIG key by name and by algorithm, so the stanza must
-                    # declare the algorithm makedns signs with. Rewrite it on any difference.
-                    # This includes a site that names no algorithm: a FIPS named answers
-                    # SERVFAIL to an update signed with hmac-md5.
-                    if (!$algorithmnow || lc($algorithmnow) ne $omapi_settings->{algorithm}) {
+                    # declare the algorithm makedns signs with. A site that names no
+                    # algorithm takes the stanza when the stanza is at least as strong,
+                    # so the default replaces hmac-md5 and keeps hmac-sha512.
+                    if (xCAT::DHCP::OmapiPolicy->keeps_deployed_algorithm(
+                            $omapi_settings, $algorithmnow)) {
+                        $ctx->{tsig_algorithm} =
+                          xCAT::DHCP::OmapiPolicy->normalize_algorithm($algorithmnow);
+                        push @newnamed, @keyblock;
+                    } else {
                         $ctx->{tsig_algorithm} = $omapi_settings->{algorithm};
                         push @newnamed, ddns_key_contents($ctx);
                         $ctx->{restartneeded} = 1;
-                    } else {
-                        $ctx->{tsig_algorithm} = lc($algorithmnow);
-                        push @newnamed, @keyblock;
                     }
                 } else {
                     push @newnamed, $line;

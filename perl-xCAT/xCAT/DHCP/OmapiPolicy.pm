@@ -14,6 +14,17 @@ my %ALGORITHMS = (
     'hmac-sha512' => 165,
 );
 
+# The order of the HMAC algorithms, weakest first. A stanza an administrator made
+# stronger must survive a default that is weaker.
+my %STRENGTH = (
+    'hmac-md5'    => 0,
+    'hmac-sha1'   => 1,
+    'hmac-sha224' => 2,
+    'hmac-sha256' => 3,
+    'hmac-sha384' => 4,
+    'hmac-sha512' => 5,
+);
+
 sub settings {
     my ( $class, %args ) = @_;
 
@@ -84,6 +95,23 @@ sub algorithm_rr_type {
 
     $algorithm = $class->normalize_algorithm($algorithm) or return;
     return $ALGORITHMS{$algorithm};
+}
+
+sub algorithm_strength {
+    my ( $class, $algorithm ) = @_;
+
+    $algorithm = $class->normalize_algorithm($algorithm) or return;
+    return $STRENGTH{$algorithm};
+}
+
+sub keeps_deployed_algorithm {
+    my ( $class, $settings, $deployed ) = @_;
+
+    $deployed = $class->normalize_algorithm($deployed) or return 0;
+    return $deployed eq $settings->{algorithm} if $settings->{algorithm_explicit};
+
+    return $class->algorithm_strength($deployed) >=
+      $class->algorithm_strength( $settings->{algorithm} ) ? 1 : 0;
 }
 
 sub new_install_default_algorithm {

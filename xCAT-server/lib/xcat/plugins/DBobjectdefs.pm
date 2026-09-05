@@ -181,6 +181,82 @@ sub process_request
     $::callback->($rsp);
 }
 
+#-------------------------------------------------------------------------------
+
+=head3   osimage_name_near_misses
+
+    Descriptions:
+        Find the existing osimage names that differ from $name in one field.
+
+    Arguments:
+        $name     - the osimage name that was asked for
+        $existing - the osimage names that are defined
+
+    Returns:
+        The near miss names, sorted.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub osimage_name_near_misses {
+    my ($name, $existing) = @_;
+    return () unless defined($name) && ref($existing) eq 'ARRAY';
+
+    my @wanted = split(/-/, $name, -1);
+    my @near;
+    foreach my $candidate (@{$existing}) {
+        next unless defined($candidate);
+        next if $candidate eq $name;
+        my @have = split(/-/, $candidate, -1);
+        next unless scalar(@have) == scalar(@wanted);
+
+        my $different = 0;
+        foreach my $index (0 .. $#wanted) {
+            $different++ if $have[$index] ne $wanted[$index];
+        }
+        push(@near, $candidate) if $different == 1;
+    }
+
+    return sort(@near);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3   osimage_create_error
+
+    Descriptions:
+        Say why chdef must not create the osimage definition $name.
+
+        chdef creates an object that does not exist. An osimage row without
+        osarch makes every later command read the misspelled name as a real
+        image: nodeset accepts it and rinstall stops on "'osarch' attribute not
+        defined", two layers away from the name that was wrong.
+
+    Arguments:
+        $name     - the osimage name that was asked for
+        $attrs    - the attributes chdef would write
+        $existing - the osimage names that are defined
+
+    Returns:
+        The error message, or undef when the definition may be created.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub osimage_create_error {
+    my ($name, $attrs, $existing) = @_;
+    return undef unless defined($name);
+    return undef if ref($attrs) eq 'HASH'
+      && defined($attrs->{osarch})
+      && $attrs->{osarch} ne '';
+
+    my $message = "No osimage \'$name\' and attribute \'osarch\' is not specified, so it cannot be created.";
+    my @near = osimage_name_near_misses($name, $existing);
+    $message .= " These osimage definitions have a similar name: " . join(', ', @near) . "." if @near;
+
+    return $message;
+}
+
 sub parse_attr_for_osimage {
     my $command   = shift;
     my $attr_hash = shift;
@@ -3005,6 +3081,22 @@ sub defch
         # Only dynamic groups should be in nodegroup table
         # Do not try to add static group into the nodegroup table
         # performance!!!!
+
+        if ((!$isDefined) && ($type eq 'osimage'))
+        {
+            my $osimage_error = &osimage_create_error($obj, $::FINALATTRS{$obj}, $objTypeLists{$type});
+            if ($osimage_error)
+            {
+                my $rsp;
+                $rsp->{data}->[0] = $osimage_error;
+                $rsp->{data}->[1] = "Skipping to the next object.";
+                xCAT::MsgUtils->message("E", $rsp, $::callback);
+                $error = 1;
+                delete($newobjects{$obj});
+                delete($::FINALATTRS{$obj});
+                next;
+            }
+        }
 
         #special case for osimage, if the osimage was not defined,
         #chdef can not create it correctly if no attribute in osimage table is defined

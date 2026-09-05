@@ -4,10 +4,31 @@ CREDPID=$!
 if [ -z "$XCATDEST" ]; then
 	XCATDEST=$1
 fi
+
+# doxcat runs getcert in the foreground and ignores its status. A retry with no bound stops
+# the boot and prints nothing.
+give_up() {
+	logger -s -t xcat -p local4.err "getcert: $1"
+	kill $CREDPID 2> /dev/null
+	exit 1
+}
+
+if ! command -v openssl > /dev/null 2>&1; then
+	give_up "this Genesis image carries no openssl, so it makes no certificate request"
+fi
+
 #retry in case certkey.pem is not right, yet
-while ! openssl req -new -key /etc/xcat/certkey.pem -out /tmp/tls.csr -subj "/CN=$(hostname)" >& /dev/null; do
+# doxcat writes /etc/xcat/certkey.pem in the background, so the first tries fail.
+CSR_TIMEOUT=${GETCERT_CSR_TIMEOUT:-600}
+CSR_DEADLINE=$((SECONDS + CSR_TIMEOUT))
+CSR_ERROR=/tmp/getcert.csr.err
+while ! openssl req -new -key /etc/xcat/certkey.pem -out /tmp/tls.csr -subj "/CN=$(hostname)" > /dev/null 2> $CSR_ERROR; do
+	if [ "$SECONDS" -ge "$CSR_DEADLINE" ]; then
+		give_up "no certificate request after ${CSR_TIMEOUT}s: $(tr '\n' ' ' < $CSR_ERROR)"
+	fi
 	sleep 1
 done
+rm -f $CSR_ERROR
 echo "<xcatrequest>
 <command>getcredentials</command>
 <arg>x509cert</arg>

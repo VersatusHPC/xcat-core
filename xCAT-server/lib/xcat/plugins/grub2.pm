@@ -85,6 +85,42 @@ sub getstate {
     }
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 grub_linux_line
+
+    Build the GRUB "linux" line of a node.
+
+    GRUB reads ";" as a command separator. The NoCloud seed of an Ubuntu autoinstall is
+    "ds=nocloud-net;s=<url>", so the linux command ends at that ";" and the kernel boots
+    with no seed and no tail. Subiquity then asks the operator for a mode. A backslash
+    makes GRUB read the ";" as text.
+
+    BOOTIF is appended after the escape: $net_default_mac is a GRUB variable and must stay
+    one.
+
+    Arguments:
+        $efi        "efi" for an x86 node, empty for the others
+        $kernel     the path GRUB loads the kernel from
+        $kcmdline   the kernel command line, or undef
+    Returns:
+        the linux line, without the newline
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub grub_linux_line {
+    my ($efi, $kernel, $kcmdline) = @_;
+
+    my $line = "    linux$efi $kernel";
+    if (defined($kcmdline) and length($kcmdline)) {
+        (my $escaped = $kcmdline) =~ s/(?<!\\);/\\;/g;
+        $line .= " $escaped";
+    }
+
+    return $line . ' BOOTIF=$net_default_mac';
+}
+
 sub setstate {
 
 =pod
@@ -259,11 +295,7 @@ sub setstate {
                 $efi = "efi";
             }
 
-            if ($kern and $kern->{kcmdline}) {
-                print $pcfg "    linux$efi $protocolrootdir/$kern->{kernel} $kern->{kcmdline} BOOTIF=\$net_default_mac\n";
-            } else {
-                print $pcfg "    linux$efi $protocolrootdir/$kern->{kernel} BOOTIF=\$net_default_mac\n";
-            }
+            print $pcfg grub_linux_line($efi, "$protocolrootdir/$kern->{kernel}", $kern->{kcmdline}) . "\n";
             print $pcfg "    echo Loading initial ramdisk ...\n";
             if ($kern and $kern->{initrd}) {
                 print $pcfg "    initrd$efi $protocolrootdir/$kern->{initrd}\n";

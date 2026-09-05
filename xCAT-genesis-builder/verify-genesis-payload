@@ -95,6 +95,14 @@ if have usr/sbin/sshd && grep -qa 'sshd-session' "$payload/usr/sbin/sshd" 2>/dev
     fi
 fi
 
+# The Genesis awk programs open a TCP stream with the gawk /inet/ coprocess. mawk rejects
+# that at parse time, and mawk is the default awk on a Debian or Ubuntu build host, so read
+# the binary back. gawk carries its own name; mawk does not.
+if have usr/bin/awk && ! grep -qa 'GNU Awk' "$payload/usr/bin/awk"; then
+    missing="$missing
+  usr/bin/awk is not gawk (updateflag.awk and minixcatd.awk need the gawk /inet/ coprocess)"
+fi
+
 # tmux exits under the C locale. The hook falls back to running doxcat directly, so this is
 # not fatal to booting, but a Genesis shell without tmux loses the console attach.
 if have usr/bin/tmux && ! have usr/lib/locale/C.utf8/LC_CTYPE; then

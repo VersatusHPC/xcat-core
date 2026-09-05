@@ -48,7 +48,13 @@ install() {
     _dracut_install_opt mstflint
     dracut_install netstat # broadcom update requires
     dracut_install uniq # mellanox update requires
-    dracut_install grep ip hostname /usr/bin/awk egrep grep dirname expr
+    dracut_install grep ip hostname egrep grep dirname expr
+
+    # updateflag.awk, minixcatd.awk, udpcat.awk and allowcred.awk open a TCP stream with
+    # the gawk /inet/ coprocess. mawk rejects that at parse time, and mawk is the default
+    # awk on Ubuntu, so name gawk and point awk at it.
+    dracut_install gawk
+    ln -sf gawk "$initdir/usr/bin/awk"
     dracut_install mount.nfs sshd vi reboot lspci parted screen mkfs mkfs.ext4 mkfs.btrfs
     #dracut_install libvirtd /usr/share/libvirt/cpu_map.xml /usr/bin/qemu-img /usr/libexec/qemu-kvm
     dracut_install mkswap df ifenslave ssh-keygen scp clear

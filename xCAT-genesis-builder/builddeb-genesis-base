@@ -30,6 +30,7 @@ REQUIRED_PACKAGES="
     nfs-common rpcbind pciutils usbutils parted
     dosfstools e2fsprogs lvm2 mdadm net-tools
     bc psmisc rsync wget cpio
+    gawk
     dpkg-dev debhelper fakeroot devscripts vim-tiny
 "
 if [ "$BUILDARCH" = "amd64" ]; then
@@ -140,6 +141,11 @@ if [ ! -e "$KERNEL_IMAGE" ]; then
 fi
 echo "Adding kernel $KERNEL_IMAGE"
 cp "$KERNEL_IMAGE" "$GENESIS_ROOT/kernel"
+
+# dracut_install reports a missing binary and returns, so a hole in the image reaches the
+# .deb silently. awk is a symlink the module makes itself, so dracut reports nothing at all
+# when gawk is absent.
+bash "$DIR/verify-genesis-payload" "$GENESIS_FS" usr/bin/awk usr/bin/gawk
 
 find "$GENESIS_TMPDIR" -type c -delete
 

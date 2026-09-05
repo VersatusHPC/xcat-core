@@ -219,6 +219,76 @@ subtest 'a weaker stanza is still replaced' => sub {
     }
 };
 
+# The two files declare ONE key. A test that asserts named.conf says one algorithm and
+# dhcpd.conf says another, in two separate subtests, passes on a cluster whose DNS and DHCP
+# disagree. Compare the two rendered stanzas instead.
+subtest 'one key name declares one algorithm in named.conf and dhcpd.conf' => sub {
+    my @scenarios = (
+        {
+            name      => 'an upgraded EL cluster that names no algorithm',
+            deployed  => 'hmac-md5',
+            os        => 'alma,10.0',
+            platform  => 'el10',
+            expect    => 'hmac-sha256',
+        },
+        {
+            name      => 'an upgraded cluster whose omshell cannot name an algorithm',
+            deployed  => 'hmac-md5',
+            os        => 'sles,15.6',
+            platform  => '',
+            expect    => 'hmac-md5',
+        },
+        {
+            name      => 'a cluster whose DNS server xCAT does not manage',
+            deployed  => 'hmac-md5',
+            os        => 'alma,10.0',
+            platform  => 'el10',
+            external  => 1,
+            expect    => 'hmac-md5',
+        },
+        {
+            name           => 'a site that names an algorithm',
+            deployed       => 'hmac-md5',
+            os             => 'alma,10.0',
+            platform       => 'el10',
+            site_algorithm => 'hmac-sha512',
+            expect         => 'hmac-sha512',
+        },
+        {
+            name      => 'a new cluster whose DNS server xCAT does not manage',
+            deployed  => undef,
+            os        => 'alma,10.0',
+            platform  => 'el10',
+            external  => 1,
+            expect    => 'hmac-md5',
+        },
+        {
+            name      => 'a cluster with no key stanza deployed yet',
+            deployed  => undef,
+            os        => 'alma,10.0',
+            platform  => 'el10',
+            expect    => 'hmac-sha256',
+        },
+    );
+
+    for my $scenario (@scenarios) {
+        my $result = run_both_halves( %{$scenario} );
+        is( $result->{named}, $result->{dhcpd},
+            "$scenario->{name}: named.conf and dhcpd.conf declare one algorithm" );
+        is( $result->{named}, $scenario->{expect},
+            "$scenario->{name}: that algorithm is $scenario->{expect}" );
+    }
+};
+
+subtest 'a key stanza that names no algorithm is repaired' => sub {
+    my $stanza = qq{options {\n};\nkey "xcat_key" {\n\tsecret "$SECRET";\n};\n};
+    my $result = run_makedns( named_conf => $stanza, site_algorithm => undef );
+
+    is( $result->{named_algorithm}, 'hmac-sha256',
+        'a stanza with no algorithm line takes the default' );
+    is( $result->{restartneeded}, 1, 'named is restarted for the repaired stanza' );
+};
+
 done_testing();
 
 #---------------------------------------------------------------------------
@@ -478,4 +548,161 @@ sub signing_algorithm {
     sub getAttribs {
         return;
     }
+}
+
+#---------------------------------------------------------------------------
+
+=head3 run_both_halves
+
+    Description: Write the deployed state of one cluster, then run the makedns half and
+                 the makedhcp half over it. Both halves write the same key name, so both
+                 rendered stanzas must declare the same algorithm.
+    Arguments:   deployed (the algorithm every deployed file declares, undef for none),
+                 os, platform, external, site_algorithm
+    Returns:     hash reference with the algorithm each half rendered
+
+=cut
+
+#---------------------------------------------------------------------------
+sub run_both_halves {
+    my (%args) = @_;
+
+    my $dir = File::Temp->newdir();
+    my $named_path = "$dir/named.conf";
+    my $dhcpd_path = "$dir/dhcpd.conf";
+    my $key_path   = "$dir/ddns.key";
+
+    write_file( $named_path,
+        defined( $args{deployed} ) ? key_stanza( $args{deployed} ) : $no_key );
+    write_file( $dhcpd_path, deployed_dhcpd_conf( $args{deployed} ) );
+    write_file( $key_path,
+        defined( $args{deployed} )
+        ? qq{key "xcat_key" {\n\talgorithm $args{deployed};\n\tsecret "$SECRET";\n};\n}
+        : '' );
+
+    my %sitevals = ( dnshandler => 'ddns' );
+    $sitevals{dhcpomapialgorithm} = $args{site_algorithm}
+      if defined( $args{site_algorithm} );
+    $sitevals{externaldns} = 1 if $args{external};
+
+    no warnings qw(redefine once);
+    local *xCAT::TableUtils::get_site_attribute    = sub { return; };
+    local *xCAT::Utils::runcmd                     = sub { return (); };
+    local *xCAT::Utils::isAIX                      = sub { return 0; };
+    local *xCAT::Utils::isLinux                    = sub { return 1; };
+    local *xCAT::Utils::osver                      = sub {
+        my $type = pop;
+        return $args{platform} if $type eq 'platform';
+        return $args{os};
+    };
+    local *xCAT::Table::new = sub { return bless {}, 'Local::TSIG::PasswdTable'; };
+    local *xCAT_plugin::ddns::get_conf             = sub { return $named_path; };
+    local *xCAT_plugin::ddns::ensure_ddns_key_file = sub { return; };
+    local %::XCATSITEVALS                          = %sitevals;
+    local $xCAT_plugin::dhcp::dhcpconffile         = $dhcpd_path;
+    local $xCAT_plugin::dhcp::ddns_key_path        = $key_path;
+
+    # makedns half. update_namedconf resolves the policy itself, the way process_request
+    # leaves it to when no context is prepared.
+    my $ctx = {
+        privkey       => $SECRET,
+        zonesdir      => "$dir",
+        dbdir         => "$dir",
+        zonestotouch  => {},
+        adzones       => {},
+        dnsupdaters   => [],
+        adservers     => [],
+        restartneeded => 0,
+        external      => ( $args{external} ? 1 : 0 ),
+    };
+    xCAT_plugin::ddns::update_namedconf( $ctx, 0 );
+
+    # makedhcp half, as newconfig and addnet render the OMAPI key stanza that the
+    # "zone ... { key xcat_key; }" statements of the same file point at.
+    my $settings = xCAT_plugin::dhcp::_omapi_settings( sub { die "@_" } );
+    die "Unusable OMAPI settings: $settings->{error}" if $settings->{error};
+    my @dhcpd_config;
+    xCAT_plugin::dhcp::_append_omapi_key_config( \@dhcpd_config, $settings, 7911,
+        sub { return; }, bless( {}, 'Local::TSIG::PasswdTable' ) );
+
+    return {
+        named => stanza_algorithm( read_file($named_path) ),
+        dhcpd => stanza_algorithm( join( '', @dhcpd_config ) ),
+    };
+}
+
+#---------------------------------------------------------------------------
+
+=head3 deployed_dhcpd_conf
+
+    Description: Build a dhcpd.conf holding one OMAPI key stanza and the zone statement
+                 that points dhcpd at that key when it updates DNS.
+    Arguments:   the algorithm the stanza declares, undef for no stanza
+    Returns:     the file content
+
+=cut
+
+#---------------------------------------------------------------------------
+sub deployed_dhcpd_conf {
+    my ($algorithm) = @_;
+
+    my $conf = "#xCAT generated dhcp configuration\nomapi-port 7911;\n";
+    if ( defined($algorithm) ) {
+        $conf .= "key xcat_key {\n  algorithm $algorithm;\n  secret \"$SECRET\";\n};\n";
+        $conf .= "omapi-key xcat_key;\n";
+    }
+    $conf .= "subnet 192.0.2.0 netmask 255.255.255.0 {\n"
+      . "    zone example.com. {\n"
+      . "       primary 192.0.2.1; key xcat_key; \n"
+      . "    }\n}\n";
+    return $conf;
+}
+
+#---------------------------------------------------------------------------
+
+=head3 stanza_algorithm
+
+    Description: Name the algorithm the xcat_key stanza of one rendered file declares.
+    Arguments:   the file content
+    Returns:     the algorithm in lower case, or undef
+
+=cut
+
+#---------------------------------------------------------------------------
+sub stanza_algorithm {
+    my ($contents) = @_;
+
+    my ($algorithm) =
+      ( $contents =~ /key\s+"?xcat_key"?[^{]*\{[^}]*?algorithm\s+([^;\s]+)\s*;/s );
+    return defined($algorithm) ? lc($algorithm) : undef;
+}
+
+#---------------------------------------------------------------------------
+
+=head3 write_file / read_file
+
+    Description: Read and write one scratch file.
+    Arguments:   the path, and for write_file the content
+    Returns:     the content, for read_file
+
+=cut
+
+#---------------------------------------------------------------------------
+sub write_file {
+    my ( $path, $contents ) = @_;
+
+    open( my $fh, '>', $path ) or die "Unable to write $path: $!";
+    print {$fh} $contents;
+    close($fh) or die "Unable to close $path: $!";
+    return;
+}
+
+sub read_file {
+    my ($path) = @_;
+
+    open( my $fh, '<', $path ) or die "Unable to read $path: $!";
+    local $/;
+    my $contents = <$fh>;
+    close($fh) or die "Unable to close $path: $!";
+    return $contents;
 }

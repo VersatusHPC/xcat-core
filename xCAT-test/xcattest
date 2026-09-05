@@ -14,6 +14,7 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
 }
 use lib "$::XCATROOT/lib/perl";
+use xCAT::Utils;
 
 #--------------global attributes----------------
 my $program_path = dirname(File::Spec->rel2abs(__FILE__));
@@ -1747,6 +1748,20 @@ sub getnodeattr {
 }
 
 #--------------------------------------------------------
+# Fuction name: getosimagearch
+# Description: get the architecture token the osimage name of a node carries
+# Atrributes:
+# Return code:
+#--------------------------------------------------------
+sub getosimagearch {
+    my $node   = shift;
+    my $osvers = getnodeattr($node, 'os');
+    my $arch   = getnodeattr($node, 'arch');
+    return 'Unknown' if ($osvers eq 'Unknown' or $arch eq 'Unknown');
+    return xCAT::Utils->osimage_arch($osvers, $arch);
+}
+
+#--------------------------------------------------------
 # Fuction name: getobjectattr
 # Description: get the value of object attribute from current DB
 # Atrributes:
@@ -1944,6 +1959,11 @@ sub getfunc
         @para = split /\s*,\s*/, $parameter;
         if ($func eq "GETNODEATTR") {
             $value = getnodeattr($para[0], $para[1]);
+            if ($value eq "Unknown") {
+                $value = '';
+            }
+        } elsif ($func eq "GETOSIMAGEARCH") {
+            $value = getosimagearch($para[0]);
             if ($value eq "Unknown") {
                 $value = '';
             }

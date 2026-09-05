@@ -4911,6 +4911,34 @@ sub xcat_arch_from_debian {
     return;
 }
 
+
+###################################################################################
+#subroutine osimage_arch
+#Usage: give the architecture token that an osimage name carries for a node.
+#Input Params:
+#       $osvers: the operating system, for example ubuntu24.04.4 or rhels9.4
+#       $arch: the node architecture, for example ppc64le
+#Return value:
+#       the architecture token the osimage name uses, or the input architecture
+###################################################################################
+# copycd names a Debian or Ubuntu osimage with the architecture the media reports,
+# so ppc64el media gives ubuntu24.04.4-ppc64el-install-compute. The node arch
+# attribute holds the kernel architecture ppc64le. Every caller that builds an
+# osimage name from a node must translate here, or it asks for a name copycd never
+# creates. Red Hat and SUSE media report ppc64le, so they need no rule.
+my %OSIMAGE_ARCH_DEBIAN = (
+    'ppc64le' => 'ppc64el',
+);
+
+sub osimage_arch {
+    my $osvers = shift;
+    $osvers = shift if ($osvers =~ /xCAT::Utils/);
+    my $arch = shift;
+    return $arch unless defined $osvers and defined $arch;
+    return $arch unless $osvers =~ /^(ubuntu|debian)/i;
+    return $OSIMAGE_ARCH_DEBIAN{ lc $arch } // $arch;
+}
+
 ###################################################################################
 #subroutine lookupNetboot
 #Usage: determine the possible noderes.netboot values of the osimage

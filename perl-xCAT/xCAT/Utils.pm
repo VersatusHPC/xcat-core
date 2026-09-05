@@ -3896,6 +3896,7 @@ sub fullpathbin
       none
     Returns:
       Name of timezone,  for example US/Eastern
+      undef when the timezone cannot be identified
     Globals:
         none
     Error:
@@ -3911,34 +3912,67 @@ sub gettimezone
 {
     my ($class) = @_;
 
-    my $tz;
     if (xCAT::Utils->isAIX()) {
-        $tz = $ENV{'TZ'};
-    } else {    # all linux
-        my $localtime = "/etc/localtime";
-        my $zoneinfo  = "/usr/share/zoneinfo";
-        my $cmd = "find $zoneinfo -xtype f -exec cmp -s $localtime {} \\; -print | grep -v posix | grep -v SystemV | grep -v right | grep -v localtime ";
-        my $zone_result = xCAT::Utils->runcmd("$cmd", 0);
-        if ($::RUNCMD_RC != 0)
-        {
-            $tz = "Could not determine timezone checksum";
-            return $tz;
-        }
-        my @zones = split /\n/, $zone_result;
-
-        $zones[0] =~ s/$zoneinfo\///;
-        if (!$zones[0]) {    # if we still did not get one, then default
-            $tz = `cat /etc/timezone`;
-            chomp $tz;
-        } else {
-            $tz = $zones[0];
-        }
-
-
+        return $ENV{'TZ'};
     }
-    return $tz;
+    return xCAT::Utils->linux_timezone();
+}
 
+#--------------------------------------------------------------------------------
 
+=head3   linux_timezone
+
+    Name the timezone of a Linux system.
+
+    Arguments:
+      $localtime - the localtime file, default /etc/localtime
+      $zoneinfo  - the zoneinfo directory, default /usr/share/zoneinfo
+      $tzfile    - the file that holds the zone name, default /etc/timezone
+    Returns:
+      Name of timezone, for example US/Eastern
+      undef when the timezone cannot be identified
+    Globals:
+        none
+    Error:
+      None
+    Example:
+         my $timezone = xCAT::Utils->linux_timezone();
+    Comments:
+        The caller writes this value into site.timezone, and the OS install
+        templates copy it into a kickstart or autoyast timezone directive.
+        Return nothing rather than a value the installer cannot read.
+=cut
+
+#--------------------------------------------------------------------------------
+sub linux_timezone
+{
+    my ($class, $localtime, $zoneinfo, $tzfile) = @_;
+
+    $localtime = "/etc/localtime"      unless defined($localtime);
+    $zoneinfo  = "/usr/share/zoneinfo" unless defined($zoneinfo);
+    $tzfile    = "/etc/timezone"       unless defined($tzfile);
+
+    # glibc uses UTC when the localtime file is absent, so the system is on UTC.
+    return "UTC" unless (-e $localtime);
+
+    my $cmd = "find $zoneinfo -xtype f -exec cmp -s $localtime {} \\; -print | grep -v posix | grep -v SystemV | grep -v right | grep -v localtime ";
+
+    # grep exits 1 when no zone file matches. That is a normal answer here, so
+    # do not let runcmd report it.
+    my $zone_result = xCAT::Utils->runcmd("$cmd", -1);
+    my @zones = split /\n/, (defined($zone_result) ? $zone_result : "");
+    if (defined($zones[0]) && length($zones[0])) {
+        $zones[0] =~ s/^\Q$zoneinfo\E\///;
+        return $zones[0] if length($zones[0]);
+    }
+
+    if (-r $tzfile) {
+        my $tz = `cat $tzfile`;
+        chomp $tz if defined($tz);
+        return $tz if (defined($tz) && length($tz));
+    }
+
+    return undef;
 }
 
 #--------------------------------------------------------------------------------

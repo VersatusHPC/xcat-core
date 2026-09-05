@@ -1197,7 +1197,7 @@ sub initDB
         $domain = `hostname -d`;
     }
 
-    chomp $timezone;
+    chomp $timezone if defined($timezone);
     chomp $master;
     chomp $domain;
 
@@ -1249,8 +1249,16 @@ sub initDB
           "$::XCATROOT/sbin/chtab key=xcatiport site.value=$xcatiport;";
         $chtabcmds .=
           "$::XCATROOT/sbin/chtab key=xcatconfdir site.value=$confdir;";
-        $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=timezone site.value=\"$timezone\";";
+        # The install templates copy site.timezone into a kickstart or autoyast
+        # timezone directive. An unknown zone leaves the row out; a wrong one
+        # stops the install.
+        if (defined($timezone) && length($timezone)) {
+            $chtabcmds .=
+              "$::XCATROOT/sbin/chtab key=timezone site.value=\"$timezone\";";
+        } else {
+            xCAT::MsgUtils->message("W",
+                "Could not determine the timezone of this system. site.timezone is not set.");
+        }
 
         $chtabcmds .= "$::XCATROOT/sbin/chtab key=useNmapfromMN site.value=no;";
         $chtabcmds .= "$::XCATROOT/sbin/chtab key=enableASMI site.value=no;";

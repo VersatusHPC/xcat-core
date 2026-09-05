@@ -322,7 +322,7 @@ isnt( git_revision( git => sub { '' }, read_file => sub { '' } ), '',
         time_format => '%Y-%m-%d',
     );
     is_deeply( [ map { (split /=/, $_, 2)[0] } split /\n/, $text ],
-        [qw(VERSION RELEASE BUILD_TIME BUILD_MACHINE COMMIT_ID COMMIT_ID_LONG)],
+        [qw(VERSION RELEASE BUILD_TIME BUILD_MACHINE COMMIT_ID COMMIT_ID_LONG WORKTREE)],
         'the fields appear in the order the consumers expect' );
     like( $text, qr/^COMMIT_ID=abcdef1\n/m, 'the short commit is seven characters' );
     like( $text, qr/^COMMIT_ID_LONG=abcdef1234567890\n/m, 'and the long one is whole' );
@@ -335,6 +335,71 @@ isnt( git_revision( git => sub { '' }, read_file => sub { '' } ), '',
     isnt( XCAT::BuildUtils::buildinfo_text(%common, time_format => '%a %b %d %H:%M:%S %Y'),
           XCAT::BuildUtils::buildinfo_text(%common, time_format => '%a %b %e %H:%M:%S %Z %Y'),
           'each builder keeps the format its own consumers parse' );
+}
+
+# -------------------------------------------- worktree provenance --
+# A build from a tree with uncommitted changes cannot be reproduced from the commit
+# the file names. buildinfo therefore records what `git status --porcelain` said, so
+# a reader can tell "built at this commit" from "built at this commit, plus edits".
+
+{
+    my $clean = XCAT::BuildUtils::buildinfo_text(
+        version => '2.19.0', release => 'snap1', epoch => 0,
+        commit => 'abcdef1234567890', host => 'builder',
+        time_format => '%Y-%m-%d', status => '',
+    );
+    like( $clean, qr/^WORKTREE=clean\n/m, 'an empty porcelain is a clean build' );
+    unlike( $clean, qr/^DIRTY_FILE=/m, 'and lists no modified file' );
+
+    my $dirty = XCAT::BuildUtils::buildinfo_text(
+        version => '2.19.0', release => 'snap1', epoch => 0,
+        commit => 'abcdef1234567890', host => 'builder',
+        time_format => '%Y-%m-%d',
+        status => " M xCAT/postscripts/bmcsetup\n?? scratch.txt\n",
+    );
+    # The defect this replaces: the 2026-09 service-node core was built from a tree
+    # carrying an uncommitted bmcsetup change, and buildinfo said only COMMIT_ID=0b31e21.
+    unlike( $dirty, qr/^WORKTREE=clean\n/m,
+        'a tree with uncommitted changes NEVER reports a clean provenance' );
+    like( $dirty, qr/^WORKTREE=dirty\n/m, 'it is marked dirty' );
+    like( $dirty, qr/^DIRTY_FILE= M xCAT\/postscripts\/bmcsetup\n/m,
+        'and every porcelain line is recorded beside the commit' );
+    like( $dirty, qr/^DIRTY_FILE=\?\? scratch\.txt\n/m, 'untracked files included' );
+    like( $dirty, qr/^COMMIT_ID=abcdef1\n/m, 'the commit fields stay exact' );
+
+    my $unknown = XCAT::BuildUtils::buildinfo_text(
+        version => '2.19.0', release => 'snap1', epoch => 0,
+        commit => 'abcdef1234567890', host => 'builder',
+        time_format => '%Y-%m-%d',
+    );
+    like( $unknown, qr/^WORKTREE=unknown\n/m,
+        'an export with no checkout says unknown, not clean' );
+}
+
+# git_worktree_status runs the real git in a real repository, because the answer that
+# matters is what git prints, not what a stub returns.
+SKIP: {
+    my $git_ok = system('git --version >/dev/null 2>&1') == 0;
+    skip 'git is not installed', 3 unless $git_ok;
+
+    my $repo = tempdir(CLEANUP => 1);
+    my $q = "-C $repo";
+    system("git $q init -q") == 0 or skip 'git init failed', 3;
+    system("git $q config user.email t\@example.invalid") == 0 or skip 'git config failed', 3;
+    system("git $q config user.name Test") == 0 or skip 'git config failed', 3;
+    write_text(File::Spec->catfile($repo, 'a.txt'), "one\n");
+    system("git $q add a.txt && git $q -c commit.gpgsign=false commit -q -m x") == 0
+        or skip 'git commit failed', 3;
+
+    my $cwd = File::Spec->rel2abs('.');
+    chdir($repo) or BAIL_OUT("chdir $repo: $!");
+    is( XCAT::BuildUtils::git_worktree_status(), '', 'a committed tree reports nothing modified' );
+    write_text(File::Spec->catfile($repo, 'a.txt'), "two\n");
+    like( XCAT::BuildUtils::git_worktree_status(), qr/^ M a\.txt$/m, 'an edited file appears in the status' );
+    chdir($cwd) or BAIL_OUT("chdir back: $!");
+
+    is( XCAT::BuildUtils::git_worktree_status( git => sub { undef } ), undef,
+        'a directory git cannot answer for gives undef, not an empty clean answer' );
 }
 
 # ---------------------------------------------------------- rewrite_file --

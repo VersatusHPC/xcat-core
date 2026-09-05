@@ -191,6 +191,10 @@ my %INSTALL_BOOT_FILES = (
     'ppc64' => [
         [ 'install/netboot/ubuntu-installer/{darch}/vmlinux', 'install/netboot/ubuntu-installer/{darch}/initrd.gz' ],
         [ 'install/vmlinux',                                  'install/netboot/initrd.gz' ],
+        [ 'casper/hwe-vmlinux',                               'casper/hwe-initrd' ],
+        [ 'casper/hwe-vmlinux',                               'casper/hwe-initrd.gz' ],
+        [ 'casper/vmlinux',                                   'casper/initrd' ],
+        [ 'casper/vmlinux',                                   'casper/initrd.gz' ],
     ],
 );
 
@@ -1005,7 +1009,10 @@ sub mkinstall {
             next;
         }
 
-        if ($arch =~ /ppc64/i and !(-e "$pkgdir/install/netboot/initrd.gz") and
+        # A live-server image has no netboot tree. Its boot files are under casper/, and
+        # install_boot_files below resolves them.
+        if ($arch =~ /ppc64/i and !is_ubuntu_live_media($pkgdir) and
+            !(-e "$pkgdir/install/netboot/initrd.gz") and
             !(-e "$pkgdir/install/netboot/ubuntu-installer/$darch/initrd.gz")) {
             xCAT::MsgUtils->report_node_error($callback, $node, 
                 "The network boot initrd.gz is not found in $pkgdir/install/netboot.  This is provided by Ubuntu, please download and retry."

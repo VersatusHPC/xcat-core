@@ -91,6 +91,25 @@ is(
     'POWER does not accept the x86 live layout',
 );
 
+# --- riscv64 layouts -------------------------------------------------------
+# ubuntu-24.04.4-live-server-riscv64.iso and ubuntu-26.04.1-live-server-riscv64.iso carry
+# casper/vmlinux and casper/initrd, and no install tree at all.
+is(
+    resolved('riscv64', 'riscv64', media('casper/vmlinux', 'casper/initrd')),
+    'casper/vmlinux|casper/initrd',
+    'a riscv64 live image keeps an uncompressed kernel under casper',
+);
+is(
+    resolved('riscv64', 'riscv64', media('casper/vmlinuz', 'casper/initrd')),
+    undef,
+    'riscv64 does not accept the x86 live layout',
+);
+is(
+    resolved('riscv64', 'riscv64', media('casper/vmlinux')),
+    undef,
+    'a riscv64 kernel without its initrd is not a match',
+);
+
 # --- nothing to boot -------------------------------------------------------
 is(resolved('x86_64', 'amd64', media('casper/vmlinuz')), undef,
     'a kernel without its initrd is not a match');

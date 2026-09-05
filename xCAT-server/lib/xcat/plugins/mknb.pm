@@ -177,6 +177,37 @@ sub _sha256_file {
     return ($digest, undef);
 }
 
+#-------------------------------------------------------------------------------
+
+=head3   superseded_genesis_initramfs
+
+    Descriptions:
+        List the initramfs files that a new Genesis image for $arch replaces.
+
+        mknb ppc64le writes the ppc64 names when it falls back to the legacy
+        image, so an install for ppc64le must delete both spellings. destiny
+        prefers an lzma over a gz whenever both exist for one architecture.
+
+    Arguments:
+        $directory - the Genesis directory under tftpdir
+        $arch      - the architecture of the image being installed
+
+    Returns:
+        The paths of the initramfs files to delete.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub superseded_genesis_initramfs {
+    my ($directory, $arch) = @_;
+    return () unless defined($directory) && defined($arch);
+
+    my @arches = ($arch);
+    push(@arches, 'ppc64') if $arch eq 'ppc64le';
+
+    return map { "$directory/genesis.fs.$_.lzma" } @arches;
+}
+
 sub _install_prebuilt_genesis {
     my ($source, $tftpdir, $arch) = @_;
     return (undef, "Invalid Genesis export directory: $source")
@@ -282,7 +313,7 @@ sub _install_prebuilt_genesis {
     }
 
     unlink(values(%backups));
-    unlink("$destination_dir/genesis.fs.$arch.lzma");
+    unlink(superseded_genesis_initramfs($destination_dir, $arch));
     return ("$destination_dir/genesis.fs.$arch.gz", undef);
 }
 

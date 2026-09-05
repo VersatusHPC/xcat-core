@@ -278,6 +278,10 @@ sub default_net_drivers {
             x86_64 => [qw(tg3 bnx2 bnx2x e1000 e1000e igb mlx_en mlx5_core virtio_net overlay)],
             ppc64el => [qw(tg3 bnx2 bnx2x e1000 e1000e igb ibmveth ehea mlx_en mlx4_en mlx5_core virtio_net overlay)],
             ppc64   => [qw(e1000 e1000e igb ibmveth ehea)],
+            # The riscv64 kernel builds virtio_net in, so genimage copies no module for it.
+            # macb and the dwmac glue drivers are the NICs of the riscv64 boards Ubuntu
+            # supports; the Broadcom NetXtreme drivers of the other rows have no riscv64 board.
+            riscv64 => [qw(virtio_net macb stmmac dwmac-generic dwmac-starfive dwmac-thead dwmac-sophgo r8169 e1000e igb ixgbe mlx5_core overlay)],
             s390x   => [qw(qdio ccwgroup)],
         },
     );

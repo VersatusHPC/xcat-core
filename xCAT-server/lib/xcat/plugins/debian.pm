@@ -192,6 +192,10 @@ my %INSTALL_BOOT_FILES = (
         [ 'install/netboot/ubuntu-installer/{darch}/vmlinux', 'install/netboot/ubuntu-installer/{darch}/initrd.gz' ],
         [ 'install/vmlinux',                                  'install/netboot/initrd.gz' ],
     ],
+    # Ubuntu ships riscv64 as a live-server image only. The media carries no install tree.
+    'riscv64' => [
+        [ 'casper/vmlinux', 'casper/initrd' ],
+    ],
 );
 
 sub install_boot_files
@@ -201,9 +205,10 @@ sub install_boot_files
     $darch = '' unless defined $darch;
 
     my $family =
-        $arch =~ /x86/i   ? 'x86'
-      : $arch =~ /ppc64/i ? 'ppc64'
-      :                     undef;
+        $arch =~ /x86/i     ? 'x86'
+      : $arch =~ /ppc64/i   ? 'ppc64'
+      : $arch =~ /riscv64/i ? 'riscv64'
+      :                       undef;
     return unless $family;
 
     foreach my $candidate (@{ $INSTALL_BOOT_FILES{$family} }) {

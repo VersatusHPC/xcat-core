@@ -965,13 +965,14 @@ sub mkinstall {
         my $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform";
         if (using_subiquity($os,$tmplfile)) {
             $prescript = $prescript . ".subiquity";
-        }
-        my $postscript = "$::XCATROOT/share/xcat/install/scripts/post.$platform";
-
-        # for powerkvm VM ubuntu LE#
-        if ($arch =~ /ppc64/i and $platform eq "ubuntu") {
+        } elsif ($arch =~ /ppc64/i and $platform eq "ubuntu") {
+            # pre.ubuntu.ppc64 is a debian-installer early_command: it writes a partman-auto
+            # recipe. Subiquity appends the same file to /autoinstall.yaml and reads it as
+            # YAML, so the recipe stops the install. pre.ubuntu.subiquity writes the PReP
+            # partition in the curtin storage format Subiquity understands.
             $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform.ppc64";
         }
+        my $postscript = "$::XCATROOT/share/xcat/install/scripts/post.$platform";
 
 
         if (-r "$prescript") {

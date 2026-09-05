@@ -109,17 +109,17 @@ subtest 'an explicit site algorithm replaces the stanza' => sub {
     is( $result->{restartneeded}, 1, 'named is restarted for the new stanza' );
 };
 
-subtest 'a generated key takes the default algorithm for old Net::DNS' => sub {
+subtest 'a generated key stays on hmac-md5 for old Net::DNS' => sub {
     my $result = run_makedns(
         named_conf     => $without_key,
         site_algorithm => undef,
         net_dns        => '1.25',
     );
 
-    is( $result->{named_algorithm}, 'hmac-sha256',
-        'a key created for old Net::DNS uses hmac-sha256' );
-    is( $result->{signing_algorithm}, 'hmac-sha256',
-        'the update is signed with hmac-sha256' );
+    is( $result->{named_algorithm}, 'hmac-md5',
+        'a key created for old Net::DNS uses hmac-md5' );
+    is( $result->{signing_algorithm}, 'hmac-md5',
+        'the update is signed with hmac-md5' );
 };
 
 done_testing();

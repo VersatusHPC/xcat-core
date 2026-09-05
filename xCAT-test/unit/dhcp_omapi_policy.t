@@ -35,51 +35,22 @@ is( $site_settings->{algorithm}, 'hmac-sha256',
 
 my $defaults = omapi_settings();
 is( $defaults->{algorithm},
-    'hmac-sha256', 'default OMAPI algorithm is hmac-sha256' );
+    'hmac-md5', 'default OMAPI algorithm remains hmac-md5' );
 is( $defaults->{key_name}, 'xcat_key',
     'default OMAPI key name remains xcat_key' );
 is( $defaults->{omshell_path},
     '/usr/bin/omshell', 'default omshell path remains /usr/bin/omshell' );
 ok(
-    $defaults->{needs_omshell_key_algorithm},
-    'the default algorithm is named to omshell'
+    !$defaults->{needs_omshell_key_algorithm},
+    'default MD5 does not emit key-algorithm'
 );
 is(
     xCAT::DHCP::OmapiPolicy->omshell_preamble(
         $defaults, secret => 'legacy-secret'
     ),
-    "key-algorithm hmac-sha256\nkey xcat_key \"legacy-secret\"\n",
-    'default omshell preamble names the algorithm it signs with'
+    "key xcat_key \"legacy-secret\"\n",
+    'default omshell preamble keeps legacy key command without key-algorithm'
 );
-
-# A deployed key raises the default and never lowers it. named.conf and dhcpd.conf
-# declare one key name, so a deployed hmac-md5 that wins on one side and loses on the
-# other leaves the two files naming the same key two ways.
-my $deployed = xCAT::DHCP::OmapiPolicy->settings(
-    site_values => {
-        dhcpomapialgorithm => undef,
-        dhcpomapikeyname   => undef,
-        dhcpomshellpath    => undef,
-    },
-    deployed_algorithm => 'hmac-md5',
-);
-is( $deployed->{algorithm}, 'hmac-sha256',
-    'a deployed hmac-md5 key does not lower the default' );
-ok( !$deployed->{algorithm_explicit},
-    'a deployed algorithm is not an administrator choice' );
-ok( $deployed->{needs_omshell_key_algorithm},
-    'omshell is told the algorithm the default selects' );
-
-my $stronger = xCAT::DHCP::OmapiPolicy->settings(
-    site_values => {
-        dhcpomapialgorithm => undef,
-        dhcpomapikeyname   => undef,
-        dhcpomshellpath    => undef,
-    },
-    deployed_algorithm => 'hmac-sha512',
-);
-is( $stronger->{algorithm}, 'hmac-sha512',
-    'a deployed key stronger than the default raises it' );
 
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
@@ -95,7 +66,7 @@ is(
         platform       => 'el8'
     ),
     'hmac-sha256',
-    'new EL8 installations default to hmac-sha256'
+    'new EL8 installations pin hmac-sha256'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
@@ -119,8 +90,8 @@ is(
         is_new_install => 1,
         os             => 'ubuntu,18.04'
     ),
-    'hmac-md5',
-    'new Ubuntu 18.04 installations pin hmac-md5 in the site table'
+    undef,
+    'new Ubuntu 18.04 installations retain the implicit MD5 default'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
@@ -176,24 +147,24 @@ is(
         is_new_install => 1,
         os             => 'sles,12.5'
     ),
-    'hmac-md5',
-    'new SLES 12 installations pin hmac-md5 in the site table'
+    undef,
+    'new SLES 12 installations retain the implicit MD5 default'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
         is_new_install => 1,
         os             => 'sles,15.6'
     ),
-    'hmac-md5',
-    'new SLES 15 installations pin hmac-md5 in the site table'
+    undef,
+    'new SLES 15 installations retain the implicit MD5 default'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
         is_new_install => 1,
         os             => 'opensuse-leap,15.6'
     ),
-    'hmac-md5',
-    'new openSUSE Leap 15 installations pin hmac-md5 in the site table'
+    undef,
+    'new openSUSE Leap 15 installations retain the implicit MD5 default'
 );
 is(
     xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(

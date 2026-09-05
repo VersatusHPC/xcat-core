@@ -71,7 +71,7 @@ my $chainents;
 my $tftpdir = xCAT::TableUtils->getTftpDir();
 our $dhcpconffile = $^O eq 'aix' ? '/etc/dhcpsd.cnf' : '/etc/dhcpd.conf';
 
-# makedns writes this file with the algorithm the named.conf key stanza declares.
+# makedns writes this file with the key stanza named.conf declares. Kea D2 reads it.
 our $ddns_key_path = "/etc/xcat/ddns.key";
 my %dynamicranges; #track dynamic ranges defined to see if a host that resolves is actually a dynamic address
 my %netcfgs;
@@ -181,39 +181,11 @@ sub handled_commands
     return { makedhcp => "dhcp", };
 }
 
-#-------------------------------------------------------------------------------
-
-=head3 _ddns_key_algorithm
-
-    Descriptions: Read the TSIG algorithm the shared DDNS key file declares. makedns
-                  writes that file with the algorithm the named.conf key stanza holds.
-    Arguments:    the path of the key file to read; $ddns_key_path by default
-    Returns:      the algorithm name in lower case, or undef when the file names none
-
-=cut
-
-#-------------------------------------------------------------------------------
-sub _ddns_key_algorithm
-{
-    my $file = shift || $ddns_key_path;
-
-    open( my $key, '<', $file ) or return;
-    local $/;
-    my $contents = <$key>;
-    close($key);
-    my ($algorithm) = $contents =~ /algorithm\s+([A-Za-z0-9-]+)\s*;/;
-    return defined($algorithm) ? lc($algorithm) : undef;
-}
-
 sub _omapi_settings
 {
     my $cb = shift || $callback;
 
-    # The dhcpd.conf key stanza and the named.conf key stanza carry one key name, and the
-    # "zone ... { key ...; }" statements point dhcpd at that stanza. Take the algorithm
-    # from the same policy makedns uses, and the floor from the key file makedns writes.
-    my $settings = xCAT::DHCP::OmapiPolicy->settings(
-        deployed_algorithm => _ddns_key_algorithm() );
+    my $settings = xCAT::DHCP::OmapiPolicy->settings();
     if ($settings->{error}) {
         $cb->({ error => [ $settings->{error} ], errorcode => [1] }) if $cb;
         syslog("local4|err", $settings->{error});

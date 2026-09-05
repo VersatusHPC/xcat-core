@@ -93,20 +93,17 @@ Edit **/etc/resolv.conf** to contain the cluster domain value you set in the sit
 Legacy ISC DHCP and BIND TSIG Key Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. The ``named.conf`` key stanza and the ``dhcpd.conf`` key stanza declare the same key, and the ``zone`` statements of ``dhcpd.conf`` point ``dhcpd`` at that stanza, so both files must name one algorithm. ``makedns`` and ``makedhcp`` read the same policy to select it.
+xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. New installations on Enterprise Linux 8 or later and Ubuntu 20.04 or later set **hmac-sha256**. Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 leave **dhcpomapialgorithm** unset because their bundled ``omshell`` does not support the ``key-algorithm`` command. If **dhcpomapialgorithm** is not set, including on an existing installation, xCAT continues to use **hmac-md5** for compatibility.
 
-If **dhcpomapialgorithm** is not set, xCAT uses **hmac-sha256**. HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
+**dhcpomapialgorithm** is one value for the whole cluster. Every management node and service node reads it, and the ``zone ... { key xcat_key; }`` statements of **dhcpd.conf** point ``dhcpd`` at the key stanza **named.conf** declares, so the two files must name one algorithm.
 
-xCAT keeps **hmac-md5** where **hmac-sha256** cannot work:
+HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. A cluster that runs FIPS mode and was installed before this attribute was written, or upgraded from an earlier release, must set it: ::
 
-* On Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15, whose bundled ``omshell`` does not support the ``key-algorithm`` command and can authenticate only against an hmac-md5 OMAPI key.
-* On a cluster that uses an external DNS server (**site.externaldns**, or ``makedns -e``). xCAT does not manage that server and cannot rekey it. To move an external server to another algorithm, add the key there first, then set **dhcpomapialgorithm** and the matching **passwd** table secret.
+      chdef -t site dhcpomapialgorithm=hmac-sha256
+      makedns -n
+      makedhcp -n
 
-On every other platform a site that sets no value moves to **hmac-sha256**. ``makedns`` replaces a ``named.conf`` key stanza that names a weaker algorithm and restarts ``named``; ``makedhcp -n`` writes the same algorithm into ``dhcpd.conf``. A stanza that already names a stronger algorithm is kept, and raises the algorithm both files use.
-
-To keep legacy ISC DHCP OMAPI and BIND DDNS on HMAC-MD5, set the attribute before the upgrade: ::
-
-      chdef -t site dhcpomapialgorithm=hmac-md5
+On a cluster that uses an external DNS server, add the new key to that server first. xCAT does not manage that server and cannot rekey it. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
 
 To use another supported algorithm, set **dhcpomapialgorithm** in the site table and update the matching **passwd** table secret. Supported values are **hmac-md5**, **hmac-sha1**, **hmac-sha224**, **hmac-sha256**, **hmac-sha384**, and **hmac-sha512**. For example: ::
 

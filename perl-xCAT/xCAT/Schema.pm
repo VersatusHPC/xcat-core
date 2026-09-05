@@ -1047,19 +1047,21 @@ passed as argument rather than by table value',
 " dhcpomapialgorithm:  The TSIG algorithm used by BIND DDNS and, for legacy\n" .
 "                      ISC DHCP, OMAPI. Valid values are hmac-md5,\n" .
 "                      hmac-sha1, hmac-sha224, hmac-sha256, hmac-sha384,\n" .
-"                      and hmac-sha512. named.conf and dhcpd.conf declare\n" .
-"                      one key, so xCAT writes one algorithm in both.\n" .
-"                      When this attribute is not set, xCAT uses\n" .
-"                      hmac-sha256. HMAC-MD5 is not approved for FIPS\n" .
-"                      mode: named loads an hmac-md5 key stanza without an\n" .
-"                      error and then answers SERVFAIL to every update\n" .
-"                      signed with that key. xCAT keeps hmac-md5 on\n" .
-"                      Ubuntu 18.04, SLES 12, SLES 15 and openSUSE Leap 15,\n" .
-"                      whose bundled omshell has no key-algorithm command,\n" .
-"                      and on a cluster that uses an external DNS server,\n" .
-"                      which xCAT cannot rekey. A deployed key stanza\n" .
-"                      stronger than the default raises it. Kea does not\n" .
-"                      use OMAPI, but Kea DDNS uses this TSIG algorithm.\n\n" .
+"                      and hmac-sha512. New installations on Enterprise Linux\n" .
+"                      8 or later and Ubuntu 20.04 or later set hmac-sha256.\n" .
+"                      Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15\n" .
+"                      leave this attribute unset because their bundled\n" .
+"                      omshell does not support the key-algorithm command.\n" .
+"                      When this attribute is not set, including on an\n" .
+"                      existing installation, xCAT uses hmac-md5 for\n" .
+"                      compatibility. The value is read by every management\n" .
+"                      node and service node, so one cluster uses one\n" .
+"                      algorithm. HMAC-MD5 is not approved for FIPS mode:\n" .
+"                      named loads an hmac-md5 key stanza without an error\n" .
+"                      and then answers SERVFAIL to every update signed with\n" .
+"                      that key. A FIPS-mode cluster that this attribute was\n" .
+"                      never written for must set it. Kea does not use\n" .
+"                      OMAPI, but Kea DDNS uses this TSIG algorithm.\n\n" .
 " dhcpomapikeyname:  The TSIG/OMAPI key name used by legacy ISC DHCP and\n" .
 "                   BIND DDNS integration. The default is xcat_key. The\n" .
 "                   value maps to the passwd table entry where key=omapi\n" .

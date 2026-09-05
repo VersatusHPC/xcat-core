@@ -690,7 +690,6 @@ sub process_request {
             $consolecmdline .= "n8r";
         }
     }
-    my $cfgfile;
     if ($arch =~ /x86/) {
         mkpath("$tftpdir/xcat/xnba/nets");
         chmod(0755, "$tftpdir/xcat/xnba");
@@ -747,44 +746,55 @@ sub process_request {
             }
         }
         if ($dopxe) {
-            my $cfg;
-            open($cfg, ">", "$tftpdir/xcat/xnba/nets/$net");
-            print $cfg "#!gpxe\n";
+            my $cfg = "#!gpxe\n";
             if ($invisibletouch) {
-                print $cfg 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/genesis.kernel.' . "$arch xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline BOOTIF=01-" . '${netX/machyp}' . "\n";
-                print $cfg 'imgfetch -n nbfs http://${next-server}'.$portsuffix . "$initrd_file\n";
+                $cfg .= 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/genesis.kernel.' . "$arch xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline BOOTIF=01-" . '${netX/machyp}' . "\n";
+                $cfg .= 'imgfetch -n nbfs http://${next-server}'.$portsuffix . "$initrd_file\n";
             } else {
-                print $cfg 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/nbk.' . "$arch xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline\n";
-                print $cfg 'imgfetch -n nbfs http://${next-server}'.$portsuffix . "$initrd_file\n";
+                $cfg .= 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/nbk.' . "$arch xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline\n";
+                $cfg .= 'imgfetch -n nbfs http://${next-server}'.$portsuffix . "$initrd_file\n";
             }
-            print $cfg "imgload kernel\n";
-            print $cfg "imgexec kernel\n";
-            close($cfg);
+            $cfg .= "imgload kernel\n";
+            $cfg .= "imgexec kernel\n";
+            my $werr = xCAT::Utils->write_file_atomic("$tftpdir/xcat/xnba/nets/$net", $cfg);
+            if ($werr) {
+                $callback->({ error => [$werr], errorcode => [1] });
+                return;
+            }
             if ($invisibletouch and $arch =~ /x86_64/) {    #UEFI time
-                open($cfg, ">", "$tftpdir/xcat/xnba/nets/$net.elilo");
-                print $cfg "default=\"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-                print $cfg "   delay=5\n";
-                print $cfg '   image=/tftpboot/xcat/genesis.kernel.' . "$arch\n";
-                print $cfg "   label=\"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-                print $cfg "   initrd=$initrd_file\n";
-                print $cfg "   append=\"xcatd=" . $xcatd_address . ":$xcatdport destiny=discover $consolecmdline BOOTIF=%B\"\n";
-                close($cfg);
-                open($cfg, ">", "$tftpdir/xcat/xnba/nets/$net.uefi");
-                print $cfg "#!gpxe\n";
-                print $cfg 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/genesis.kernel.' . "$arch\nimgload kernel\n";
-                print $cfg "imgargs kernel xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline BOOTIF=01-" . '${netX/mac:hexhyp}' . " destiny=discover initrd=initrd\n";
-                print $cfg 'imgfetch -n initrd http://${next-server}'.$portsuffix . "$initrd_file\nimgexec kernel\n";
-                close($cfg);
+                my $ecfg = "default=\"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+                $ecfg .= "   delay=5\n";
+                $ecfg .= '   image=/tftpboot/xcat/genesis.kernel.' . "$arch\n";
+                $ecfg .= "   label=\"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+                $ecfg .= "   initrd=$initrd_file\n";
+                $ecfg .= "   append=\"xcatd=" . $xcatd_address . ":$xcatdport destiny=discover $consolecmdline BOOTIF=%B\"\n";
+                my $werr = xCAT::Utils->write_file_atomic("$tftpdir/xcat/xnba/nets/$net.elilo", $ecfg);
+                if ($werr) {
+                    $callback->({ error => [$werr], errorcode => [1] });
+                    return;
+                }
+                my $ucfg = "#!gpxe\n";
+                $ucfg .= 'imgfetch -n kernel http://${next-server}'.$portsuffix.'/tftpboot/xcat/genesis.kernel.' . "$arch\nimgload kernel\n";
+                $ucfg .= "imgargs kernel xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline BOOTIF=01-" . '${netX/mac:hexhyp}' . " destiny=discover initrd=initrd\n";
+                $ucfg .= 'imgfetch -n initrd http://${next-server}'.$portsuffix . "$initrd_file\nimgexec kernel\n";
+                my $werr = xCAT::Utils->write_file_atomic("$tftpdir/xcat/xnba/nets/$net.uefi", $ucfg);
+                if ($werr) {
+                    $callback->({ error => [$werr], errorcode => [1] });
+                    return;
+                }
             }
         } elsif ($arch =~ /ppc/) {
-            open($cfgfile, ">", "$tftpdir/pxelinux.cfg/p/$net");
-            print $cfgfile "default \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-            print $cfgfile "   delay=10\n";
-            print $cfgfile "   label \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-            print $cfgfile "   kernel http://" . $xcatd_address . "$portsuffix/$tftpdir/xcat/genesis.kernel.$arch\n";
-            print $cfgfile "   initrd http://" . $xcatd_address . "$portsuffix/$initrd_file\n";
-            print $cfgfile '   append "xcatd=' . $xcatd_address . ":$xcatdport $consolecmdline\"\n";
-            close($cfgfile);
+            my $cfgfile = "default \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+            $cfgfile .= "   delay=10\n";
+            $cfgfile .= "   label \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+            $cfgfile .= "   kernel http://" . $xcatd_address . "$portsuffix/$tftpdir/xcat/genesis.kernel.$arch\n";
+            $cfgfile .= "   initrd http://" . $xcatd_address . "$portsuffix/$initrd_file\n";
+            $cfgfile .= '   append "xcatd=' . $xcatd_address . ":$xcatdport $consolecmdline\"\n";
+            my $werr = xCAT::Utils->write_file_atomic("$tftpdir/pxelinux.cfg/p/$net", $cfgfile);
+            if ($werr) {
+                $callback->({ error => [$werr], errorcode => [1] });
+                return;
+            }
         }
     }
     $dopxe = 0;
@@ -812,21 +822,27 @@ sub process_request {
             my $tftp_initrd = $initrd_file;
             $tftp_initrd =~ s{^\Q$tftpdir\E/?}{};
             my $kernel_file = $invisibletouch ? "genesis.kernel.$arch" : "nbk.$arch";
-            open($cfgfile, ">", "$tftpdir/pxelinux.cfg/" . uc($_));
-            print $cfgfile "DEFAULT xCAT\n";
-            print $cfgfile "  LABEL xCAT\n";
-            print $cfgfile "  KERNEL xcat/$kernel_file\n";
-            print $cfgfile "  APPEND initrd=$tftp_initrd xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline\n";
-            close($cfgfile);
+            my $cfgfile = "DEFAULT xCAT\n";
+            $cfgfile .= "  LABEL xCAT\n";
+            $cfgfile .= "  KERNEL xcat/$kernel_file\n";
+            $cfgfile .= "  APPEND initrd=$tftp_initrd xcatd=" . $xcatd_address . ":$xcatdport $consolecmdline\n";
+            my $werr = xCAT::Utils->write_file_atomic("$tftpdir/pxelinux.cfg/" . uc($_), $cfgfile);
+            if ($werr) {
+                $callback->({ error => [$werr], errorcode => [1] });
+                return;
+            }
         } elsif ($arch =~ /ppc/) {
-            open($cfgfile, ">", "$tftpdir/etc/" . lc($_));
-            print $cfgfile "default \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-            print $cfgfile "   delay=10\n";
-            print $cfgfile "   label \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
-            print $cfgfile "   kernel http://" . $xcatd_address . "$portsuffix/$tftpdir/xcat/genesis.kernel.$arch\n";
-            print $cfgfile "   initrd http://" . $xcatd_address . "$portsuffix/$initrd_file\n";
-            print $cfgfile '   append "xcatd=' . $xcatd_address . ":$xcatdport $consolecmdline\"\n";
-            close($cfgfile);
+            my $cfgfile = "default \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+            $cfgfile .= "   delay=10\n";
+            $cfgfile .= "   label \"xCAT Genesis (" . $normnets->{$_} . ")\"\n";
+            $cfgfile .= "   kernel http://" . $xcatd_address . "$portsuffix/$tftpdir/xcat/genesis.kernel.$arch\n";
+            $cfgfile .= "   initrd http://" . $xcatd_address . "$portsuffix/$initrd_file\n";
+            $cfgfile .= '   append "xcatd=' . $xcatd_address . ":$xcatdport $consolecmdline\"\n";
+            my $werr = xCAT::Utils->write_file_atomic("$tftpdir/etc/" . lc($_), $cfgfile);
+            if ($werr) {
+                $callback->({ error => [$werr], errorcode => [1] });
+                return;
+            }
         } elsif (exists $GRUB2_DISCOVERY_ARCHES{$arch}) {
             # Also drop it when the xcatd address chosen for the network sits on a
             # :noboot interface; the PXELINUX files only check the legacy address.
@@ -834,7 +850,7 @@ sub process_request {
                 unlink("$tftpdir/boot/grub2/grub.cfg-" . uc($_));
                 next;
             }
-            _write_grub2_discovery_config(
+            my (undef, $werr) = _write_grub2_discovery_config(
                 tftpdir        => $tftpdir,
                 hexnet         => $_,
                 xcatd_address  => $xcatd_address,
@@ -842,6 +858,10 @@ sub process_request {
                 httpport       => $httpport,
                 consolecmdline => $consolecmdline,
             );
+            if ($werr) {
+                $callback->({ error => [$werr], errorcode => [1] });
+                return;
+            }
         }
     }
     if (exists $GRUB2_DISCOVERY_ARCHES{$arch} && !-e "$tftpdir/boot/grub2/grub2.$arch") {
@@ -879,7 +899,7 @@ sub _grub2_discovery_arches {
 # finally grub.cfg. nodeset writes the per-node files (full ip and mac), so a
 # per-network prefix is only reached by clients without a node configuration:
 # discovery. The file is rebuilt from the Genesis artifacts present under
-# $tftpdir/xcat and removed when none are left. Returns the path written.
+# $tftpdir/xcat and removed when none are left. Returns (path written, error).
 sub _write_grub2_discovery_config {
     my (%args) = @_;
     my $tftpdir = $args{tftpdir};
@@ -888,7 +908,7 @@ sub _write_grub2_discovery_config {
     my @arches  = _grub2_discovery_arches($tftpdir);
     unless (@arches) {
         unlink($cfgpath);
-        return;
+        return (undef, undef);
     }
     my $cmdline = "xcatd=$args{xcatd_address}:$args{xcatdport}";
     if (defined($args{consolecmdline}) and $args{consolecmdline} ne '') {
@@ -928,13 +948,11 @@ sub _write_grub2_discovery_config {
     }
     $content .= "fi\n";
     # nodeset hard-links grub.cfg-<8 hex digit ip> to the node file; on a /32 network that is
-    # this file's name, so replace the name instead of truncating a shared inode.
-    unlink($cfgpath);
-    open(my $cfg, ">", $cfgpath) or return;
-    print $cfg $content;
-    close($cfg);
+    # this file's name. write_file_atomic renames over the name, so a shared inode is kept.
+    my $werr = xCAT::Utils->write_file_atomic($cfgpath, $content);
+    return (undef, $werr) if ($werr);
     chmod(0644, $cfgpath);
-    return $cfgpath;
+    return ($cfgpath, undef);
 }
 
 1;

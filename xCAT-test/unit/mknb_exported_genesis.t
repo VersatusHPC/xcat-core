@@ -7,12 +7,16 @@ use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path remove_tree);
 use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../../perl-xCAT";
 use Test::More;
+use xCAT::Utils;
 
 BEGIN {
+    # The real xCAT::Utils drags in the modules stubbed below.
+    no warnings 'redefine';
+
     package xCAT::Utils;
     sub genpassword { return 'test-token'; }
-    $INC{'xCAT/Utils.pm'} = __FILE__;
 
     package xCAT::TableUtils;
     our ($tftpdir, $site_master);

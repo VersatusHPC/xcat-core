@@ -11,9 +11,12 @@ use File::Temp qw(tempdir);
 use Test::More;
 use XCAT::Test::File qw(repo_path);
 
+use lib "$FindBin::Bin/../../perl-xCAT";
+use xCAT::Utils;
+
 BEGIN {
-    package xCAT::Utils;
-    $INC{'xCAT/Utils.pm'} = __FILE__;
+    # The real xCAT::Utils drags in the modules stubbed below.
+    no warnings 'redefine';
 
     package xCAT::TableUtils;
     our ($tftpdir, $site_master, $site_httpport, %site_extra);
@@ -469,14 +472,16 @@ unlink("$xCAT::TableUtils::tftpdir/xcat/genesis.fs.riscv64.lzma");
 
 # the configuration is rebuilt from what is published: without artifacts it goes away
 unlink("$xCAT::TableUtils::tftpdir/xcat/genesis.kernel.riscv64");
-is(
-    xCAT_plugin::mknb::_write_grub2_discovery_config(
-        tftpdir       => $xCAT::TableUtils::tftpdir,
-        hexnet        => 'c0a89',
-        xcatd_address => '192.168.148.10',
-        xcatdport     => 3001,
-    ),
-    undef,
+is_deeply(
+    [
+        xCAT_plugin::mknb::_write_grub2_discovery_config(
+            tftpdir       => $xCAT::TableUtils::tftpdir,
+            hexnet        => 'c0a89',
+            xcatd_address => '192.168.148.10',
+            xcatdport     => 3001,
+        )
+    ],
+    [ undef, undef ],
     'no grub2 discovery configuration is written without a published Genesis kernel',
 );
 ok(!-e $grub_cfg_path, 'a stale grub2 discovery configuration is removed with its artifacts');

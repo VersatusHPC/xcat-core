@@ -5125,3 +5125,52 @@ sub comma_list_contains {
     }
     return 0;
 }
+
+#-------------------------------------------------------------------------------
+
+=head3 write_file_atomic
+
+    Descriptions:
+        Write the complete contents of a file. Create the file beside the
+        target and rename it into place.
+
+    Arguments:
+        $path    - the file to write
+        $content - the complete contents of the file
+
+    Returns:
+        undef when the file is written, or an error message.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub write_file_atomic {
+    my $class   = shift;
+    my $path    = shift;
+    my $content = shift;
+
+    # A boot loader reads whatever is on disk. A half-written boot config still
+    # boots the node, so the caller must never expose a partial file.
+    my $tmp = "$path.new.$$";
+    my $fh;
+    unless (open($fh, '>', $tmp)) {
+        return "Unable to open $tmp for write: $!";
+    }
+
+    my $printed  = print {$fh} $content;
+    my $printerr = $printed ? '' : $!;
+    my $closed   = close($fh);
+    my $closeerr = $closed ? '' : $!;
+    unless ($printed and $closed) {
+        unlink($tmp);
+        return "Unable to write $tmp: " . ($printerr || $closeerr);
+    }
+
+    unless (rename($tmp, $path)) {
+        my $renameerr = $!;
+        unlink($tmp);
+        return "Unable to rename $tmp to $path: $renameerr";
+    }
+
+    return undef;
+}

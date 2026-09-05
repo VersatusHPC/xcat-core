@@ -166,20 +166,23 @@ sub setstate {
     # remove the old boot configuration files and create a new one, but only if not offline directive
     system("find $bootloader_root/ -inum \$(stat --printf \%i $bootloader_root/$node 2>/dev/null) -exec rm -f {} \\; 2>/dev/null");
 
-    my $pcfg;
+    # The boot config is built in full before it reaches the disk. nodeset
+    # reports a failed write, so a node cannot keep a stale entry unnoticed.
+    my $pcfgfile = "$bootloader_root/" . $node;
+    my $pcfg     = "";
     if ($cref->{currstate} ne "offline") {
-        open($pcfg, '>', "$bootloader_root/" . $node);
-        print $pcfg "#" . $cref->{currstate} . "\n";
+        $pcfg .= "#" . $cref->{currstate} . "\n";
 
         if (($::XCATSITEVALS{xcatdebugmode} eq "1") or ($::XCATSITEVALS{xcatdebugmode} eq "2")) {
-            print $pcfg "set debug=all\n";
+            $pcfg .= "set debug=all\n";
         }
 
-        print $pcfg "set timeout=5\n";
+        $pcfg .= "set timeout=5\n";
     }
 
     if ($cref->{currstate} eq "boot") {
-        close($pcfg);
+        my $werr = xCAT::Utils->write_file_atomic($pcfgfile, $pcfg);
+        return (1, $werr) if ($werr);
     } elsif ($kern and $kern->{kernel}) {
 
         #It's time to set grub configuration for this node to boot the kernel..
@@ -215,7 +218,6 @@ sub setstate {
         }
 
         unless($serverip){
-            close($pcfg);
             return (1, "Unable to determine the tftpserver for $node");
         }
         my $grub2protocol = "tftp";
@@ -225,7 +227,6 @@ sub setstate {
         }
 
         unless ($grub2protocol =~ /^(http|tftp)$/) {
-            close($pcfg);
             return (1, "Invalid netboot method, please check noderes.netboot for $node");
         }
 
@@ -237,16 +238,16 @@ sub setstate {
                 $httpport = $hports[0];
             }
 
-            print $pcfg "set default=\"xCAT OS Deployment\"\n";
-            print $pcfg "menuentry \"xCAT OS Deployment\" {\n";
-            print $pcfg "    insmod http\n";
-            print $pcfg "    insmod tftp\n";
+            $pcfg .= "set default=\"xCAT OS Deployment\"\n";
+            $pcfg .= "menuentry \"xCAT OS Deployment\" {\n";
+            $pcfg .= "    insmod http\n";
+            $pcfg .= "    insmod tftp\n";
             if ($grub2protocol eq "http" && $httpport ne "80") {
-                print $pcfg "    set root=http,$serverip:$httpport\n";
+                $pcfg .= "    set root=http,$serverip:$httpport\n";
             } else {
-                print $pcfg "    set root=$grub2protocol,$serverip\n";
+                $pcfg .= "    set root=$grub2protocol,$serverip\n";
             }
-            print $pcfg "    echo Loading Install kernel ...\n";
+            $pcfg .= "    echo Loading Install kernel ...\n";
 
             my $protocolrootdir = "";
             if ($grub2protocol =~ /^http$/)
@@ -260,20 +261,22 @@ sub setstate {
             }
 
             if ($kern and $kern->{kcmdline}) {
-                print $pcfg "    linux$efi $protocolrootdir/$kern->{kernel} $kern->{kcmdline} BOOTIF=\$net_default_mac\n";
+                $pcfg .= "    linux$efi $protocolrootdir/$kern->{kernel} $kern->{kcmdline} BOOTIF=\$net_default_mac\n";
             } else {
-                print $pcfg "    linux$efi $protocolrootdir/$kern->{kernel} BOOTIF=\$net_default_mac\n";
+                $pcfg .= "    linux$efi $protocolrootdir/$kern->{kernel} BOOTIF=\$net_default_mac\n";
             }
-            print $pcfg "    echo Loading initial ramdisk ...\n";
+            $pcfg .= "    echo Loading initial ramdisk ...\n";
             if ($kern and $kern->{initrd}) {
-                print $pcfg "    initrd$efi $protocolrootdir/$kern->{initrd}\n";
+                $pcfg .= "    initrd$efi $protocolrootdir/$kern->{initrd}\n";
             }
 
-            print $pcfg "}";
-            close($pcfg);
+            $pcfg .= "}";
+            my $werr = xCAT::Utils->write_file_atomic($pcfgfile, $pcfg);
+            return (1, $werr) if ($werr);
         }
-    } else {
-        close($pcfg);
+    } elsif ($cref->{currstate} ne "offline") {
+        my $werr = xCAT::Utils->write_file_atomic($pcfgfile, $pcfg);
+        return (1, $werr) if ($werr);
     }
 
     unless ($nodearch) {

@@ -821,6 +821,41 @@ function add_ip_temporary(){
 
 
 
+# The no-restart path never activates the xcat-<nic> profile, so an MTU written there stays
+# on disk. Set it on the link, the way add_ip_temporary sets the addresses.
+# The last declared value wins, because configipv4 writes one MTU per address and the last
+# nmcli write is the one the profile keeps.
+# Returns 0 when the link was changed.
+function set_mtu_temporary(){
+    local str_temp_name=$1
+    shift
+    local str_mtu=''
+    local str_link_mtu=''
+    local str_temp=''
+
+    for str_temp in "$@"
+    do
+        if [ -n "$str_temp" ] && [ "$str_temp" != "$str_default_token" ];then
+            str_mtu=$str_temp
+        fi
+    done
+    if [ -z "$str_mtu" ];then
+        return 1
+    fi
+
+    str_link_mtu=`ip -o link show dev $str_temp_name 2>/dev/null | sed -n 's/.*[[:space:]]mtu[[:space:]]\([0-9]\{1,\}\).*/\1/p'`
+    if [ "$str_link_mtu" = "$str_mtu" ];then
+        return 1
+    fi
+
+    log_info "configeth on $NODE: set mtu $str_mtu on $str_temp_name temporary."
+    ip link set dev $str_temp_name mtu $str_mtu
+    if [ $? -ne 0 ]; then
+        log_error "ip link set dev $str_temp_name mtu $str_mtu failed."
+        error_code=1
+    fi
+    return 0
+}
 # This token is used for the value of an attributes that has not been assigned any value.
 str_default_token="default"
 
@@ -1582,6 +1617,12 @@ else
                 fi
             fi
         done
+        #the MTU is a property of the link, not of an address, so it is applied whether or
+        #not an address changed. bool_modify_flag keeps the profile and the link in step:
+        #without it the config files are not rewritten and the profile keeps the old MTU.
+        if set_mtu_temporary $str_nic_name "${array_nic_mtu[@]}";then
+            bool_modify_flag=1
+        fi
     fi
     #configure the ipv6 default route
     if [ $bool_restart_flag -eq 0 -a -n "$str_ipv6_gateway" ];then

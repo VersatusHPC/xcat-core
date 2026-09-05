@@ -28,3 +28,4 @@ bash
 vim-minimal
 rpm
 iputils
+glibc-langpack-en

@@ -27,3 +27,4 @@ vim-minimal
 rpm
 iputils
 perl-interpreter
+glibc-langpack-en

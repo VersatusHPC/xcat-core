@@ -31,4 +31,4 @@ grub2-tools
 lsvpd
 perl-DBD-MySQL
 perl-DBD-Pg
-
+glibc-langpack-en

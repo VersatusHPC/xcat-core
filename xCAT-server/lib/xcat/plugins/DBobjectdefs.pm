@@ -216,10 +216,12 @@ sub parse_attr_for_osimage {
             $tmp_arch = $attr_hash->{osarch};
         }
 
-        #for ubuntu,the the arch attribute "ppc64le" should be modified to "ppc64el"
-        if (($tmp_osvers =~ /^ubuntu/i) && ($tmp_arch =~ /^ppc64le/i)) {
-            $tmp_arch = "ppc64el";
-            $attr_hash->{osarch} = "ppc64el";
+        # copycd names an Ubuntu or Debian osimage with the architecture the media
+        # reports, so the osimage osarch follows the same table.
+        my $img_arch = xCAT::Utils->osimage_arch($tmp_osvers, $tmp_arch);
+        if ($img_arch ne $tmp_arch) {
+            $tmp_arch = $img_arch;
+            $attr_hash->{osarch} = $img_arch;
         }
 
         $tmp_osname    = $tmp_osvers;

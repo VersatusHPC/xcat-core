@@ -350,3 +350,30 @@ cmd:rmdef -t network -o aaaaa_not_exist
 check:rc==0
 cmd:rm -rf /tmp/bbbbb_not_exist.def
 end
+
+start:chdef_osimage_without_osarch_is_refused
+description:chdef must not create an osimage definition that carries no osarch
+label:mn_only,ci_test,db,osimage
+cmd:rmdef -t osimage -o xcatosarchciimage >/dev/null 2>&1; rmdef -t osimage -o xcatosarchciimagf >/dev/null 2>&1; rmdef -t osimage -o xcatosarchcinew >/dev/null 2>&1; :
+check:rc==0
+cmd:mkdef -t osimage -o xcatosarchciimage imagetype=linux provmethod=install profile=compute osname=Linux osvers=rhels6.99 osarch=x86_64
+check:rc==0
+cmd:chdef -t osimage -o xcatosarchciimagf provmethod=install
+check:rc!=0
+check:output=~xcatosarchciimagf
+check:output=~xcatosarchciimage
+cmd:lsdef -t osimage -o xcatosarchciimagf
+check:rc!=0
+cmd:chdef -t osimage -o xcatosarchciimage profile=service
+check:rc==0
+cmd:lsdef -t osimage -o xcatosarchciimage -i profile
+check:rc==0
+check:output=~profile=service
+cmd:chdef -t osimage -o xcatosarchcinew imagetype=linux provmethod=install profile=compute osvers=rhels6.99 osarch=x86_64
+check:rc==0
+cmd:lsdef -t osimage -o xcatosarchcinew -i osarch
+check:rc==0
+check:output=~osarch=x86_64
+cmd:rmdef -t osimage -o xcatosarchciimage; rmdef -t osimage -o xcatosarchcinew
+check:rc==0
+end

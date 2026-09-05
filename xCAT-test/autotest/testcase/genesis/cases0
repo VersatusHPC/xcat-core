@@ -1,5 +1,5 @@
 start:nodeset_shell_lzma
-os:rhels8
+os:rhels8,rhels9,rhels10
 label:others,genesis
 description: verify could log in genesis shell lzma compression
 #Generate genesis network boot with lzma compression

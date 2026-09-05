@@ -43,7 +43,7 @@ use File::Slurper qw(read_text write_text);
 use File::Temp qw(tempdir tempfile);
 use FindBin qw($Bin);
 use lib "$Bin/build-utils/lib";
-use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildinfo_text
+use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildinfo_text git_worktree_status
                         write_script read_line targetarch_from_target);
 use Fcntl qw(:flock);           # per-target build lock (concurrency guard; see main())
 use Getopt::Long qw(GetOptions);
@@ -74,6 +74,10 @@ my @XCAT_PROBE_HELPERS = qw(
 
 # Gitinfo is regenerated at each run with the current git revision.
 my $GITINFO = git_revision();
+# Read the tree BEFORE the build changes it. buildsources rewrites xCAT/postscripts/bmcsetup from
+# the genesis copy, and the release stamp rewrites Release, so a status taken at the end calls
+# every build dirty and the field stops meaning anything.
+my $GITSTATUS = git_worktree_status();
 write_text("Gitinfo", "$GITINFO\n");
 
 my $SOURCE_DATE_EPOCH = source_date_epoch();
@@ -767,7 +771,8 @@ sub write_repo_metadata {
 }
 
 sub write_repo_metadata_dir {
-    my ($repodir) = @_;
+    my ($repodir, $status) = @_;
+    $status = $GITSTATUS unless @_ > 1;
     return unless -d $repodir;
     # The .repo file and buildinfo describe an installable binary repository. A
     # source-only run produced none, so emitting them would advertise packages that
@@ -815,7 +820,7 @@ EOF2
     # BUILD_TIME from SOURCE_DATE_EPOCH keeps buildinfo reproducible across rebuilds.
     write_text("$repodir/buildinfo.txt", buildinfo_text(
         version => $VERSION, release => $RELEASE, epoch => $SOURCE_DATE_EPOCH,
-        commit => $GITINFO, time_format => "%a %b %e %H:%M:%S %Z %Y"));
+        commit => $GITINFO, status => $status, time_format => "%a %b %e %H:%M:%S %Z %Y"));
 }
 
 # Assemble the flat MULTI-ARCH core from per-arch build outputs and sign it, in the upstream
@@ -828,6 +833,41 @@ EOF2
 # Start CLEAN (wipe OUT first): snap-versioned rpms carry a per-build timestamp in their NVR, so
 # merging into a dirty OUT would PILE UP stale versions from prior builds and make the flat core
 # unresolvable (e.g. an old noarch against a fresh ppc build).
+#-------------------------------------------------------------------------------
+
+=head3 input_worktree_status
+
+    Descriptions: Read back the WORKTREE / DIRTY_FILE lines a per-arch build recorded.
+
+                  Any input built from a changed tree makes the merged repo unreproducible,
+                  so the answer is the union of every input that reports one. An input with
+                  no buildinfo, or none with the field, gives undef -- reported as unknown,
+                  never as clean.
+
+    Arguments   : @dirs - the per-arch input repo directories
+    Returns     : the porcelain text, '' when every input was clean, or undef
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub input_worktree_status {
+    my (@dirs) = @_;
+    my ($seen, @dirty) = (0);
+    for my $d (@dirs) {
+        my $bf = "$d/buildinfo.txt";
+        next unless -f $bf;
+        open(my $fh, '<', $bf) or next;
+        while (my $line = <$fh>) {
+            chomp $line;
+            $seen = 1        if $line =~ /^WORKTREE=/;
+            push @dirty, $1  if $line =~ /^DIRTY_FILE=(.*)$/;
+        }
+        close $fh;
+    }
+    return undef unless $seen;
+    return join("\n", @dirty);
+}
+
 sub merge_core_repos {
     my $out = $opts{output_dir}
         or die "FATAL: --merge-core-repos requires --output-dir\n";
@@ -852,7 +892,10 @@ sub merge_core_repos {
         $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
         sign_repo_dir($out, $opts{gpg_key_name});
     }
-    write_repo_metadata_dir($out);
+    # The rpms were built by an earlier run, which recorded the state of ITS tree. Carry that
+    # forward: this process reads a checkout the build already changed, so re-deriving the status
+    # here would call every merged repo dirty.
+    write_repo_metadata_dir($out, input_worktree_status(@ins));
     write_release_alias($out);
     return 0;
 }

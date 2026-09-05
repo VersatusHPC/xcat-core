@@ -37,7 +37,7 @@ use XCAT::BuildUtils qw(
     pin_control_version rewrite_changelog_header
     reprepro_distributions reprepro_options
     lock_id_for take_build_lock sh_quote
-    sh sh_or_die usage rewrite_file write_script read_line buildinfo_text
+    sh sh_or_die usage rewrite_file write_script read_line buildinfo_text git_worktree_status
 );
 
 # The xcat-core packages that ship as debs. xCAT-openbmc-py, xCAT-rmc and xCAT-release
@@ -107,6 +107,10 @@ $ENV{SOURCE_DATE_EPOCH} = $EPOCH;
 # `git log` fallback, which produces nothing when the tree has no .git (a source
 # export, or a checkout that was copied rather than cloned).
 my $GITINFO = git_revision();
+# Read the tree BEFORE the build changes it. buildsources rewrites xCAT/postscripts/bmcsetup from
+# the genesis copy, and the release stamp rewrites Release, so a status taken at the end calls
+# every build dirty and the field stops meaning anything.
+my $GITSTATUS = git_worktree_status();
 if ($GITINFO eq 'unknown') {
     # Say so. The usual cause is not a missing .git but git refusing to read one it
     # considers dubiously owned -- the tree belongs to another user, and the
@@ -327,7 +331,7 @@ SCRIPT
 
     write_text("$repodir/buildinfo", buildinfo_text(
         version => $VERSION, release => $RELEASE, epoch => $EPOCH,
-        commit => $GITINFO, time_format => '%a %b %d %H:%M:%S %Y'));
+        commit => $GITINFO, status => $GITSTATUS, time_format => '%a %b %d %H:%M:%S %Y'));
     return;
 }
 

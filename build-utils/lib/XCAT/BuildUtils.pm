@@ -35,6 +35,7 @@ our @EXPORT_OK = qw(
     sh sh_or_die usage
     rewrite_file write_script read_line
     buildinfo_text
+    git_worktree_status
     targetarch_from_target
 );
 
@@ -57,13 +58,50 @@ sub buildinfo_text {
         $host = `hostname 2>/dev/null` || 'unknown';
         chomp $host;
     }
+    # An absent status is not a clean tree. A source export carries no checkout to ask.
+    my $status = $args{status};
+    my @dirty  = defined $status ? (grep { length } split(/\n/, $status)) : ();
+    my $worktree = !defined $status ? 'unknown' : (@dirty ? 'dirty' : 'clean');
     return join('', map { "$_\n" }
         "VERSION=$args{version}",
         "RELEASE=$args{release}",
         "BUILD_TIME=" . strftime($args{time_format}, gmtime($args{epoch})),
         "BUILD_MACHINE=$host",
         "COMMIT_ID=" . substr($commit, 0, 7),
-        "COMMIT_ID_LONG=$commit");
+        "COMMIT_ID_LONG=$commit",
+        "WORKTREE=$worktree",
+        map { "DIRTY_FILE=$_" } @dirty);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 git_worktree_status
+
+    Descriptions: Report what `git status --porcelain` says about the build tree.
+
+                  The empty string means the tree matches the commit. undef means git
+                  could not answer, which a source export makes normal; the two must
+                  stay distinct, because reporting undef as clean is the defect this
+                  exists to stop.
+
+    Arguments   : git - optional code ref returning the porcelain text, or undef
+    Returns     : the porcelain text with trailing whitespace removed, or undef
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub git_worktree_status {
+    my (%args) = @_;
+    my $run = $args{git} || sub {
+        my $out = `git status --porcelain 2>/dev/null`;
+        # git prints nothing outside a repository too, so the exit status is the
+        # only thing that separates "clean" from "not a checkout".
+        return $? == 0 ? $out : undef;
+    };
+    my $out = $run->();
+    return undef unless defined $out;
+    $out =~ s/\s+\z//;
+    return $out;
 }
 
 # Write a helper script and make it executable.  Both builders ship a

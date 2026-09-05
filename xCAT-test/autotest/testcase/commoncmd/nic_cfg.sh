@@ -78,7 +78,7 @@ nm_conn_for_dev() {
 }
 
 nm_show() {
-    local dev=$1 conn method addrs a ip pfx mtu kf
+    local dev=$1 conn method addrs a ip pfx mtu kf f
     conn=$(nm_conn_for_dev "$dev")
     if [ -z "$conn" ]; then echo "nic_cfg: no NetworkManager connection for device $dev"; return 1; fi
     echo "NAME=$conn"
@@ -102,6 +102,14 @@ nm_show() {
     IFS="$oldifs"
     mtu=$(nmcli -g 802-3-ethernet.mtu connection show "$conn" 2>/dev/null)
     kf=$(nm_keyfile "$conn")
+    # On EL8 the ifcfg-rh plugin is still there and NetworkManager keeps the profile in an
+    # ifcfg file, so there is no keyfile to read. Without this the dump below is empty and a
+    # case that greps for an extra param (CONNECTED_MODE, ...) can never see it.
+    if [ -z "$kf" ]; then
+        for f in "$RHDIR/ifcfg-$conn" "$RHDIR/ifcfg-$conn-1"; do
+            if [ -r "$f" ] && grep -qx "NAME=$conn" "$f"; then kf=$f; break; fi
+        done
+    fi
     if { [ -z "$mtu" ] || [ "$mtu" = "auto" ]; } && [ -n "$kf" ] && [ -r "$kf" ]; then
         mtu=$(awk -F= '/^[[:space:]]*mtu=/{print $2; exit}' "$kf")
     fi

@@ -335,11 +335,17 @@ sub createmockconfig {
     cp "/etc/mock/$target.cfg", $cfgfile;
     my $contents = read_text($cfgfile);
     $contents =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
-    if ($pkg eq "perl-xCAT" && $target !~ /suse|sles|leap/i) {
-        # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora; it does not
-        # exist on openSUSE/SLES (rpm there generates perl provides itself), so injecting
-        # it into a SUSE chroot aborts chroot setup. Suppress it for SUSE targets.
-        $contents .= "config_opts['chroot_additional_packages'] = 'perl-generators'\n";
+    if ($pkg eq "perl-xCAT") {
+        if ($target =~ /suse|sles|leap/i) {
+            # openSUSE ships perllib.attr with %__perllib_requires commented out, so
+            # rpmbuild records no perl(...) requirement. perl-generators is a
+            # RHEL/Fedora package and injecting it aborts the SUSE chroot setup.
+            $contents .= "config_opts['macros']['%__perllib_requires'] = '/usr/lib/rpm/perl.req'\n";
+            $contents .= "config_opts['macros']['%__perl_requires'] = '/usr/lib/rpm/perl.req'\n";
+        } else {
+            # perl-generators runs the same generator on RHEL/Fedora.
+            $contents .= "config_opts['chroot_additional_packages'] = 'perl-generators'\n";
+        }
     }
     $contents .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$SOURCE_DATE_EPOCH'\n";
     # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with

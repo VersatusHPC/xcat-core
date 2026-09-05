@@ -132,8 +132,10 @@ sub omshell_takes_key_algorithm {
     my $platform = $args{platform};
     my $os       = $args{os};
 
+    # The omshell of dhcp-server-4.3.6-50.el8_10 accepts key-algorithm and cannot
+    # authenticate against a hmac-sha256 OMAPI key without it.
     return 1
-      if defined($platform) && $platform =~ /^el(\d+)\b/i && $1 >= 9;
+      if defined($platform) && $platform =~ /^el(\d+)\b/i && $1 >= 8;
     if ( defined($os) && $os =~ /^ubuntu,(\d+\.\d+(?:\.\d+)*)\b/i ) {
         my $ubuntu_version = $1;
         require xCAT::Utils;

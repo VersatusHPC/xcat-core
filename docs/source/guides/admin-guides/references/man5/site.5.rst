@@ -100,11 +100,11 @@ site Attributes:
                         FIPS mode: named loads an hmac-md5 key stanza without
                         an error and then answers SERVFAIL to every update
                         signed with that key. New installations on Enterprise
-                        Linux 9 or later and Ubuntu 20.04 or later set
-                        hmac-sha256. New installations on Enterprise Linux 8,
-                        Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15
-                        set hmac-md5, because their bundled omshell does not
-                        support the key-algorithm command. On an upgrade a
+                        Linux 8 or later and Ubuntu 20.04 or later set
+                        hmac-sha256. New installations on Ubuntu 18.04,
+                        SLES 12, SLES 15, and openSUSE Leap 15 set hmac-md5,
+                        because their bundled omshell does not support the
+                        key-algorithm command. On an upgrade a
                         site that sets no value keeps the algorithm the
                         dhcpd.conf OMAPI key stanza declares, until
                         makedhcp -n writes a new stanza. A cluster that uses

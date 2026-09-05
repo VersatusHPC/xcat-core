@@ -1052,11 +1052,11 @@ passed as argument rather than by table value',
 "                      FIPS mode: named loads an hmac-md5 key stanza without\n" .
 "                      an error and then answers SERVFAIL to every update\n" .
 "                      signed with that key. New installations on Enterprise\n" .
-"                      Linux 9 or later and Ubuntu 20.04 or later set\n" .
-"                      hmac-sha256. New installations on Enterprise Linux 8,\n" .
-"                      Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15\n" .
-"                      set hmac-md5, because their bundled omshell does not\n" .
-"                      support the key-algorithm command. On an upgrade a\n" .
+"                      Linux 8 or later and Ubuntu 20.04 or later set\n" .
+"                      hmac-sha256. New installations on Ubuntu 18.04,\n" .
+"                      SLES 12, SLES 15, and openSUSE Leap 15 set hmac-md5,\n" .
+"                      because their bundled omshell does not support the\n" .
+"                      key-algorithm command. On an upgrade a\n" .
 "                      site that sets no value keeps the algorithm the\n" .
 "                      dhcpd.conf OMAPI key stanza declares, until\n" .
 "                      makedhcp -n writes a new stanza. A cluster that uses\n" .

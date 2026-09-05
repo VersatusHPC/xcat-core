@@ -95,7 +95,7 @@ Legacy ISC DHCP and BIND TSIG Key Options
 
 xCAT uses **xcat_key** for BIND DDNS updates and legacy ISC DHCP OMAPI. If **dhcpomapialgorithm** is not set, xCAT uses **hmac-sha256**. HMAC-MD5 is not approved for FIPS mode: ``named`` loads an hmac-md5 key stanza without an error and then answers SERVFAIL to every update signed with that key. Kea does not use OMAPI, but Kea DDNS uses this TSIG algorithm.
 
-New installations on Enterprise Linux 9 or later and Ubuntu 20.04 or later set **hmac-sha256**. New installations on Enterprise Linux 8, Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 set **hmac-md5**, because their bundled ``omshell`` does not support the ``key-algorithm`` command.
+New installations on Enterprise Linux 8 or later and Ubuntu 20.04 or later set **hmac-sha256**. New installations on Ubuntu 18.04, SLES 12, SLES 15, and openSUSE Leap 15 set **hmac-md5**, because their bundled ``omshell`` does not support the ``key-algorithm`` command.
 
 An upgrade does not change the algorithm under a running cluster:
 

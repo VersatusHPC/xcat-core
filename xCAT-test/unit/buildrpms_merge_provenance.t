@@ -55,4 +55,34 @@ is( BR::input_worktree_status(repo_with($head)), undef,
 
 is( BR::input_worktree_status(), undef, 'and no input at all is unknown' );
 
+# The merge takes one tree per arch. When only ONE of them records its status, the answer for the
+# merged repo is still unknown: the other arch could have been built from a changed tree and the
+# merged rpms would carry it. A per-input skip lets the input that DID report decide, so the merged
+# repo reads clean on evidence from half of it.
+is( BR::input_worktree_status(
+        repo_with($head . "WORKTREE=clean\n"),
+        repo_with(undef)),
+    undef,
+    'a clean input beside an input with no buildinfo is unknown, never clean' );
+
+is( BR::input_worktree_status(
+        repo_with(undef),
+        repo_with($head . "WORKTREE=clean\n")),
+    undef,
+    'and the order of the inputs does not change that' );
+
+is( BR::input_worktree_status(
+        repo_with($head . "WORKTREE=clean\n"),
+        repo_with($head)),
+    undef,
+    'a clean input beside one built before the field existed is unknown' );
+
+# A dirty input still names its files, whatever the other input reports. Dirty is a fact about the
+# rpms that are in the merged repo, and unknown must not hide it.
+is( BR::input_worktree_status(
+        repo_with(undef),
+        repo_with($head . "WORKTREE=dirty\nDIRTY_FILE= M xCAT/plugins/kea.pm\n")),
+    ' M xCAT/plugins/kea.pm',
+    'a dirty input beside an unreadable one still reports dirty' );
+
 done_testing();

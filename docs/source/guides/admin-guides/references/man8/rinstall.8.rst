@@ -72,7 +72,7 @@ If \ **-c**\  is specified, \ **rinstall**\  will run \ **rcons**\  on the node.
 
 \ **runimage=**\ \ *task*\ 
  
- If you would like to run a task after deployment, you can define that task with this attribute.
+ If you would like to run a task after deployment, you can define that task with this attribute. The legacy Genesis image runs this task. The OpenEmbedded Genesis image refuses it and reports \ **UNSAFE_LEGACY_ACTION**\ ; build a signed system extension with \ **xCAT-genesis-builder/oe/export-extension**\ .
  
 
 

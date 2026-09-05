@@ -10,6 +10,7 @@ use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
 use xCAT::Table;
+use xCAT::TableUtils;
 use xCAT::Utils;
 use xCAT::SvrUtils;
 use xCAT::MsgUtils;
@@ -250,6 +251,60 @@ sub copyAndAddCustomizations {
     #next, we apply xCAT customizations to enhance debian installer..
     chdir("$::XCATROOT/share/xcat/install/debian/initoverlay");
     system("find . |cpio -o -H newc | gzip -c - -9 >> $dest");
+}
+
+# riscv64 nodes boot through UEFI and grub2, and no xcat-dep package carries a
+# riscv64 grub2 image. The Ubuntu media is the only source. It names the loader
+# after the UEFI removable-media path, not after grub, and ISO9660 gives the EFI
+# directory in either case.
+my %MEDIA_GRUB2_LOADERS = (riscv64 => 'bootriscv64.efi');
+my @MEDIA_EFI_DIRS = ('EFI/boot', 'EFI/BOOT');
+
+#-------------------------------------------------------
+
+=head3 _install_media_grub2_loader
+
+    Descriptions:
+        Publish the grub2 UEFI image of the media under $tftpdir/boot/grub2, as
+        the boot file the DHCP backends hand a client of that architecture. An
+        image the management node already has is kept.
+    Arguments:
+        $path     - the copied media tree
+        $arch     - the architecture of the media
+        $callback - the xCAT callback, or undef
+    Returns:
+        The path written, or undef when nothing is published.
+
+=cut
+
+#-------------------------------------------------------
+sub _install_media_grub2_loader {
+    my ($path, $arch, $callback) = @_;
+
+    my $image = $MEDIA_GRUB2_LOADERS{$arch};
+    return unless $image;
+
+    my $source;
+    foreach my $dir (@MEDIA_EFI_DIRS) {
+        next unless -r "$path/$dir/$image";
+        $source = "$path/$dir/$image";
+        last;
+    }
+    return unless $source;
+
+    my $tftpdir = xCAT::TableUtils->getTftpDir();
+    return unless $tftpdir;
+    my $target = "$tftpdir/boot/grub2/grub2.$arch";
+    return if -e $target;
+
+    mkpath("$tftpdir/boot/grub2");
+    unless (copy($source, $target)) {
+        $callback->({ data => "Could not install $target from the media: $!" }) if $callback;
+        return;
+    }
+    chmod 0644, $target;
+    $callback->({ data => "Installed $target from the media" }) if $callback;
+    return $target;
 }
 
 sub copycd
@@ -517,6 +572,7 @@ sub copycd
         }
 
         $callback->({ data => "Media copy operation successful" });
+        _install_media_grub2_loader($temppath, $arch, $callback);
         unless ($noosimage) {
             my @ret = xCAT::SvrUtils->update_tables_with_templates($distname, $arch, $temppath, $osdistroname, $legacyUB20);
             if ($ret[0] != 0) {

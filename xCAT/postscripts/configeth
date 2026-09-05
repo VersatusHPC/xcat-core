@@ -1726,12 +1726,12 @@ if [ $networkmanager_active -eq 1 ] && [ -n "$tmp_con_name" ]; then
         nmcli con delete $tmp_con_name
     fi
 fi
-# Persist nicextraparams that NetworkManager has no native setting for (e.g. CONNECTED_MODE)
-# into the connection keyfile's [user] section. Done here as the very last step: the
-# nmcli con reload/up in the restart phase above re-serializes the keyfile from NM's
-# in-memory model and drops anything NM does not model, so an earlier write would be lost.
-# On EL10 (keyfile-only) there is no ifcfg file to hold these. We do NOT reload after, so
-# the file keeps the section; NM tolerates an unknown [user] section in keyfile mode.
+# Persist nicextraparams that NetworkManager has no native setting for (e.g. CONNECTED_MODE).
+# Done here as the very last step: every nmcli call in the restart phase above rewrites the
+# profile on disk from NM's in-memory model and drops anything NM does not model, so an
+# earlier write is already lost. EL9 and later keep the profile in a keyfile, EL8 in an
+# ifcfg file. We do NOT reload after, so the file keeps the keys; NM tolerates an unknown
+# [user] section in keyfile mode.
 if [ "$str_os_type" = "redhat" ] && [ "$networkmanager_active" = "1" ] && xcat_is_el9_or_later "$OSVER"; then
     # Resolve the connection's keyfile by UUID -- NM may name it "<id>-<uuid>.nmconnection"
     # (not the plain "<id>.nmconnection") when a same-named file already exists.
@@ -1754,6 +1754,33 @@ if [ "$str_os_type" = "redhat" ] && [ "$networkmanager_active" = "1" ] && xcat_i
             done
         done
         chmod 600 "$ep_kf"
+    fi
+elif [ "$str_os_type" = "redhat" ] && [ "$networkmanager_active" = "1" ]; then
+    # configipv4 already wrote these keys to the ifcfg file and the restart phase removed
+    # them again. Write them once more, after the last nmcli call.
+    ep_conf="${str_cfg_dir}ifcfg-xcat-${str_nic_name}"
+    # NetworkManager names the file "<name>-1" when one of that name is already there;
+    # configipv4 picks the same one.
+    if [ -f "${ep_conf}-1" ] && grep -qx "NAME=xcat-${str_nic_name}" "${ep_conf}-1"; then
+        ep_conf="${ep_conf}-1"
+    fi
+    if [ -f "$ep_conf" ]; then
+        for ep in "${array_nic_params[@]}"; do
+            [ -z "$ep" ] && continue
+            [ "$ep" = "$str_default_token" ] && continue
+            parse_nic_extra_params "$ep"
+            j=0
+            while [ $j -lt ${#array_extra_param_names[@]} ]; do
+                nm="${array_extra_param_names[$j]}"
+                vl="${array_extra_param_values[$j]}"
+                if grep -q "^${nm}=" "$ep_conf"; then
+                    sed -i "s|^${nm}=.*|${nm}=${vl}|" "$ep_conf"
+                else
+                    echo "${nm}=${vl}" >> "$ep_conf"
+                fi
+                j=$((j+1))
+            done
+        done
     fi
 fi
 exit $error_code

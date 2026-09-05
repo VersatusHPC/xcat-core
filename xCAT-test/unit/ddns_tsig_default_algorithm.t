@@ -177,6 +177,22 @@ subtest 'a matching stanza is left alone' => sub {
     is( $result->{restartneeded},   0,             'named is not restarted' );
 };
 
+subtest 'an external DNS server keeps the algorithm xCAT already signs with' => sub {
+    my $unset = run_external_makedns( site_algorithm => undef );
+
+    is( $unset->{signing_algorithm}, 'hmac-md5',
+        'a site that names no algorithm keeps signing hmac-md5' );
+    like( $unset->{key_contents}, qr/algorithm hmac-md5;/,
+        'the key file names the algorithm the external server holds' );
+
+    my $chosen = run_external_makedns( site_algorithm => 'hmac-sha256' );
+
+    is( $chosen->{signing_algorithm}, 'hmac-sha256',
+        'the site table selects the algorithm for an external server' );
+    like( $chosen->{key_contents}, qr/algorithm hmac-sha256;/,
+        'the key file follows the site table' );
+};
+
 done_testing();
 
 #---------------------------------------------------------------------------
@@ -342,6 +358,46 @@ sub run_makedns {
         named_algorithm   => defined($named_algorithm) ? lc($named_algorithm) : undef,
         signing_algorithm => signing_algorithm($update),
         restartneeded     => $ctx->{restartneeded} ? 1 : 0,
+    };
+}
+
+#---------------------------------------------------------------------------
+
+=head3 run_external_makedns
+
+    Description: Sign one update the way makedns does against an external DNS server.
+                 makedns skips update_namedconf there, so no named.conf names the
+                 algorithm and nothing on the management node holds the answer.
+    Arguments:   site_algorithm (undef for none)
+    Returns:     hash reference with signing_algorithm and key_contents
+
+=cut
+
+#---------------------------------------------------------------------------
+sub run_external_makedns {
+    my (%args) = @_;
+
+    my $settings = omapi_settings( site_algorithm => $args{site_algorithm} );
+
+    my $ctx = {
+        omapi_settings => $settings,
+        privkey        => $SECRET,
+        external       => 1,
+    };
+
+    my $update = Local::TSIG::Update->new();
+    my $key_contents;
+    {
+        # Old Net::DNS signs every algorithm except MD5 through a KEY RR, so the recorded
+        # call names the algorithm this run selected.
+        local $Net::DNS::VERSION = '1.25';
+        $key_contents = xCAT_plugin::ddns::ddns_key_contents($ctx);
+        xCAT_plugin::ddns::ddns_sign_update( $ctx, $update );
+    }
+
+    return {
+        signing_algorithm => signing_algorithm($update),
+        key_contents      => $key_contents,
     };
 }
 

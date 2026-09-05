@@ -4886,6 +4886,30 @@ sub debian_arch {
 }
 
 ###################################################################################
+#subroutine ubuntu_mirror_url
+#Usage: give the public Ubuntu apt mirror that carries an architecture.
+#Input Params:
+#       $arch: the architecture, in xCAT or in Debian spelling, for example ppc64le
+#Return value:
+#       the base URL of the mirror that serves that architecture
+###################################################################################
+# archive.ubuntu.com carries amd64 and i386 only. Ubuntu puts every other architecture
+# -- ppc64el, arm64, riscv64, s390x -- on ports.ubuntu.com under /ubuntu-ports. The wrong
+# host answers 404 for the whole Packages index, so debootstrap and apt stop there.
+# An unknown or empty architecture keeps the archive, which is where the x86 callers were.
+my %UBUNTU_ARCHIVE_ARCH = map { $_ => 1 } qw(amd64 x86_64 i386 x86);
+
+sub ubuntu_mirror_url {
+    my $arch = shift;
+    $arch = shift if ($arch =~ /xCAT::Utils/);
+    return 'http://archive.ubuntu.com/ubuntu' unless defined $arch and $arch ne '';
+    return 'http://archive.ubuntu.com/ubuntu' if $arch =~ /^i.86$/;
+    my $darch = debian_arch($arch);
+    return 'http://archive.ubuntu.com/ubuntu' if $UBUNTU_ARCHIVE_ARCH{ lc $darch };
+    return 'http://ports.ubuntu.com/ubuntu-ports';
+}
+
+###################################################################################
 #subroutine xcat_arch_from_debian
 #Usage: give the xCAT architecture for the architecture the Ubuntu media reports.
 #Input Params:

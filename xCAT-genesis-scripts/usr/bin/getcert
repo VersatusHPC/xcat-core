@@ -5,7 +5,8 @@ if [ -z "$XCATDEST" ]; then
 	XCATDEST=$1
 fi
 #retry in case certkey.pem is not right, yet
-while ! openssl req -new -key /etc/xcat/certkey.pem -out /tmp/tls.csr -subj "/CN=$(hostname)" >& /dev/null; do
+#xCAT compares the subject with the node name. DHCP gives the hostname a domain.
+while ! openssl req -new -key /etc/xcat/certkey.pem -out /tmp/tls.csr -subj "/CN=$(hostname -s)" >& /dev/null; do
 	sleep 1
 done
 echo "<xcatrequest>

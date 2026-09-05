@@ -38,7 +38,7 @@ BuildRequires: chrony
 BuildRequires: cpio
 BuildRequires: e2fsprogs
 BuildRequires: hostname
-%if "%{_target_cpu}" == "x86_64"
+%if "%{tarch}" == "x86_64"
 BuildRequires: dmidecode
 BuildRequires: efibootmgr
 %endif
@@ -71,6 +71,9 @@ BuildRequires: nfs-utils
 BuildRequires: nmap-ncat
 BuildRequires: openssh-clients
 BuildRequires: openssh-server
+# getcert, getdestiny, getipmi and getadapter run the openssl command. el8 and el9 hold it in
+# the build root as a dependency of another package; el10 does not.
+BuildRequires: openssl
 BuildRequires: parted
 BuildRequires: pciutils
 BuildRequires: perl
@@ -126,9 +129,6 @@ rm -rf "$DRACUTMODDIR"
 mkdir -p "$DRACUTMODDIR"
 cp -a "%{_builddir}/xCAT-genesis-base-build-support/dracut_105/el/." "$DRACUTMODDIR/"
 chmod 0755 "$DRACUTMODDIR/module-setup.sh" "$DRACUTMODDIR/xcatroot" "$DRACUTMODDIR/dhclient-script"
-if [ "%{_target_cpu}" != "x86_64" ]; then
-    sed -i '/efibootmgr dmidecode/d' "$DRACUTMODDIR/module-setup.sh"
-fi
 
 KERNELVERSION=$(ls -1 /lib/modules | sort -V | tail -n 1)
 test -n "$KERNELVERSION"
@@ -235,6 +235,7 @@ GENESIS_REQUIRED="usr/sbin/dhclient"
 GENESIS_REQUIRED="usr/sbin/dhcpcd"
 %endif
 bash "%{_builddir}/xCAT-genesis-base-build-support/verify-genesis-payload" \
+    --commands-from "$DRACUTMODDIR/module-setup.sh" \
     "$GENESIS_FS" $GENESIS_REQUIRED
 
 find "$GENESIS_TMPDIR" -type c -delete

@@ -193,6 +193,35 @@ subtest 'an external DNS server keeps the algorithm xCAT already signs with' => 
         'the key file follows the site table' );
 };
 
+subtest 'a stronger stanza survives the default' => sub {
+    my $sha512 = key_stanza('hmac-sha512');
+    my $result = run_makedns( named_conf => $sha512, site_algorithm => undef );
+
+    is( $result->{named_algorithm}, 'hmac-sha512',
+        'the default does not replace a stronger stanza' );
+    is( $result->{signing_algorithm}, 'hmac-sha512',
+        'the update is signed with the stanza named restarted with' );
+    is( $result->{restartneeded}, 0, 'named is not restarted' );
+
+    my $chosen = run_makedns(
+        named_conf     => $sha512,
+        site_algorithm => 'hmac-sha256',
+    );
+
+    is( $chosen->{named_algorithm}, 'hmac-sha256',
+        'the site table still selects a weaker algorithm' );
+    is( $chosen->{restartneeded}, 1, 'named is restarted for that choice' );
+};
+
+subtest 'a weaker stanza is still replaced' => sub {
+    for my $weak (qw(hmac-md5 hmac-sha1 hmac-sha224)) {
+        my $result =
+          run_makedns( named_conf => key_stanza($weak), site_algorithm => undef );
+        is( $result->{named_algorithm}, 'hmac-sha256',
+            "a $weak stanza is replaced by the default" );
+    }
+};
+
 done_testing();
 
 #---------------------------------------------------------------------------

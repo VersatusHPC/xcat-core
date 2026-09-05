@@ -1,9 +1,0 @@
-fix(xcat-core): the legacy Genesis image never reaches doxcat, so no node boots a shell
-
-A compute node fetches the legacy Genesis kernel and initramfs over HTTP and the kernel starts. Then `doxcat` never runs, the node acquires no address, `sshd` refuses every connection, and the node stays at `status=powering-on`. The five genesis cases in `xCAT-test/autotest/testcase/genesis` have never passed.
-
-The image has three holes, each one fatal on its own. `dracut_105/el/xcat-cmdline.sh` ends in an endless `tmux` loop, and the image carries no locale data, so `tmux` exits with `need UTF-8 locale` and the loop never reaches `doxcat`. `module-setup.sh` does not install `/usr/libexec/openssh/sshd-session`, which OpenSSH 9.8 and later exec for every connection. `xCAT-genesis-base.spec` does not build-require `dhcp-client`, so `dhclient` is absent from the build root and `dracut_install` returns without failing the build.
-
-`xcat-cmdline.sh` resolves `xcat_console_mode()` once, and runs `doxcat` directly when the multiplexer cannot start a session. `module-setup.sh` installs the OpenSSH session helpers and the C.utf8 locale. The spec build-requires `dhcp-client` on the releases that package it, and runs the new `xCAT-genesis-builder/verify-genesis-payload` over the extracted payload. The verifier fails the build when the image lacks the session helper, the UTF-8 locale or a named binary. The same commit corrects four defects in the genesis cases: the synthetic node architecture, the OS match in `get_os()`, a discarded return value in the `-g` check, and stale host keys in `testxdsh()`.
-
-`xCAT-test/unit/genesis_console_mode.t` extracts `xcat_console_mode()` from each hook and runs it with the multiplexer shadowed. It asserts that the hook no longer carries the unconditional loop, so it fails on the parent commit. `genesis_payload_verification.t` drives the verifier over payload trees that carry each hole.

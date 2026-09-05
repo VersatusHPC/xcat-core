@@ -957,7 +957,8 @@ sub mkinstall {
                 $pkgdir,
                 $platform,
                 $partitionfile,
-                \%tmpl_hash
+                \%tmpl_hash,
+                osarch => $arch
               );
         }
 

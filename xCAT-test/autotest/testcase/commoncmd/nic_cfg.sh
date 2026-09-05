@@ -33,11 +33,14 @@
 # know the connection naming.
 ###############################################################################
 
-NMDIR=/etc/NetworkManager/system-connections
-RHDIR=/etc/sysconfig/network-scripts
-SUSEDIR=/etc/sysconfig/network
-UBUDIR=/etc/network/interfaces.d
-BACKUP=/tmp/backupnet
+# NIC_CFG_ROOT prefixes every path this script reads. It is empty on a node and set by the
+# unit test, which must never write to the host it runs on.
+ROOT=${NIC_CFG_ROOT:-}
+NMDIR=$ROOT/etc/NetworkManager/system-connections
+RHDIR=$ROOT/etc/sysconfig/network-scripts
+SUSEDIR=$ROOT/etc/sysconfig/network
+UBUDIR=$ROOT/etc/network/interfaces.d
+BACKUP=$ROOT/tmp/backupnet
 
 detect_backend() {
     if command -v nmcli >/dev/null 2>&1 && systemctl is-active --quiet NetworkManager 2>/dev/null; then
@@ -65,15 +68,18 @@ nm_keyfile() {
 }
 
 # Resolve the NetworkManager connection name bound to a device.
+#
+# The xCAT connection comes first. configeth writes "xcat-<dev>" and does not always activate
+# it, so the connection still active on the device can be the one the installer created. Reading
+# that one reports the address the postscript added to the link and none of the profile settings
+# the case asserts on -- MTU and the nicextraparams (VersatusHPC/xcat-internal#61).
 nm_conn_for_dev() {
     local dev=$1 c cand
+    for cand in "xcat-$dev" "xcat-bond-$dev" "xcat-bridge-$dev" "xcat-vlan-$dev"; do
+        if nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$cand"; then echo "$cand"; return; fi
+    done
     c=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v d="$dev" '$2==d{print $1; exit}')
     [ -z "$c" ] && c=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null | awk -F: -v d="$dev" '$2==d{print $1; exit}')
-    if [ -z "$c" ]; then
-        for cand in "xcat-$dev" "xcat-bond-$dev" "xcat-bridge-$dev" "xcat-vlan-$dev"; do
-            if nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$cand"; then c=$cand; break; fi
-        done
-    fi
     echo "$c"
 }
 
@@ -106,9 +112,11 @@ nm_show() {
         mtu=$(awk -F= '/^[[:space:]]*mtu=/{print $2; exit}' "$kf")
     fi
     [ -n "$mtu" ] && [ "$mtu" != "auto" ] && echo "MTU=$mtu"
-    # Raw keyfile so anything not normalized above (extra params, slaves, vlan id, ...)
-    # is still visible and greppable by the case's check: lines.
-    if [ -r "$kf" ]; then echo "# --- $kf ---"; cat "$kf"; fi
+    # Raw backend file so anything not normalized above (extra params, slaves, vlan id, ...)
+    # is still visible and greppable by the case's check: lines. NetworkManager keeps the
+    # connection in a keyfile OR, with the ifcfg-rh plugin (EL8 and EL9), in an ifcfg file.
+    # Reading only the keyfile hides every extra param on an ifcfg-rh node.
+    if [ -r "$kf" ]; then echo "# --- $kf ---"; cat "$kf"; else file_show "$dev"; fi
 }
 
 file_show() {
@@ -117,7 +125,7 @@ file_show() {
     for f in "$RHDIR"/ifcfg-*"$dev"* "$SUSEDIR"/ifcfg-"$dev" "$UBUDIR"/"$dev" "$UBUDIR"/"$dev":* ; do
         if [ -r "$f" ]; then echo "# --- $f ---"; cat "$f"; found=0; fi
     done
-    [ -r /etc/network/interfaces ] && { echo "# --- /etc/network/interfaces ---"; cat /etc/network/interfaces; found=0; }
+    [ -r "$ROOT/etc/network/interfaces" ] && { echo "# --- $ROOT/etc/network/interfaces ---"; cat "$ROOT/etc/network/interfaces"; found=0; }
     return $found
 }
 

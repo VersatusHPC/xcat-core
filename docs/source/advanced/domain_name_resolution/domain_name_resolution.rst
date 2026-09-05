@@ -101,7 +101,8 @@ An upgrade does not change the algorithm under a running cluster:
 
 * A site that sets **dhcpomapialgorithm** keeps that value.
 * A site that sets no value keeps the algorithm the ``dhcpd.conf`` OMAPI key stanza declares. Run ``makedhcp -n`` to write a stanza with the current default.
-* ``makedns`` replaces a ``named.conf`` key stanza that does not declare the algorithm xCAT signs with, and restarts ``named``. A management node in FIPS mode that names no algorithm moves to **hmac-sha256** at the first ``makedns``.
+* ``makedns`` replaces a ``named.conf`` key stanza that does not declare the algorithm xCAT signs with, and restarts ``named``. A management node in FIPS mode that names no algorithm moves to **hmac-sha256** at the first ``makedns``. ``makedns`` does not lower the algorithm of a stanza that already names a stronger one.
+* A cluster that uses an external DNS server (**site.externaldns**, or ``makedns -e``) and sets no value keeps **hmac-md5**. xCAT does not manage that server and cannot rekey it. To move an external server to another algorithm, add the key there first, then set **dhcpomapialgorithm** and the matching **passwd** table secret.
 
 To keep legacy ISC DHCP OMAPI and BIND DDNS on HMAC-MD5, set the attribute before the upgrade: ::
 

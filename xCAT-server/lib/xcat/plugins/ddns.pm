@@ -41,6 +41,12 @@ sub ddns_tsig_algorithm {
     # The Net::DNS version does not select the algorithm: old Net::DNS signs every algorithm
     # except MD5 through a KEY RR, which ddns_sign_update builds.
     return $settings->{algorithm} if $settings->{algorithm_explicit};
+
+    # xCAT does not manage an external DNS server and cannot rekey one. A site that names
+    # no algorithm signed with hmac-md5 before, so the external server holds an hmac-md5
+    # key. Keep it until site.dhcpomapialgorithm names another algorithm.
+    return 'hmac-md5' if $ctx->{external};
+
     return $ctx->{tsig_algorithm} || $settings->{algorithm};
 }
 
@@ -353,6 +359,9 @@ sub process_request {
     if ($::XCATSITEVALS{externaldns}) {
         $external = 1;
     }
+
+    # ddns_tsig_algorithm reads this. Both the -e flag and site.externaldns are settled here.
+    $ctx->{external} = $external;
 
     if ($help)
     {

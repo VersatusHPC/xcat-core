@@ -1059,8 +1059,11 @@ passed as argument rather than by table value',
 "                      support the key-algorithm command. On an upgrade a\n" .
 "                      site that sets no value keeps the algorithm the\n" .
 "                      dhcpd.conf OMAPI key stanza declares, until\n" .
-"                      makedhcp -n writes a new stanza. Kea does not use\n" .
-"                      OMAPI, but Kea DDNS uses this TSIG algorithm.\n\n" .
+"                      makedhcp -n writes a new stanza. A cluster that uses\n" .
+"                      an external DNS server and sets no value keeps\n" .
+"                      hmac-md5, because xCAT cannot rekey a server it does\n" .
+"                      not manage. Kea does not use OMAPI, but Kea DDNS uses\n" .
+"                      this TSIG algorithm.\n\n" .
 " dhcpomapikeyname:  The TSIG/OMAPI key name used by legacy ISC DHCP and\n" .
 "                   BIND DDNS integration. The default is xcat_key. The\n" .
 "                   value maps to the passwd table entry where key=omapi\n" .

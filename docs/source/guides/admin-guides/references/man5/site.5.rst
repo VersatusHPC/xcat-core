@@ -107,8 +107,11 @@ site Attributes:
                         support the key-algorithm command. On an upgrade a
                         site that sets no value keeps the algorithm the
                         dhcpd.conf OMAPI key stanza declares, until
-                        makedhcp -n writes a new stanza. Kea does not use
-                        OMAPI, but Kea DDNS uses this TSIG algorithm.
+                        makedhcp -n writes a new stanza. A cluster that uses
+                        an external DNS server and sets no value keeps
+                        hmac-md5, because xCAT cannot rekey a server it does
+                        not manage. Kea does not use OMAPI, but Kea DDNS uses
+                        this TSIG algorithm.
 
    dhcpomapikeyname:  The TSIG/OMAPI key name used by legacy ISC DHCP and
                      BIND DDNS integration. The default is xcat_key. The

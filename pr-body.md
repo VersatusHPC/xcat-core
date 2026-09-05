@@ -1,0 +1,13 @@
+fix(xcat-core): the el10 Genesis image carries no openssl, so getcert never returns
+
+A compute node that boots the legacy Genesis image built on el10 stops after `Getting initial certificate --> <mn>:3001`. `/etc/xcat` stays empty, `getdestiny` never runs, and the node reports no destiny, so xcatd leaves `nodelist.status` at `powering-on`. On `xcat44-cn` the shell reports `openssl: command not found` and the `getcert` process is still alive. `rpm -qpl` on the el10 genesis rpm lists `libcrypto.so.3` and `libssl.so.3` and no openssl command; the el8 and el9 rpms list `/usr/bin/openssl`. The same split holds on ppc64le.
+
+`xCAT-genesis-builder/xCAT-genesis-base.spec` never build-requires `openssl`. The el8 and el9 build roots hold `/usr/bin/openssl` as a dependency of another package and the el10 build root does not, so `dracut_install` in `dracut_105/el/module-setup.sh` installed nothing and reported nothing. `xCAT-genesis-scripts/usr/bin/getcert` line 8 waits for `openssl` with no bound, so the missing command is a wait and not an error, and doxcat runs getcert in the foreground and ignores its status.
+
+The spec build-requires `openssl` on every release. `verify-genesis-payload` takes `--commands-from` and reads the command names back out of the dracut module, then requires each one in the payload, so the next name the build root does not supply fails the build instead of reaching a node. Names installed under a condition are release-dependent and are not required; the spec still passes the DHCP client it wants as a required path. `getcert` reports a missing openssl and stops, and bounds the wait for `/etc/xcat/certkey.pem` at 600 seconds, which is far longer than the background 4096 bit key needs.
+
+An audit of every name in that `dracut_install` list found one more hole. The spec read `%{_target_cpu}` after `BuildArch: noarch`, where rpm has already set it to `noarch`, so the `dmidecode` and `efibootmgr` build-requires never applied and a `sed` deleted their `dracut_install` line on every architecture. Both are absent from every shipped image on el8, el9, el10 and ppc64le. The spec reads `%{tarch}`, and the dracut module installs whichever of the two the build root carries, because ppc64le packages neither. Every other name in the list is present in the el8, el9, el10 and ppc64le images.
+
+`xCAT-test/unit/genesis_getcert_missing_openssl.t` runs getcert under a harness timeout with a PATH that holds stubs and no openssl. `genesis_payload_verification.t` drives the verifier with a dracut module and a payload. `genesis_base_spec_buildrequires.t` reads the spec. Ten assertions fail on the test commit.
+
+Commits: 6fe377c1b test, ced5bd128 fix

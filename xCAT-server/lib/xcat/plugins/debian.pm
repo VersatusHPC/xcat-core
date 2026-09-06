@@ -645,6 +645,191 @@ sub subiquity_boot_params {
     return (subiquity_kcmdline($base, $nfsip, $pkgdir, $instserver, $httpport, $node), undef);
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 install_template_path
+
+    Select the install template for an osimage: the site directory first, the shipped one only
+    when the site directory has nothing.
+
+    A site directory that already answers with a subiquity template is searched a second time
+    with "subiquity" as the genos hint. SvrUtils::get_file_name reads no such argument today,
+    so that second search returns the same file.
+
+    Arguments:
+        $os        the osimage osvers
+        $customdir the site template directory for the platform
+        $sharedir  the shipped template directory for the platform
+        $profile   the osimage profile
+        $osvers    the osimage osvers
+        $osarch    the osimage osarch
+        $lookup    optional coderef, for tests; defaults to SvrUtils::get_tmpl_file_name
+    Returns:
+        the template path, or undef when neither directory has one
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub install_template_path {
+    my ($os, $customdir, $sharedir, $profile, $osvers, $osarch, $lookup) = @_;
+
+    $lookup ||= sub { xCAT::SvrUtils::get_tmpl_file_name(@_) };
+
+    my $tmplfile = $lookup->($customdir, $profile, $osvers, $osarch, $osvers);
+    if (using_subiquity($os, $tmplfile)) {
+        $tmplfile = $lookup->($customdir, $profile, $osvers, $osarch, $osvers, "subiquity");
+    }
+    if (!$tmplfile) {
+        $tmplfile = $lookup->($sharedir, $profile, $osvers, $osarch, $osvers);
+    }
+    return $tmplfile;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 autoinst_target
+
+    Say where Template->subvars writes the answer file, and whether a seed directory is needed.
+
+    cloud-init's nocloud-net datasource reads a directory of three files, not one file, so a
+    subiquity image renders into <autoinst>/user-data and the caller creates the directory
+    beside it. A preseed image renders into the plain file.
+
+    Arguments:
+        $os           the node osvers
+        $tmplfile     the template selected for the node
+        $autoinstfile the per-node autoinst path
+    Returns:
+        ($path, $seeddir) -- $seeddir is undef when the image needs no seed directory
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub autoinst_target {
+    my ($os, $tmplfile, $autoinstfile) = @_;
+
+    return ($autoinstfile, undef) unless using_subiquity($os, $tmplfile);
+    return ("$autoinstfile/user-data", $autoinstfile);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 install_prescript
+
+    Select the pre-install script for a node.
+
+    The ppc64 script wins over the subiquity one: ubuntu on ppc64 is installed by
+    debian-installer here, whatever the template says.
+
+    Arguments:
+        $os        the node osvers
+        $tmplfile  the template selected for the node
+        $platform  the platform name, debian or ubuntu
+        $arch      the node osarch
+        $scriptdir optional script directory, for tests
+    Returns:
+        the path of the pre-install script
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub install_prescript {
+    my ($os, $tmplfile, $platform, $arch, $scriptdir) = @_;
+
+    $scriptdir ||= "$::XCATROOT/share/xcat/install/scripts";
+
+    # for powerkvm VM ubuntu LE
+    if (defined($arch) and $arch =~ /ppc64/i and $platform eq "ubuntu") {
+        return "$scriptdir/pre.$platform.ppc64";
+    }
+    return "$scriptdir/pre.$platform.subiquity" if using_subiquity($os, $tmplfile);
+    return "$scriptdir/pre.$platform";
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 install_initrd_action
+
+    Say what to do with the install initrd before it is served over tftp.
+
+    The xCAT initoverlay cpio is appended for debian-installer. casper reads the initrd it
+    shipped with, so a subiquity image takes the file unchanged.
+
+    Arguments:
+        $os       the node osvers
+        $tmplfile the template selected for the node
+    Returns:
+        'copy' to take the initrd as it is, 'customize' to append the overlay
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub install_initrd_action {
+    my ($os, $tmplfile) = @_;
+
+    return using_subiquity($os, $tmplfile) ? 'copy' : 'customize';
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 install_kcmdline
+
+    Build the whole kernel command line for a diskful install, or say why not.
+
+    The two installers take different command lines and mkinstall needs a management node, so
+    the choice between them returns its answer here instead of being made at the call site.
+    The caller keeps the side effects: reporting the error and skipping the node.
+
+    Arguments:
+        $os       the node osvers
+        $tmplfile the template selected for the node
+        $opt      hashref: instserver, pkgdir, httpport, node, ent (the noderes row),
+                  mac (the parsed mac table entry), resolver (optional, for tests)
+    Returns:
+        ($kcmdline, undef) on success, or (undef, $message) when the install server does not
+        resolve for a subiquity install
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub install_kcmdline {
+    my ($os, $tmplfile, $opt) = @_;
+
+    my $instserver = $opt->{instserver};
+    my $pkgdir     = $opt->{pkgdir};
+    my $httpport   = $opt->{httpport};
+    my $node       = $opt->{node};
+    my $ent        = $opt->{ent} || {};
+
+    my $kcmdline = "nofb utf8 auto xcatd=" . $instserver;
+
+    if (using_subiquity($os, $tmplfile)) {
+        return subiquity_boot_params($kcmdline, $instserver, $pkgdir, $httpport, $node,
+            $opt->{resolver});
+    }
+
+    $kcmdline .= " url=http://${instserver}:$httpport/install/autoinst/$node";
+    $kcmdline .= " mirror/http/hostname=${instserver}:$httpport";
+
+    # default answers as much as possible, we don't want any interactiveness :)
+    $kcmdline .= " priority=critical";
+
+    my $net_params = xCAT::NetworkUtils->gen_net_boot_params($ent->{installnic},
+        $ent->{primarynic}, $opt->{mac});
+    if (exists($net_params->{nicname})) {
+        $kcmdline .= " netcfg/choose_interface=" . $net_params->{nicname};
+    } elsif (exists($net_params->{mac})) {
+        $kcmdline .= " netcfg/choose_interface=" . $net_params->{mac};
+    }
+
+    #from 12.10, the live install changed, so add the live-installer
+    if (-r "$pkgdir/install/filesystem.squashfs") {
+        $kcmdline .= " live-installer/net-image=http://${instserver}:$httpport${pkgdir}/install/filesystem.squashfs";
+    }
+
+    return ($kcmdline, undef);
+}
+
 sub mkinstall {
     xCAT::MsgUtils->message("S", "Doing debian mkinstall");
     my $request  = shift;
@@ -771,18 +956,10 @@ sub mkinstall {
                     # if the install template wasn't found, then lets look for it in the default locations.
                     unless ($img_hash{$imagename}->{template}) {
                         my $pltfrm = getplatform($ref->{'osvers'});
-                        my $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$pltfrm",
-                            $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                        if (using_subiquity($os,$tmplfile)) {
-
-                            # in this context we use the genos parameter to search for the subiquity template
-                            $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$pltfrm",
-                                $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'}, "subiquity");
-                        }
-                        if (!$tmplfile) {
-                            $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
-                                $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                        }
+                        my $tmplfile = install_template_path($os,
+                            "$installroot/custom/install/$pltfrm",
+                            "$::XCATROOT/share/xcat/install/$pltfrm",
+                            $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'});
 
                         # if we managed to find it, put it in the hash:
                         if ($tmplfile) {
@@ -928,26 +1105,23 @@ sub mkinstall {
             $tmperr = "Unable to find template in $installroot/custom/install/$platform or $::XCATROOT/share/xcat/install/$platform (for $profile/$os/$arch combination)";
         }
         if (-r "$tmplfile") {
-            my $autoinstfile = "$installroot/autoinst/" . $node;
+            my ($autoinstfile, $seeddir) =
+              autoinst_target($os, $tmplfile, "$installroot/autoinst/" . $node);
 
-            # handle nocloud-net datasource for ubuntu 20.04+
-            if (using_subiquity($os,$tmplfile)) {
+            if ($seeddir) {
 
                 # clean up existing files to make way for the new directory
-                if (-f $autoinstfile) {
-                    unlink($autoinstfile);
+                if (-f $seeddir) {
+                    unlink($seeddir);
                 }
-                mkpath($autoinstfile);
+                mkpath($seeddir);
 
                 # create empty meta-data and vendor-data files
-                open(my $fh, ">", $autoinstfile . "/meta-data");
+                open(my $fh, ">", $seeddir . "/meta-data");
                 close($fh);
-                open($fh, ">", $autoinstfile . "/vendor-data");
+                open($fh, ">", $seeddir . "/vendor-data");
                 print $fh "{}\n";
                 close($fh);
-
-                # point the template output at the /user-data file
-                $autoinstfile = "$autoinstfile/user-data";
             }
             $tmperr =
               xCAT::Template->subvars($tmplfile,
@@ -962,16 +1136,8 @@ sub mkinstall {
         }
 
         # maybe Debian will decide to use subiquity at some point?
-        my $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform";
-        if (using_subiquity($os,$tmplfile)) {
-            $prescript = $prescript . ".subiquity";
-        }
+        my $prescript = install_prescript($os, $tmplfile, $platform, $arch);
         my $postscript = "$::XCATROOT/share/xcat/install/scripts/post.$platform";
-
-        # for powerkvm VM ubuntu LE#
-        if ($arch =~ /ppc64/i and $platform eq "ubuntu") {
-            $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform.ppc64";
-        }
 
 
         if (-r "$prescript") {
@@ -1047,8 +1213,7 @@ sub mkinstall {
             if ($docopy) {
                 mkpath("$tftppath");
                 copy($kernpath, "$tftppath/vmlinuz");
-                # we don't want to customise the subiquity initrd
-                if (using_subiquity($os,$tmplfile)) {
+                if (install_initrd_action($os, $tmplfile) eq 'copy') {
                     copy($initrdpath, "$tftppath/initrd.img");
                 } else {
                     copyAndAddCustomizations($initrdpath, "$tftppath/initrd.img");
@@ -1077,48 +1242,30 @@ sub mkinstall {
                 $instserver = $ent->{nfsserver};
             }
 
-            my $kcmdline = "nofb utf8 auto xcatd=" . $instserver;
-
-            if (using_subiquity($os,$tmplfile)) {
-                # Fail rather than hand casper a name: klibc's nfsmount cannot resolve one, so
-                # the node would panic "can't parse IP address" at boot, on the node, with
-                # nothing said on the management node.
-                my ($subiquity_cmdline, $subiquity_error) =
-                  subiquity_boot_params($kcmdline, $instserver, $pkgdir, $httpport, $node);
-                if ($subiquity_error) {
-                    xCAT::MsgUtils->report_node_error($callback, $node, $subiquity_error);
-                    next;
-                }
-                $kcmdline = $subiquity_cmdline;
-            } else {
-                $kcmdline .= " url=http://${instserver}:$httpport/install/autoinst/$node";
-                $kcmdline .= " mirror/http/hostname=${instserver}:$httpport";
-
-                # default answers as much as possible, we don't want any interactiveness :)
-                $kcmdline .= " priority=critical";
-
-                # parse Mac table to get one mac address in case there are multiples.
-                my $net_params = xCAT::NetworkUtils->gen_net_boot_params($ent->{installnic}, $ent->{primarynic}, $mac);
-                if (exists($net_params->{nicname})) {
-                    $kcmdline .= " netcfg/choose_interface=" . $net_params->{nicname};
-                } elsif (exists($net_params->{mac})) {
-                    $kcmdline .= " netcfg/choose_interface=" . $net_params->{mac};
-                }
-
-                #from 12.10, the live install changed, so add the live-installer
-                if (-r "$pkgdir/install/filesystem.squashfs") {
-                    $kcmdline .= " live-installer/net-image=http://${instserver}:$httpport${pkgdir}/install/filesystem.squashfs";
-                }
-            }
-
-            if ($maxmem) {
-                $kcmdline .= " mem=$maxmem";
-            }
-
             # parse Mac table to get one mac address in case there are multiples.
             my $mac;
             if ($macent->{mac}) {
                 $mac = xCAT::Utils->parseMacTabEntry($macent->{mac}, $node);
+            }
+
+            # Fail rather than hand casper a name: klibc's nfsmount cannot resolve one, so the
+            # node would panic "can't parse IP address" at boot, on the node, with nothing said
+            # on the management node.
+            my ($kcmdline, $kcmdline_error) = install_kcmdline($os, $tmplfile, {
+                    instserver => $instserver,
+                    pkgdir     => $pkgdir,
+                    httpport   => $httpport,
+                    node       => $node,
+                    ent        => $ent,
+                    mac        => $mac,
+            });
+            if ($kcmdline_error) {
+                xCAT::MsgUtils->report_node_error($callback, $node, $kcmdline_error);
+                next;
+            }
+
+            if ($maxmem) {
+                $kcmdline .= " mem=$maxmem";
             }
 
             #TODO: dd=<url> for driver disks

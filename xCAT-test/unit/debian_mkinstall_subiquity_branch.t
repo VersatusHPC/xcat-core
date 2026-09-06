@@ -13,9 +13,12 @@ use Test::More;
 # green. Argument order, the error branch, and the `next` that skips the node were all
 # unobservable, which is exactly where the bug this PR fixes lived.
 #
-# mkinstall needs a management node and a database, so the branch is lifted out and eval'd into
-# a scratch package with report_node_error stubbed, and driven inside a real loop so the `next`
-# it performs is the `next` under test.
+# mkinstall needs a management node and a database, so the call site is lifted out and eval'd
+# into the plugin's own package with report_node_error stubbed, and driven inside a real loop so
+# the `next` it performs is the `next` under test. install_kcmdline itself is the real one.
+
+use lib "$FindBin::Bin/../../perl-xCAT";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 
 my $repo_root = File::Spec->rel2abs(
     File::Spec->catdir( $FindBin::Bin, '..', '..' )
@@ -24,92 +27,99 @@ my $plugin = File::Spec->catfile(
     $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'debian.pm'
 );
 plan skip_all => "debian.pm not found" unless -f $plugin;
+eval { require $plugin; 1 } or BAIL_OUT("could not load debian.pm: $@");
 
 my $src = do { local $/; open my $fh, '<', $plugin or die $!; <$fh> };
 
-# The helpers the branch calls, plus the branch itself. BAIL_OUT rather than skip, so a rename
-# fails loudly instead of silently covering nothing.
-my $helpers = '';
-for my $name (qw(subiquity_nfsroot_server subiquity_kcmdline subiquity_boot_params)) {
-    my ($sub) = $src =~ /\n(sub \Q$name\E \{.*?\n\})\n/s;
-    BAIL_OUT("could not extract $name from debian.pm") unless defined $sub;
-    $helpers .= "$sub\n";
-}
-
-# There are several `if (using_subiquity(...))` in debian.pm; take the one that actually builds
-# the boot parameters, selected by what it contains rather than by where it sits, so adding
-# another above it does not silently swap which branch is under test.
-my @candidates = $src =~ /\n[ ]+if \(using_subiquity\([^)]*\)\) \{\n(.*?)\n[ ]+\} else \{\n/gs;
-my @wanted = grep { /subiquity_boot_params\(/ } @candidates;
-BAIL_OUT('could not find the mkinstall branch that builds the subiquity boot parameters')
-  unless @wanted == 1;
-my $branch = $wanted[0];
-BAIL_OUT('the extracted branch does not skip the node on error')
-  unless $branch =~ /\bnext\b/;
-BAIL_OUT('the extracted branch is implausibly large -- the match ran past its block')
-  if ($branch =~ tr/\n//) > 20;
+# Take the call site by what it contains rather than by where it sits, so adding another call
+# above it does not silently swap which one is under test. BAIL_OUT rather than skip, so a
+# rename fails loudly instead of covering nothing.
+my ($site) = $src =~ /\n([ ]+my \(\$kcmdline, \$kcmdline_error\) = install_kcmdline\(.*?\n[ ]+\}\n)/s;
+BAIL_OUT('could not find the mkinstall call site that builds the kernel command line')
+  unless defined $site;
+BAIL_OUT('the extracted call site does not skip the node on error')
+  unless $site =~ /\bnext\b/;
+BAIL_OUT('the extracted call site is implausibly large -- the match ran past its block')
+  if ($site =~ tr/\n//) > 20;
 
 my @reported;
 
-# The branch calls subiquity_boot_params with no resolver, exactly as production does, so the
-# fallback to xCAT::NetworkUtils->getipaddr is the seam to stand in at. That keeps the call path
-# under test identical to the real one -- nothing is injected into it.
+# The call site passes no resolver, exactly as production does, so the fallback to
+# xCAT::NetworkUtils->getipaddr is the seam to stand in at. That keeps the call path under test
+# identical to the real one -- nothing is injected into it.
 {
-    package xCAT::NetworkUtils;
-    sub getipaddr {
+    no warnings 'redefine', 'once';
+    *xCAT::NetworkUtils::getipaddr = sub {
         my (undef, $name) = @_;
         return $name if defined($name) && $name =~ /^\d+\.\d+\.\d+\.\d+$/;
-        return '10.0.0.1' if defined($name) && $name eq 'mn.cluster';
+        return '192.0.2.10' if defined($name) && $name eq 'mn.cluster';
         return undef;
-    }
-}
-
-{
-    package xCAT::MsgUtils;
-    sub report_node_error { shift; my ($cb, $node, $msg) = @_; push @reported, [ $node, $msg ]; }
+    };
+    *xCAT::MsgUtils::report_node_error = sub {
+        shift; my ($cb, $node, $msg) = @_; push @reported, [ $node, $msg ];
+    };
 }
 
 my $driver = <<"CODE";
-$helpers
 sub drive {
-    my (\$kcmdline, \$instserver, \$pkgdir, \$httpport, \$node) = \@_;
+    my (\$os, \$tmplfile, \$instserver, \$pkgdir, \$httpport, \$node, \$ent, \$mac) = \@_;
     my \$callback;
     my \$result;
     NODE: foreach my \$n (\$node) {
-$branch
+$site
         \$result = \$kcmdline;
     }
     return \$result;
 }
 CODE
 
-# `next` inside the branch belongs to the loop the driver wraps around it.
+# `next` inside the call site belongs to the loop the driver wraps around it.
 $driver =~ s/\bnext;/next NODE;/g;
 
 {
-    package T;
-    eval "$driver; 1" or main::BAIL_OUT("could not eval the mkinstall branch: $@");
+    package xCAT_plugin::debian;
+    eval "$driver; 1" or main::BAIL_OUT("could not eval the mkinstall call site: $@");
 }
 
-# A resolvable install server: the branch must produce a live command line.
+my $SUBIQUITY = '/opt/xcat/share/xcat/install/ubuntu/compute.subiquity.tmpl';
+my $PRESEED   = '/opt/xcat/share/xcat/install/ubuntu/compute.tmpl';
+my $PKGDIR    = '/install/ubuntu24.04/x86_64';
+
+# A resolvable install server on a subiquity image: the call site must produce a live command
+# line built from the arguments it was given, in the order it gave them.
 {
     @reported = ();
-    my $out = T::drive( 'nofb utf8 auto xcatd=10.0.0.1', '10.0.0.1',
-        '/install/ubuntu24.04/x86_64', '80', 'cn1' );
+    my $out = xCAT_plugin::debian::drive( 'ubuntu24.04', $SUBIQUITY,
+        'mn.cluster', $PKGDIR, '80', 'cn1', {}, undef );
     ok( defined $out, 'a resolvable install server yields a command line' );
-    like( $out, qr/boot=casper/,       'the branch puts boot=casper on the command line' );
-    like( $out, qr/\btoram\b/,         'and toram' );
-    like( $out, qr{nfsroot=10\.0\.0\.1:/install/ubuntu24\.04/x86_64},
+    like( $out, qr/boot=casper/, 'the call site puts boot=casper on the command line' );
+    like( $out, qr/\btoram\b/,   'and toram' );
+    like( $out, qr{nfsroot=192\.0\.2\.10:\Q$PKGDIR\E},
         'and nfsroot as a literal address, in the media path' );
+    like( $out, qr{ds=nocloud-net;s=http://mn\.cluster:80/install/autoinst/cn1/},
+        'with the seed URL naming the node, so httpport and node are not transposed' );
     is( scalar @reported, 0, 'and nothing is reported as an error' );
+}
+
+# The same call site on a preseed image: the choice is made inside install_kcmdline, so the
+# call site must not carry a second copy of it.
+{
+    @reported = ();
+    my $out = xCAT_plugin::debian::drive( 'ubuntu24.04', $PRESEED,
+        'mn.cluster', $PKGDIR, '80', 'cn1', { installnic => 'ens3' }, undef );
+    like( $out, qr{url=http://mn\.cluster:80/install/autoinst/cn1},
+        'a preseed image reaches the debian-installer command line through the same call' );
+    like( $out, qr{netcfg/choose_interface=ens3},
+        'and the noderes row the call site passes reaches gen_net_boot_params' );
+    is( scalar @reported, 0, 'with nothing reported as an error' );
 }
 
 # The placeholder: this is the case the fix restored, driven through the call site rather than
 # through the helper.
 {
     @reported = ();
-    my $out = T::drive( 'nofb utf8 auto xcatd=!myipfn!', '!myipfn!',
-        '/install/ubuntu24.04/x86_64', '80', 'cn1' );
+    my $out = xCAT_plugin::debian::drive( 'ubuntu24.04', $SUBIQUITY,
+        '!myipfn!', $PKGDIR, '80', 'cn1', {}, undef );
     ok( defined $out, 'a node with no xcatmaster is not skipped' );
     like( $out, qr/nfsroot=!myipfn!:/,
         'and the placeholder reaches the boot config for pxe.pm/grub2.pm to substitute' );
@@ -119,8 +129,8 @@ $driver =~ s/\bnext;/next NODE;/g;
 # An install server that does not resolve must skip the node, not emit a command line naming it.
 {
     @reported = ();
-    my $out = T::drive( 'nofb utf8 auto xcatd=nosuchhost', 'nosuchhost',
-        '/install/ubuntu24.04/x86_64', '80', 'cn1' );
+    my $out = xCAT_plugin::debian::drive( 'ubuntu24.04', $SUBIQUITY,
+        'nosuchhost', $PKGDIR, '80', 'cn1', {}, undef );
     ok( !defined $out, 'an unresolvable install server skips the node' );
     is( scalar @reported, 1, 'and reports exactly one error' );
     like( $reported[0][1], qr/nosuchhost/, 'naming the server that failed' );

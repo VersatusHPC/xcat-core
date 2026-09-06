@@ -119,7 +119,7 @@ check:output=~enable
 cmd:rspconfig cmm solcfg=disable
 check:rc==0
 cmd:rspconfig cmm solcfg
-check:rc=0
+check:rc==0
 check:output=~disabled
 check:output!~enable
 end

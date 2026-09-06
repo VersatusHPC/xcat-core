@@ -1427,6 +1427,14 @@ sub run_case {
                     if ((($op eq '!=') && ($lvalue == $rvalue))
                         || (($op eq '==') && ($lvalue != $rvalue))) {
                         $failflag = 1;
+                    } elsif (($op ne '==') && ($op ne '!=')) {
+
+                        # An operator this branch cannot compare would otherwise leave the
+                        # exit status unread and report Pass, as "check:rc=0" did.
+                        $failflag = 1;
+                        log_this($running_log_fd, "CHECK:rc unrecognized operator: $op\t[Failed]");
+                        push(@caselog, "CHECK:rc unrecognized operator: $op\t[Failed]");
+                        last;
                     }
                     if ($failflag) {
                         log_this($running_log_fd, "CHECK:rc $op $rvalue\t[Failed]");

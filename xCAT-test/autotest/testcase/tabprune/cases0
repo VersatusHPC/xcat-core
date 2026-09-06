@@ -38,7 +38,7 @@ description:to remove 50% of the auditlog table,if the original number is odd nu
 label:mn_only,ci_test,db
 #cmd:n1=`lsdef -t auditlog|wc -l`;tabprune auditlog -p 50;n2=`lsdef -t auditlog|wc -l`;echo $((n1-($n2-2)*2))
 cmd:n1=`lsdef -t auditlog|wc -l`;tabprune auditlog -p 50;n2=`lsdef -t auditlog|wc -l`;echo $($n2<n1)
-check:rc=0
+check:rc==0
 check:output=~tabprune of auditlog complete
 end
 
@@ -46,34 +46,34 @@ start:tabprune_i_auditlog
 description:remove the records whose recid is less than the input recid number
 label:mn_only,ci_test,db
 cmd:chtab key=auditskipcmds site.value=
-check:rc=0
+check:rc==0
 cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:sleep 3
 cmd:n1=`lsdef -t auditlog|sed -n 2p|awk '{print $1}'`;tabprune auditlog -i $n1;n1=$(($n1-1));lsdef -t auditlog -l $n1
-check:rc=0
+check:rc==0
 check:output=~tabprune of auditlog complete
 check:output=~Could not get xCAT object definitions
 cmd:chtab key=auditskipcmds site.value=ALL
-check:rc=0
+check:rc==0
 end
 
 start:tabprune_V_n_auditlog
 description:remove 3 records from the auditlog table and display the remove records
 label:mn_only,ci_test,db
 cmd:chtab key=auditskipcmds site.value=
-check:rc=0
+check:rc==0
 cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:tabprune auditlog -V -n 3|tee /tmp/result.tmp|wc -l
-check:rc=0
+check:rc==0
 check:output=~4
 cmd:cat /tmp/result.tmp
 check:output=~recid,audittime
 cmd:rm /tmp/result.tmp
 cmd:chtab key=auditskipcmds site.value=ALL
-check:rc=0
+check:rc==0
 end
 

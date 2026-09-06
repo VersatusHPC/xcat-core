@@ -20,16 +20,21 @@ my @incs = (
     repo_path('xCAT-server/lib/perl'),
 );
 
-# A mismatched DBI aborts the process instead of dying, so ask a child before
-# loading the module in this process.
+# A prerequisite this host does not carry is a reason to skip. Template.pm
+# failing to compile is not: skipping on it reports success for a module that
+# no longer loads, and the CI runs where every prerequisite is present.
 my $devnull = File::Spec->devnull();
-my $probe = join( ' ', $^X, ( map { "-I$_" } @incs ),
-    '-e', "'require xCAT::Template; 1'", ">$devnull", "2>&1" );
-plan skip_all => 'xCAT::Template cannot be loaded here' if system($probe) != 0;
+foreach my $prereq (qw(DBI XML::Simple Sys::Syslog)) {
+    # A mismatched DBI aborts the process instead of dying, so ask a child.
+    my $probe = join( ' ', $^X, ( map { "-I$_" } @incs ),
+        '-e', "'require $prereq; 1'", ">$devnull", "2>&1" );
+    plan skip_all => "$prereq is not available here" if system($probe) != 0;
+}
 
 require lib;
 lib->import(@incs);
-require xCAT::Template;
+eval { require xCAT::Template; 1 }
+  or BAIL_OUT("xCAT::Template does not load with every prerequisite present: $@");
 
 sub suffix { return xCAT::Template::httpport_suffix(@_); }
 

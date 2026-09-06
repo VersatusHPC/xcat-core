@@ -4,6 +4,7 @@ use warnings;
 
 use Digest::SHA qw(sha256_hex);
 use File::Spec;
+use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 
@@ -90,7 +91,54 @@ like(
     'assembled core repository creates the stable alias after final metadata'
 );
 
+# The buildrpms.pl checks above match its text, so a guard that stops creating
+# the alias leaves them green. Run write_release_alias and check the file.
+{
+    my ($alias_sub) = $builder =~ /^(sub write_release_alias \{\n.*?^\}\n)/ms;
+    BAIL_OUT('buildrpms.pl no longer defines write_release_alias') unless $alias_sub;
+
+    my $code = join("\n",
+        'package XCATTest::ReleaseAlias;',
+        'use strict; use warnings;',
+        'use File::Copy qw(cp);',
+        "our \$VERSION = '9.9.9';",
+        "our \$RELEASE = 'snap000000000000';",
+        $alias_sub,
+        '1;');
+    eval $code;    ## no critic
+    BAIL_OUT("unable to compile the extracted write_release_alias: $@") if $@;
+
+    my $repodir = tempdir(CLEANUP => 1);
+    my $alias = File::Spec->catfile($repodir, 'xCAT-release-latest.noarch.rpm');
+
+    # A build that produces no xCAT-release rpm must not create the alias and
+    # must not die. glob() returns its pattern verbatim when nothing matches.
+    XCATTest::ReleaseAlias::write_release_alias($repodir);
+    ok(!-e $alias, 'no stable alias is written when the build produced no xCAT-release rpm');
+
+    my $rpm = File::Spec->catfile($repodir, 'xCAT-release-9.9.9-snap000000000000.noarch.rpm');
+    open(my $rfh, '>', $rpm) or die "open $rpm: $!";
+    print {$rfh} "not really an rpm\n";
+    close($rfh) or die "close $rpm: $!";
+
+    XCATTest::ReleaseAlias::write_release_alias($repodir);
+    ok(-f $alias, 'the stable bootstrap alias is created from the xCAT-release rpm');
+  SKIP: {
+        skip('no alias file to inspect', 2) unless -f $alias;
+        is(read_path($alias), "not really an rpm\n", 'the alias is a copy of the xCAT-release rpm');
+        is(sprintf('%04o', (stat($alias))[2] & 07777), '0644', 'the alias is world readable');
+    }
+}
+
 done_testing();
+
+sub read_path {
+    my ($path) = @_;
+    open(my $fh, '<', $path) or die "open $path: $!";
+    my $contents = do { local $/; <$fh> };
+    close($fh) or die "close $path: $!";
+    return $contents;
+}
 
 sub assert_repo_security {
     my ($content, $label) = @_;

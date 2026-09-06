@@ -14,8 +14,12 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 my $verifier = repo_path('xCAT-genesis-builder/verify-genesis-payload');
-plan skip_all => 'verify-genesis-payload not found' unless -f $verifier;
-plan tests => 9;
+plan tests => 10;
+
+# The verifier is what stops a payload with a hole from becoming an rpm. Its absence is the
+# defect, not a reason to skip.
+ok(-f $verifier, 'the payload verifier ships in the repository')
+    or BAIL_OUT("verify-genesis-payload not found at $verifier");
 
 my $tmpdir = tempdir(CLEANUP => 1);
 

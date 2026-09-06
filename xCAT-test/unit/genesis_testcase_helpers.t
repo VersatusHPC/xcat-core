@@ -15,7 +15,7 @@ use XCAT::Test::File qw(repo_path);
 
 my $helper = repo_path('xCAT-test/autotest/testcase/genesis/genesistest.pl');
 my $shell  = repo_path('xCAT-test/autotest/testcase/genesis/test.sh');
-plan tests => 18;
+plan tests => 19;
 
 # A missing helper script is a broken checkout. skip_all reported that as success.
 ok(-f $helper, 'the genesis testcase script is present') or BAIL_OUT("$helper not found");
@@ -91,6 +91,8 @@ is(os_for("NAME=\"Ubuntu\"\nID=ubuntu\n"),           'ubuntu', 'Ubuntu is still 
         'the shell case passes when the node reports the shell destiny');
     isnt(run_shell_test(status => 'powering-on'), 0,
         'the shell case fails when the node never reports the shell destiny');
+    isnt(run_shell_test(status => 'shell', nodeset_rc => 1), 0,
+        'the shell case fails when nodeset shell fails');
 }
 
 #---
@@ -106,12 +108,13 @@ sub wait_status {
 
 #---
 # run_shell_test: drive the shell case with every command it runs shadowed. xdsh always answers
-# as a Genesis node, so the only thing under test is what the case does with the node status.
+# as a Genesis node, so the only thing under test is what the case does with the nodeset exit
+# status and the node status.
 #---
 sub run_shell_test {
     my (%opt) = @_;
     my $dir = tempdir(DIR => $tmpdir, CLEANUP => 1);
-    write_text("$dir/nodeset",        "#!/bin/sh\nexit 0\n");
+    write_text("$dir/nodeset",        "#!/bin/sh\nexit " . ($opt{nodeset_rc} || 0) . "\n");
     write_text("$dir/rpower",         "#!/bin/sh\nexit 0\n");
     write_text("$dir/makeknownhosts", "#!/bin/sh\nexit 0\n");
     write_text("$dir/lsdef", "#!/bin/sh\nprintf 'xcat71-cn: status=%s\\n' " . shell_quote($opt{status}) . "\n");

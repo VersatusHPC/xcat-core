@@ -51,8 +51,9 @@ cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:lsdef -t site
 cmd:sleep 3
+# The chain ends with lsdef of the recid tabprune just removed. lsdef exits 1.
 cmd:n1=`lsdef -t auditlog|sed -n 2p|awk '{print $1}'`;tabprune auditlog -i $n1;n1=$(($n1-1));lsdef -t auditlog -l $n1
-check:rc==0
+check:rc==1
 check:output=~tabprune of auditlog complete
 check:output=~Could not get xCAT object definitions
 cmd:chtab key=auditskipcmds site.value=ALL

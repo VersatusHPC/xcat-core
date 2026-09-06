@@ -18,6 +18,10 @@ log_label="xcat.genesis.bmcsetup"
 
 TIMEOUT=15
 
+# getipmi writes the BMC configuration here and this script reads it back.
+# The unit test sets IPMICFG so the file stays in its scratch directory.
+IPMICFG=${IPMICFG:-/tmp/ipmicfg.xml}
+
 #
 # Function: cold_reset_bmc
 #
@@ -30,7 +34,7 @@ TIMEOUT=15
 function cold_reset_bmc() {
     if [ -z $XPROD ]; then
         logger -s -t $log_label -p local4.crit "CRITICAL ERROR - XPROD must be set before calling ${FUNCNAME[0]}"
-        rm -f /tmp/ipmicfg.xml
+        rm -f "$IPMICFG"
         exit 1
     fi
     if [ "$XPROD" = "43707" -a "$IPMIMFG" != '0' ]; then
@@ -89,7 +93,7 @@ function cold_reset_bmc() {
 function snooze() {
     if [ -z $XPROD ]; then
         logger -s -t $log_label -p local4.crit "CRITICAL ERROR - XPROD must be set before calling ${FUNCNAME[0]}"
-        rm -f /tmp/ipmicfg.xml
+        rm -f "$IPMICFG"
         exit 1
     fi
     if [ "$XPROD" = "43707" -a "$IPMIMFG" != '0' ]; then
@@ -133,16 +137,16 @@ while [ -z "$BMCIP" -a $IPCFGMETHOD="static" ]; do
     do
         logger -s -t $log_label -p local4.info "Retrying retrieval of IPMI settings from server"
     done
-    BMCIP=`grep bmcip /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
-    BMCVLAN=`grep taggedvlan /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCIP=`grep bmcip "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCVLAN=`grep taggedvlan "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     if [ -z "$BMCVLAN" ]; then
         BMCVLAN=off;
     fi
-    BMCGW=`grep gateway /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
-    BMCNM=`grep netmask /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
-    BMCUS=`grep username /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
-    BMCPW=`grep password /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
-    IPCFGMETHOD=`grep ipcfgmethod /tmp/ipmicfg.xml|awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCGW=`grep gateway "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCNM=`grep netmask "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCUS=`grep username "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCPW=`grep password "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    IPCFGMETHOD=`grep ipcfgmethod "$IPMICFG"|awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     if [ -z "$IPCFGMETHOD" ]; then
         IPCFGMETHOD="static"
     fi
@@ -152,7 +156,7 @@ while [ -z "$BMCIP" -a $IPCFGMETHOD="static" ]; do
     fi
 done
 kill $CREDPID
-NUMBMCS=`grep bmcip /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'|wc -l`
+NUMBMCS=`grep bmcip "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'|wc -l`
 logger -s -t $log_label -p local4.debug "BMC Information obtained from xCAT"
 logger -s -t $log_label -p local4.debug "NUMBMCS=$NUMBMCS ==> BMC IP=$BMCIP/$BMCNM, GW=$BMCGW, VLAN=$BMCVLAN"
 
@@ -179,7 +183,7 @@ logger -s -t $log_label -p local4.info "IPMIVER=$IPMIVER, IPMIMFG=$IPMIMFG, XPRO
 if [ "$IPMIMFG" == 2 ]; then #IBM
     if [ "$XPROD" == "220" ]; then
         LOCKEDUSERS=1
-        BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+        BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
         logger -s -t $log_label -p local4.info "BMCPORT is $BMCPORT"
         if [ ! -z "$BMCPORT" ]; then
             let idev=0
@@ -208,7 +212,7 @@ if [ "$IPMIMFG" == 2 ]; then #IBM
         IBMFAM=`ipmitool raw 0x3a 0x50 |head -n 1| awk '{print $1 $2 $3 $4}'`
         logger -s -t $log_label -p local4.info "IBMFAM is $IBMFAM"
         if [ "$IBMFAM" == "59554f4f" ]; then
-            BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+            BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
             if [ ! -z "$BMCPORT" ]; then
                 let idev=0
                 IFS=','
@@ -231,7 +235,7 @@ elif [ "$IPMIMFG" == 19046 -a "$XPROD" == 13616 ] ; then
    LOCKEDUSERS=1
 elif [ "$IPMIMFG" = "19046" -a "$XPROD" = "1287" ]; then
     # Lenovo SR635/SR655: bring up the TSM LAN-over-USB and select the BMC LAN channel
-    BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     echo -n "Initializing TSM network...."
     if [ "$BMCPORT" = 0 ]; then
         ipmitool raw 0x32 0x71 0 1 0
@@ -255,7 +259,7 @@ elif [ "$IPMIMFG" == 20301 -o "$IPMIMFG" == 19046 ] ; then
         ISITE=1;
     fi
         LOCKEDUSERS=1
-        BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+        BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
         logger -s -t $log_label -p local4.info "BMCPORT is $BMCPORT"
         if [ ! -z "$BMCPORT" ]; then
             let idev=0
@@ -285,7 +289,7 @@ elif [ "$IPMIMFG" == "47488" ]; then
     LOCKEDUSERS=1
 elif [ "$IPMIMFG" == "674" ]; then # DELL
     logger -s -t $log_label -p local4.info "Dell server detected"
-    BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     # BMCPORT can take 3 values:
     #   1st value:  0 = shared / 1 = dedicated
     #   2nd value   shared LOM (1-4)   (0 or no value means first available LOM)
@@ -333,7 +337,7 @@ elif [ "$IPMIMFG" == "674" ]; then # DELL
         esac
     fi
 elif [ "$IPMIMFG" == "10876" ]; then # Supermicro
-    BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     logger -s -t $log_label -p local4.info "BMCPORT is $BMCPORT"
     # https://www.supermicro.com/support/faqs/faq.cfm?faq=17953
     if [ "$BMCPORT" == "0" ]; then # shared
@@ -356,7 +360,7 @@ fi
 # Loop through channels and pick the one to communicate on
 # Intel Walker Pass (S9200WK) in dedicated LAN mode uses channel 3
 if [ "$IPMIMFG" = "343" -a "$XPROD" = "149" ] ; then
-    BMCPORT=`grep bmcport /tmp/ipmicfg.xml |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
+    BMCPORT=`grep bmcport "$IPMICFG" |awk -F\> '{print $2}'|awk -F\< '{print $1}'`
     logger -s -t $log_label -p local4.info "BMCPORT is $BMCPORT"
     if [ "$BMCPORT" == "1" ]; then
         LANCHAN=3
@@ -515,7 +519,7 @@ if [ ! -z "$ISOPENBMC" ]; then
             updateflag.awk $XCATMASTER 3002 "installstatus failed"
         fi
     fi
-    rm -f /tmp/ipmicfg.xml
+    rm -f "$IPMICFG"
     exit $bmc_config_rc
 fi
 # After network commands are issued, pause to allow the BMC to apply (OpenPOWER)
@@ -836,4 +840,4 @@ if [ ! -z "$USBSTATE" ]; then  # Continuation of SR635/SR655 specific code
 fi
 
 # remove the bmc configuration information before exit
-rm -f /tmp/ipmicfg.xml
+rm -f "$IPMICFG"

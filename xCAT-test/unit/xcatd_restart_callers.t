@@ -2,7 +2,11 @@
 use strict;
 use warnings;
 
+use File::Basename;
+use File::Copy;
+use File::Path qw(make_path);
 use File::Spec;
+use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 
@@ -86,5 +90,77 @@ unlike( $perl_xcat_spec, qr{/etc/init\.d/xcatd},
     'perl-xCAT upgrade logic no longer assumes the legacy init path exists' );
 like( $perl_xcat_spec, qr{\$RPM_INSTALL_PREFIX0/sbin/xcatd},
     'perl-xCAT detects the installed server independently of its init system' );
+
+# The three checks above match the text of imgport.pm, so commenting out the
+# restart leaves them green. Run the routine instead: extract make_files and
+# the two helpers it calls, then confirm the restart command runs.
+{
+    my $imgport_path = File::Spec->catfile( $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'imgport.pm' );
+    my %block;
+    foreach my $name (qw(make_files copyPostscripts movePlugin)) {
+        ( $block{$name} ) = $imgport =~ /^(sub \Q$name\E \{\n.*?^\}\n)/ms;
+        BAIL_OUT("$imgport_path no longer defines sub $name") unless $block{$name};
+    }
+    BAIL_OUT("$imgport_path no longer declares \$hasplugin")
+      unless $imgport =~ /^my \$hasplugin = 0;$/m;
+
+    my $tmpdir = tempdir( CLEANUP => 1 );
+    local $::XCATROOT = "$tmpdir/xcatroot";
+    make_path("$::XCATROOT/lib/perl/xCAT_plugin");
+    make_path("$::XCATROOT/sbin");
+    my $marker = "$tmpdir/restarted";
+    open( my $rfh, '>', "$::XCATROOT/sbin/restartxcatd" )
+      or die "Unable to write the restartxcatd stub: $!";
+    print {$rfh} "#!/bin/sh\necho restarted >> \"$marker\"\n";
+    close($rfh);
+    chmod( 0755, "$::XCATROOT/sbin/restartxcatd" );
+
+    # The kit directory carries a plugin, which is what makes imgport restart.
+    my $imgdir = "$tmpdir/imgdir";
+    make_path("$imgdir/testkit/plugins");
+    open( my $pfh, '>', "$imgdir/testkit/plugins/testkit.pm" ) or die $!;
+    print {$pfh} "1;\n";
+    close($pfh);
+    my $kitdest = "$tmpdir/kits";
+    make_path($kitdest);
+
+    my $pkg = 'XCATTest::Imgport';
+    my $code = join( "\n",
+        "package $pkg;",
+        'use strict; use warnings;',
+        'use File::Basename; use File::Copy; use File::Path qw(mkpath);',
+        'my $hasplugin = 0;',
+        'sub _hasplugin { return $hasplugin }',
+        $block{make_files},
+        $block{copyPostscripts},
+        $block{movePlugin},
+        '1;' );
+    {
+        no warnings 'redefine';
+        local $SIG{__WARN__} = sub { };
+        eval $code;    ## no critic
+        BAIL_OUT("Unable to compile the extracted imgport routines: $@") if $@;
+    }
+    no strict 'refs';
+    *{'xCAT::TableUtils::getInstallDir'} = sub { return "$tmpdir/install" };
+    use strict 'refs';
+
+    my $data = {
+        osimage => { provmethod => 'install', osarch => 'x86_64' },
+        kit     => { testkit => { kitdir => "$kitdest/testkit" } },
+    };
+    # make_files prints the cp -rfv output, which is not TAP.
+    my $rc;
+    {
+        open( my $saved, '>&', \*STDOUT ) or die "Unable to save STDOUT: $!";
+        open( STDOUT, '>', "$tmpdir/make_files.out" ) or die "Unable to redirect STDOUT: $!";
+        $rc = $pkg->can('make_files')->( $data, $imgdir, sub { } );
+        open( STDOUT, '>&', $saved ) or die "Unable to restore STDOUT: $!";
+    }
+    ok( $rc, 'the extracted imgport make_files completes' );
+    ok( -e "$::XCATROOT/lib/perl/xCAT_plugin/testkit.pm",
+        'imgport installs a plugin shipped inside a kit' );
+    ok( -e $marker, 'imgport restarts xcatd after it installs a plugin' );
+}
 
 done_testing();

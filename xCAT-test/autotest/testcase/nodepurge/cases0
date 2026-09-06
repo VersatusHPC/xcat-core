@@ -6,8 +6,8 @@ check:rc==0
 cmd:mkdef -t node -o testnode2 arch=ppc64le cons=ipmi groups=pbmc mgt=ipmi ip=10.1.1.201 mac=e6:d4:d2:3a:ad:02  monserver=10.1.1.1 nameservers=10.1.1.1 nodetype=ppc,osi profile=compute tftpserver=10.1.1.1 xcatmaster=10.1.1.1 netboot=petitboot
 check:rc==0
 cmd:lsdef -t node testnode1,testnode2
-check:output=~testnode1
-check:output=~testnode2
+check:rc==0
+check:output!~Could not find an object named
 cmd:makehosts testnode1,testnode2
 check:rc==0
 cmd:nodeset testnode1,testnode2 osimage=__GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 

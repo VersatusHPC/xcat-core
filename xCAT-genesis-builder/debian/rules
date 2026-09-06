@@ -11,3 +11,11 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	@true
+
+# dh_fixperms clears the execute bit on every path that matches *.so.*, because a Debian
+# shared library is not executable. The ELF interpreter is: the kernel execs it to start
+# /init, and at mode 0644 the boot stops with "Failed to execute /init (error -13)".
+override_dh_fixperms:
+	dh_fixperms
+	find debian -type f \( -name 'ld-linux*.so.*' -o -name 'ld64.so.*' \) \
+	    -exec chmod 0755 {} +

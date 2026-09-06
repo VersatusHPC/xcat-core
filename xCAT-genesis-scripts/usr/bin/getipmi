@@ -2,6 +2,9 @@
 
 log_label="xcat.genesis.getipmi"
 
+# bmcsetup reads this file back. Keep both scripts on the same path.
+IPMICFG=${IPMICFG:-/tmp/ipmicfg.xml}
+
 allowcred.awk &
 CREDPID=$!
 if [ -z "$XCATDEST" ]; then
@@ -44,9 +47,9 @@ echo "<xcatrequest>
 <isopenbmc>$ISOPENBMC</isopenbmc>
 <bmcmac>$BMCMAC</bmcmac>
 </xcatrequest>" > /tmp/bmcreq.xml
-rm -f /tmp/ipmicfg.xml
-while [ ! -f /tmp/ipmicfg.xml ] || grep error /tmp/ipmicfg.xml; do
-	if [ -f /tmp/ipmicfg.xml ]; then
+rm -f "$IPMICFG"
+while [ ! -f "$IPMICFG" ] || grep error "$IPMICFG"; do
+	if [ -f "$IPMICFG" ]; then
 		timer=60
 		while [ $timer -gt 0 ]; do
 			sleep 1
@@ -57,9 +60,9 @@ while [ ! -f /tmp/ipmicfg.xml ] || grep error /tmp/ipmicfg.xml; do
 	echo -en "                                                         \r";
 	
 	if [ -f /etc/xcat/cert.pem -a -f /etc/xcat/certkey.pem ]; then #use client cert if available
-		openssl s_client -key /etc/xcat/certkey.pem -cert /etc/xcat/cert.pem -connect "$XCATDEST" -quiet 2> /dev/null < /tmp/bmcreq.xml > /tmp/ipmicfg.xml
+		openssl s_client -key /etc/xcat/certkey.pem -cert /etc/xcat/cert.pem -connect "$XCATDEST" -quiet 2> /dev/null < /tmp/bmcreq.xml > "$IPMICFG"
 	else
-		openssl s_client -connect "$XCATDEST" -quiet 2> /dev/null < /tmp/bmcreq.xml > /tmp/ipmicfg.xml
+		openssl s_client -connect "$XCATDEST" -quiet 2> /dev/null < /tmp/bmcreq.xml > "$IPMICFG"
 	fi
 done
 rm /tmp/bmcreq.xml

@@ -15,8 +15,11 @@ use XCAT::Test::File qw(repo_path);
 
 my $helper = repo_path('xCAT-test/autotest/testcase/genesis/genesistest.pl');
 my $shell  = repo_path('xCAT-test/autotest/testcase/genesis/test.sh');
-plan skip_all => 'genesis testcase helpers not found' unless -f $helper && -f $shell;
-plan tests => 16;
+plan tests => 18;
+
+# A missing helper script is a broken checkout. skip_all reported that as success.
+ok(-f $helper, 'the genesis testcase script is present') or BAIL_OUT("$helper not found");
+ok(-f $shell,  'the genesis test shell script is present') or BAIL_OUT("$shell not found");
 
 my $tmpdir = tempdir(CLEANUP => 1);
 my $source = read_text($helper);

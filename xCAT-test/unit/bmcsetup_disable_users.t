@@ -14,14 +14,12 @@ use XCAT::Test::File qw(repo_path);
 my $bmcsetup = repo_path('xCAT-genesis-scripts/usr/bin/bmcsetup');
 plan skip_all => 'bmcsetup script not found' unless -x $bmcsetup;
 
-my $ipmicfg = '/tmp/ipmicfg.xml';
-my $cleanup_ipmicfg = !-e $ipmicfg;
-plan skip_all => "$ipmicfg already exists" unless $cleanup_ipmicfg;
-END {
-    unlink $ipmicfg if $cleanup_ipmicfg && -e $ipmicfg;
-}
-
 my $tmpdir = tempdir(CLEANUP => 1);
+
+# bmcsetup defaults this file to /tmp/ipmicfg.xml. A leftover file at that path
+# used to make this test skip, so it reported 0 tests and exit 0 for a week.
+my $ipmicfg = "$tmpdir/ipmicfg.xml";
+local $ENV{IPMICFG} = $ipmicfg;
 my $bindir = "$tmpdir/bin";
 make_path($bindir);
 
@@ -95,7 +93,7 @@ write_executable(
     "$bindir/getipmi",
     <<'EOF'
 #!/bin/sh
-cat > /tmp/ipmicfg.xml <<IPMICFG
+cat > "$IPMICFG" <<IPMICFG
 <bmcip>10.0.0.2</bmcip>
 <taggedvlan>off</taggedvlan>
 <gateway>10.0.0.1</gateway>

@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use Cwd ();
 use File::Copy qw(copy);
 use File::Path qw(make_path);
 use File::Slurper qw(write_text);
@@ -94,21 +95,24 @@ my $bin_dir = File::Spec->catdir($xcatroot, 'bin');
 my $subcmd_dir = File::Spec->catdir($probe_root, 'subcmds');
 my $helper_dir = File::Spec->catdir($probe_root, 'lib', 'perl', 'xCAT');
 
-make_path($probe_root, $bin_dir);
-copy_tree(repo_path(File::Spec->catdir('xCAT-probe', 'lib')), File::Spec->catdir($probe_root, 'lib'));
-copy_tree(repo_path(File::Spec->catdir('xCAT-probe', 'subcmds')), $subcmd_dir);
+# The checks above match the text of buildrpms.pl, so a staging routine that
+# stops running leaves them green. Run the routine and build the package
+# fixture out of the archive it writes, so every check below depends on it.
+my $staged = stage_xcat_probe_source($tmpdir);
 
-my $xcatprobe_source = repo_path(File::Spec->catfile('xCAT-probe', 'xcatprobe'));
+make_path($probe_root, $bin_dir);
+copy_tree(File::Spec->catdir($staged, 'lib'), File::Spec->catdir($probe_root, 'lib'));
+copy_tree(File::Spec->catdir($staged, 'subcmds'), $subcmd_dir);
+
+my $xcatprobe_source = File::Spec->catfile($staged, 'xcatprobe');
 my $xcatprobe = File::Spec->catfile($bin_dir, 'xcatprobe');
 copy($xcatprobe_source, $xcatprobe) or die "copy $xcatprobe_source: $!";
 chmod 0755, $xcatprobe or die "chmod $xcatprobe: $!";
 
-make_path($helper_dir, File::Spec->catdir($subcmd_dir, 'bin'));
+make_path(File::Spec->catdir($subcmd_dir, 'bin'));
 for my $helper (@helpers) {
-    my $source = repo_path(File::Spec->catfile('perl-xCAT', 'xCAT', $helper));
-    my $destination = File::Spec->catfile($helper_dir, $helper);
-    copy($source, $destination) or die "copy $source: $!";
-    chmod 0644, $destination or die "chmod $destination: $!";
+    ok(-f File::Spec->catfile($helper_dir, $helper),
+        "the staged source archive carries $helper");
 }
 
 my $xcatclient = File::Spec->catfile($bin_dir, 'xcatclient');
@@ -139,6 +143,55 @@ for my $subcommand (@affected_subcommands) {
 }
 
 done_testing();
+
+sub stage_xcat_probe_source {
+    my ($workdir) = @_;
+
+    my ($helpers_decl) = $builder =~ /^(my \@XCAT_PROBE_HELPERS = qw\(.*?\);)/ms;
+    my ($prepare_sub) = $builder =~ /^(sub prepare_xcat_probe_source_tar \{\n.*?^\}\n)/ms;
+    BAIL_OUT('buildrpms.pl no longer declares @XCAT_PROBE_HELPERS') unless $helpers_decl;
+    BAIL_OUT('buildrpms.pl no longer defines prepare_xcat_probe_source_tar') unless $prepare_sub;
+
+    my $sources = File::Spec->catdir($workdir, 'SOURCES');
+    my $unpacked = File::Spec->catdir($workdir, 'unpacked');
+    make_path($sources, $unpacked);
+
+    my $code = join("\n",
+        'package XCATTest::BuildRpms;',
+        'use strict; use warnings;',
+        'use File::Copy qw(cp);',
+        'use File::Path qw(make_path remove_tree);',
+        'use File::Temp qw(tempdir tempfile);',
+        "our \$SOURCES = '$sources';",
+        "our \$VERSION = 'test';",
+        'our $SOURCE_DATE_EPOCH = 0;',
+        # The routine runs shell commands through a helper. Take the one the
+        # repository provides when it has one, and fall back to a minimal
+        # runner when the helper lives in buildrpms.pl itself.
+        'use lib "' . repo_path('build-utils/lib') . '";',
+        'BEGIN { eval { require XCAT::BuildUtils; XCAT::BuildUtils->import(qw(sh sh_or_die)); 1 } }',
+        'BEGIN { no strict "refs"; *sh = sub { return system("/bin/sh", "-c", $_[0]) >> 8 } unless defined &sh }',
+        'BEGIN { no strict "refs"; *sh_or_die = sub { my ($c, $m) = @_; system("/bin/sh", "-c", $c) == 0 or die($m || "failed: $c"); return 0 } unless defined &sh_or_die }',
+        $helpers_decl,
+        $prepare_sub,
+        '1;');
+    eval $code;    ## no critic
+    BAIL_OUT("unable to compile the extracted buildrpms.pl routine: $@") if $@;
+
+    my $cwd = Cwd::getcwd();
+    chdir(repo_path('.')) or BAIL_OUT("chdir to the repository root: $!");
+    eval { XCATTest::BuildRpms::prepare_xcat_probe_source_tar(); 1 }
+        or do { my $err = $@; chdir($cwd); BAIL_OUT("prepare_xcat_probe_source_tar died: $err") };
+    chdir($cwd) or BAIL_OUT("chdir back to $cwd: $!");
+
+    my $tarball = File::Spec->catfile($sources, 'xCAT-probe-test.tar.gz');
+    ok(-f $tarball, 'prepare_xcat_probe_source_tar writes the xCAT-probe source archive')
+        or BAIL_OUT('no source archive to build the package fixture from');
+    is(system('tar', '-xzf', $tarball, '-C', $unpacked), 0, 'the source archive unpacks')
+        or BAIL_OUT("unable to unpack $tarball");
+
+    return File::Spec->catdir($unpacked, 'xCAT-probe');
+}
 
 sub copy_tree {
     my ($source, $destination) = @_;

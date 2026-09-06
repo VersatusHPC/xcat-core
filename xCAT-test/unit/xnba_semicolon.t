@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use File::Temp qw(tempdir);
 use Test::More;
 
 my $xnba_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/lib/perl/xCAT_plugin/xnba.pm" : '';
@@ -47,5 +48,67 @@ like(
     qr/if \(\$::XNBA_pxelinux_required\) \{.*?Unable to find pxelinux\.0/s,
     'missing pxelinux warning is limited to requests that generate a pxelinux chain'
 );
+
+# The checks above match the text of xnba.pm, so a helper that is turned into
+# a no-op leaves them green. Extract the three helpers and run them.
+{
+    my %block;
+    foreach my $name (qw(_write_uefi_exit_script _use_efistub_for_uefi _requires_pxelinux)) {
+        ( $block{$name} ) = $src =~ /^(sub \Q$name\E \{\n.*?^\}\n)/ms;
+        BAIL_OUT("$xnba_path no longer defines sub $name") unless $block{$name};
+    }
+
+    my $code = join( "\n",
+        'package XCATTest::Xnba;',
+        'use strict; use warnings;',
+        'our $efistub = 1;',
+        'sub has_efistub { return $efistub }',
+        $block{_write_uefi_exit_script},
+        $block{_use_efistub_for_uefi},
+        $block{_requires_pxelinux},
+        '1;' );
+    eval $code;    ## no critic
+    BAIL_OUT("unable to compile the extracted xnba.pm helpers: $@") if $@;
+
+    my $dir = tempdir( CLEANUP => 1 );
+    XCATTest::Xnba::_write_uefi_exit_script( $dir, 'node1', 'boot' );
+    my $script = "$dir/node1.uefi";
+    ok( -f $script, 'the UEFI helper writes the per-node xNBA script' );
+  SKIP: {
+        skip( 'no UEFI script to read', 1 ) unless -f $script;
+        my $written = do { local $/; open( my $fh, '<', $script ) or die $!; <$fh> };
+        is( $written, "#!gpxe\n#boot\nexit\n",
+            'the UEFI script exits iPXE to firmware and records the state' );
+    }
+
+    # SLES 11 advertises an EFI stub but must stay on elilo.
+    is( XCATTest::Xnba::_use_efistub_for_uefi(
+            { kernel => '/install/sles11.3/x86_64/boot/linux' } ),
+        0, 'a sles11 image keeps the elilo path' );
+    is( XCATTest::Xnba::_use_efistub_for_uefi(
+            { kernel => '/install/sle11/x86_64/boot/linux' } ),
+        0, 'a sle11 image keeps the elilo path' );
+    is( XCATTest::Xnba::_use_efistub_for_uefi(
+            { kernel => '/install/rhels9/x86_64/vmlinuz' } ),
+        1, 'a kernel with an EFI stub boots directly' );
+    {
+        no warnings 'once';    # the variable is declared inside the eval above
+        local $XCATTest::Xnba::efistub = 0;
+        is( XCATTest::Xnba::_use_efistub_for_uefi(
+                { kernel => '/install/rhels9/x86_64/vmlinuz' } ),
+            0, 'a kernel without an EFI stub keeps the elilo path' );
+    }
+
+    is( XCATTest::Xnba::_requires_pxelinux( { kernel => 'xcat/genesis.kernel' } ),
+        0, 'a direct kernel boot does not need pxelinux' );
+    is( XCATTest::Xnba::_requires_pxelinux( { kernel => 'xcat/multiboot!image' } ),
+        1, 'a multiboot kernel needs pxelinux' );
+    is( XCATTest::Xnba::_requires_pxelinux( { kernel => 'xcat/chain.c32' } ),
+        1, 'a COMBOOT kernel needs pxelinux' );
+    is( XCATTest::Xnba::_requires_pxelinux( { kernel => 'xcat/memdisk' } ),
+        1, 'a memdisk kernel needs pxelinux' );
+    is( XCATTest::Xnba::_requires_pxelinux(undef),
+        0, 'a request with no kernel entry does not need pxelinux' );
+}
 
 done_testing();

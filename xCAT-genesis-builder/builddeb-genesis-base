@@ -162,5 +162,19 @@ echo "Building .deb package..."
 cd "$DIR"
 dpkg-buildpackage -rfakeroot -uc -us -b
 
+# Read the loader mode back out of the package. dh_fixperms took the execute bit off
+# /usr/lib64/ld-linux-x86-64.so.2 in 2.18.0, and every Genesis boot on Ubuntu amd64 stopped
+# with "Failed to execute /init (error -13)".
+for deb in "$DIR/../"xcat-genesis-base*.deb; do
+    [ -e "$deb" ] || continue
+    notexec=$(dpkg-deb -c "$deb" \
+        | awk '$6 ~ /\/(ld-linux[^\/]*\.so\.|ld64\.so\.)/ && $1 !~ /^-..x/ { print $1, $6 }')
+    if [ -n "$notexec" ]; then
+        echo "ERROR: $deb ships an ELF interpreter the kernel cannot execute:" >&2
+        echo "$notexec" >&2
+        exit 1
+    fi
+done
+
 echo "Build complete. .deb files:"
 ls -la "$DIR/../"xcat-genesis-base*.deb 2>/dev/null || echo "Check parent directory for .deb files"

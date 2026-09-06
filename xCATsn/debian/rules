@@ -9,6 +9,13 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+# The Genesis payload is architecture specific, so the metapackage has to name the
+# scripts package for the architecture it is built for. Debian spells POWER LE ppc64el
+# and xCAT spells it ppc64; the package name follows Debian, the path inside the package
+# follows xCAT.
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+GENESIS_SCRIPTS_PKG = xcat-genesis-scripts-$(DEB_HOST_ARCH)
+
 build:
 	pwd
 
@@ -57,7 +64,7 @@ binary-arch:
 	dh_makeshlibs
 	dh_installdeb
 	dh_shlibdeps
-	dh_gencontrol
+	dh_gencontrol -- -Vxcat:Genesis=$(GENESIS_SCRIPTS_PKG)
 	dh_md5sums
 	dh_builddeb
 

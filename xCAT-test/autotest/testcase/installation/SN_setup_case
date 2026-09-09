@@ -43,16 +43,16 @@ check:rc==0
 cmd:chdef -t site clustersite installloc="/install"
 check:rc==0
 
-cmd:cd /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat/xcat-core && createrepo .
+cmd:cd /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat/xcat-core && { if [[ "__GETNODEATTR($$SN,os)__" =~ "ubuntu" || "__GETNODEATTR($$SN,os)__" =~ "debian" ]]; then echo "apt repository, already indexed"; else createrepo .; fi; }
 check:rc==0
 
-cmd:if [[ "__GETNODEATTR($$SN,os)__" =~ "rh" ]]; then path="rh";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "sle" ]];then path="sles";path2="sles";elif [[ "__GETNODEATTR($$SN,os)__" =~ "ol" ]];then path="ol";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "rocky" ]];then path="rocky";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "alma" ]];then path="alma";path2="rh";fi; ver="__GETNODEATTR($$SN,os)__"; tmp=${ver%%.*};ver=`echo "$tmp"|sed 's:[a-zA-Z]::g'`;cd /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat/xcat-dep/$path2$ver/__GETNODEATTR($$SN,arch)__ && createrepo .;
+cmd:if [[ "__GETNODEATTR($$SN,os)__" =~ "ubuntu" || "__GETNODEATTR($$SN,os)__" =~ "debian" ]]; then cd /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat/xcat-dep && echo "apt repository, already indexed"; else if [[ "__GETNODEATTR($$SN,os)__" =~ "rh" ]]; then path="rh";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "sle" ]];then path="sles";path2="sles";elif [[ "__GETNODEATTR($$SN,os)__" =~ "ol" ]];then path="ol";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "rocky" ]];then path="rocky";path2="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "alma" ]];then path="alma";path2="rh";fi; ver="__GETNODEATTR($$SN,os)__"; tmp=${ver%%.*};ver=`echo "$tmp"|sed 's:[a-zA-Z]::g'`;cd /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat/xcat-dep/$path2$ver/__GETNODEATTR($$SN,arch)__ && createrepo .; fi;
 check:rc==0
 
 cmd:chdef -t osimage __GETNODEATTR($$SN,os)__-__GETNODEATTR($$SN,arch)__-install-service otherpkgdir=/install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__
 check:rc==0
 
-cmd:if [[ "__GETNODEATTR($$SN,os)__" =~ "rh" ]]; then path="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "sle" ]];then path="sles";elif [[ "__GETNODEATTR($$SN,os)__" =~ "ol" ]];then path="ol";elif [[ "__GETNODEATTR($$SN,os)__" =~ "rocky" ]];then path="rocky";elif [[ "__GETNODEATTR($$SN,os)__" =~ "alma" ]];then path="alma";fi; ver="__GETNODEATTR($$SN,os)__"; chdef -t osimage __GETNODEATTR($$SN,os)__-__GETNODEATTR($$SN,arch)__-install-service otherpkglist=/opt/xcat/share/xcat/install/$path/service.${ver%%.*}.__GETNODEATTR($$SN,arch)__.otherpkgs.pkglist;
+cmd:if [[ "__GETNODEATTR($$SN,os)__" =~ "ubuntu" || "__GETNODEATTR($$SN,os)__" =~ "debian" ]]; then chdef -t osimage __GETNODEATTR($$SN,os)__-__GETNODEATTR($$SN,arch)__-install-service otherpkglist=/opt/xcat/share/xcat/install/ubuntu/service.ubuntu.otherpkgs.pkglist; else if [[ "__GETNODEATTR($$SN,os)__" =~ "rh" ]]; then path="rh";elif [[ "__GETNODEATTR($$SN,os)__" =~ "sle" ]];then path="sles";elif [[ "__GETNODEATTR($$SN,os)__" =~ "ol" ]];then path="ol";elif [[ "__GETNODEATTR($$SN,os)__" =~ "rocky" ]];then path="rocky";elif [[ "__GETNODEATTR($$SN,os)__" =~ "alma" ]];then path="alma";fi; ver="__GETNODEATTR($$SN,os)__"; chdef -t osimage __GETNODEATTR($$SN,os)__-__GETNODEATTR($$SN,arch)__-install-service otherpkglist=/opt/xcat/share/xcat/install/$path/service.${ver%%.*}.__GETNODEATTR($$SN,arch)__.otherpkgs.pkglist; fi;
 check:rc==0
 
 #add support python in sn

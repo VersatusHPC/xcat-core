@@ -191,6 +191,9 @@ my %INSTALL_BOOT_FILES = (
     'ppc64' => [
         [ 'install/netboot/ubuntu-installer/{darch}/vmlinux', 'install/netboot/ubuntu-installer/{darch}/initrd.gz' ],
         [ 'install/vmlinux',                                  'install/netboot/initrd.gz' ],
+        # POWER names the live-image kernel vmlinux, where x86 names it vmlinuz.
+        [ 'casper/hwe-vmlinux',                               'casper/hwe-initrd' ],
+        [ 'casper/vmlinux',                                   'casper/initrd' ],
     ],
 );
 
@@ -1005,10 +1008,11 @@ sub mkinstall {
             next;
         }
 
-        if ($arch =~ /ppc64/i and !(-e "$pkgdir/install/netboot/initrd.gz") and
-            !(-e "$pkgdir/install/netboot/ubuntu-installer/$darch/initrd.gz")) {
+        # Ask the resolver rather than naming one layout: a POWER live image carries
+        # its installer under casper and has no install/netboot tree at all.
+        if ($arch =~ /ppc64/i and !install_boot_files($arch, $darch, $pkgdir)) {
             xCAT::MsgUtils->report_node_error($callback, $node, 
-                "The network boot initrd.gz is not found in $pkgdir/install/netboot.  This is provided by Ubuntu, please download and retry."
+                "No network boot kernel and initrd were found under $pkgdir.  Expected a netboot tree under install/ or a live image under casper/."
                 );
             next;
         }

@@ -90,6 +90,30 @@ is(
     undef,
     'POWER does not accept the x86 live layout',
 );
+is(
+    resolved('ppc64le', 'ppc64el', media('casper/hwe-vmlinux', 'casper/hwe-initrd')),
+    'casper/hwe-vmlinux|casper/hwe-initrd',
+    'a POWER live image keeps its kernel under casper, named vmlinux',
+);
+is(
+    resolved('ppc64', 'ppc64el', media('casper/vmlinux', 'casper/initrd')),
+    'casper/vmlinux|casper/initrd',
+    'the POWER release kernel under casper resolves',
+);
+is(
+    resolved('ppc64le', 'ppc64el',
+        media('casper/hwe-vmlinux', 'casper/hwe-initrd', 'casper/vmlinux', 'casper/initrd')),
+    'casper/hwe-vmlinux|casper/hwe-initrd',
+    'the POWER hardware-enablement kernel wins over the release kernel',
+);
+is(
+    resolved('ppc64le', 'ppc64el',
+        media('install/netboot/ubuntu-installer/ppc64el/vmlinux',
+              'install/netboot/ubuntu-installer/ppc64el/initrd.gz',
+              'casper/hwe-vmlinux', 'casper/hwe-initrd')),
+    'install/netboot/ubuntu-installer/ppc64el/vmlinux|install/netboot/ubuntu-installer/ppc64el/initrd.gz',
+    'a POWER netboot tree wins over a live image on the same media',
+);
 
 # --- nothing to boot -------------------------------------------------------
 is(resolved('x86_64', 'amd64', media('casper/vmlinuz')), undef,

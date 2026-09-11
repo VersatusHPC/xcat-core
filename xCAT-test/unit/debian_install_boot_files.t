@@ -103,6 +103,58 @@ is(
     'riscv64 does not accept the kernel name the other live images use',
 );
 
+# The Ubuntu ppc64el live-server ISO carries no netboot tree at all. 22.04 and 24.04 ship
+# casper/hwe-vmlinux + casper/hwe-initrd beside casper/vmlinux + casper/initrd; 26.04 ships
+# the release pair only. Without these entries nodeset stops the diskful install with
+# "The network boot initrd.gz is not found in <pkgdir>/install/netboot".
+is(
+    resolved('ppc64le', 'ppc64el', media('casper/vmlinux', 'casper/initrd')),
+    'casper/vmlinux|casper/initrd',
+    'the POWER live image keeps its kernel under casper',
+);
+is(
+    resolved('ppc64le', 'ppc64el',
+        media('casper/hwe-vmlinux', 'casper/hwe-initrd', 'casper/vmlinux', 'casper/initrd')),
+    'casper/hwe-vmlinux|casper/hwe-initrd',
+    'the POWER hardware-enablement kernel wins over the release kernel',
+);
+is(
+    resolved('ppc64le', 'ppc64el',
+        media('install/netboot/ubuntu-installer/ppc64el/vmlinux',
+              'install/netboot/ubuntu-installer/ppc64el/initrd.gz',
+              'casper/vmlinux', 'casper/initrd')),
+    'install/netboot/ubuntu-installer/ppc64el/vmlinux|install/netboot/ubuntu-installer/ppc64el/initrd.gz',
+    'a POWER netboot tree still wins over a live image on the same media',
+);
+
+# mkinstall refused POWER media that carried no install/netboot/initrd.gz, whatever
+# install_boot_files could resolve. One routine answers the question now.
+can_ok('xCAT_plugin::debian', 'install_media_is_bootable');
+is(
+    xCAT_plugin::debian::install_media_is_bootable('ppc64le', 'ppc64el',
+        media('casper/vmlinux', 'casper/initrd')),
+    1,
+    'a POWER live image is bootable media',
+);
+is(
+    xCAT_plugin::debian::install_media_is_bootable('ppc64le', 'ppc64el',
+        media('install/netboot/ubuntu-installer/ppc64el/vmlinux',
+              'install/netboot/ubuntu-installer/ppc64el/initrd.gz')),
+    1,
+    'a POWER netboot tree is bootable media',
+);
+is(
+    xCAT_plugin::debian::install_media_is_bootable('ppc64le', 'ppc64el', media('README')),
+    0,
+    'media with no installer is not bootable media',
+);
+is(
+    xCAT_plugin::debian::install_media_is_bootable('x86_64', 'amd64',
+        media('casper/vmlinuz', 'casper/initrd')),
+    1,
+    'an x86 live image is bootable media',
+);
+
 # --- nothing to boot -------------------------------------------------------
 is(resolved('x86_64', 'amd64', media('casper/vmlinuz')), undef,
     'a kernel without its initrd is not a match');

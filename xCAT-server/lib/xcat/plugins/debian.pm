@@ -191,6 +191,8 @@ my %INSTALL_BOOT_FILES = (
     'ppc64' => [
         [ 'install/netboot/ubuntu-installer/{darch}/vmlinux', 'install/netboot/ubuntu-installer/{darch}/initrd.gz' ],
         [ 'install/vmlinux',                                  'install/netboot/initrd.gz' ],
+        [ 'casper/hwe-vmlinux',                               'casper/hwe-initrd' ],
+        [ 'casper/vmlinux',                                   'casper/initrd' ],
     ],
 );
 
@@ -213,6 +215,27 @@ sub install_boot_files
         return ($kernel, $initrd) if -r $kernel and -r $initrd;
     }
     return;
+}
+
+#-------------------------------------------------------
+
+=head3  install_media_is_bootable
+
+    Descriptions: Report whether copied media carries an install kernel and initrd.
+    Arguments:
+        $arch   - the xCAT architecture of the node
+        $darch  - the dpkg architecture
+        $pkgdir - the directory copycds wrote the media to
+    Returns: 1 when the media can boot a network install, 0 when it cannot
+
+=cut
+
+#-------------------------------------------------------
+sub install_media_is_bootable
+{
+    my ($arch, $darch, $pkgdir) = @_;
+
+    return install_boot_files($arch, $darch, $pkgdir) ? 1 : 0;
 }
 
 sub is_ubuntu_live_media
@@ -1005,10 +1028,11 @@ sub mkinstall {
             next;
         }
 
-        if ($arch =~ /ppc64/i and !(-e "$pkgdir/install/netboot/initrd.gz") and
-            !(-e "$pkgdir/install/netboot/ubuntu-installer/$darch/initrd.gz")) {
-            xCAT::MsgUtils->report_node_error($callback, $node, 
-                "The network boot initrd.gz is not found in $pkgdir/install/netboot.  This is provided by Ubuntu, please download and retry."
+        # The POWER live-server ISO keeps its installer under casper and ships no netboot
+        # tree, so the media that can boot it is the media install_boot_files resolves.
+        unless (install_media_is_bootable($arch, $darch, $pkgdir)) {
+            xCAT::MsgUtils->report_node_error($callback, $node,
+                "No install kernel and initrd were found on the media in $pkgdir."
                 );
             next;
         }

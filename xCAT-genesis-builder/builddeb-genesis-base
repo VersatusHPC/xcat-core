@@ -81,7 +81,7 @@ REQUIRED_PACKAGES="
     dosfstools e2fsprogs lvm2 mdadm net-tools
     bc psmisc rsync wget cpio
     isc-dhcp-client ifenslave
-    systemd-sysv hwdata btrfs-progs netcat-openbsd iputils-ping fdisk
+    systemd-sysv hwdata btrfs-progs netcat-openbsd iputils-ping fdisk ncurses-term
     dpkg-dev debhelper fakeroot devscripts vim-tiny
 "
 if [ "$BUILDARCH" = "amd64" ]; then

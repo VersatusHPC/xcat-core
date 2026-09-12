@@ -41,7 +41,7 @@ use XCAT::BuildUtils qw(
     reprepro_distributions reprepro_options
     lock_id_for take_build_lock sh_quote
     sh sh_or_die usage rewrite_file write_script read_line buildinfo_text
-    genesis_build_plan genesis_log_errors
+    genesis_build_plan genesis_log_errors deb_belongs_to_dist
 );
 
 # The xcat-core packages that ship as debs. xCAT-openbmc-py, xCAT-rmc and xCAT-release
@@ -441,6 +441,9 @@ sub assemble_repo {
         for my $deb (@debs) {
             # A release that predates an architecture must not be handed its packages.
             next if basename($deb) =~ /_(\w+)\.deb\z/ && $1 ne 'all' && !$ok{$1};
+            # Nor an image built for another release: the Genesis deb carries the codename it
+            # was built on, because it carries that release's kernel.
+            next unless deb_belongs_to_dist($deb, $dist);
             sh_or_die("cd " . sh_quote($repodir) . " && reprepro -b ./ includedeb "
                . sh_quote($dist) . ' ' . sh_quote($deb),
             "FATAL: reprepro could not add $deb to $dist\n");

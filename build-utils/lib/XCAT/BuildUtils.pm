@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(
     buildinfo_text
     targetarch_from_target
     genesis_chroot_name genesis_target_arch genesis_build_plan
-    genesis_log_errors genesis_log_deny_rules
+    genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
 );
 
 # Both builders echo the commands they run under --verbose.  Set once, after
@@ -571,6 +571,20 @@ my @GENESIS_LOG_DENY = (
 );
 
 sub genesis_log_deny_rules { return @GENESIS_LOG_DENY; }
+
+# deb_belongs_to_dist: whether a built .deb may be published into one release.
+#
+# Almost every xcat-core deb is Architecture:all and the same file serves every release, so the
+# answer is yes. The Genesis image is not: it is built per codename and carries that codename in
+# its version (2.19.0-snap...~noble). Publishing all three into every suite lets apt serve the
+# newest, which is the image of another release.
+sub deb_belongs_to_dist {
+    my ($deb, $dist) = @_;
+    return 1 unless defined $deb && defined $dist && $dist ne '';
+    my $base = basename($deb);
+    return 1 unless $base =~ /_[^_]*~([A-Za-z0-9.]+)_[^_]*\.deb\z/;
+    return $1 eq $dist ? 1 : 0;
+}
 
 sub genesis_log_errors {
     my ($text) = @_;

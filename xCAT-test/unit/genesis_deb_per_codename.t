@@ -61,6 +61,22 @@ ok(!eval { XCAT::BuildUtils::genesis_build_plan([], 'amd64'); 1 },
 ok(!eval { XCAT::BuildUtils::genesis_target_arch('riscv64'); 1 },
     'an architecture with no Genesis image directory is an error');
 
+# --- a per-codename image reaches only its own suite --------------------------------------
+ok(XCAT::BuildUtils->can('deb_belongs_to_dist'),
+    'XCAT::BuildUtils decides which suite a deb belongs to');
+if (XCAT::BuildUtils->can('deb_belongs_to_dist')) {
+    my $noble = 'xcat-genesis-base-amd64_2.19.0-snap202609121200~noble_all.deb';
+    ok(XCAT::BuildUtils::deb_belongs_to_dist($noble, 'noble'),
+        'the noble image is published into noble');
+    ok(!XCAT::BuildUtils::deb_belongs_to_dist($noble, 'jammy'),
+        'the noble image is not published into jammy');
+    # Everything else in xcat-core is the same file for every release.
+    ok(XCAT::BuildUtils::deb_belongs_to_dist('perl-xcat_2.19.0-snap1_all.deb', 'jammy'),
+        'a deb with no codename in its version reaches every suite');
+    ok(XCAT::BuildUtils::deb_belongs_to_dist('xcat_2.19.0-snap1_amd64.deb', 'resolute'),
+        'an architecture deb reaches every suite');
+}
+
 # --- the log guard ---------------------------------------------------------------------
 #
 # dracut prints FAILED: for a command it cannot install and exits 0. This is the log of the

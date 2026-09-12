@@ -992,7 +992,49 @@ sub build_xmldesc {
 
     $xtree{devices}->{console}->{type} = 'pty';
     $xtree{devices}->{console}->{target}->{port} = '1';
+    _apply_guest_arch(\%xtree, $confdata->{nodetype}->{$node}->[0]->{arch});
     return XMLout(\%xtree, RootName => "domain");
+}
+
+#-----------------------------------------------------------------------------------------------
+
+=head3 _apply_guest_arch
+
+Descriptions:
+    Change a domain for a guest whose architecture is not the architecture of the hypervisor.
+    build_xmldesc builds an x86 domain and adjusts it for a pseries guest from the cpu model of
+    the HYPERVISOR, so it emits a riscv64 node as an x86_64 guest. That guest loads the riscv64
+    grub2 over tftp and reports "Exec format error".
+
+    riscv64 takes the QEMU virt machine under emulation, because no host in this project has
+    riscv64 hardware, and it boots through EDK2. The x86 parts of the domain -- the BIOS element,
+    pae, acpi, apic, the sound card, the video card and the USB tablet -- have no counterpart on
+    that machine.
+
+Arguments:
+    $xtree - the domain hash build_xmldesc is about to serialise
+    $arch  - the nodetype.arch of the guest
+
+Returns:
+    Nothing. The hash is changed in place, and every other architecture is left alone.
+
+=cut
+
+#-----------------------------------------------------------------------------------------------
+sub _apply_guest_arch {
+    my ($xtree, $arch) = @_;
+    return unless defined($arch) and $arch eq 'riscv64';
+
+    $xtree->{type} = 'qemu';
+    $xtree->{os}->{type}->{arch} = 'riscv64';
+    # vm.othersettings machine:<type> is already applied here, so keep what the node asked for.
+    $xtree->{os}->{type}->{machine} ||= 'virt';
+    $xtree->{os}->{firmware} = 'efi';
+    delete $xtree->{os}->{bios};
+
+    delete $xtree->{features}->{$_} for qw(pae acpi apic);
+    delete $xtree->{devices}->{$_}  for qw(sound video graphics input);
+    return;
 }
 
 sub refresh_vm {

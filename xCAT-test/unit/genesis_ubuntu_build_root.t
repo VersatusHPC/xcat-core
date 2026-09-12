@@ -24,21 +24,25 @@ plan skip_all => 'ubuntu module-setup.sh not found' unless -f $module;
 plan tests => 9;
 
 # Commands the Ubuntu dracut module marks mandatory that a minimal Ubuntu server root does
-# NOT already provide, and the package that supplies each one. Every entry here has to be in
-# REQUIRED_PACKAGES or the image ships without the command.
-my %PACKAGE_FOR = (
-    dhclient  => 'isc-dhcp-client',
-    ifenslave => 'ifenslave',
-    hwclock   => 'util-linux-extra',
+# NOT already provide, and the packages that supply each one. Every command here needs one of
+# its packages in the build root or the image ships without it. hwclock has two names because
+# it left util-linux for util-linux-extra in 23.04, and the build root asks apt which name the
+# release it is building for carries.
+my %PACKAGES_FOR = (
+    dhclient  => ['isc-dhcp-client'],
+    ifenslave => ['ifenslave'],
+    hwclock   => [ 'util-linux-extra', 'util-linux' ],
 );
 
 my %mandatory = map { $_ => 1 } mandatory_commands($module);
 my @packages  = required_packages($builder);
 
-for my $command (sort keys %PACKAGE_FOR) {
+for my $command (sort keys %PACKAGES_FOR) {
+    my @provider = @{ $PACKAGES_FOR{$command} };
     ok($mandatory{$command}, "the Ubuntu dracut module installs '$command' unconditionally");
-    ok(scalar(grep { $_ eq $PACKAGE_FOR{$command} } @packages),
-       "the build root installs $PACKAGE_FOR{$command}, which provides '$command'");
+    my @named = grep { my $p = $_; grep { $_ eq $p } @packages } @provider;
+    ok(scalar @named,
+       "the build root installs @{[ join ' or ', @provider ]}, which provides '$command'");
 }
 
 # doxcat asks dhclient for the provisioning lease. An image without it never gets an address,
@@ -85,8 +89,10 @@ BASH
     return @names;
 }
 
-# required_packages($path): extract the REQUIRED_PACKAGES assignment from the build script and
-# evaluate it, so the list comes from the value the script actually uses.
+# required_packages($path): the packages the build root installs. The fixed list is the
+# REQUIRED_PACKAGES assignment, evaluated so the value comes from the script itself; a command
+# whose package name changed between releases is added by add_first_available, whose candidates
+# count too -- the script picks whichever one apt knows.
 sub required_packages {
     my ($path) = @_;
     my $text = do { open my $fh, '<', $path or die "$path: $!"; local $/; <$fh> };
@@ -95,5 +101,7 @@ sub required_packages {
     my $out = qx{bash -c 'set -u; $block; printf "%s\\n" \$REQUIRED_PACKAGES' 2>/dev/null};
     my @packages = grep { length } split /\s+/, ($out // '');
     BAIL_OUT("REQUIRED_PACKAGES in $path evaluated to nothing") unless @packages;
+    push @packages, grep { length } split /\s+/, $1
+        while $text =~ /^add_first_available\s+(.+)$/mg;
     return @packages;
 }

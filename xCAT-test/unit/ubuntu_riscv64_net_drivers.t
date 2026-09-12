@@ -3,6 +3,9 @@ use strict;
 use warnings;
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Test::More;
 
 # Without a driver list the Ubuntu netboot image ships no network module at all, and a node

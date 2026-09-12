@@ -2,8 +2,11 @@
 use strict;
 use warnings;
 
-use File::Temp qw(tempdir);
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
+use File::Temp qw(tempdir);
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use lib "$FindBin::Bin/../../perl-xCAT";
 use Test::More;

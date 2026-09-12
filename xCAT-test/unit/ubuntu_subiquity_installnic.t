@@ -12,10 +12,14 @@ use strict;
 use warnings;
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use File::Temp qw(tempdir);
 use Test::More;
+use XCAT::Test::File qw(repo_path);
 use xCAT::Template;
 
 my $NODE = 'node01';
@@ -90,15 +94,10 @@ for my $case (@cases) {
 }
 
 # ---- rendering: run the template's own late-command and read the netplan it writes --------------
-my $tmpl_path = defined $ENV{XCATROOT}
-    ? "$ENV{XCATROOT}/share/xcat/install/ubuntu/compute.subiquity.tmpl" : '';
-$tmpl_path = 'xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl'
-    unless -f $tmpl_path;
-$tmpl_path = "$FindBin::Bin/../../xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl"
-    unless -f $tmpl_path;
+my $tmpl_path = repo_path('xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl');
+BAIL_OUT("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
 
 SKIP: {
-    skip 'compute.subiquity.tmpl not found', 4 unless -f $tmpl_path;
     my $tmpl = do { local $/; open my $fh, '<', $tmpl_path or die $!; <$fh> };
 
     # The netplan-writing part of late-commands, verbatim: from the resolved values down to the

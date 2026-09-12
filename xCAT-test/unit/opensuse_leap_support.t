@@ -1,9 +1,13 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Test::More;
 use File::Temp qw(tempdir);
-use FindBin;
 use Cwd qw(realpath);
 
 use lib "$FindBin::Bin/../../perl-xCAT";

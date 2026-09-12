@@ -9,15 +9,17 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use File::Spec;
 use File::Temp ();
 use Test::More;
+use XCAT::Test::File qw(repo_path);
 
-my $pre_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/share/xcat/install/scripts/pre.ubuntu.subiquity" : '';
-$pre_path = "xCAT-server/share/xcat/install/scripts/pre.ubuntu.subiquity"
-    unless -f $pre_path;
-
-plan skip_all => "pre.ubuntu.subiquity not found" unless -f $pre_path;
+my $pre_path = repo_path('xCAT-server/share/xcat/install/scripts/pre.ubuntu.subiquity');
+BAIL_OUT("pre.ubuntu.subiquity not found at $pre_path") unless -f $pre_path;
 
 my $script = do { local $/; open my $fh, '<', $pre_path or die $!; <$fh> };
 

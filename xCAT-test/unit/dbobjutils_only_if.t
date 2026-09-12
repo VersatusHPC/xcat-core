@@ -2,11 +2,14 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 BEGIN {
     $ENV{XCATCFG} ||= 'SQLite:/tmp';
 }
 
-use FindBin;
 use lib "$FindBin::Bin/../../perl-xCAT";
 
 use Scalar::Util qw(refaddr);

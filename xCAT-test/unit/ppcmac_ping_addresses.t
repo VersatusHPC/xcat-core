@@ -2,8 +2,11 @@
 use strict;
 use warnings;
 
-use File::Spec;
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
+use File::Spec;
 use Test::More;
 
 my $repo_root = $ENV{XCAT_REPO_ROOT}

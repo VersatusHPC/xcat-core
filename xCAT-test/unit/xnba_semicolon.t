@@ -1,6 +1,11 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Test::More;
 
 my $xnba_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/lib/perl/xCAT_plugin/xnba.pm" : '';

@@ -110,7 +110,7 @@ for my $which (qw(install uninstall)) {
 
 # The rpm names use the Genesis target architecture of the spec, which is not a Debian
 # architecture name.
-my %tarch = map { $_ => 1 } (slurp("$root/xCAT-genesis-builder/xCAT-genesis-base.spec")
+my %tarch = map { $_ => 1 } (slurp("$root/xCAT-genesis-base/xCAT-genesis-base.spec")
       =~ /^%define\s+tarch\s+(\S+)/mg);
 BAIL_OUT('no Genesis target architectures in xCAT-genesis-base.spec') unless %tarch;
 

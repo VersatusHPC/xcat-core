@@ -17,9 +17,9 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 my @HOOKS = (
-    'xCAT-genesis-builder/xcat-cmdline.sh',
-    'xCAT-genesis-builder/dracut_105/el/xcat-cmdline.sh',
-    'xCAT-genesis-builder/dracut_105/ubuntu/xcat-cmdline.sh',
+    'xCAT-genesis-base/xcat-cmdline.sh',
+    'xCAT-genesis-base/dracut_105/el/xcat-cmdline.sh',
+    'xCAT-genesis-base/dracut_105/ubuntu/xcat-cmdline.sh',
 );
 
 # dracut 99base writes the root entry itself. Up to dracut 057 the password field is

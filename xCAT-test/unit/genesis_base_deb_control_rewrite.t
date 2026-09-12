@@ -18,12 +18,12 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path slurp_repo_file);
 
-my $script  = repo_path('xCAT-genesis-builder/builddeb-genesis-base');
-my $control = repo_path('xCAT-genesis-builder/debian/control');
+my $script  = repo_path('xCAT-genesis-base/builddeb-genesis-base');
+my $control = repo_path('xCAT-genesis-base/debian/control');
 plan skip_all => 'builddeb-genesis-base not found' unless -f $script;
 plan tests => 8;
 
-my $text = slurp_repo_file('xCAT-genesis-builder/builddeb-genesis-base');
+my $text = slurp_repo_file('xCAT-genesis-base/builddeb-genesis-base');
 my ($function) = $text =~ /^(rewrite_control\(\)\s*\{.*?^\})/ms;
 BAIL_OUT('rewrite_control() no longer matches in builddeb-genesis-base')
   unless defined $function;

@@ -13,11 +13,11 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $verifier = repo_path('xCAT-genesis-builder/verify-genesis-payload');
+my $verifier = repo_path('xCAT-genesis-base/verify-genesis-payload');
 if (!-f $verifier) {
     # Skipping here would cover nothing: the Ubuntu Genesis build has no payload gate at
     # all until this file exists.
-    fail('xCAT-genesis-builder/verify-genesis-payload is missing');
+    fail('xCAT-genesis-base/verify-genesis-payload is missing');
     done_testing();
     exit;
 }

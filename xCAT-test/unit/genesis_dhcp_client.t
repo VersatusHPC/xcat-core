@@ -33,7 +33,7 @@ ok( $source !~ qr/;\s*dhclient\s/,
 
 # The build root has to carry a client, or the image installs none. EL8 and EL9 package the
 # ISC client; AlmaLinux 10 baseos packages dhcpcd.
-my $spec = read_text( repo_path('xCAT-genesis-builder/xCAT-genesis-base.spec') );
+my $spec = read_text( repo_path('xCAT-genesis-base/xCAT-genesis-base.spec') );
 like( $spec, qr/^%if 0%\{\?rhel\} >= 10\nBuildRequires: dhcpcd$/m,
     'the spec build-requires dhcpcd on the releases that drop the ISC client' );
 
@@ -44,7 +44,7 @@ like( $spec, qr{^%if 0%\{\?rhel\} >= 10\nGENESIS_REQUIRED="usr/sbin/dhcpcd"$}m,
 
 # dracut_install reports a missing binary and returns, so naming dhclient alone shipped an
 # image with no client at all.
-my $module = read_text( repo_path('xCAT-genesis-builder/dracut_105/el/module-setup.sh') );
+my $module = read_text( repo_path('xCAT-genesis-base/dracut_105/el/module-setup.sh') );
 ok( $module !~ qr/^\s*dracut_install dhclient lldpad$/m,
     'the dracut module no longer installs dhclient unconditionally' );
 like( $module, qr/^\s*dracut_install dhcpcd$/m,

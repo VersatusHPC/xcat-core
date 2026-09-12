@@ -16,8 +16,8 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 my %HOOK = (
-    el     => { path => 'xCAT-genesis-builder/dracut_105/el/xcat-cmdline.sh',     mux => 'tmux' },
-    ubuntu => { path => 'xCAT-genesis-builder/dracut_105/ubuntu/xcat-cmdline.sh', mux => 'screen' },
+    el     => { path => 'xCAT-genesis-base/dracut_105/el/xcat-cmdline.sh',     mux => 'tmux' },
+    ubuntu => { path => 'xCAT-genesis-base/dracut_105/ubuntu/xcat-cmdline.sh', mux => 'screen' },
 );
 
 plan tests => 5 * scalar(keys %HOOK) + 2;

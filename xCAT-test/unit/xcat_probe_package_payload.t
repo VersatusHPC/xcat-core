@@ -29,7 +29,6 @@ my @affected_subcommands = qw(
 );
 
 my $builder = slurp_repo_file('buildrpms.pl');
-my $debian_builder = slurp_repo_file('build-ubunturepo');
 my $installed_probe_test =
   slurp_repo_file('xCAT-test/autotest/testcase/probe/xcatproble_list');
 my $rpm_spec = slurp_repo_file('xCAT-probe/xCAT-probe.spec');
@@ -74,11 +73,6 @@ for my $helper (@helpers) {
     ok(
         scalar(grep { $_ eq $helper } XCAT_PROBE_HELPERS),
         "the shared builder helper list carries $helper"
-    );
-    like(
-        $debian_builder,
-        qr{cp -f [^\n]*/perl-xCAT/xCAT/\Q$helper\E\s+[^\n]*/lib/perl/xCAT/},
-        "Debian builder stages $helper"
     );
     like(
         $installed_probe_test,

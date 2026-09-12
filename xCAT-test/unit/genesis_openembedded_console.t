@@ -11,7 +11,7 @@ use Test::More;
 my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $source_dir = File::Spec->catdir(
     $repo_root,
-    qw(xCAT-genesis-builder oe meta-xcat-genesis recipes-core xcat-genesis-console files xcat-genesis-console src)
+    qw(xCAT-genesis-base oe meta-xcat-genesis recipes-core xcat-genesis-console files xcat-genesis-console src)
 );
 my @plain_sources = map { File::Spec->catfile( $source_dir, $_ ) }
   qw(main.c plain_ui.c shell.c state.c support.c);

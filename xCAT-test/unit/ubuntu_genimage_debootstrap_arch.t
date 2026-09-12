@@ -2,15 +2,17 @@
 use strict;
 use warnings;
 
-use File::Spec;
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
+use File::Spec;
 use Test::More;
 
 # debootstrap takes the Debian architecture name, which differs from the name xCAT uses for
 # the node. Drive the assignment genimage makes and check the name it computes. The
 # invocation that consumes it is not exercised here.
 
-use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../perl-xCAT";
 use xCAT::Utils;
 

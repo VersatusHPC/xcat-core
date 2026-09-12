@@ -1,13 +1,16 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Test::More;
+use XCAT::Test::File qw(repo_path);
 
-my $tmpl_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/share/xcat/install/ubuntu/compute.subiquity.tmpl" : '';
-$tmpl_path = "xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl"
-    unless -f $tmpl_path;
-
-plan skip_all => "compute.subiquity.tmpl not found" unless -f $tmpl_path;
+my $tmpl_path = repo_path('xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl');
+BAIL_OUT("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
 
 my $tmpl = do { local $/; open my $fh, '<', $tmpl_path or die $!; <$fh> };
 

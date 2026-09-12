@@ -19,7 +19,7 @@ SYNOPSIS
 ********
 
 
-\ **copycds**\  [{\ **-n|-**\ **-name|-**\ **-osver**\ } \ *distroname*\ ] [{\ **-a|-**\ **-arch**\ } \ *architecture*\ ] [{\ **-p|-**\ **-path**\ } \ *ospkgpath*\ ] [\ **-o | -**\ **-noosimage**\ ] [\ **-w | -**\ **-nonoverwrite**\ ] {\ *iso | device-path*\ } ...
+\ **copycds**\  [{\ **-n|-**\ **-name|-**\ **-osver**\ } \ *distroname*\ ] [{\ **-a|-**\ **-arch**\ } \ *architecture*\ ] [{\ **-p|-**\ **-path**\ } \ *ospkgpath*\ ] [\ **-o | -**\ **-noosimage**\ ] [\ **-w | -**\ **-nonoverwrite**\ ] [\ **-**\ **-i-know-what-i-am-doing**\ ] {\ *iso | device-path*\ } ...
 
 \ **copycds**\  [\ **-i | -**\ **-inspection**\ ] {\ *iso | device-path*\ }
 
@@ -81,6 +81,16 @@ OPTIONS
 \ **-w|-**\ **-nonoverwrite**\ 
  
  Complain and exit if the os disc has already been copied in. By default, \ **copycds**\  will overwrite the os disc already copied in.
+ 
+
+
+\ **-**\ **-i-know-what-i-am-doing**\ 
+ 
+ Run the command although a guard refused it. A guard refuses a command that is known to damage the node it runs on.
+ 
+ Today one guard exists. On riscv64, copycds reads the directories of the ISO and the kernel stops with a BUG in its own hardened usercopy check while it reads them, so the management node panics and reboots before the copy finishes. The guard names the kernel parameter that avoids the check, \ **hardened_usercopy=off**\ , and the reboot it needs.
+ 
+ Use this option only when the panic is acceptable.
  
 
 

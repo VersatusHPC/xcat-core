@@ -34,6 +34,67 @@ sub take_answer {
     $identified = 1;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 riscv64_usercopy_guard
+
+    Descriptions:
+        Whether copycds must refuse to read an ISO on this node.
+
+        copycds reads the directories of the ISO. On riscv64 the kernel stops with a BUG in
+        its own hardened usercopy check when filldir64 copies a directory name out of a slab
+        object, and the management node panics and reboots. hardened_usercopy=off avoids the
+        check. It is a boot parameter, so the node must reboot to take it.
+
+    Arguments:
+        machine  - the machine architecture, for testing; uname -m by default
+        cmdline  - the kernel command line, for testing; /proc/cmdline by default
+        override - true when the caller passed --i-know-what-i-am-doing
+    Returns:
+        the message to report, or undef when copycds may run
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub riscv64_usercopy_guard {
+    my (%args) = @_;
+    return undef if $args{override};
+
+    my $machine = $args{machine};
+    unless (defined $machine) {
+        $machine = `uname -m 2>/dev/null`;
+        chomp $machine if defined $machine;
+    }
+    return undef unless defined $machine and $machine eq 'riscv64';
+
+    my $cmdline = $args{cmdline};
+    unless (defined $cmdline) {
+        # An unreadable /proc/cmdline reads as unprotected. A guard that opens the way when it
+        # cannot see is not a guard.
+        $cmdline = '';
+        if (open(my $fh, '<', '/proc/cmdline')) {
+            $cmdline = do { local $/; <$fh> };
+            close($fh);
+            $cmdline = '' unless defined $cmdline;
+        }
+    }
+    return undef if $cmdline =~ /(?:\A|\s)hardened_usercopy=off(?:\s|\z)/;
+
+    return
+        "copycds reads the directories of the ISO. On riscv64 the kernel stops with a BUG in"
+      . " its own hardened usercopy check while it reads them, and this management node"
+      . " panics and reboots before the copy finishes.\n"
+      . "\n"
+      . "Turn the check off on the kernel command line and reboot:\n"
+      . "\n"
+      . "    grubby --update-kernel=ALL --args=hardened_usercopy=off\n"
+      . "    reboot\n"
+      . "\n"
+      . "Confirm it with 'cat /proc/cmdline', then run copycds again.\n"
+      . "\n"
+      . "To run copycds now and accept the panic, add --i-know-what-i-am-doing.";
+}
+
 sub process_request {
     my $request = shift;
     $callback = shift;
@@ -46,6 +107,7 @@ sub process_request {
     my $noosimage    = undef;
     my $nonoverwrite = undef;
     my $specific     = undef;
+    my $override_guards = undef;
 
     $identified    = 0;
     $::CDMOUNTPATH = "/var/run/xcat/mountpoint";
@@ -63,9 +125,10 @@ sub process_request {
         'o|noosimage'    => \$noosimage,
         's|specific'     => \$specific,
         'w|nonoverwrite' => \$nonoverwrite,
+        'i-know-what-i-am-doing' => \$override_guards,
     );
     if ($help) {
-        $callback->({ info => "copycds [{-p|--path} path] [{-n|--name|--osver} distroname] [{-a|--arch} architecture] [-i|--inspection] [{-o|--noosimage}] [{-w|--nonoverwrite}] 1st.iso [2nd.iso ...]." });
+        $callback->({ info => "copycds [{-p|--path} path] [{-n|--name|--osver} distroname] [{-a|--arch} architecture] [-i|--inspection] [{-o|--noosimage}] [{-w|--nonoverwrite}] [--i-know-what-i-am-doing] 1st.iso [2nd.iso ...]." });
         return;
     }
     if ($arch and $arch =~ /i.86/) {
@@ -74,6 +137,11 @@ sub process_request {
     my @args = @ARGV;    #copy ARGV
     unless ($#args >= 0) {
         $callback->({ error => "copycds needs at least one full path to ISO currently.", errorcode => [1] });
+        return;
+    }
+
+    if (my $guard = riscv64_usercopy_guard(override => $override_guards)) {
+        $callback->({ error => $guard, errorcode => [1] });
         return;
     }
 

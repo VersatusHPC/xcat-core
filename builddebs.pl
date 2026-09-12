@@ -293,6 +293,11 @@ sub collect_debs {
 # (<codename>-<arch>-sbuild). They hand out disposable overlay sessions, so what the build
 # installs is discarded and the next codename starts from the pristine base.
 
+# Where the build runs inside the chroot. A directory of its own at the chroot root, because
+# every other candidate is shared: /build and /opt/xcat-ci-shared are bind mounts the sbuild
+# chroots give to every session.
+my $GENESIS_STAGE = '/xcat-genesis-build';
+
 sub host_deb_arch {
     my $arch = `dpkg --print-architecture 2>/dev/null` // '';
     chomp $arch;
@@ -350,24 +355,28 @@ sub build_one_genesis_deb {
         # The builder needs its own directory, and Version and Release beside it. Copy them
         # in rather than bind-mount the checkout: the build rewrites debian/control and
         # debian/changelog, and it must not rewrite them in the tree the pipeline builds from.
-        sh_or_die("mkdir -p " . sh_quote("$root/build/xCAT-genesis-builder"),
+        #
+        # NOT under /build: the sbuild chroots bind-mount /var/lib/sbuild/build there, so every
+        # session of every chroot shares one directory. Two builds running at once overwrite each
+        # other's copy of the builder, and the output of an earlier run is still in it. A
+        # directory of its own at the chroot root lives in the session overlay and goes with it.
+        my $stage = "$root$GENESIS_STAGE";
+        sh_or_die("rm -rf " . sh_quote($stage) . " && mkdir -p "
+                . sh_quote("$stage/xCAT-genesis-builder"),
             "FATAL: cannot make the build directory in session:$id\n");
         sh_or_die("cp -a " . sh_quote("$ROOT/xCAT-genesis-builder") . "/. "
-                . sh_quote("$root/build/xCAT-genesis-builder") . "/",
+                . sh_quote("$stage/xCAT-genesis-builder") . "/",
             "FATAL: cannot copy xCAT-genesis-builder into session:$id\n");
-        for my $f (qw(Version Release)) {
-            next unless -f "$ROOT/$f";
-            copy("$ROOT/$f", "$root/build/$f")
-                or die "FATAL: cannot copy $f into session:$id: $!\n";
-        }
-        write_text("$root/build/Release", "$RELEASE\n");
+        copy("$ROOT/Version", "$stage/Version")
+            or die "FATAL: cannot copy Version into session:$id: $!\n";
+        write_text("$stage/Release", "$RELEASE\n");
 
         # --expect-codename is the guard that keeps the image and the root together: the
         # builder stops when the root it woke up in is not the release it was asked for.
         my $cmd = join ' ',
             'schroot', '--run-session', '-c', sh_quote("session:$id"), '-u', 'root', '-d', '/',
-            '--', '/bin/bash', '/build/xCAT-genesis-builder/builddeb-genesis-base',
-            '--expect-codename', sh_quote($codename), '--outdir', '/build/out';
+            '--', '/bin/bash', "$GENESIS_STAGE/xCAT-genesis-builder/builddeb-genesis-base",
+            '--expect-codename', sh_quote($codename), '--outdir', "$GENESIS_STAGE/out";
         my $rc = sh("$cmd > " . sh_quote($logfile) . " 2>&1");
 
         # The log is read whether or not the command failed: a build that exits 0 with
@@ -379,7 +388,7 @@ sub build_one_genesis_deb {
         }
         die $problems if $problems;
 
-        my @debs = glob("$root/build/out/*.deb");
+        my @debs = glob("$root$GENESIS_STAGE/out/*.deb");
         die "FATAL: the Genesis build for $codename produced no .deb; log: $logfile\n"
             unless @debs;
         for my $deb (@debs) {

@@ -105,13 +105,34 @@ add_first_available() {
     echo "ERROR: $CODENAME carries none of these packages: $*" >&2
     exit 1
 }
+# A package that exists only on some releases. 26.04 moved the backward-compatibility zone
+# names (Chile/Continental and the rest of the list the dracut module installs) out of tzdata
+# into tzdata-legacy.
+add_if_available() {
+    local p
+    for p in "$@"; do
+        apt-cache show "$p" >/dev/null 2>&1 && REQUIRED_PACKAGES="$REQUIRED_PACKAGES $p"
+    done
+    return 0
+}
+
 add_first_available bind9-dnsutils dnsutils
 add_first_available util-linux-extra util-linux
+add_if_available tzdata-legacy
 
 apt-get install -y --no-install-recommends $REQUIRED_PACKAGES
 
 # dpkg-architecture comes from dpkg-dev, which the line above installs.
 TRIPLET=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+# ncurses-base put its terminfo entries under /lib/terminfo before 24.04, and both dracut's own
+# terminfo module and the 97xcat module ask for /usr/share/terminfo. On jammy the build stopped
+# on /usr/share/terminfo/l/linux. Give this build root the path they ask for; the chroot is
+# thrown away when the build ends.
+if [ -d /lib/terminfo ]; then
+    mkdir -p /usr/share/terminfo
+    cp -an /lib/terminfo/. /usr/share/terminfo/ 2>/dev/null || true
+fi
 
 # Set up dracut module
 if [ -d /usr/lib/dracut/modules.d ]; then

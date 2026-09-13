@@ -4,7 +4,7 @@ B<copycds> - Copies Linux distributions and service levels from DVDs/ISOs to the
 
 =head1 SYNOPSIS
 
-B<copycds> [{B<-n|--name|--osver>} I<distroname>] [{B<-a|--arch>} I<architecture>] [{B<-p|--path>} I<ospkgpath>] [B<-o>|B<--noosimage>] [B<-w>|B<--nonoverwrite>] [B<--i-know-what-i-am-doing>] {I<iso | device-path>} ...
+B<copycds> [{B<-n|--name|--osver>} I<distroname>] [{B<-a|--arch>} I<architecture>] [{B<-p|--path>} I<ospkgpath>] [B<-o>|B<--noosimage>] [B<-w>|B<--nonoverwrite>] {I<iso | device-path>} ...
 
 B<copycds> [B<-i>|B<--inspection>] {I<iso | device-path>}
 
@@ -47,18 +47,6 @@ Do not create the default osimages based on the osdistro copied in. By default, 
 =item B<-w|--nonoverwrite>
 
 Complain and exit if the os disc has already been copied in. By default, B<copycds> will overwrite the os disc already copied in.
-
-=item B<--i-know-what-i-am-doing>
-
-Run the command although a guard refused it. A guard refuses a command that is known to damage
-the node it runs on.
-
-Today one guard exists. On riscv64, copycds reads the directories of the ISO and the kernel
-stops with a BUG in its own hardened usercopy check while it reads them, so the management node
-panics and reboots before the copy finishes. The guard names the kernel parameter that avoids
-the check, B<hardened_usercopy=off>, and the reboot it needs.
-
-Use this option only when the panic is acceptable.
 
 =back
 

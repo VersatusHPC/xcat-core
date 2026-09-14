@@ -95,7 +95,7 @@ for my $case (@cases) {
 
 # ---- rendering: run the template's own late-command and read the netplan it writes --------------
 my $tmpl_path = repo_path('xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl');
-BAIL_OUT("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
+die("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
 
 SKIP: {
     my $tmpl = do { local $/; open my $fh, '<', $tmpl_path or die $!; <$fh> };

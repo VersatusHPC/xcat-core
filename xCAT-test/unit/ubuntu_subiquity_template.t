@@ -10,7 +10,7 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 my $tmpl_path = repo_path('xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl');
-BAIL_OUT("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
+die("compute.subiquity.tmpl not found at $tmpl_path") unless -f $tmpl_path;
 
 my $tmpl = do { local $/; open my $fh, '<', $tmpl_path or die $!; <$fh> };
 

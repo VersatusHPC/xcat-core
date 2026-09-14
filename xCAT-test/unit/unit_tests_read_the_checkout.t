@@ -3,10 +3,8 @@
 #
 # Every xCAT module runs "use lib $::XCATROOT/lib/perl" while it compiles, and $::XCATROOT is
 # $ENV{XCATROOT} or /opt/xcat. On a host with xCAT installed the first xCAT module a test loads
-# therefore puts the installed product in front of the checkout in @INC, and every module after
-# it comes from /opt/xcat. A test that reads $ENV{XCATROOT}/share/... reads the installed file
-# for the same reason. The same commit then passes on a host without xCAT and fails on a build
-# agent, and a change to the tree is invisible to the test that is supposed to gate it.
+# therefore puts the installed product in front of the checkout in @INC. A test that reads
+# $ENV{XCATROOT}/share/... reads the installed file for the same reason.
 #
 # Each test below runs again with XCATROOT pointing at a decoy tree. Every module in the decoy
 # dies while it compiles and every shared file holds one marker line, so a test that reads the

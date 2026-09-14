@@ -1138,13 +1138,7 @@ sub addnode
                     # needs a loader, because the root disk is on the network
                     # and gPXE attaches it: BIOS firmware is given xnba.kpxe,
                     # and the second stage, which announces gpxe.bus-id, is
-                    # given nothing. Without a target the node is given no boot
-                    # file at all, which is what Kea does for either state.
-                    #
-                    # This used to be gated on $doiscsi, so an installed node
-                    # fell through to the netboot branches below and its xNBA
-                    # second stage was handed the install script -- silently
-                    # reinstalling the machine on every power cycle.
+                    # given nothing.
                     if ($doiscsi) {
                         $lstatements = 'if option client-architecture = 00:00 and not exists gpxe.bus-id { filename = \"xcat/xnba.kpxe\"; } else { filename = \"\"; } ' . $lstatements;
                     } else {
@@ -1174,8 +1168,7 @@ sub addnode
             if (-f "$tftpdir/xcat/xnba.kpxe") {
                 if ($chainent and $chainent->{currstate} and ($chainent->{currstate} eq 'iscsiboot' or $chainent->{currstate} eq 'boot')) {
 
-                    # S-31 again, and the same $doiscsi gate: without it an
-                    # installed pxe node was handed pxelinux.0 on every boot.
+                    # S-31 again, and the same $doiscsi gate.
                     if ($doiscsi) {
                         $lstatements = 'if exists gpxe.bus-id { filename = \"\"; } else if exists client-architecture { filename = \"xcat/xnba.kpxe\"; } ' . $lstatements;
                     } else {
@@ -2926,9 +2919,7 @@ sub kea_build_dhcp4_intent
 
     # The daemon gets its own control socket whether or not the Control Agent is
     # asked for: the agent is a REST front end onto this socket, not the thing
-    # that creates it. Without it the only way to reconfigure a running Kea is
-    # SIGHUP, which reports success on delivery and so cannot tell makedhcp that
-    # Kea rejected the file.
+    # that creates it.
     $intent->{'control-socket'} = {
         'socket-type' => 'unix',
         'socket-name' => $backend->control_socket_path('kea4-ctrl-socket'),
@@ -3225,15 +3216,9 @@ sub isc_dhcp_installed_version
 }
 
 # Which variables /etc/default/isc-dhcp-server has to carry for dhcpd to be
-# started on the interfaces xCAT is serving. The systemd unit expands exactly
-# one of them onto the command line, and which one changed with the package:
-#   14.04  4.2.4-7ubuntu12      sysvinit only   $INTERFACES
-#   16.04  4.3.3-5ubuntu12      unit            $INTERFACES
-#   18.04  4.3.5-3ubuntu7       unit            $INTERFACES
-#   20.04  4.4.1-2.1ubuntu5     unit            $INTERFACES
-#   22.04  4.4.1-2.3ubuntu2     unit            $INTERFACESv4  (v6 unit: v6)
-#   24.04  4.4.3-P1-4ubuntu2    unit            $INTERFACESv4  (v6 unit: v6)
-#   26.04  4.4.3-P1-4ubuntu2    unit            $INTERFACESv4  (v6 unit: v6)
+# started on the interfaces xCAT is serving. The systemd unit expands exactly one
+# of them onto the command line: $INTERFACES up to 20.04, $INTERFACESv4 from
+# 22.04, and $INTERFACESv6 for the v6 unit.
 #
 # The sysvinit script copies INTERFACES into INTERFACESv4, but nothing on a
 # systemd host runs it, so that bridge cannot be relied on.
@@ -3663,18 +3648,20 @@ sub kea_node_reservations
             next;
         }
 
-        # Option 12 is written as the reservation's own option-data and the
-        # reservation carries no "hostname" field, because Kea builds option 12
-        # out of that field and runs it through ddns-qualifying-suffix: with
-        # DDNS configured a node asking who it was got the FQDN while ISC, which
-        # writes the two as separate statements, said "node01". Kea 3.0 leaves a
-        # dotted name alone, but 2.4 -- what Ubuntu 24.04 ships -- qualifies
-        # regardless, and option-data cannot override the field either, since
-        # processHostnameOption runs before appendRequestedOptions. Leaving the
-        # field out is the one form that answers "node01" on both.
+        # The name goes in the "hostname" field, and kea_boot_for_node writes it
+        # again as a host-name option. The field is the only one a client cannot
+        # displace: Kea reads the lease name and the DDNS name from it, and with
+        # the field absent it uses whatever the client advertised in option 12 --
+        # so a node calling itself "ubuntu" takes the node's DNS record.
+        #
+        # The cost is that Kea 2.4 runs the field through ddns-qualifying-suffix
+        # before it puts it in option 12, so the node is told "node01.cluster" and
+        # not "node01" where ISC says the short name. That is the node's own name
+        # either way. A name the client chose is not.
         my %reservation = (
             'subnet-id'  => $subnet_id,
             'hw-address' => $mac,
+            hostname     => $hname,
             'ip-address' => $ip,
         );
         $reservation{'next-server'} = $nxtsrv if $nxtsrv && $nxtsrv !~ /\$\{/;
@@ -3732,13 +3719,9 @@ sub kea_sync_node_client_classes
 # from its disk, and keep the class those nodes are named in ahead of them: Kea
 # rejects a member() test naming a class not defined above it.
 #
-# This runs over the whole config rather than one generator's output -- the
-# architecture, per-network xNBA and per-node classes all name a boot file -- so
-# guarding where the config is assembled covers a class added later.
-#
-# It is its own inverse: with no such node left the class is gone and the guard
-# comes off, because a member() test naming a class that no longer exists is a
-# configuration Kea refuses to load.
+# This runs over the whole assembled config, so a class added later is guarded
+# too. It is its own inverse: with no such node left, the class and the guard
+# both go.
 sub kea_apply_localboot_guard
 {
     my ($config) = @_;
@@ -4180,9 +4163,7 @@ sub _needs_absolute_next_server
 #: Returns ( next-server, tftpserver ) or the empty list, having already told
 #: the caller's callback why.
 #:
-#: Both backends read this. They had a copy each and the copies had drifted:
-#: ISC honoured xcatmaster only for petitboot and onie, and Kea fell back to
-#: my_ip_facing for every node, so the two disagreed in a hierarchical cluster.
+#: Both backends read this, so they answer a hierarchical cluster alike.
 sub next_server_for_node
 {
     my ( $node, $nrent ) = @_;
@@ -4256,10 +4237,8 @@ sub kea_boot_for_node
     if ( $intent ne 'netboot' ) {
 
         # A node told to boot from disk, and a Windows UEFI install waiting on
-        # the proxyDHCP daemon, are both handed no boot file. ISC writes
-        # filename = "" into the host block; on Kea the reservation is what
-        # outranks a class, so the empty name has to be set here or the
-        # architecture classes answer and the node netboots forever.
+        # the proxyDHCP daemon, are both handed no boot file. On Kea only a
+        # reservation outranks a class, so the empty name is set here.
         $boot{'boot-file-name'} = '';
     } elsif ($netboot and $netboot eq 'yaboot') {
         $boot{'boot-file-name'} = "/yb/node/yaboot-$node";
@@ -4586,24 +4565,20 @@ sub addnet6
     if ($netcfgs{$net}->{ddnsdomain}) {
         $ddnsdomain = $netcfgs{$net}->{ddnsdomain};
     }
-    if ($::XCATSITEVALS{dnshandler} =~ /ddns/) {
-        my $settings = _omapi_settings();
+    my $ddns_on = $::XCATSITEVALS{dnshandler} =~ /ddns/ ? 1 : 0;
+    my $settings;
+    if ($ddns_on) {
+        $settings = _omapi_settings();
         return 1 unless $settings;
-
-        if ($ddnsdomain) {
-            push @netent, "    ddns-domainname \"" . $ddnsdomain . "\";\n";
-            push @netent, "    zone $ddnsdomain. {\n";
-        } else {
-            push @netent, "    zone $netdomain. {\n";
-        }
-        push @netent, "       primary $ddnserver; key $settings->{key_name}; \n";
-        push @netent, "    }\n";
-        foreach (getzonesfornet($net)) {
-            push @netent, "    zone $_ {\n";
-            push @netent, "       primary $ddnserver; key $settings->{key_name}; \n";
-            push @netent, "    }\n";
-        }
     }
+    push @netent, isc_ddns_zone_statements(
+        enabled    => $ddns_on,
+        domain     => "$netdomain.",
+        ddnsdomain => $ddnsdomain,
+        server     => $ddnserver,
+        key_name   => $settings ? $settings->{key_name} : undef,
+        zones      => [ getzonesfornet($net) ],
+    );
     if ($netcfgs{$net}->{range}) {
         push @netent, "    range6 " . $netcfgs{$net}->{range} . ";\n";
     } else {
@@ -4611,6 +4586,50 @@ sub addnet6
     }
     push @netent, "  } # $net subnet_end\n";
     splice(@dhcp6conf, $idx, 0, @netent);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 isc_ddns_zone_statements
+
+Descriptions: The zone and key statements that let dhcpd update the cluster's
+DNS. One forward zone, plus one for every reverse zone the network covers.
+
+An update aimed at no server, or sent unsigned, is refused by named and lost
+without a word on the DHCP side, so the server and the key are written with the
+zone or not at all. With dynamic DNS switched off nothing is written: makedns
+owns the records then, and a second writer holding a key for the same names is
+how two answers for one node appear.
+
+Arguments:
+    %args - enabled, domain, ddnsdomain, server, key_name, zones (arrayref)
+Returns: the configuration lines, as a list. Empty when there is nothing to say.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub isc_ddns_zone_statements
+{
+    my (%args) = @_;
+
+    return () unless $args{enabled};
+
+    my $forward = $args{ddnsdomain} ? "$args{ddnsdomain}." : $args{domain};
+    return () unless $forward;
+
+    # "primary <server>; key <name>;" is one statement in two halves. A zone
+    # written without it names a zone dhcpd cannot reach.
+    my @key_line;
+    @key_line = ("       primary $args{server}; key $args{key_name}; \n")
+      if $args{server} && $args{key_name};
+
+    my @lines;
+    push @lines, "    ddns-domainname \"$args{ddnsdomain}\";\n" if $args{ddnsdomain};
+    push @lines, "    zone $forward {\n", @key_line, "    }\n";
+    foreach my $zone ( @{ $args{zones} || [] } ) {
+        push @lines, "    zone $zone {\n", @key_line, "    }\n";
+    }
+    return @lines;
 }
 
 sub addnet
@@ -4916,30 +4935,20 @@ sub addnet
         if ($netcfgs{$net}->{ddnsdomain}) {
             $ddnsdomain = $netcfgs{$net}->{ddnsdomain};
         }
-        if ($::XCATSITEVALS{dnshandler} =~ /ddns/) {
-            my $settings = _omapi_settings();
+        my $ddns_on = $::XCATSITEVALS{dnshandler} =~ /ddns/ ? 1 : 0;
+        my $settings;
+        if ($ddns_on) {
+            $settings = _omapi_settings();
             return 1 unless $settings;
-
-            if ($ddnsdomain) {
-                push @netent, "    ddns-domainname \"" . $ddnsdomain . "\";\n";
-                push @netent, "    zone $ddnsdomain. {\n";
-            } else {
-                push @netent, "    zone $domain. {\n";
-            }
-            if ($ddnserver)
-            {
-                push @netent, "       primary $ddnserver; key $settings->{key_name}; \n";
-            }
-            push @netent, "    }\n";
-            foreach (getzonesfornet($net, $mask)) {
-                push @netent, "    zone $_ {\n";
-                if ($ddnserver)
-                {
-                    push @netent, "       primary $ddnserver; key $settings->{key_name}; \n";
-                }
-                push @netent, "    }\n";
-            }
         }
+        push @netent, isc_ddns_zone_statements(
+            enabled    => $ddns_on,
+            domain     => "$domain.",
+            ddnsdomain => $ddnsdomain,
+            server     => $ddnserver,
+            key_name   => $settings ? $settings->{key_name} : undef,
+            zones      => [ getzonesfornet($net, $mask) ],
+        );
 
         my $tmpmaskn = unpack("N", inet_aton($mask));
         my $maskbits = 32;

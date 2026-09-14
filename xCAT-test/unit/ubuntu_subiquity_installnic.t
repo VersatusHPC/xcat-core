@@ -105,7 +105,7 @@ SKIP: {
     my ($snippet) = $tmpl =~ /(installnic="#SUBIQUITYINSTALLNIC#".*?fi;)/s;
     ok($snippet, 'the netplan late-command is rendered from the resolved values');
 
-    skip 'netplan late-command not found in the template', 3 unless $snippet;
+    skip 'netplan late-command not found in the template', 5 unless $snippet;
     $snippet =~ s/''/'/g;    # undo the YAML single-quote escaping
 
     for my $case (
@@ -131,9 +131,18 @@ SKIP: {
             '      match:', qq(        macaddress: "$case->{mac}"),
             ($case->{setname} ne '' ? "      set-name: $case->{setname}" : ()),
             '      dhcp4: true',
+            '      dhcp4-overrides:',
+            '        use-domains: true',
         );
         is($netplan, join("\n", @expected) . "\n",
             "the netplan written for $case->{name} matches the resolved values");
+
+        # systemd-networkd defaults UseDomains to no, so a netplan carrying dhcp4: true alone
+        # takes the DNS server from DHCP and drops the offered domain-search. The node then
+        # resolves no single-label name: updateflag.awk runs "$MASTER 3002" with the short
+        # management node name, cannot resolve it, and the node never leaves postbooting.
+        like($netplan, qr/^\s+use-domains: true$/m,
+            "the netplan for $case->{name} asks networkd to use the DHCP search domain");
     }
 }
 

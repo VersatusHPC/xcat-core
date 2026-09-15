@@ -3,6 +3,10 @@ use strict;
 use warnings;
 no warnings 'once';
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 our @executed_commands;
 BEGIN {
     no warnings 'redefine';
@@ -14,8 +18,6 @@ BEGIN {
     };
 }
 
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use HTTP::Request;

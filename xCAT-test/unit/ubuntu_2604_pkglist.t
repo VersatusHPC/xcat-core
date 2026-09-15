@@ -2,6 +2,9 @@ use strict;
 use warnings;
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use File::Spec;
 use File::Temp ();
 use Test::More;

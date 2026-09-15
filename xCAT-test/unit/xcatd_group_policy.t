@@ -5,6 +5,9 @@ use warnings;
 no warnings 'once';
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Test::More;
 use lib "$FindBin::Bin/../../perl-xCAT";
 

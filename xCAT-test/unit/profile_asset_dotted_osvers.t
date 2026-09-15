@@ -1,11 +1,14 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use Cwd qw(realpath);
 use File::Slurper qw(write_text);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 use lib "$FindBin::Bin/../../perl-xCAT";

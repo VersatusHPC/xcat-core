@@ -2,8 +2,11 @@
 use strict;
 use warnings;
 
-use File::Spec;
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
+use File::Spec;
 use Test::More;
 
 # archive.ubuntu.com publishes amd64 and i386 only. A ppc64el or riscv64 netboot image built

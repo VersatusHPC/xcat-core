@@ -3,6 +3,9 @@ use strict;
 use warnings;
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::XcatRoot;    # before the first xCAT module
+
 use lib "$FindBin::Bin/../../xCAT-server/lib";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use lib "$FindBin::Bin/../../perl-xCAT";
@@ -148,10 +151,10 @@ is($tip, 'ip-address = 192.0.2.21',
 # file it cannot read must not look like a node without a reservation.
 my $tmpdir   = tempdir(CLEANUP => 1);
 my $conffile = "$tmpdir/dhcpd.conf";
-open(my $wfh, '>', $conffile) or BAIL_OUT("cannot write $conffile: $!");
+open(my $wfh, '>', $conffile) or die("cannot write $conffile: $!");
 print $wfh @dhcpconf;
 close($wfh);
-open(my $efh, '>', "$tmpdir/empty.conf") or BAIL_OUT("cannot write empty.conf: $!");
+open(my $efh, '>', "$tmpdir/empty.conf") or die("cannot write empty.conf: $!");
 close($efh);
 
 {

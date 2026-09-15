@@ -1,15 +1,15 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source qw(slurp_repo_file);
+
+use File::Spec;
 use Test::More;
+use XCAT::Test::Sandbox qw(replace_required assert_no_host_paths stub_bin run_confined);
 
-my $tmpl_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/share/xcat/install/ubuntu/compute.subiquity.tmpl" : '';
-$tmpl_path = "xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl"
-    unless -f $tmpl_path;
-
-plan skip_all => "compute.subiquity.tmpl not found" unless -f $tmpl_path;
-
-my $tmpl = do { local $/; open my $fh, '<', $tmpl_path or die $!; <$fh> };
+my $tmpl = slurp_repo_file('xCAT-server/share/xcat/install/ubuntu/compute.subiquity.tmpl');
 
 like($tmpl, qr/^#cloud-config/, 'template starts with #cloud-config');
 like($tmpl, qr/autoinstall:/, 'template has autoinstall: key');
@@ -92,27 +92,37 @@ like($tmpl, qr{2>&1'\n(?:\s*#[^\n]*\n)*\s*- rm -f (?:/target/etc/apt/sources\.li
     require File::Temp;
     my $root = File::Temp->newdir();
     mkdir "$root/bin" or die;
+    # The curtin and wget fakes written below replace their wrappers; any other command is not found.
+    stub_bin( dir => "$root/bin", tools => [qw(bash sh cat grep sed awk cut tr sort uniq head tail wc ls basename dirname mkdir rm mv cp touch date sleep xargs expr env readlink)] );
     for my $tool ( 'curtin', 'wget' ) {
         open( my $fh, '>', "$root/bin/$tool" ) or die;
         print {$fh} $tool eq 'curtin' ? "#!/bin/sh\ncase \"\$*\" in *post.script*) exit 42;; esac\nexit 0\n" : "#!/bin/sh\nfor a; do case \"\$a\" in http*) touch \"\${a##*/}\";; esac; done\nexit 0\n";
         close $fh; chmod 0755, "$root/bin/$tool";
     }
-    ( my $script = $block ) =~ s{/target}{$root/target}g;
-    $script =~ s{/tmp/pre-install\.log}{$root/pre-install.log}g;
+    my $script = $block;
+    replace_required( \$script, '/target',              "$root/target" );
+    replace_required( \$script, '/tmp/pre-install.log', "$root/pre-install.log" );
     for my $token ( [ '#SUBIQUITYINSTALLNIC#', '' ], [ '#SUBIQUITYINSTALLMAC#', '52:54:00:00:00:01' ], [ '#HOSTNAME#', 'cn1' ], [ '#XCATVAR:XCATMASTER#', '192.0.2.10' ],
         [ '#COLONHTTPPORT#', '' ], [ '#TABLEBLANKOKAY:bootparams:$NODE:kcmdline#', '' ] ) {
         $script =~ s/\Q$token->[0]\E/$token->[1]/g;
     }
+    # /root/post.script is a path inside the target, which curtin in-target resolves.
+    assert_no_host_paths(
+        $script,
+        root     => "$root",
+        prefixes => [qw(/etc /var /root /home /boot /opt /srv /install /tftpboot /xcatpost /tmp /target)],
+        allow    => [qr{curtin in-target --target \S+ /root/post\.script;}],
+    );
     require File::Path;
     File::Path::make_path( map { "$root/target/$_" } qw(etc/default root var/log/xcat) );
     open( my $hosts, '>', "$root/target/etc/hosts" ) or die; print {$hosts} "127.0.0.1 localhost\n"; close $hosts;
     open( my $pre, '>', "$root/pre-install.log" ) or die; close $pre;
-    my $cwd = File::Spec->rel2abs('.');
-    chdir $root or die;
-    local $ENV{PATH} = "$root/bin:$ENV{PATH}";
-    system( 'sh', '-c', $script );
-    my $status = $? >> 8;
-    chdir $cwd or die;
+    my ( $status, $output ) = run_confined(
+        cmd      => [ 'sh', '-c', $script ],
+        bin      => "$root/bin",
+        writable => ["$root"],
+        dir      => "$root",
+    );
     is( $status, 42, 'a failing post script fails the late-command block, so Subiquity stops the install instead of switching the node to disk boot' );
 }
 

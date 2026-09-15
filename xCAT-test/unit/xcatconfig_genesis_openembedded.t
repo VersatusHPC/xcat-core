@@ -1,10 +1,12 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Path qw(make_path remove_tree);
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 my $source = "$FindBin::Bin/../../xCAT-server/sbin/xcatconfig";
@@ -15,11 +17,11 @@ close($source_fh) or die "close $source: $!";
 my @routines;
 for my $name (qw(_installed_genesis_architectures _genesis_architectures_to_build)) {
     my ($routine) = $content =~ /^(sub \Q$name\E\s*\{.*?^\})/ms;
-    BAIL_OUT("could not extract $name from xcatconfig") unless $routine;
+    die("could not extract $name from xcatconfig") unless $routine;
     push(@routines, $routine);
 }
 eval join("\n", @routines); ## no critic (BuiltinFunctions::ProhibitStringyEval)
-BAIL_OUT("could not load Genesis architecture helpers: $@") if $@;
+die("could not load Genesis architecture helpers: $@") if $@;
 
 my $tmpdir = tempdir(CLEANUP => 1);
 make_path(

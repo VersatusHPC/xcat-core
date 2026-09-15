@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 ## no critic (Modules::RequireFilenameMatchesPackage, TestingAndDebugging::ProhibitNoStrict, TestingAndDebugging::ProhibitNoWarnings)
 
 BEGIN {
@@ -30,8 +33,6 @@ package main;
 
 no warnings qw/once redefine/;
 use Digest::SHA ();
-use FindBin;
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use Test::More;
 
 require xCAT::IPMI;

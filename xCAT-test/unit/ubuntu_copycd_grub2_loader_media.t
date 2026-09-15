@@ -1,9 +1,11 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 # The stubbed test proves the decisions copycd makes. This one proves the artifact: it runs the
@@ -29,11 +31,9 @@ foreach my $tool (qw(dpkg-deb grub-mkimage)) {
     plan skip_all => "$tool is not installed" unless $found;
 }
 
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/debian.pm";
-plan skip_all => 'debian.pm not found' unless -r $plugin;
-eval { require $plugin; 1 } or plan skip_all => "could not load debian.pm: $@";
+die "debian.pm not found\n" unless -r $plugin;
+require $plugin;
 
 $xCAT::TableUtils::tftpdir = tempdir( CLEANUP => 1 );
 my @told;

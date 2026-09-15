@@ -1,23 +1,23 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
-use FindBin;
 use Test::More;
 
 # debootstrap takes the Debian architecture name, which differs from the name xCAT uses for
 # the node. Drive the assignment genimage makes and check the name it computes. The
 # invocation that consumes it is not exercised here.
 
-use lib "$FindBin::Bin/../lib";
-use lib "$FindBin::Bin/../../perl-xCAT";
 use xCAT::Utils;
 
 my $repo_root = File::Spec->rel2abs(File::Spec->catdir($FindBin::Bin, '..', '..'));
 my $genimage  = File::Spec->catfile(
     $repo_root, 'xCAT-server', 'share', 'xcat', 'netboot', 'ubuntu', 'genimage');
-plan skip_all => "genimage not found at $genimage" unless -f $genimage;
+die "genimage not found at $genimage\n" unless -f $genimage;
 
 my $src = do { local $/; open my $fh, '<', $genimage or die $!; <$fh> };
 # Take every line that assigns $uarch, not just the first: the name has been built in

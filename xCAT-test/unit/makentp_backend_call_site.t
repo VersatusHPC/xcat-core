@@ -1,9 +1,11 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
-use FindBin;
 use Test::More;
 
 # Regression: the NTP backend selector was well covered and nothing connected it to makentp.
@@ -23,22 +25,22 @@ my $repo_root = File::Spec->rel2abs(
 my $plugin = File::Spec->catfile(
     $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'makentp.pm'
 );
-plan skip_all => "makentp.pm not found" unless -f $plugin;
+die "makentp.pm not found\n" unless -f $plugin;
 
 my $src = do { local $/; open my $fh, '<', $plugin or die $!; <$fh> };
 
-# BAIL_OUT rather than skip, so a rename fails loudly instead of silently covering nothing.
+# die rather than skip, so a rename fails loudly instead of silently covering nothing.
 my @wanted = qw(ntp_backend_action setupntp_command);
 my $body = '';
 for my $name (@wanted) {
     my ($sub) = $src =~ /\n(sub \Q$name\E \{.*?\n\})\n/s;
-    BAIL_OUT("could not extract $name from makentp.pm") unless defined $sub;
+    die("could not extract $name from makentp.pm") unless defined $sub;
     $body .= "$sub\n";
 }
 
 {
     package T;
-    eval "$body; 1" or main::BAIL_OUT("could not eval the makentp helpers: $@");
+    eval "$body; 1" or die("could not eval the makentp helpers: $@");
 }
 
 # --- the selector said no backend is usable at all -------------------------

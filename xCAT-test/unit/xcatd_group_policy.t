@@ -1,12 +1,13 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 ## no critic (TestingAndDebugging::ProhibitNoStrict, TestingAndDebugging::ProhibitNoWarnings)
 no warnings 'once';
 
-use FindBin;
 use Test::More;
-use lib "$FindBin::Bin/../../perl-xCAT";
 
 our %test_users = (
     alice => [ 'alice', 'x', 1000, 100 ],

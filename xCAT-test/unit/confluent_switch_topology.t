@@ -1,18 +1,17 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+use XCAT::Test::Source;
+
 use lib "$FindBin::Bin/../../xCAT-server/lib/xcat";
 use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
 my $plugin = repo_path('xCAT-server/lib/xcat/plugins/confluent.pm');
-plan skip_all => 'confluent.pm not found' unless -r $plugin;
+die "confluent.pm not found\n" unless -r $plugin;
 
 # Every collaborator this plugin reaches for is stood in below: the tables, the
 # transport, and the few helpers it calls. Stand the modules in as well, so the
@@ -43,7 +42,7 @@ BEGIN {
 
 # With every collaborator stood in, a plugin that still will not load is a
 # broken command rather than an unsupported environment, so fail loudly.
-eval { require $plugin; 1 } or BAIL_OUT("confluent.pm did not load: $@");
+eval { require $plugin; 1 } or die("confluent.pm did not load: $@");
 
 # A table that answers the two calls the command makes of it. Rows are given
 # per node exactly as xCAT::Table returns them, a list of hashes per node.

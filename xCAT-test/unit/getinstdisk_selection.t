@@ -3,16 +3,20 @@ use strict;
 use warnings;
 
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use File::Spec;
 use File::Temp qw(tempdir);
 use Test::More;
+use XCAT::Test::Sandbox qw(replace_required assert_no_host_paths stub_bin run_confined);
 
 my $repo_root  = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $script_dir = File::Spec->catdir( $repo_root, 'xCAT-server', 'share', 'xcat', 'install', 'scripts' );
 
 # One script serves every installer, so one file is exercised here.
 my @scripts = map { File::Spec->catfile( $script_dir, $_ ) } qw(getinstdisk);
-plan skip_all => 'getinstdisk not found' if grep { !-r $_ } @scripts;
+die "getinstdisk not found\n" if grep { !-r $_ } @scripts;
 our $script;
 
 sub slurp {
@@ -32,13 +36,18 @@ sub run_scenario {
     my $bindir  = "$sandbox/bin";
     mkdir $fixdir;
     mkdir $bindir;
+    # The udevadm fake written below replaces its wrapper; any other command is not found.
+    stub_bin( dir => $bindir, tools => [qw(bash sh cat grep sed awk cut tr sort uniq head tail wc ls basename dirname mkdir rm mv cp touch date sleep xargs expr env readlink)] );
 
     my $body = slurp($script);
-    $body =~ s{/proc/partitions}{$sandbox/partitions}g;
-    $body =~ s{/tmp/xcat\.install_disk}{$sandbox/xcat.install_disk}g;
-    $body =~ s{/tmp/xcat\.getinstalldisk}{$sandbox/xcat.getinstalldisk}g;
-    $body =~ s{/dev/md/Volume0}{$sandbox/md/Volume0}g;
-    $body =~ s{"/dev/xvda"}{"$sandbox/xvda"}g;
+    replace_required( \$body, '/proc/partitions',         "$sandbox/partitions" );
+    replace_required( \$body, '/tmp/xcat.install_disk',   "$sandbox/xcat.install_disk" );
+    replace_required( \$body, '/tmp/xcat.getinstalldisk', "$sandbox/xcat.getinstalldisk" );
+    replace_required( \$body, '/dev/md/Volume0',          "$sandbox/md/Volume0" );
+    replace_required( \$body, '"/dev/xvda"',              "\"$sandbox/xvda\"" );
+    # msgutil_r comes from the installer script that includes this one, and writes this log.
+    replace_required( \$body, '/var/log/xcat/xcat.log',   "$sandbox/xcat.log" );
+    assert_no_host_paths( $body, root => $sandbox, prefixes => [qw(/etc /var /root /home /boot /opt /srv /install /tftpboot /xcatpost /proc /tmp)], allow => [qr/^\s*#/] );
     open( my $sh, '>', "$sandbox/getinstdisk" ) or die $!;
     print $sh $body;
     close($sh);
@@ -84,10 +93,15 @@ UDEV
     close($udev);
     chmod 0755, "$bindir/udevadm";
 
-    local $ENV{FIXDIR}     = $fixdir;
-    local $ENV{PATH}       = "$bindir:$ENV{PATH}";
-    local $ENV{MASTER_IP}  = '';
-    system("sh $sandbox/getinstdisk >$sandbox/log 2>&1");
+    my ( undef, $log ) = run_confined(
+        cmd      => [ 'sh', "$sandbox/getinstdisk" ],
+        bin      => $bindir,
+        env      => { FIXDIR => $fixdir, MASTER_IP => '' },
+        writable => [$sandbox],
+    );
+    open( my $log_fh, '>', "$sandbox/log" ) or die "Unable to write $sandbox/log: $!";
+    print {$log_fh} $log;
+    close($log_fh);
     my $chosen = -r "$sandbox/xcat.install_disk" ? slurp("$sandbox/xcat.install_disk") : '';
     chomp $chosen;
     return $chosen;

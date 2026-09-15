@@ -1,9 +1,10 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use Test::More;
 
 use XCAT::Test::File qw(slurp_repo_file);

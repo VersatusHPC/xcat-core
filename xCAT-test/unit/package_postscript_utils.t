@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use Cwd qw(getcwd);
 use File::Copy qw(copy);
@@ -8,11 +11,10 @@ use File::Path qw(make_path);
 use File::Slurper qw(write_text);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use Test::More;
 
 use XCAT::Test::File qw(repo_path slurp_repo_file);
+use XCAT::Test::Sandbox qw(stub_bin confined_command);
 
 my $postscripts = repo_path(File::Spec->catdir('xCAT', 'postscripts'));
 my $library = File::Spec->catfile( $postscripts, 'xcatpkgutils.sh' );
@@ -21,7 +23,7 @@ my @callers = qw(ospkgs otherpkgs);
 
 for my $required ( $library, $loader,
     map { File::Spec->catfile( $postscripts, $_ ) } @callers ) {
-    -r $required or BAIL_OUT("$required is required");
+    -r $required or die("$required is required");
 }
 
 is( system( 'sh', '-n', $library ), 0,
@@ -45,6 +47,8 @@ is(
 my $tmpdir = tempdir( CLEANUP => 1 );
 my $test_bin = File::Spec->catdir( $tmpdir, 'bin' );
 make_path($test_bin);
+# The logger and uname fakes written below replace their wrappers; any other command is not found.
+stub_bin( dir => $test_bin, tools => [qw(bash sh cat grep sed awk cut tr sort uniq head tail wc ls basename dirname mkdir rm mv cp touch date sleep xargs expr env readlink)] );
 my $logger = File::Spec->catfile( $test_bin, 'logger' );
 write_text( $logger, "#!/bin/sh\nexit 0\n" );
 chmod 0755, $logger or die "Unable to make $logger executable: $!";
@@ -72,7 +76,7 @@ for my $layout (@layouts) {
                 File::Spec->catfile( $directory, $caller )
             );
         } else {
-            local $ENV{PATH} = "$directory:$ENV{PATH}";
+            local $ENV{XCAT_TEST_CALLER_PATH} = $directory;
             ( $status, $output ) = run_command($caller);
         }
 
@@ -175,10 +179,11 @@ sub run_command {
     my $pid = open( my $pipe, '-|' );
     die "Unable to fork for @command: $!" unless defined($pid);
     if ( $pid == 0 ) {
-        delete @ENV{qw(OSPKGS OTHERPKGS OTHERPKGS_INDEX UPDATENODE NODESETSTATE)};
-        $ENV{PATH} = "$test_bin:$ENV{PATH}";
+        # The caller sees only this environment: no OSPKGS, OTHERPKGS or UPDATENODE from the host.
+        my $path = defined $ENV{XCAT_TEST_CALLER_PATH} ? "$ENV{XCAT_TEST_CALLER_PATH}:$test_bin" : $test_bin;
+        my %environment = map { $_ => $ENV{$_} } grep { defined $ENV{$_} } qw(XCATPKGUTILS_LOADED);
         open( STDERR, '>&', STDOUT ) or die "Unable to merge stderr: $!";
-        exec { $command[0] } @command;
+        exec( confined_command( cmd => [@command], bin => $path, env => \%environment, writable => [$tmpdir] ) );
         die "Unable to execute @command: $!";
     }
 

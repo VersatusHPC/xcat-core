@@ -1,17 +1,19 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use Cwd qw(abs_path getcwd);
 use File::Spec;
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use Test::More;
 
-use XCAT::Test::File qw(repo_path slurp_repo_file);
+use XCAT::Test::File qw(repo_root repo_path slurp_repo_file);
 
 my $readme_relative = File::Spec->catfile( 'xCAT-test', 'unit', 'README.md' );
 my $expected_root = abs_path( File::Spec->catdir( $FindBin::Bin, File::Spec->updir(), File::Spec->updir() ) );
+is( repo_root(), $expected_root, 'repo_root returns the checkout root' );
 my $readme_path = repo_path($readme_relative);
 ok( File::Spec->file_name_is_absolute($readme_path), 'repo_path returns an absolute path' );
 is( $readme_path, File::Spec->catfile( $expected_root, $readme_relative ), 'repo_path resolves from the checkout root' );

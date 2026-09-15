@@ -1,12 +1,14 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use Cwd qw(abs_path);
 use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 my $repo_root = abs_path(File::Spec->catdir( $FindBin::Bin, '..', '..' ));

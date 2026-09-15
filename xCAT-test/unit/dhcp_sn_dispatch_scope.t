@@ -1,15 +1,17 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use File::Spec;
 use Test::More;
 
 my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $plugin = File::Spec->catfile( $repo_root, 'xCAT-server/lib/xcat/plugins/dhcp.pm' );
 
-plan skip_all => "$plugin not found" unless -r $plugin;
+die "$plugin not found\n" unless -r $plugin;
 
 open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
 my $source = do { local $/; <$fh> };
@@ -21,7 +23,7 @@ my ($loop) = $source =~ m{
 }sx;
 
 ok( $loop, 'the service node dispatch loop was located' )
-  or BAIL_OUT('dhcp.pm no longer matches the expected dispatch shape');
+  or die('dhcp.pm no longer matches the expected dispatch shape');
 
 like(
     $loop,

@@ -1,19 +1,14 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
-use FindBin;
 use Test::More;
 
-BEGIN {
-    push @INC,
-      File::Spec->catdir( $FindBin::Bin, '..', '..', 'perl-xCAT' ),
-      File::Spec->catdir( $FindBin::Bin, '..', '..', 'xCAT-server', 'lib', 'perl' );
-}
-
-eval { require xCAT::Template; 1 }
-  or plan skip_all => "xCAT::Template not loadable: $@";
+require xCAT::Template;
 
 my $NODE = 'n1';
 my $MAC1 = 'AA:BB:CC:DD:EE:01';

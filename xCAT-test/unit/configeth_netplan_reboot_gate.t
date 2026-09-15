@@ -1,10 +1,12 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 # Regression: on a netplan-rendered node configeth took the NIC down on every reconfigure,
@@ -25,18 +27,18 @@ my $repo_root = File::Spec->rel2abs(
     File::Spec->catdir( $FindBin::Bin, '..', '..' )
 );
 my $configeth = File::Spec->catfile( $repo_root, 'xCAT', 'postscripts', 'configeth' );
-plan skip_all => "configeth not found" unless -f $configeth;
+die "configeth not found\n" unless -f $configeth;
 
 my $src = do { local $/; open my $fh, '<', $configeth or die $!; <$fh> };
 
-# BAIL_OUT rather than skip: a rename that stops these matching must fail loudly instead of
+# die rather than skip: a rename that stops these matching must fail loudly instead of
 # silently covering nothing.
 my ($down_block) = $src =~ /\n(            if \[ "\$str_nic_status" = "up" \];then\n.*?\n            fi\n)/ms;
-BAIL_OUT('could not extract the nic-down block from configeth')
+die('could not extract the nic-down block from configeth')
   unless defined $down_block;
 
 my ($restart_block) = $src =~ /\n(    #restart the nic\n    if \[ \$bool_restart_flag -eq 1 \];then\n.*?\n    fi\n)/ms;
-BAIL_OUT('could not extract the restart block from configeth')
+die('could not extract the restart block from configeth')
   unless defined $restart_block;
 
 my $dir = tempdir( CLEANUP => 1 );

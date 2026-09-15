@@ -1,15 +1,17 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use File::Spec;
 use Test::More;
 use Getopt::Long qw(GetOptionsFromArray);
 
 my $plugin = File::Spec->catfile( $FindBin::Bin, '..', '..',
     'xCAT-server', 'lib', 'xcat', 'plugins', 'nodestat.pm' );
-plan skip_all => 'nodestat.pm not found' unless -r $plugin;
+die "nodestat.pm not found\n" unless -r $plugin;
 
 open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
 my $source = do { local $/; <$fh> };
@@ -22,8 +24,8 @@ my $calls = () = $source =~ /GetOptions\s*\(\s*\\%opt,\s*option_spec\(\)\s*\)/g;
 is( $calls, 2, 'both places parse through the one specification' );
 
 my ($routine) = $source =~ /(sub option_spec \{.*?\n\}\n)/s;
-BAIL_OUT('could not extract option_spec from nodestat.pm') unless $routine;
-eval "package NodestatSpec; $routine 1;" or BAIL_OUT("could not evaluate: $@");
+die('could not extract option_spec from nodestat.pm') unless $routine;
+eval "package NodestatSpec; $routine 1;" or die("could not evaluate: $@");
 
 # The daemon leaves Getopt::Long in pass_through, because xCAT::Usage sets it
 # and the setting lasts for the life of the process.

@@ -1,9 +1,11 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
-use FindBin;
 use Test::More;
 
 # archive.ubuntu.com publishes amd64 and i386 only. A ppc64el or riscv64 netboot image built
@@ -14,12 +16,11 @@ use Test::More;
 # evaluated here, so this test tracks the script rather than a copy of it.
 
 my $repo_root = File::Spec->rel2abs( File::Spec->catdir( $FindBin::Bin, '..', '..' ) );
-use lib "$FindBin::Bin/../../perl-xCAT";
 require xCAT::Utils;
 my $genimage_path = File::Spec->catfile(
     $repo_root, 'xCAT-server', 'share', 'xcat', 'netboot', 'ubuntu', 'genimage'
 );
-plan skip_all => "genimage not found at $genimage_path" unless -f $genimage_path;
+die "genimage not found at $genimage_path\n" unless -f $genimage_path;
 
 my $src = do { local $/; open my $fh, '<', $genimage_path or die $!; <$fh> };
 

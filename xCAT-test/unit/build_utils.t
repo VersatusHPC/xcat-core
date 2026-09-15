@@ -6,17 +6,18 @@
 # call removed.
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Path qw(make_path);
 use File::Slurper qw(read_text write_text);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../build-utils/lib";
 use Test::More;
 
-BEGIN { use_ok('XCAT::BuildUtils') or BAIL_OUT('XCAT::BuildUtils does not load'); }
+BEGIN { use_ok('XCAT::BuildUtils') or die('XCAT::BuildUtils does not load'); }
 
 use XCAT::BuildUtils qw(
     source_date_epoch snap_release deb_version

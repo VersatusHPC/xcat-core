@@ -1,8 +1,10 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use File::Spec;
 use Test::More;
 
@@ -22,13 +24,13 @@ my $syncfiles  = slurp('xCAT-server/lib/xcat/plugins/syncfiles.pm');
 my $updatenode = slurp('xCAT-server/lib/xcat/plugins/updatenode.pm');
 my $xdsh       = slurp('xCAT-server/lib/xcat/plugins/xdsh.pm');
 
-plan skip_all => 'plugins not found'
+die "plugins not found\n"
   unless defined($syncfiles) && defined($updatenode) && defined($xdsh);
 
 # The xdcp subrequest has to state the identity the sync runs as.
 my ($call) = $syncfiles =~ /(\$subreq->\(\{[^}]*command\s*=>\s*\['xdcp'\][^}]*\})/s;
 ok( $call, 'the xdcp subrequest was located in syncfiles' )
-  or BAIL_OUT('syncfiles.pm no longer matches the expected subrequest shape');
+  or die('syncfiles.pm no longer matches the expected subrequest shape');
 
 like( $call, qr/username\s*=>/, 'the xdcp subrequest names a username' );
 

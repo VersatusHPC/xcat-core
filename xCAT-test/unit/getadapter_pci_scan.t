@@ -1,16 +1,17 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source qw(repo_path);
 
 use File::Path qw(make_path);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use POSIX qw(_exit);
 use Test::More;
 
-use XCAT::Test::File qw(repo_path);
+use XCAT::Test::Sandbox qw(replace_required assert_no_host_paths stub_bin confined_command);
 
 my $source_getadapter;
 if ( defined $ENV{XCAT_TEST_GETADAPTER} ) {
@@ -24,7 +25,7 @@ else {
     $source_getadapter =
       repo_path('xCAT-genesis-scripts/usr/bin/getadapter');
 }
-plan skip_all => "$source_getadapter is required"
+die "$source_getadapter is required\n"
   unless -f $source_getadapter && -r _;
 
 my $tmpdir = tempdir( CLEANUP => 1 );
@@ -37,20 +38,19 @@ my $stdout_file    = File::Spec->catfile( $tmpdir, 'stdout' );
 my $stderr_file    = File::Spec->catfile( $tmpdir, 'stderr' );
 my $test_interface = File::Spec->catdir( $sys_class_net, 'eth0' );
 make_path( $test_bin, $test_interface );
+# The fakes written below replace these wrappers; any other command is not found.
+stub_bin( dir => $test_bin, tools => [qw(bash sh cat grep sed awk cut tr sort uniq head tail wc ls basename dirname mkdir rm mv cp touch date sleep xargs expr env readlink)] );
 
 my $getadapter_body = read_file($source_getadapter);
-my $adapter_file_rewrites =
-  $getadapter_body =~ s{/tmp/adapterinfo}{$adapter_file}g;
-my $scan_log_rewrites =
-  $getadapter_body =~ s{/tmp/adapterscan\.log}{$scan_log}g;
-my $sysfs_rewrites =
-  $getadapter_body =~ s{/sys/class/net}{$sys_class_net}g;
-die 'Unable to sandbox getadapter adapter file'
-  unless $adapter_file_rewrites;
-die 'Unable to sandbox getadapter scan log'
-  unless $scan_log_rewrites;
-die 'Unable to sandbox getadapter sysfs paths'
-  unless $sysfs_rewrites;
+replace_required( \$getadapter_body, '/tmp/adapterinfo',     $adapter_file );
+replace_required( \$getadapter_body, '/tmp/adapterscan.log', $scan_log );
+replace_required( \$getadapter_body, '/sys/class/net',       $sys_class_net );
+# The scan result is sent with the node certificate when one exists, and the DHCP server is read
+# from the dhclient leases. Neither exists in the scratch directory.
+replace_required( \$getadapter_body, '/etc/xcat/cert.pem',    File::Spec->catfile( $tmpdir, 'cert.pem' ) );
+replace_required( \$getadapter_body, '/etc/xcat/certkey.pem', File::Spec->catfile( $tmpdir, 'certkey.pem' ) );
+replace_required( \$getadapter_body, '/var/lib/dhclient/dhclient.leases', File::Spec->catfile( $tmpdir, 'dhclient.leases' ) );
+assert_no_host_paths( $getadapter_body, root => $tmpdir, prefixes => [qw(/etc /var /root /home /boot /opt /srv /install /tftpboot /xcatpost /proc /tmp)], allow => [qr/^\s*#/] );
 write_executable( $getadapter, $getadapter_body );
 write_file( File::Spec->catfile( $test_interface, 'address' ),
     "aa:bb:cc:dd:ee:ff\n" );
@@ -164,13 +164,16 @@ done_testing();
 
 sub run_getadapter
 {
-    local %ENV = (
-        %ENV,
-        PATH                     => "$test_bin:$ENV{PATH}",
-        XCATMASTER               => '192.0.2.1',
-        XCAT_TEST_LSPCI_FIXTURE  => $lspci_fixture,
-        XCAT_TEST_LSPCI_LOG      => $lspci_log,
-        XCAT_TEST_REQUEST_COPY   => $request_copy,
+    my @command = confined_command(
+        cmd => [ 'bash', $getadapter ],
+        bin => $test_bin,
+        env => {
+            XCATMASTER              => '192.0.2.1',
+            XCAT_TEST_LSPCI_FIXTURE => $lspci_fixture,
+            XCAT_TEST_LSPCI_LOG     => $lspci_log,
+            XCAT_TEST_REQUEST_COPY  => $request_copy,
+        },
+        writable => [$tmpdir],
     );
 
     my $pid = fork();
@@ -178,7 +181,7 @@ sub run_getadapter
     if ( $pid == 0 ) {
         open( STDOUT, '>:raw', $stdout_file ) or _exit(126);
         open( STDERR, '>:raw', $stderr_file ) or _exit(126);
-        exec 'bash', $getadapter or _exit(127);
+        exec(@command) or _exit(127);
     }
     my $reaped     = waitpid( $pid, 0 );
     my $raw_status = $?;

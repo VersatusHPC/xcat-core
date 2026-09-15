@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 ## no critic (Modules::RequireFilenameMatchesPackage, TestingAndDebugging::ProhibitNoStrict, TestingAndDebugging::ProhibitNoWarnings)
 
 BEGIN {
@@ -81,7 +84,6 @@ sub subcmd {
 package main;
 
 no warnings qw(once redefine);
-use FindBin;
 use File::Spec;
 use Test::More;
 

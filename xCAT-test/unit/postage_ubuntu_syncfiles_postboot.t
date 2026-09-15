@@ -1,8 +1,10 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use Test::More;
 
 # On the Ubuntu/Debian DISKFUL install path a node's postscripts run inside the installer's
@@ -12,11 +14,9 @@ use Test::More;
 # postbootscripts, which run on the booted node. Drive that decision directly.
 
 my $repo = "$FindBin::Bin/../..";
-plan skip_all => 'Postage.pm not found' unless -r "$repo/xCAT-server/lib/perl/xCAT/Postage.pm";
+die "Postage.pm not found\n" unless -r "$repo/xCAT-server/lib/perl/xCAT/Postage.pm";
 
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
-eval { require xCAT::Postage; 1 } or plan skip_all => "could not load xCAT::Postage: $@";
+require xCAT::Postage;
 
 my $DEFERRED = "# ubuntu-deferred-postbootscripts-start-here\nsyncfiles\n"
              . "# ubuntu-deferred-postbootscripts-end-here\n";

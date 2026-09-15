@@ -1,14 +1,16 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 use File::Spec;
 use Test::More;
 
 my $plugin = File::Spec->catfile( $FindBin::Bin, '..', '..',
     'xCAT-server', 'lib', 'xcat', 'plugins', 'mknb.pm' );
-plan skip_all => 'mknb.pm not found' unless -r $plugin;
+die "mknb.pm not found\n" unless -r $plugin;
 
 open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";
 my $source = do { local $/; <$fh> };
@@ -17,8 +19,8 @@ close($fh);
 # mknb.pm needs a management node to load, so lift the routine out and drive
 # the real code on its own.
 my ($routine) = $source =~ /(sub genesis_lzma_command \{.*?\n\}\n)/s;
-BAIL_OUT('could not extract genesis_lzma_command from mknb.pm') unless $routine;
-eval "package MknbCompressor; $routine 1;" or BAIL_OUT("could not evaluate: $@");
+die('could not extract genesis_lzma_command from mknb.pm') unless $routine;
+eval "package MknbCompressor; $routine 1;" or die("could not evaluate: $@");
 
 sub command { return MknbCompressor::genesis_lzma_command(@_); }
 

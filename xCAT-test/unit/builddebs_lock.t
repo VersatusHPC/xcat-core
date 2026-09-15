@@ -10,10 +10,11 @@
 # This drives the real lock. The lock is a function, so it is called directly.
 use strict;
 use warnings;
-
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
+use File::Temp qw(tempdir);
 use lib "$FindBin::Bin/../../build-utils/lib";
 use Test::More;
 

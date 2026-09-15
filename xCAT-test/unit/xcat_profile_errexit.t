@@ -2,10 +2,12 @@
 
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
 use Test::More;
 
 my $repo_root = File::Spec->rel2abs( File::Spec->catdir( $FindBin::Bin, '..', '..' ) );
@@ -17,7 +19,7 @@ close($spec_fh);
 
 my ($profile_body) = $spec =~ m{^cat << EOF > /etc/profile\.d/xcat\.sh\n(.*?)^EOF\n}ms;
 ok( defined($profile_body), 'found the RPM-generated xcat.sh profile' )
-  or BAIL_OUT('Unable to extract xcat.sh from xCAT-client.spec');
+  or die('Unable to extract xcat.sh from xCAT-client.spec');
 
 my $tempdir = tempdir( CLEANUP => 1 );
 my $profile_path = File::Spec->catfile( $tempdir, 'xcat.sh' );
@@ -35,7 +37,7 @@ RENDER
         $render_script, 'bash', $profile_path
     );
     is( $render_status, 0, 'rendered xcat.sh using the RPM heredoc' )
-      or BAIL_OUT('Unable to render xcat.sh from xCAT-client.spec');
+      or die('Unable to render xcat.sh from xCAT-client.spec');
 }
 
 my @cases = (

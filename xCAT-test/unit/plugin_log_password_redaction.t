@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
 no warnings 'once';
 
 our @executed_commands;
@@ -14,10 +17,6 @@ BEGIN {
     };
 }
 
-use FindBin;
-use lib "$FindBin::Bin/../lib";
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use HTTP::Request;
 use POSIX qw(_exit);
 use Test::More;

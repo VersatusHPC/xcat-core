@@ -1,10 +1,10 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-
 use FindBin;
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-probe/lib/perl";
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 
 use File::Slurper qw(write_text);
 use File::Temp qw(tempdir);
@@ -95,7 +95,8 @@ chmod oct('755'), $fake_netplan;
 
 {
     no warnings 'redefine';
-    local $ENV{PATH} = "$fake_bin:$ENV{PATH}";
+    # Only the fake netplan is on PATH; a host netplan cannot answer instead.
+    local $ENV{PATH} = $fake_bin;
     local *probe_utils::_networkd_config_dirs = sub { return ($networkd_dir); };
 
     ok(probe_utils::_netplan_has_static_ip('eth2', '10.0.2.5'), 'unsupported netplan get command uses generated networkd fallback');

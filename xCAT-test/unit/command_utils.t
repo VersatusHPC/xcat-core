@@ -1,9 +1,9 @@
 use strict;
 use warnings;
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "$FindBin::Bin/../../perl-xCAT";
+use XCAT::Test::Source;
+
 
 use Cwd qw/getcwd/;
 use File::Path qw/make_path/;

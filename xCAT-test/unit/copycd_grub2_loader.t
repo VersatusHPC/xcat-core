@@ -1,19 +1,17 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source qw(repo_path);
+
 no warnings 'once';
 
 use File::Path qw(make_path);
 use File::Slurper qw(read_text write_text);
 use File::Spec;
 use File::Temp qw(tempdir);
-use FindBin;
-use lib "$FindBin::Bin/../lib";
-use lib "$FindBin::Bin/../../perl-xCAT";
-use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use Test::More;
-
-use XCAT::Test::File qw(repo_path);
 
 # copycd publishes the grub2 UEFI image of the installation media so that nodes
 # of an architecture xCAT builds no boot loader for -- riscv64 -- can net boot
@@ -21,8 +19,7 @@ use XCAT::Test::File qw(repo_path);
 # replaced, and the media of every other architecture is left alone.
 
 my $plugin = repo_path('xCAT-server/lib/xcat/plugins/anaconda.pm');
-plan skip_all => "$plugin not found" unless -r $plugin;
-$ENV{XCATROOT} ||= repo_path('xCAT-server');
+die "$plugin not found\n" unless -r $plugin;
 require $plugin;
 
 my $tftpdir;

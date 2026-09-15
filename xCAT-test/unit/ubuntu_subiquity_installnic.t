@@ -127,9 +127,16 @@ for my $case (@cases) {
             '      match:', qq(        macaddress: "$case->{mac}"),
             ($case->{setname} ne '' ? "      set-name: $case->{setname}" : ()),
             '      dhcp4: true',
+            '      dhcp4-overrides:',
+            '        use-domains: true',
         );
         is($netplan, join("\n", @expected) . "\n",
             "the netplan written for $case->{name} matches the resolved values");
+
+        # systemd-networkd defaults UseDomains to no, so a netplan carrying dhcp4: true alone
+        # drops the search domain DHCP offers, and no single-label name resolves on the node.
+        like($netplan, qr/^\s+use-domains: true$/m,
+            "the netplan for $case->{name} asks networkd to use the DHCP search domain");
     }
 }
 

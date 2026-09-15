@@ -16,27 +16,30 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $builder = repo_path('xCAT-genesis-builder/builddeb-genesis-base');
-my $module  = repo_path('xCAT-genesis-builder/dracut_105/ubuntu/module-setup.sh');
+my $builder = repo_path('xCAT-genesis-base/builddeb-genesis-base');
+my $module  = repo_path('xCAT-genesis-base/dracut_105/ubuntu/module-setup.sh');
 plan skip_all => 'builddeb-genesis-base not found' unless -f $builder;
 plan skip_all => 'ubuntu module-setup.sh not found' unless -f $module;
-plan tests => 8;
+plan tests => 9;
 
-# Mandatory commands a minimal Ubuntu server root does NOT already provide, and the package
-# that supplies each one.
-my %PACKAGE_FOR = (
-    dhclient  => 'isc-dhcp-client',
-    ifenslave => 'ifenslave',
-    hwclock   => 'util-linux-extra',
+# Mandatory commands a minimal Ubuntu server root does NOT already provide, and the packages
+# that supply each one. hwclock has two names: it left util-linux for util-linux-extra in
+# 23.04, and the build root asks apt which name this release carries.
+my %PACKAGES_FOR = (
+    dhclient  => ['isc-dhcp-client'],
+    ifenslave => ['ifenslave'],
+    hwclock   => [ 'util-linux-extra', 'util-linux' ],
 );
 
 my %mandatory = map { $_ => 1 } mandatory_commands($module);
 my @packages  = required_packages($builder);
 
-for my $command (sort keys %PACKAGE_FOR) {
+for my $command (sort keys %PACKAGES_FOR) {
+    my @provider = @{ $PACKAGES_FOR{$command} };
     ok($mandatory{$command}, "the Ubuntu dracut module installs '$command' unconditionally");
-    ok(scalar(grep { $_ eq $PACKAGE_FOR{$command} } @packages),
-       "the build root installs $PACKAGE_FOR{$command}, which provides '$command'");
+    my @named = grep { my $p = $_; grep { $_ eq $p } @packages } @provider;
+    ok(scalar @named,
+       "the build root installs @{[ join ' or ', @provider ]}, which provides '$command'");
 }
 
 # doxcat asks dhclient for the provisioning lease.
@@ -47,6 +50,10 @@ ok($mandatory{dhclient} && scalar(grep { $_ eq 'isc-dhcp-client' } @packages),
 # xCAT-genesis-base.spec runs the same verifier on the EL path.
 my $text = do { open my $fh, '<', $builder or die "$builder: $!"; local $/; <$fh> };
 like($text, qr{verify-genesis-payload}, 'builddeb-genesis-base verifies the payload it packages');
+
+# The image belongs to the release whose kernel it carries, so the builder must refuse a
+# root of any other release.
+like($text, qr{--expect-codename}, 'builddeb-genesis-base takes the release it is building for');
 
 # An absolute path in the install() output is a data file, not a command.
 sub mandatory_commands {
@@ -76,6 +83,8 @@ BASH
 }
 
 # Evaluate the assignment rather than parse it, so the list is the value the script uses.
+# add_first_available names the alternatives for a package that was renamed between releases,
+# so its candidates count too.
 sub required_packages {
     my ($path) = @_;
     my $text = do { open my $fh, '<', $path or die "$path: $!"; local $/; <$fh> };
@@ -84,5 +93,7 @@ sub required_packages {
     my $out = qx{bash -c 'set -u; $block; printf "%s\\n" \$REQUIRED_PACKAGES' 2>/dev/null};
     my @packages = grep { length } split /\s+/, ($out // '');
     die("REQUIRED_PACKAGES in $path evaluated to nothing") unless @packages;
+    push @packages, grep { length } split /\s+/, $1
+        while $text =~ /^add_first_available\s+(.+)$/mg;
     return @packages;
 }

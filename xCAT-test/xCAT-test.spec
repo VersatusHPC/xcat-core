@@ -63,9 +63,6 @@ chmod 644 $RPM_BUILD_ROOT/%{prefix}/share/doc/man1/*
 
 cp -r autotest $RPM_BUILD_ROOT/%{prefix}/share/xcat/tools
 cp -r unit $RPM_BUILD_ROOT/%{prefix}/share/xcat/tools/autotest
-# A unit test loads its support modules from "$FindBin::Bin/../lib". The xcattest cases that
-# run prove against the installed tests need them there.
-cp -r lib $RPM_BUILD_ROOT/%{prefix}/share/xcat/tools/autotest
 cp -r integration $RPM_BUILD_ROOT/%{prefix}/share/xcat/tools/autotest
 
 

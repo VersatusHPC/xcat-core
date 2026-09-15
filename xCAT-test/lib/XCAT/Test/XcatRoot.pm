@@ -7,7 +7,7 @@ use Exporter ();
 use File::Path qw(make_path);
 use File::Spec;
 use File::Temp ();
-use XCAT::Test::File qw(in_repo repo_path);
+use XCAT::Test::File qw(repo_path);
 
 our @ISA       = qw(Exporter);
 our @EXPORT_OK = qw(xcatroot);
@@ -92,14 +92,13 @@ sub _link {
 
     Descriptions: Returns a scratch XCATROOT that resolves to this checkout.
     Arguments: none
-    Returns: the path of the scratch root, or undef outside a checkout
+    Returns: the path of the scratch root
 
 =cut
 
 #-------------------------------------------------------------------------------
 sub xcatroot {
     return $root if defined $root;
-    return undef unless in_repo();
 
     $scratch = File::Temp->newdir( 'xcat-test-root-XXXXXXXX', TMPDIR => 1 );
     $root    = "$scratch";
@@ -129,10 +128,7 @@ sub xcatroot {
 sub import {
     my $class = shift;
 
-    # The xCAT-test package ships this module beside the installed tests, and xcattest cases
-    # run those tests to measure the installed product. There is no checkout to point at then.
-    my $scratch_root = xcatroot();
-    $ENV{XCATROOT} = $scratch_root if defined $scratch_root;
+    $ENV{XCATROOT} = xcatroot();
     $class->export_to_level( 1, $class, @_ );
 
     return;
@@ -160,9 +156,5 @@ that module puts the installed product ahead of the checkout in C<@INC>.
 
 The scratch directory is removed when the process ends. Its entries are symlinks, so a write
 through them reaches the checkout; use it for reading only.
-
-The xCAT-test package installs this module beside the installed unit tests, where there is no
-checkout. Loading it leaves C<$ENV{XCATROOT}> alone there, so the test measures the installed
-product, which is what an xcattest case that runs it asks for.
 
 =cut

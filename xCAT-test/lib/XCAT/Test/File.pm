@@ -9,7 +9,7 @@ use File::Basename qw(dirname);
 use File::Spec;
 use IO::Handle;
 
-our @EXPORT_OK = qw(repo_path slurp_repo_file);
+our @EXPORT_OK = qw(in_repo repo_path slurp_repo_file);
 
 my $module_dir = dirname( File::Spec->rel2abs(__FILE__) );
 my $repo_root = abs_path(
@@ -21,12 +21,20 @@ my $repo_root = abs_path(
         File::Spec->updir(),
     )
 );
-die "Unable to resolve the repository root from $module_dir: $!" unless defined $repo_root;
-my $module_path = File::Spec->catfile( $repo_root, 'xCAT-test', 'lib', 'XCAT', 'Test', 'File.pm' );
-die "Unable to locate the repository test support at $module_path" unless -f $module_path;
+
+# The xCAT-test package installs this module under /opt/xcat/share/xcat/tools/autotest/lib,
+# where nothing above it is a checkout. The copy of this file above the root is the marker.
+undef $repo_root
+    if defined $repo_root
+    && !-f File::Spec->catfile( $repo_root, 'xCAT-test', 'lib', 'XCAT', 'Test', 'File.pm' );
+
+sub in_repo {
+    return defined $repo_root;
+}
 
 sub repo_path {
     my ($relative) = @_;
+    die "Unable to locate a checkout above $module_dir" unless defined $repo_root;
     die "Repository-relative path is required" unless defined $relative && length $relative;
     die "Repository path must be relative: $relative" if File::Spec->file_name_is_absolute($relative);
     foreach my $part ( File::Spec->splitdir($relative) ) {
@@ -62,9 +70,14 @@ XCAT::Test::File - repository file helpers for source-tree tests
 
 =head1 FUNCTIONS
 
+=head2 in_repo
+
+Returns true when this module lives in a checkout. It is false in the installed package,
+where the two functions below have nothing to read.
+
 =head2 repo_path
 
-Returns the absolute path for a repository-relative path.
+Returns the absolute path for a repository-relative path. It dies outside a checkout.
 
 =head2 slurp_repo_file
 

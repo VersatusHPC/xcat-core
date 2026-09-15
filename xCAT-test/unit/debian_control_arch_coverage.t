@@ -6,6 +6,10 @@
 # build-utils/lib/XCAT/BuildUtils or, failing that, the documented set.
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 
 use FindBin;
 use Test::More;

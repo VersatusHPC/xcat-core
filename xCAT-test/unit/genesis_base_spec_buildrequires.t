@@ -3,6 +3,10 @@
 # only holds by accident, and dracut_install then installs nothing.
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";

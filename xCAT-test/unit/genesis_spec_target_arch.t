@@ -7,6 +7,10 @@
 # Expand each spec with rpmspec for every arch xCAT supports and assert the Name carries that arch.
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::Source;
+
 
 use FindBin;
 use Test::More;

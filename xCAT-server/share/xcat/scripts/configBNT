@@ -4,10 +4,6 @@
 # Configure Ethnet BNT switches
 #---------------------------------------------------------
 
-BEGIN
-{
-  $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-}
 use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 
 

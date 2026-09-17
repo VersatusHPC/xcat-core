@@ -44,11 +44,6 @@ Usage: Return macaddress
 
 =cut
 
-BEGIN
-{
-    $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-}
-
 
 use xCAT::Utils;
 use Getopt::Long;

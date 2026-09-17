@@ -10,10 +10,6 @@
 #  and xCAT commands
 #
 #####################################################
-BEGIN
-{
-    $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-}
 
 use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';

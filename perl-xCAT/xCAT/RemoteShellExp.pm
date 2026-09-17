@@ -53,11 +53,6 @@ $rc=xCAT::RemoteShellExp->remoteshellexp("t",$callback,$remoteshellcmd,$nodes,$t
 
 =cut
 
-BEGIN
-{
-    $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-}
-
 
 use xCAT::Utils;
 use Getopt::Long;

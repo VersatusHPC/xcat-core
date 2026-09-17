@@ -16,8 +16,8 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $builder = repo_path('xCAT-genesis-builder/builddeb-genesis-base');
-my $module  = repo_path('xCAT-genesis-builder/dracut_105/ubuntu/module-setup.sh');
+my $builder = repo_path('xCAT-genesis-base/builddeb-genesis-base');
+my $module  = repo_path('xCAT-genesis-base/dracut_105/ubuntu/module-setup.sh');
 die "builddeb-genesis-base not found\n" unless -f $builder;
 die "ubuntu module-setup.sh not found\n" unless -f $module;
 plan tests => 9;

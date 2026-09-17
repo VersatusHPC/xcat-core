@@ -444,6 +444,11 @@ sub process_request {
     }
 
     my $tftpdir = xCAT::TableUtils->getTftpDir();
+
+    # xcatd sets $::XCATROOT to this same expression before it requires this
+    # plugin. The value is read per request, not at load time, because a caller
+    # can change XCATROOT between requests.
+    my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
     my $requested_arch = $request->{arg}->[0];
     if (!$requested_arch) {
         $callback->({ error => "Need to specify architecture (x86, x86_64, ppc64, ppc64le, armv7hf, aarch64, riscv64 or s390x)" }, { errorcode => [1] });
@@ -456,7 +461,7 @@ sub process_request {
             $callback->({ error => "Unsupported Genesis architecture: $requested_arch", errorcode => [1] });
             return;
         }
-        my $source = "$::XCATROOT/share/xcat/netboot/genesis-openembedded/$canonical_arch";
+        my $source = "$xcatroot/share/xcat/netboot/genesis-openembedded/$canonical_arch";
         if (-d $source || -l $source) {
             $callback->({ error => "Cannot remove boot artifacts while OpenEmbedded Genesis $canonical_arch is installed", errorcode => [1] });
             return;
@@ -472,7 +477,7 @@ sub process_request {
     }
 
     my ($genesis_dir, $arch, $genesis_type) =
-      _select_genesis_source($::XCATROOT, $requested_arch);
+      _select_genesis_source($xcatroot, $requested_arch);
     unless (defined($genesis_dir) && -d $genesis_dir) {
         $callback->({ error => "Unable to find a Genesis image for architecture $requested_arch", errorcode => [1] });
         return;

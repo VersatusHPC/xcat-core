@@ -369,9 +369,9 @@ ok(
     'the legacy fs layout does not select the prebuilt path',
 );
 
-$::XCATROOT = "$tmpdir/xcatroot";
+$ENV{XCATROOT} = "$tmpdir/xcatroot";
 my $process_export =
-  "$::XCATROOT/share/xcat/netboot/genesis/ppc64";
+  "$ENV{XCATROOT}/share/xcat/netboot/genesis/ppc64";
 prepare_export($process_export, 'process kernel', 'process initramfs', 'ppc64');
 $xCAT::TableUtils::tftpdir = "$tmpdir/custom-tftpboot";
 $xCAT::NetworkUtils::normnet_addresses = {
@@ -424,11 +424,11 @@ is(
     'an incomplete marked export keeps the published initramfs',
 );
 
-$::XCATROOT = "$tmpdir/openembedded-xcatroot";
+$ENV{XCATROOT} = "$tmpdir/openembedded-xcatroot";
 my $openembedded_process_export =
-  "$::XCATROOT/share/xcat/netboot/genesis-openembedded/ppc64le";
+  "$ENV{XCATROOT}/share/xcat/netboot/genesis-openembedded/ppc64le";
 my $legacy_process_export =
-  "$::XCATROOT/share/xcat/netboot/genesis/ppc64";
+  "$ENV{XCATROOT}/share/xcat/netboot/genesis/ppc64";
 prepare_export(
     $openembedded_process_export,
     'openembedded ppc64le kernel',

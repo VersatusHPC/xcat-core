@@ -185,10 +185,10 @@ sub use_reporter_address_maps {
 }
 
 my $tmpdir = tempdir(CLEANUP => 1);
-$::XCATROOT = "$tmpdir/xcatroot";
+$ENV{XCATROOT} = "$tmpdir/xcatroot";
 make_path(
-    "$::XCATROOT/share/xcat/netboot/genesis/x86_64",
-    "$::XCATROOT/share/xcat/netboot/genesis/ppc64",
+    "$ENV{XCATROOT}/share/xcat/netboot/genesis/x86_64",
+    "$ENV{XCATROOT}/share/xcat/netboot/genesis/ppc64",
 );
 
 use_reporter_address_maps();
@@ -341,7 +341,7 @@ is(
 # riscv64 discovery boots through UEFI firmware and grub2: mknb writes one
 # grub2 configuration per network, named by the network's hex prefix the same
 # way PXELINUX files are, instead of PXELINUX/xNBA or petitboot files.
-make_path("$::XCATROOT/share/xcat/netboot/genesis/riscv64");
+make_path("$ENV{XCATROOT}/share/xcat/netboot/genesis/riscv64");
 use_reporter_address_maps();
 prepare_tftpdir($tmpdir, 'tftpboot-riscv64', 'riscv64');
 $responses = run_mknb('riscv64');
@@ -510,7 +510,7 @@ ok(
 %xCAT::TableUtils::site_extra = ();
 $xCAT::NetworkUtils::nic_ips = undef;
 
-make_path("$::XCATROOT/share/xcat/netboot/genesis-openembedded/s390x");
+make_path("$ENV{XCATROOT}/share/xcat/netboot/genesis-openembedded/s390x");
 use_reporter_address_maps();
 prepare_tftpdir($tmpdir, 'tftpboot-s390x', 's390x');
 make_path("$xCAT::TableUtils::tftpdir/pxelinux.cfg");

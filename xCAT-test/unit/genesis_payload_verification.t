@@ -13,7 +13,7 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $verifier = repo_path('xCAT-genesis-builder/verify-genesis-payload');
+my $verifier = repo_path('xCAT-genesis-base/verify-genesis-payload');
 plan skip_all => 'verify-genesis-payload not found' unless -f $verifier;
 plan tests => 22;
 

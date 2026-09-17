@@ -475,11 +475,9 @@ sub submit_request {
         my %handler_hash;
         my $usesiteglobal = 0;
 
-        # We require these only in bypass mode to reduce start up time for the normal case
-        #use lib "$::XCATROOT/lib/perl";
-        #use xCAT::NodeRange;
-        require lib;
-        lib->import("$::XCATROOT/lib/perl");
+        # Required only in bypass mode, to keep start up short for the normal path.
+        # The caller already put its include path on @INC, and these are siblings
+        # of this module, so there is nothing to add.
         require xCAT::NodeRange;
         require xCAT::Table;
 

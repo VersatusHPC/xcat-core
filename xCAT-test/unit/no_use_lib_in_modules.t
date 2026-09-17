@@ -7,22 +7,37 @@ use File::Spec;
 use FindBin;
 use Test::More;
 
-# A module that calls "use lib" rewrites @INC while it compiles, after the caller
-# has already set its own. The caller then cannot choose where the modules it
-# loads come from: use lib, -I and PERL5LIB all lose to the later prepend. Only an
-# entry point may set the include path, and it spells the root
-# ($ENV{XCATROOT} || '/opt/xcat') rather than naming a directory.
+# A module that changes @INC decides where its caller's dependencies come from.
+# It runs after the caller has set its own path and wins, so use lib, -I and
+# PERL5LIB all lose to it. Only an entry point may set the include path, and it
+# spells the root ( $ENV{XCATROOT} || '/opt/xcat' ) rather than naming a
+# directory.
+#
+# "use lib" is not the only spelling. lib->import, unshift @INC, push @INC and an
+# assignment to @INC do the same thing, so the check covers all of them.
 
-# The check is scoped per package so a package that is out of scope can be named
-# here, with the reason, instead of weakening the rule for the whole tree.
-my %SKIP = (
-    'xCAT-rmc' => 'RMC is not built for Debian, not deployed and not tested here',
+my %SKIP_PACKAGE = (
+    'xCAT-rmc' => 'not built for Debian, not deployed and not tested here',
+);
+
+# Exemptions are per file with a reason, so an exception is visible in the test
+# output instead of hidden in a pattern.
+my %EXEMPT = (
+    'xCAT-server/lib/perl/xCAT_plugin/openbmc.pm' =>
+      'reaches HTTP::Async, a declared dependency that installs outside the vendor path',
+);
+
+my @PATTERNS = (
+    [ qr/^\s*use\s+lib\b/                   => 'use lib' ],
+    [ qr/\blib->import\b/                   => 'lib->import' ],
+    [ qr/\bunshift\s*\(?\s*\@INC\b/         => 'unshift @INC' ],
+    [ qr/\bpush\s*\(?\s*\@INC\b/            => 'push @INC' ],
+    [ qr/^\s*\@INC\s*=/                     => '@INC assignment' ],
 );
 
 my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 die "Unable to resolve the repository root from $FindBin::Bin" unless -d $repo_root;
 
-# Package = the top level directory of the checkout, e.g. perl-xCAT or xCAT-server.
 sub package_of {
     my ($path) = @_;
     my $rel = File::Spec->abs2rel( $path, $repo_root );
@@ -39,14 +54,28 @@ find(
             return unless /\.pm$/;
             return if $File::Find::name =~ m{/(?:dist|\.git)/};
             my $package = package_of($File::Find::name);
-            return if exists $SKIP{$package};
+            return if exists $SKIP_PACKAGE{$package};
+            ( my $rel = $File::Find::name ) =~ s{^\Q$repo_root\E/}{};
+            return if exists $EXEMPT{$rel};
             $scanned{$package}++;
+
             open( my $fh, '<', $File::Find::name ) or die "Unable to read $File::Find::name: $!";
+            my $aix_guard = 0;
             while ( my $line = <$fh> ) {
                 next if $line =~ /^\s*#/;
-                next unless $line =~ /^\s*use\s+lib\b/;
-                ( my $rel = $File::Find::name ) =~ s{^\Q$repo_root\E/}{};
-                push @{ $offenders{$package} }, "$rel:$.: $line";
+
+                # The AIX branch prepends the perl 5.8.2 paths that xCAT ships its
+                # dependencies against. It cannot run anywhere else, and no lane
+                # builds or tests AIX, so removing it is a change nothing here can
+                # verify.
+                $aix_guard = 4 if $line =~ /\$\^O\s*=~\s*\/\^aix\/i/;
+                if ($aix_guard) { $aix_guard--; next }
+
+                foreach my $rule (@PATTERNS) {
+                    my ( $re, $name ) = @$rule;
+                    next unless $line =~ $re;
+                    push @{ $offenders{$package} }, "$rel:$.: [$name] $line";
+                }
             }
             close($fh);
         },
@@ -65,14 +94,11 @@ ok( $scanned{'xCAT-server'}, 'the scan reached xCAT-server' );
 
 foreach my $package ( sort keys %scanned ) {
     my $bad = $offenders{$package} || [];
-    is( scalar(@$bad), 0, "no perl module in $package calls use lib" )
-      or diag( "use lib belongs in an entry point, not a module:\n" . join( '', @$bad ) );
+    is( scalar(@$bad), 0, "no perl module in $package changes \@INC" )
+      or diag( "the include path belongs to the entry point:\n" . join( '', @$bad ) );
 }
 
-foreach my $package ( sort keys %SKIP ) {
-    my $dir = File::Spec->catdir( $repo_root, $package );
-    next unless -d $dir;
-    note("skipped $package: $SKIP{$package}");
-}
+note("skipped $_: $SKIP_PACKAGE{$_}") for sort keys %SKIP_PACKAGE;
+note("exempt $_: $EXEMPT{$_}")        for sort keys %EXEMPT;
 
 done_testing();

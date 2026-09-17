@@ -7,6 +7,8 @@ BEGIN
       :                  '/usr';
 }
 use lib "$::XCATROOT/lib/perl";
+# DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
+use lib "$::XCATROOT/xdsh";
 use strict;
 
 use Getopt::Long;

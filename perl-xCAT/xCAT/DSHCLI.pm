@@ -23,7 +23,6 @@ use xCAT::TableUtils;
 use xCAT::NodeRange;
 use xCAT::DSHCLI;
 use Data::Dumper;
-use lib '/opt/xcat/xdsh';
 our @dsh_available_contexts = ();
 our @dsh_valid_contexts     = ();
 

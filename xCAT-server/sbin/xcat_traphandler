@@ -1,6 +1,10 @@
 #!/usr/bin/env perl
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+# This process loads plugins with require, and several of them read $::XCATROOT
+# without setting it. A lexical does not cross into a required file, so the
+# global is what carries the root to them.
+$::XCATROOT = $ENV{XCATROOT} || '/opt/xcat';
 my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use Sys::Syslog;
 use xCAT::Table;

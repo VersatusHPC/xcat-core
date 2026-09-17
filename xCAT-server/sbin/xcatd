@@ -42,6 +42,10 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+# This process loads plugins with require, and several of them read $::XCATROOT
+# without setting it. A lexical does not cross into a required file, so the
+# global is what carries the root to them.
+$::XCATROOT = $ENV{XCATROOT} || '/opt/xcat';
 my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
 use lib "$xcatroot/xdsh";

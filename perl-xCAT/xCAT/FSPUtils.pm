@@ -1,10 +1,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::FSPUtils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 require xCAT::Table;
 use POSIX qw(ceil);
@@ -270,7 +270,7 @@ sub fsp_api_action {
 
     #    my $user 	   = "HMC";
     #    my $password   = "abc123";
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
     my $id          = 1;
     my $fsp_name    = ();
     my $fsp_ip      = ();
@@ -446,7 +446,7 @@ sub fsp_state_action {
     my $attrs     = shift;
     my $action    = shift;
     my $tooltype  = shift;
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
     my $id          = 0;
     my $fsp_name    = ();
     my $fsp_ip      = ();
@@ -545,7 +545,7 @@ sub fsp_api_create_partition {
 
     #    my $user 	   = "HMC";
     #    my $password   = "abc123";
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
     my $id          = 0;
     my $fsp_name    = ();
     my $fsp_ip      = ();

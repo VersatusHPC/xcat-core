@@ -2,10 +2,11 @@
 
 package xCAT::DSHCore;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
+
 use locale;
 use strict;
 use Socket;
@@ -713,10 +714,10 @@ sub pping_hostnames
     # read site table, usefping attribute
     # if set then run pping -f to use fping
     # this fixes a broken nmap in Redhat 6.2 with ip alias (3512)
-    my $cmd      = "$::XCATROOT/bin/pping $hostname_list";             # default
+    my $cmd      = "$xcatroot/bin/pping $hostname_list";             # default
     my @usefping = xCAT::TableUtils->get_site_attribute("usefping");
     if ((defined($usefping[0])) && ($usefping[0] eq "1")) {
-        $cmd = "$::XCATROOT/bin/pping -f  $hostname_list";
+        $cmd = "$xcatroot/bin/pping -f  $hostname_list";
     }
 
     #my $rsp={};

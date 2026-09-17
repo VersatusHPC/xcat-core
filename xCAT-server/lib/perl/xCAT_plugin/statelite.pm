@@ -1,9 +1,10 @@
 package xCAT_plugin::statelite;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::Table;
 use Getopt::Long;
 use File::Basename;
@@ -102,7 +103,7 @@ sub process_request {
         }
 
         #load the module in memory
-        eval { require("$::XCATROOT/lib/perl/xCAT/Table.pm") };
+        eval { require("$xcatroot/lib/perl/xCAT/Table.pm") };
         if ($@) {
             $callback->({ error => [$@], errorcode => [1] });
             return;
@@ -206,12 +207,12 @@ sub process_request {
     umask($oldmask);
 
     my $distname = $osver;
-    unless (-r "$::XCATROOT/share/xcat/netboot/$distname/" or not $distname) {
+    unless (-r "$xcatroot/share/xcat/netboot/$distname/" or not $distname) {
         chop($distname);
     }
 
     unless ($distname) {
-        $callback->({ error => ["Unable to find $::XCATROOT/share/xcat/netboot directory for $osver"], errorcode => [1] });
+        $callback->({ error => ["Unable to find $xcatroot/share/xcat/netboot directory for $osver"], errorcode => [1] });
         return;
     }
 
@@ -226,7 +227,7 @@ sub process_request {
 
         $exlistloc = xCAT::SvrUtils->get_exlist_file_name("$installroot/custom/netboot/$distname", $profile, $osver, $arch);
         unless ($exlistloc) {
-            $exlistloc = xCAT::SvrUtils->get_exlist_file_name("$::XCATROOT/share/xcat/netboot/$distname", $profile, $osver, $arch);
+            $exlistloc = xCAT::SvrUtils->get_exlist_file_name("$xcatroot/share/xcat/netboot/$distname", $profile, $osver, $arch);
         }
     }
 
@@ -237,7 +238,7 @@ sub process_request {
         foreach my $synclistfile (@filelist) {
             if ( -f $synclistfile) {
                 print "sync files from $synclistfile to the $rootimg_dir\n";
-                `$::XCATROOT/bin/xdcp -i $rootimg_dir -F $synclistfile`;
+                `$xcatroot/bin/xdcp -i $rootimg_dir -F $synclistfile`;
             }
         }
     }
@@ -474,9 +475,9 @@ sub process_request {
 
     # rh5,rh6.1 to rh6.4 use rc.statelite.ppc.redhat, otherwise use rc.statelite
     if (($osver =~ m/^rh[a-zA-Z]*5/) or ($osver =~ m/^rh[a-zA-Z]*6(\.)?[1-4]$/) and $arch eq "ppc64") { # special case for redhat5/6.x on PPC64
-        system("cp -a $::XCATROOT/share/xcat/netboot/add-on/statelite/rc.statelite.ppc.redhat $rootimg_dir/etc/init.d/statelite");
+        system("cp -a $xcatroot/share/xcat/netboot/add-on/statelite/rc.statelite.ppc.redhat $rootimg_dir/etc/init.d/statelite");
     } else {
-        system("cp -a $::XCATROOT/share/xcat/netboot/add-on/statelite/rc.statelite $rootimg_dir/etc/init.d/statelite");
+        system("cp -a $xcatroot/share/xcat/netboot/add-on/statelite/rc.statelite $rootimg_dir/etc/init.d/statelite");
     }
 
     # newly-introduced code for the rootfs with "ramdisk" as its type

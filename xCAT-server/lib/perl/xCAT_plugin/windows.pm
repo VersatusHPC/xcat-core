@@ -1,11 +1,12 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::windows;
+
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use strict;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
@@ -407,10 +408,10 @@ sub mkinstall
             }
 
             my $custmplpath = "$installroot/custom/install/windows";
-            my $tmplpath    = "$::XCATROOT/share/xcat/install/windows";
+            my $tmplpath    = "$xcatroot/share/xcat/install/windows";
             if ($os =~ /^hyperv/) {
                 $custmplpath = "$installroot/custom/install/hyperv";
-                $tmplpath    = "$::XCATROOT/share/xcat/install/hyperv";
+                $tmplpath    = "$xcatroot/share/xcat/install/hyperv";
             }
             $tmplfile = xCAT::SvrUtils::get_tmpl_file_name($custmplpath, $profile, $os, $arch);
             if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name($tmplpath, $profile, $os, $arch); }
@@ -464,9 +465,9 @@ sub mkinstall
             "nextdestiny.ps1",
         );
         foreach my $utilfile (@utilfiles) {
-            unless (-r "$installroot/utils/windows/$utilfile" and stat("$::XCATROOT/share/xcat/netboot/windows/$utilfile")->mtime <= stat("$installroot/utils/windows/$utilfile")->mtime) {
+            unless (-r "$installroot/utils/windows/$utilfile" and stat("$xcatroot/share/xcat/netboot/windows/$utilfile")->mtime <= stat("$installroot/utils/windows/$utilfile")->mtime) {
                 mkpath("$installroot/utils/windows/");
-                copy("$::XCATROOT/share/xcat/netboot/windows/$utilfile", "$installroot/utils/windows/$utilfile");
+                copy("$xcatroot/share/xcat/netboot/windows/$utilfile", "$installroot/utils/windows/$utilfile");
             }
         }
         if (-r "$tmplfile") {
@@ -527,9 +528,9 @@ sub mkinstall
             copy("$tftpdir/mypostscripts/mypostscript.$node", "$installroot/mypostscripts/mypostscript.$node");
         }
 
-        if (-f "$::XCATROOT/share/xcat/netboot/detectefi.exe" and not -f "$installroot/utils/detectefi.exe") {
+        if (-f "$xcatroot/share/xcat/netboot/detectefi.exe" and not -f "$installroot/utils/detectefi.exe") {
             mkpath("$installroot/utils/");
-            copy("$::XCATROOT/share/xcat/netboot/detectefi.exe", "$installroot/utils/detectefi.exe");
+            copy("$xcatroot/share/xcat/netboot/detectefi.exe", "$installroot/utils/detectefi.exe");
         }
 
         my $partcfg;

@@ -7,11 +7,6 @@
 
 package xCAT_plugin::kmodules;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 require xCAT::Table;
 require xCAT::Utils;
 require xCAT::TableUtils;

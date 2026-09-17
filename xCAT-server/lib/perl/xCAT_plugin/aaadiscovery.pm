@@ -2,10 +2,6 @@
 # The first module to deal with hardware discovery request, write the request into "discoverydata" table only
 package xCAT_plugin::aaadiscovery;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::DiscoveryUtils;
 use xCAT::NetworkUtils;
 

@@ -20,10 +20,6 @@
 
 package xCAT_plugin::toolscenter;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use Storable qw(dclone);
 use Sys::Syslog;
 use Thread qw(yield);

@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::monctrlcmds;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use xCAT::NodeRange;
 use xCAT::Table;
@@ -101,7 +102,7 @@ sub preprocess_request
 
             #print "allnodes=@$allnodes\n";
             my $pname       = $a_ret[1];
-            my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+            my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
             my $module_name = "xCAT_monitoring::$pname";
             undef $SIG{CHLD};
             if (($command eq "monshow") && (@$allnodes == 0) && ($a_ret[2] & 0x2 != 0)) {
@@ -395,7 +396,7 @@ sub preprocess_monstart
             }
         }
 
-        my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         if (!-e $file_name) {
             my $rsp = {};
             $rsp->{data}->[0] = "File $file_name does not exist.";
@@ -606,7 +607,7 @@ sub preprocess_monstop
             }
         }
 
-        my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         if (!-e $file_name) {
             my $rsp = {};
             $rsp->{data}->[0] = "File $file_name does not exist.";
@@ -787,7 +788,7 @@ sub monls {
 
     my $usetab     = 0;
     my %names      = ();
-    my $plugin_dir = "$::XCATROOT/lib/perl/xCAT_monitoring";
+    my $plugin_dir = "$xcatroot/lib/perl/xCAT_monitoring";
     if (@ARGV > 0)
     {
         $names{ $ARGV[0] } = 0;
@@ -824,7 +825,7 @@ sub monls {
                     #find out the monitoring plugin file and module name for the product
                     my $rsp = {};
 
-                    my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+                    my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
                     my $module_name = "xCAT_monitoring::$pname";
 
                     #load the module in memory
@@ -862,7 +863,7 @@ sub monls {
             my $rsp = {};
 
             #find out the monitoring plugin file and module name for the product
-            my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+            my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
             my $module_name = "xCAT_monitoring::$pname";
 
             #load the module in memory
@@ -1026,7 +1027,7 @@ sub monadd {
     else {
         #@product_names=split(/,/, $ARGV[0]);
         $pname = $ARGV[0];
-        my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         if (!-e $file_name) {
             my $rsp = {};
             $rsp->{data}->[0] = "File $file_name does not exist.";
@@ -1293,7 +1294,7 @@ sub monrm {
 
         #remove the postscripts for the module from the postscript table
         no strict "refs";
-        my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         my $module_name = "xCAT_monitoring::$pname";
         if (!-e $file_name) {
             return 0;
@@ -1459,7 +1460,7 @@ sub preprocess_moncfg
             }
         }
 
-        my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         if (!-e $file_name) {
             my $rsp = {};
             $rsp->{data}->[0] = "File $file_name does not exist.";
@@ -1664,7 +1665,7 @@ sub preprocess_mondecfg
             }
         }
 
-        my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         if (!-e $file_name) {
             my $rsp = {};
             $rsp->{data}->[0] = "File $file_name does not exist.";
@@ -1918,7 +1919,7 @@ sub preprocess_monshow
         return (1, "");
     }
 
-    my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+    my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
     if (!-e $file_name) {
         my $rsp = {};
         $rsp->{data}->[0] = "File $file_name does not exist.";

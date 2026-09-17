@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::debian;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
@@ -411,7 +412,7 @@ sub copyAndAddCustomizations {
     copy($source, $dest);
 
     #next, we apply xCAT customizations to enhance debian installer..
-    chdir("$::XCATROOT/share/xcat/install/debian/initoverlay");
+    chdir("$xcatroot/share/xcat/install/debian/initoverlay");
     system("find . |cpio -o -H newc | gzip -c - -9 >> $dest");
 }
 
@@ -859,11 +860,11 @@ sub mkinstall {
     xCAT::MsgUtils->trace($verbose_on_off, "d", "debian->mkinstall: installroot=$installroot");
 
     # Check whether the default getinstdisk script exist, if so, copy it into /install/autoinst/
-    if (-r "$::XCATROOT/share/xcat/install/scripts/getinstdisk") {
+    if (-r "$xcatroot/share/xcat/install/scripts/getinstdisk") {
         if (!(-e "$installroot/autoinst")) {
             mkdir("$installroot/autoinst");
         }
-        copy("$::XCATROOT/share/xcat/install/scripts/getinstdisk", "$installroot/autoinst/getinstdisk");
+        copy("$xcatroot/share/xcat/install/scripts/getinstdisk", "$installroot/autoinst/getinstdisk");
     }
 
     my $node;
@@ -955,7 +956,7 @@ sub mkinstall {
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'}, "subiquity");
                         }
                         if (!$tmplfile) {
-                            $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                            $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$pltfrm",
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         }
 
@@ -971,7 +972,7 @@ sub mkinstall {
                         my $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$pltfrm",
                             $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         if (!$pkglistfile) {
-                            $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                            $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$pltfrm",
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         }
 
@@ -1032,12 +1033,12 @@ sub mkinstall {
 
             $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
             if (!$tmplfile) {
-                $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos);
+                $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos);
             }
 
             $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
             if (!$pkglistfile) {
-                $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos);
+                $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos);
             }
 
             $pkgdir = "$installroot/$os/$arch";
@@ -1092,7 +1093,7 @@ sub mkinstall {
         if ($imagename) {
             $tmperr = "Unable to find template file: $tmplfile";
         } else {
-            $tmperr = "Unable to find template in $installroot/custom/install/$platform or $::XCATROOT/share/xcat/install/$platform (for $profile/$os/$arch combination)";
+            $tmperr = "Unable to find template in $installroot/custom/install/$platform or $xcatroot/share/xcat/install/$platform (for $profile/$os/$arch combination)";
         }
         if (-r "$tmplfile") {
             my $autoinstfile = "$installroot/autoinst/" . $node;
@@ -1132,15 +1133,15 @@ sub mkinstall {
         }
 
         # maybe Debian will decide to use subiquity at some point?
-        my $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform";
+        my $prescript = "$xcatroot/share/xcat/install/scripts/pre.$platform";
         if (using_subiquity($os,$tmplfile)) {
             $prescript = $prescript . ".subiquity";
         }
-        my $postscript = "$::XCATROOT/share/xcat/install/scripts/post.$platform";
+        my $postscript = "$xcatroot/share/xcat/install/scripts/post.$platform";
 
         # for powerkvm VM ubuntu LE#
         if ($arch =~ /ppc64/i and $platform eq "ubuntu") {
-            $prescript = "$::XCATROOT/share/xcat/install/scripts/pre.$platform.ppc64";
+            $prescript = "$xcatroot/share/xcat/install/scripts/pre.$platform.ppc64";
         }
 
 

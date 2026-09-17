@@ -34,6 +34,11 @@
 #TODO: longer term, either figure out a way to properly implement it or
 #      document it as a limitation for SQLite configurations
 package xCAT::Table;
+
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 use xCAT::MsgUtils;
 use Sys::Syslog;
 use Storable qw/freeze thaw store_fd fd_retrieve/;
@@ -44,11 +49,6 @@ use POSIX qw/WNOHANG/;
 use Time::HiRes qw (sleep);
 use Safe;
 my $evalcpt = new Safe;
-
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
 
 my $cachethreshold = 16; #How many nodes in 'getNodesAttribs' before switching to full DB retrieval
 
@@ -1295,7 +1295,7 @@ sub updateschema
             # can be used in case the restore fails
             # put in /tmp/<tablename.csv.pid>
             my $backuptable = "/tmp/$tn.csv.$$";
-            my $cmd         = "$::XCATROOT/sbin/tabdump $tn > $backuptable";
+            my $cmd         = "$xcatroot/sbin/tabdump $tn > $backuptable";
             `$cmd`;
             $msg = "updateschema: Backing up table before key change, $cmd";
             xCAT::MsgUtils->message("S", $msg);

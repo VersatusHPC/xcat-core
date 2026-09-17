@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::monitorctrl;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use Sys::Syslog qw(:standard :extended);
 use xCAT::NodeRange;
@@ -400,7 +401,7 @@ sub stopMonitoring {
             $module_name = $aRef->[1];
         }
         else {
-            my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$_.pm";
+            my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$_.pm";
             $module_name = "xCAT_monitoring::$_";
 
             #load the module in memory
@@ -471,7 +472,7 @@ sub stopNodeStatusMonitoring {
             my $aRef = $PRODUCT_LIST{$pname};
             $module_name = $aRef->[1];
         } else {
-            my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+            my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
             $module_name = "xCAT_monitoring::$pname";
 
             #load the module in memory
@@ -810,7 +811,7 @@ sub refreshProductList {
                 }
 
                 #find out the monitoring plugin file and module name for the product
-                my $file_name = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+                my $file_name = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
                 my $module_name = "xCAT_monitoring::$pname";
 
                 #load the module in memory
@@ -1365,7 +1366,7 @@ sub config {
 
     foreach (@product_names) {
         if (exists($all{$_})) {
-            my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$_.pm";
+            my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$_.pm";
             my $module_name = "xCAT_monitoring::$_";
 
             #load the module in memory
@@ -1434,7 +1435,7 @@ sub deconfig {
 
     foreach (@product_names) {
         if (exists($all{$_})) {
-            my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$_.pm";
+            my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$_.pm";
             my $module_name = "xCAT_monitoring::$_";
 
             #load the module in memory
@@ -1531,7 +1532,7 @@ sub getNodeConfData {
 
     #get node conf data from each plug-in module
     foreach my $pname (keys(%names)) {
-        my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$pname.pm";
+        my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$pname.pm";
         my $module_name = "xCAT_monitoring::$pname";
 
         #load the module in memory
@@ -1594,7 +1595,7 @@ sub show {
 
     foreach (@product_names) {
         if (exists($all{$_})) {
-            my $file_name   = "$::XCATROOT/lib/perl/xCAT_monitoring/$_.pm";
+            my $file_name   = "$xcatroot/lib/perl/xCAT_monitoring/$_.pm";
             my $module_name = "xCAT_monitoring::$_";
 
             #load the module in memory

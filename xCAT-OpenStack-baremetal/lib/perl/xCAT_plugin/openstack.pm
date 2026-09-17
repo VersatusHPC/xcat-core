@@ -1,10 +1,6 @@
 # IBM(c) 2013 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::openstack;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::Utils;
 use xCAT::TableUtils;
 use xCAT::SvrUtils;

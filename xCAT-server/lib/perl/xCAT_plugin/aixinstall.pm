@@ -9,10 +9,11 @@
 
 package xCAT_plugin::aixinstall;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use Sys::Hostname;
 use File::Basename;
 use xCAT::NodeRange;
@@ -2933,7 +2934,7 @@ sub mknimimage
                 push @{ $rsp->{data} },
                   "Setting site.useNFSv4onAIX to yes.\n";
                 xCAT::MsgUtils->message("I", $rsp, $callback);
-                my $cmd = "$::XCATROOT/sbin/chtab key=useNFSv4onAIX site.value=yes";
+                my $cmd = "$xcatroot/sbin/chtab key=useNFSv4onAIX site.value=yes";
                 my $out = xCAT::Utils->runcmd("$cmd", -1);
                 if ($::RUNCMD_RC != 0)
                 {
@@ -3710,9 +3711,9 @@ sub mknimimage
             chomp $rootpw;
             my $pwcmd;
             if ($method) {
-                $pwcmd = qq~$::XCATROOT/bin/xcatchroot -i $spot_name "/usr/bin/echo root:$rootpw | /usr/bin/chpasswd -e -c" >/dev/null 2>&1~;
+                $pwcmd = qq~$xcatroot/bin/xcatchroot -i $spot_name "/usr/bin/echo root:$rootpw | /usr/bin/chpasswd -e -c" >/dev/null 2>&1~;
             } else {
-                $pwcmd = qq~$::XCATROOT/bin/xcatchroot -i $spot_name "/usr/bin/echo root:$rootpw | /usr/bin/chpasswd -c" >/dev/null 2>&1~;
+                $pwcmd = qq~$xcatroot/bin/xcatchroot -i $spot_name "/usr/bin/echo root:$rootpw | /usr/bin/chpasswd -c" >/dev/null 2>&1~;
             }
 
             # secure passwd in verbose mode
@@ -7395,7 +7396,7 @@ sub updatespot
         }
         if (!xCAT::InstUtils->is_me($nimprime))
         {
-            $cmd = "$::XCATROOT/bin/xdcp $nimprime $odmscript_mn $odmscript";
+            $cmd = "$xcatroot/bin/xdcp $nimprime $odmscript_mn $odmscript";
         }
         else
         {
@@ -7540,7 +7541,7 @@ sub update_dd_boot
     my $cmd;
     if (!xCAT::InstUtils->is_me($nimprime))
     {
-        $cmd = "$::XCATROOT/bin/xdcp $nimprime -P $dd_boot_file /tmp";
+        $cmd = "$xcatroot/bin/xdcp $nimprime -P $dd_boot_file /tmp";
         $dd_boot_file_mn = "/tmp/rc.dd_boot._$nimprime";
     }
     else
@@ -7788,7 +7789,7 @@ qq~\n\t# xCAT support #3\n\tif [ -z "\$(odmget -qattribute=syscons CuAt)" ] \n\t
         }
         if (!xCAT::InstUtils->is_me($nimprime))
         {
-            $cmd = "$::XCATROOT/bin/xdcp $nimprime $dd_boot_file_mn $dd_boot_file";
+            $cmd = "$xcatroot/bin/xdcp $nimprime $dd_boot_file_mn $dd_boot_file";
         }
         else
         {
@@ -7967,7 +7968,7 @@ sub prenimnodecust
             my $cmdstr;
             if (!xCAT::InstUtils->is_me($nimprime))
             {
-                $cmdstr = "$::XCATROOT/bin/xdsh $nimprime ";
+                $cmdstr = "$xcatroot/bin/xdsh $nimprime ";
             }
             else
             {
@@ -7982,7 +7983,7 @@ sub prenimnodecust
                 {
 
                     $rcpcmd =
-"$cmdstr '$::XCATROOT/bin/xdcp $snkey $rpm_srcdir/$pkg $rpm_srcdir'";
+"$cmdstr '$xcatroot/bin/xdcp $snkey $rpm_srcdir/$pkg $rpm_srcdir'";
 
                     my $output = xCAT::Utils->runcmd("$rcpcmd", -1);
                     if ($::RUNCMD_RC != 0)
@@ -7997,7 +7998,7 @@ sub prenimnodecust
                 else
                 {
                     $rcpcmd .=
-"$cmdstr '$::XCATROOT/bin/xdcp $snkey $instp_srcdir/$pkg $instp_srcdir'";
+"$cmdstr '$xcatroot/bin/xdcp $snkey $instp_srcdir/$pkg $instp_srcdir'";
 
                     my $output = xCAT::Utils->runcmd("$rcpcmd", -1);
                     if ($::RUNCMD_RC != 0)
@@ -8017,7 +8018,7 @@ sub prenimnodecust
     my $cmdstr;
     if (!xCAT::InstUtils->is_me($nimprime))
     {
-        $cmdstr = "$::XCATROOT/bin/xdsh $nimprime ";
+        $cmdstr = "$xcatroot/bin/xdsh $nimprime ";
     }
     else
     {
@@ -8039,7 +8040,7 @@ sub prenimnodecust
                 {
                     my $bnd_file_loc = $bndloc{$bnd};
                     my $bnddir       = dirname($bnd_file_loc);
-                    my $cmd = "$cmdstr '$::XCATROOT/bin/xdcp $snkey $bnd_file_loc $bnddir'";
+                    my $cmd = "$cmdstr '$xcatroot/bin/xdcp $snkey $bnd_file_loc $bnddir'";
                     my $output = xCAT::Utils->runcmd("$cmd", -1);
                     if ($::RUNCMD_RC != 0)
                     {
@@ -9229,7 +9230,7 @@ sub copyres
     chomp $dir;
 
     # make sure the directory loc is created on the SN
-    my $cmd = "$::XCATROOT/bin/xdsh $dest '/usr/bin/mkdir -m 644 -p $dir'";
+    my $cmd = "$xcatroot/bin/xdsh $dest '/usr/bin/mkdir -m 644 -p $dir'";
 
     my $output = xCAT::Utils->runcmd("$cmd", -1);
     if ($::RUNCMD_RC != 0)
@@ -9245,7 +9246,7 @@ sub copyres
     }
 
     # how much free space is available on the SN ($dest)?
-    my $dfcmd = qq~$::XCATROOT/bin/xdsh $dest /usr/bin/df -m $dir | /usr/bin/awk '(NR==2)'~;
+    my $dfcmd = qq~$xcatroot/bin/xdsh $dest /usr/bin/df -m $dir | /usr/bin/awk '(NR==2)'~;
 
     $output = xCAT::Utils->runcmd("$dfcmd", -1);
     if ($::RUNCMD_RC != 0)
@@ -9301,7 +9302,7 @@ sub copyres
         # how much should we increase FS?
         $addsize = int($needspace - $free_space);
         my $sizeattr = "-a size=+$addsize" . "M";
-        my $chcmd = "$::XCATROOT/bin/xdsh $dest /usr/sbin/chfs $sizeattr $FSname";
+        my $chcmd = "$xcatroot/bin/xdsh $dest /usr/sbin/chfs $sizeattr $FSname";
 
         my $output;
         $output = xCAT::Utils->runcmd("$chcmd", -1);
@@ -9331,7 +9332,7 @@ sub copyres
     {
 
         # if NIM primary is another system
-        $cpcmd = "$::XCATROOT/bin/xdsh $nimprime ";
+        $cpcmd = "$xcatroot/bin/xdsh $nimprime ";
     }
     else
     {
@@ -9366,7 +9367,7 @@ sub copyres
         }
 
         # copy the file to the SN
-        $cpcmd .= "$::XCATROOT/bin/xdcp $dest $bkfile $dir 2>/dev/null";
+        $cpcmd .= "$xcatroot/bin/xdcp $dest $bkfile $dir 2>/dev/null";
     }
     elsif ($restype eq 'spot')
     {
@@ -9394,7 +9395,7 @@ sub copyres
         }
 
         # copy the file to the SN
-        $cpcmd .= "$::XCATROOT/bin/xdcp $dest $bkfile $dir 2>/dev/null";
+        $cpcmd .= "$xcatroot/bin/xdcp $dest $bkfile $dir 2>/dev/null";
 
     }
     else
@@ -9404,7 +9405,7 @@ sub copyres
         # covers- bosinst_data, script, resolv_conf, installp_bundle, mksysb
         # - the NIM location includes the actual file name
         my $dir = dirname($resloc);
-        $cpcmd .= "$::XCATROOT/bin/xdcp $dest $resloc $dir 2>/dev/null";
+        $cpcmd .= "$xcatroot/bin/xdcp $dest $resloc $dir 2>/dev/null";
     }
 
     $output = xCAT::Utils->runcmd("$cpcmd", -1);
@@ -9516,7 +9517,7 @@ sub copyres2
         foreach my $dest (@{ $reshash{$res}{snlist} })
         {
             # how much free space is available on the SN ($dest)?
-            my $dfcmd = qq~$::XCATROOT/bin/xdsh $dest /usr/bin/df -m $dir | /usr/bin/awk '(NR==2)'~;
+            my $dfcmd = qq~$xcatroot/bin/xdsh $dest /usr/bin/df -m $dir | /usr/bin/awk '(NR==2)'~;
 
             $output = xCAT::Utils->runcmd("$dfcmd", -1);
             if ($::RUNCMD_RC != 0)
@@ -9554,7 +9555,7 @@ sub copyres2
                 # how much should we increase FS?
                 $addsize = int($needspace - $free_space);
                 my $sizeattr = "-a size=+$addsize" . "M";
-                my $chcmd = "$::XCATROOT/bin/xdsh $dest /usr/sbin/chfs $sizeattr $FSname";
+                my $chcmd = "$xcatroot/bin/xdsh $dest /usr/sbin/chfs $sizeattr $FSname";
                 my $output;
                 $output = xCAT::Utils->runcmd("$chcmd", -1);
                 if ($::RUNCMD_RC != 0)
@@ -9585,7 +9586,7 @@ sub copyres2
             # ex. /install/nim/lpp_source
 
             # copy the file to the SNs
-            $cpcmd = qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $resloc  $SNlist:$dir 2>/dev/null~;
+            $cpcmd = qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $resloc  $SNlist:$dir 2>/dev/null~;
         }
         elsif ($restype eq 'spot')
         {
@@ -9600,7 +9601,7 @@ sub copyres2
             # ex. /install/nim/spot
 
             # copy the file to the SN
-            $cpcmd = qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $loc  $SNlist:$dir 2>/dev/null~;
+            $cpcmd = qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $loc  $SNlist:$dir 2>/dev/null~;
 
         }
         else
@@ -9609,7 +9610,7 @@ sub copyres2
             # - bosinst_data, script, resolv_conf, installp_bundle, mksysb
             # - the NIM location includes the actual file name
             my $dir = dirname($resloc);
-            $cpcmd = qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $resloc  $SNlist:$dir 2>/dev/null~;
+            $cpcmd = qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $resloc  $SNlist:$dir 2>/dev/null~;
         }
 
         if ($::VERBOSE)
@@ -9719,7 +9720,7 @@ sub doSNcopy2
     my $snlist = join(',', @SNlist);
 
     # copy the /etc/hosts file all the SNs
-    my $rcpcmd = "$::XCATROOT/bin/xdcp $snlist /etc/hosts /etc ";
+    my $rcpcmd = "$xcatroot/bin/xdcp $snlist /etc/hosts /etc ";
     my $output = xCAT::Utils->runcmd("$rcpcmd", -1);
     if ($::RUNCMD_RC != 0)
     {
@@ -9729,7 +9730,7 @@ sub doSNcopy2
     }
 
     # update the postscripts on the SNs
-    my $cpcmd = "$::XCATROOT/bin/xdcp $snlist -p -R $install_dir/postscripts/* $install_dir/postscripts ";
+    my $cpcmd = "$xcatroot/bin/xdcp $snlist -p -R $install_dir/postscripts/* $install_dir/postscripts ";
     $output = xCAT::Utils->runcmd("$cpcmd", -1);
     if ($::RUNCMD_RC != 0)
     {
@@ -9746,7 +9747,7 @@ sub doSNcopy2
 
         # get a list of the resources that are defined on the SN
         my $cmd =
-qq~$::XCATROOT/bin/xdsh $snkey "/usr/sbin/lsnim -c resources | /usr/bin/cut -f1 -d' '"~;
+qq~$xcatroot/bin/xdsh $snkey "/usr/sbin/lsnim -c resources | /usr/bin/cut -f1 -d' '"~;
 
         my @resources = xCAT::Utils->runcmd("$cmd", -1);
         if ($::RUNCMD_RC != 0)
@@ -10714,7 +10715,7 @@ sub doSFScopy
     my $snlist = join(',', @SNlist);
 
     # copy the /etc/hosts file all the SNs
-    my $rcpcmd = "$::XCATROOT/bin/xdcp $snlist /etc/hosts /etc ";
+    my $rcpcmd = "$xcatroot/bin/xdcp $snlist /etc/hosts /etc ";
     my $output = xCAT::Utils->runcmd("$rcpcmd", -1);
     if ($::RUNCMD_RC != 0)
     {
@@ -10749,7 +10750,7 @@ sub doSFScopy
     #	one service node
 
     #	assume this directory always exists on the nimprime
-    my $cpcmd = qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $install_dir/postscripts @targetSN:$install_dir~;
+    my $cpcmd = qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $install_dir/postscripts @targetSN:$install_dir~;
     $output = xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cpcmd, 0);
     if ($::RUNCMD_RC != 0)
     {
@@ -10767,7 +10768,7 @@ sub doSFScopy
     if ($::RUNCMD_RC == 0)
     {
         # if the dir exists then we can update it on the targetsn
-        my $cpcmd = qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $install_dir/prescripts  @targetSN:$install_dir~;
+        my $cpcmd = qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $install_dir/prescripts  @targetSN:$install_dir~;
         $output = xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cpcmd, 0);
         if ($::RUNCMD_RC != 0)
         {
@@ -10916,7 +10917,7 @@ sub doSFScopy
                         xCAT::MsgUtils->message("I", $rsp, $callback);
 
                         my $srloc = $lochash{$res};
-                        my $cpcmd = qq~$::XCATROOT/bin/xdcp $targetsn ~;
+                        my $cpcmd = qq~$xcatroot/bin/xdcp $targetsn ~;
                         my $output;
                         if (-f "$srloc/statelite.table") {
                             $cpcmd .= qq~$srloc/statelite.table ~;
@@ -10944,7 +10945,7 @@ sub doSFScopy
 
                         my $ddir = "$srloc/.default";
                         if (-d $ddir) {
-                            $cpcmd = qq~$::XCATROOT/bin/xdcp $targetsn -R $srloc/.default $srloc/~;
+                            $cpcmd = qq~$xcatroot/bin/xdcp $targetsn -R $srloc/.default $srloc/~;
                         }
 
                         $output = xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cpcmd, 0);
@@ -14757,7 +14758,7 @@ qq~/usr/sbin/lsnim -t installp_bundle | /usr/bin/cut -f1 -d' ' 2>/dev/null~;
             # - run updtvpkg to make sure installp software
             #       is registered with rpm
             #
-            $cmd = qq~$::XCATROOT/bin/xcatchroot -i $spotname "/usr/sbin/updtvpkg"~;
+            $cmd = qq~$xcatroot/bin/xcatchroot -i $spotname "/usr/sbin/updtvpkg"~;
 
             $output =
               xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cmd, 0);
@@ -15403,7 +15404,7 @@ sub update_spot_installp
     $icmd .= "$installp_flags -f $listfile";
 
     # run icmd!
-    my $cmd = qq~$::XCATROOT/bin/xcatchroot -i $spotname "$icmd"~;
+    my $cmd = qq~$xcatroot/bin/xcatchroot -i $spotname "$icmd"~;
 
     my $output =
       xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cmd, 0);
@@ -15500,7 +15501,7 @@ sub update_spot_rpm
             $rflags = " $rpm_flags  --test ";
         }
 
-        my $tcmd = qq~$::XCATROOT/bin/xcatchroot -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rflags $rpmpkgs"~;
+        my $tcmd = qq~$xcatroot/bin/xcatchroot -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rflags $rpmpkgs"~;
         my @outpt = xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $tcmd, 1);
 
         my @badrpms;
@@ -15543,9 +15544,9 @@ sub update_spot_rpm
 
         if ($::VERBOSE)
         {
-            $cmd = qq~$::XCATROOT/bin/xcatchroot -V -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rpm_flags $rpmpkgs"~;
+            $cmd = qq~$xcatroot/bin/xcatchroot -V -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rpm_flags $rpmpkgs"~;
         } else {
-            $cmd = qq~$::XCATROOT/bin/xcatchroot -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rpm_flags $rpmpkgs"~;
+            $cmd = qq~$xcatroot/bin/xcatchroot -i $spotname "$cdcmd export INUCLIENTS=1; /usr/bin/rpm $rpm_flags $rpmpkgs"~;
         }
 
         my $output =
@@ -15639,7 +15640,7 @@ sub update_spot_epkg
 
     my $cdcmd = qq~cd $source_dir; export INUCLIENTS=1;~;
     my $ecmd  = qq~/usr/sbin/emgr $eflags -f $listfile~;
-    my $cmd   = qq~$::XCATROOT/bin/xcatchroot -i $spotname "$cdcmd $ecmd"~;
+    my $cmd   = qq~$xcatroot/bin/xcatchroot -i $spotname "$cdcmd $ecmd"~;
 
     my $output =
       xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime, $cmd, 0);

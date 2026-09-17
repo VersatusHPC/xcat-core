@@ -8,10 +8,12 @@
 # All your images are belong to us!
 package xCAT_plugin::imgport;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global. get_files declares its own $xcatroot, which shadows this
+# one inside that routine and keeps its hardcoded /opt/xcat.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use warnings;
 
@@ -1380,7 +1382,7 @@ sub change_profile {
                 #if source file is from /opt/xcat/share...,
                 #then copy it to /install/custom... directory.
                 #Otherwise, copy the file in the same directory
-                if ($olddir =~ /$::XCATROOT\/share\/xcat/) {
+                if ($olddir =~ /$xcatroot\/share\/xcat/) {
                     $newdir = "$installdir/custom/$prov/$platform";
                 } else {
                     $newdir = $olddir;
@@ -1990,7 +1992,7 @@ sub make_files {
     if ($hasplugin) {
 
         # Fast restart xcatd to load the new plugins without dropping this request
-        system("$::XCATROOT/sbin/restartxcatd");
+        system("$xcatroot/sbin/restartxcatd");
         $hasplugin = 0;
     }
 
@@ -2178,7 +2180,7 @@ sub movePlugin {
         chmod(644, "$dirname/$kit/plugins/*");
         opendir(DIR, "$dirname/$kit/plugins/");
         if (grep { ($_ ne '.') && ($_ ne '..') } readdir(DIR)) {
-            system("cp -rfv $dirname/$kit/plugins/* $::XCATROOT/lib/perl/xCAT_plugin/");
+            system("cp -rfv $dirname/$kit/plugins/* $xcatroot/lib/perl/xCAT_plugin/");
             $hasplugin = 1;
         }
         closedir(DIR);

@@ -7,10 +7,6 @@
 
 package xCAT_plugin::ipmi;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use warnings "all";
 use xCAT::GlobalDef;

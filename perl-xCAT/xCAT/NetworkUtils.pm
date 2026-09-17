@@ -1,11 +1,6 @@
 # IBM(c) 2010 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::NetworkUtils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use POSIX qw(ceil);
 use File::Path;
 use Math::BigInt;

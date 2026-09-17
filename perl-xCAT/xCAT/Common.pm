@@ -10,12 +10,6 @@ use xCAT::Usage;
 use Thread qw/yield/;
 use Storable qw/store_fd fd_retrieve/;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
-
 # forward_data is a function used to aggregate output passed up from a set of
 # children.  This is commonly used due to make absolutely certain multiple
 # writers trying to use a common file descriptor wouldn't corrupt each other.

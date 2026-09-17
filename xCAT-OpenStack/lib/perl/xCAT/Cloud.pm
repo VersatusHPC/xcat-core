@@ -1,13 +1,6 @@
 # IBM(c) 2013 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::Cloud;
 
-BEGIN
-{
-    $::XCATROOT =
-      $ENV{'XCATROOT'} ? $ENV{'XCATROOT'}
-      : -d '/opt/xcat' ? '/opt/xcat'
-      :                  '/usr';
-}
 use xCAT::Table;
 use xCAT::MsgUtils;
 use xCAT::NodeRange;

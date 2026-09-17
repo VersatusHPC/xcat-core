@@ -2,10 +2,11 @@
 
 package xCAT::Goconserver;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use warnings "all";
 use File::Copy qw(move);
@@ -78,7 +79,7 @@ sub gen_request_data {
             }
             $data->{$k}->{params}->{env} = $locerror.$env;
             $data->{$k}->{driver} = "cmd";
-            $data->{$k}->{params}->{cmd} = $::XCATROOT . "/share/xcat/cons/$cmeth"." ".$k;
+            $data->{$k}->{params}->{cmd} = $xcatroot . "/share/xcat/cons/$cmeth"." ".$k;
             $data->{$k}->{name} = $k;
         }
         if (defined($v->{consoleondemand})) {
@@ -190,8 +191,8 @@ sub init_local_console {
             unless ($_->{cons}) {
                 $_->{cons} = $_->{mgt};
             }
-            if ( $_->{cons} ne 'openbmc' && ! -x $::XCATROOT . "/share/xcat/cons/".$_->{cons}) {
-                xCAT::MsgUtils->message("S", $_->{node} .": ignore, ". $::XCATROOT . "/share/xcat/cons/".$_->{cons}." is not excutable. Please check mgt or cons attribute.");
+            if ( $_->{cons} ne 'openbmc' && ! -x $xcatroot . "/share/xcat/cons/".$_->{cons}) {
+                xCAT::MsgUtils->message("S", $_->{node} .": ignore, ". $xcatroot . "/share/xcat/cons/".$_->{cons}." is not excutable. Please check mgt or cons attribute.");
                 next;
             }
             if ($_->{conserver} && exists($iphash{ $_->{conserver} })) {
@@ -408,8 +409,8 @@ sub get_cons_map {
         if ($_->{cons} or defined($_->{'serialport'})) {
             unless ($_->{cons}) { $_->{cons} = $_->{mgt}; } #populate with fallback
             if ($isSN && $_->{conserver} && exists($iphash{ $_->{conserver} }) || !$isSN) {
-                if ( $_->{cons} ne 'openbmc' && ! -x $::XCATROOT . "/share/xcat/cons/".$_->{cons}) {
-                    $rsp->{data}->[0] = $_->{node} .": ignore, ". $::XCATROOT . "/share/xcat/cons/".$_->{cons}." is not excutable. Please check mgt or cons attribute.";
+                if ( $_->{cons} ne 'openbmc' && ! -x $xcatroot . "/share/xcat/cons/".$_->{cons}) {
+                    $rsp->{data}->[0] = $_->{node} .": ignore, ". $xcatroot . "/share/xcat/cons/".$_->{cons}." is not excutable. Please check mgt or cons attribute.";
                     xCAT::MsgUtils->message("I", $rsp, $::callback);
                     next;
                 }

@@ -2,10 +2,6 @@
 
 package xCAT::OPENBMC;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use warnings "all";
 

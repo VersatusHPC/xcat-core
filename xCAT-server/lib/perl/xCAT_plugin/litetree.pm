@@ -1,10 +1,5 @@
 package xCAT_plugin::litetree;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use xCAT::NodeRange;
 use Data::Dumper;
 use xCAT::Utils;

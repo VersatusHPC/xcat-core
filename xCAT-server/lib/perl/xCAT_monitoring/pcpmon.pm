@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::pcpmon;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::NodeRange;
 use Sys::Hostname;
 use Socket;
@@ -54,7 +55,7 @@ sub start
     my $scope    = shift;
     my $callback = shift;
 
-    my $cmd = "$::XCATROOT/sbin/pcp_collect";
+    my $cmd = "$xcatroot/sbin/pcp_collect";
 
     #figure out the ping-intercal setting
     my $value = 5;    #default
@@ -82,9 +83,9 @@ sub start
         } else {
             $minutes = "0";
         }
-        $newentry = "$minutes * * * * XCATROOT=$::XCATROOT PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
+        $newentry = "$minutes * * * * XCATROOT=$xcatroot PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
     } else {
-        $newentry = "*/$value * * * * XCATROOT=$::XCATROOT PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
+        $newentry = "*/$value * * * * XCATROOT=$xcatroot PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
     }
     my ($code, $msg) = xCAT::Utils::add_cron_job($newentry);
     my $localhostname = hostname();
@@ -164,7 +165,7 @@ sub start
             }    #closing foreach2
         }    #closing foreach1
         my $rec = join(',', @children);
-        my $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec /etc/init.d/pcp restart 2>&1`;
+        my $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec /etc/init.d/pcp restart 2>&1`;
         if ($result)
         {
             if ($callback)
@@ -254,7 +255,7 @@ sub stop
     my $scope    = shift;
     my $callback = shift;
 
-    my $job = "$::XCATROOT/sbin/pcp_collect";
+    my $job = "$xcatroot/sbin/pcp_collect";
     my ($code, $msg) = xCAT::Utils::remove_cron_job($job);
     my $localhostname = hostname();
     if ($code == 0) {
@@ -336,7 +337,7 @@ sub stop
             }    #closing foreach2
         }    #closing foreach1
         my $rec = join(',', @children);
-        my $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec /etc/init.d/pcp stop 2>&1`;
+        my $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec /etc/init.d/pcp stop 2>&1`;
         if ($result)
         {
             if ($callback)

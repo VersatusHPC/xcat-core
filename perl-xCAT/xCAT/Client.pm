@@ -1,10 +1,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::Client;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 
 use Storable qw/nstore_fd fd_retrieve/;
 use IO::Handle;
@@ -183,7 +183,7 @@ sub submit_request {
             #unless ($sitetab) {
             #  print ("ERROR: Unable to open basic site table for configuration\n");
             #}
-            $plugins_dir = $::XCATROOT . '/lib/perl/xCAT_plugin';
+            $plugins_dir = $xcatroot . '/lib/perl/xCAT_plugin';
             scan_plugins();
         }
 

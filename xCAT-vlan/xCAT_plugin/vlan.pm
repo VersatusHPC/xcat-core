@@ -12,10 +12,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::vlan;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use xCAT::Table;
 use xCAT::Utils;

@@ -1,10 +1,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::NotifHandler;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 
 use File::Basename qw(fileparse);
 use xCAT::Utils;
@@ -335,7 +335,7 @@ sub notify {
             if (($path eq "") || ($path eq ".\/")) {
 
                 #default path is /opt/xcat/lib/perl/xCAT_monitoring/ if there is no path specified
-                $fname = "$::XCATROOT/lib/perl/xCAT_monitoring/" . $modname . ".pm";
+                $fname = "$xcatroot/lib/perl/xCAT_monitoring/" . $modname . ".pm";
             } else {
                 $fname = $_;
             }

@@ -3,11 +3,6 @@ package xCAT_monitoring::rrdutil;
 use strict;
 use IO::Socket;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 #Modules to use:
 use xCAT::Utils;
 

@@ -9,10 +9,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::localrest;
 
-BEGIN {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
-
 use xCAT::Utils;
 use xCAT::MsgUtils;
 use File::Basename;

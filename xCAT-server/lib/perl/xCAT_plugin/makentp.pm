@@ -2,11 +2,6 @@
 
 package xCAT_plugin::makentp;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use Getopt::Long;
 use xCAT::Usage;
 use xCAT::NetworkUtils;

@@ -1,10 +1,6 @@
 # IBM(c) 2012 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::RShellAPI;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::MsgUtils;
 
 #use Data::Dumper;

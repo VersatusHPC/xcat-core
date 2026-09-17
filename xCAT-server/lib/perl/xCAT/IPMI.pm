@@ -6,10 +6,6 @@
 package xCAT::IPMI;
 use Carp qw/confess cluck/;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use warnings "all";
 use Time::HiRes qw/time/;

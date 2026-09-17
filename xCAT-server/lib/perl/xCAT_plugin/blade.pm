@@ -1,10 +1,13 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::blade;
 
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-
     if (defined $ENV{ENABLE_TRACE_CODE}) {
         use xCAT::Enabletrace qw(loadtrace filter);
         loadtrace();
@@ -3789,7 +3792,7 @@ sub bladecmd {
         my ($rc, @result) = vitals(@args);
         if (defined($vitals_info) and defined($vitals_info->{$currnode})) {
             my $attr = $vitals_info->{$currnode};
-            my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+            my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
             my $cmd = "$fsp_api -a pblade_query_lcds -T 0 -t 0:$$attr[3]:$$attr[0]:$currnode: 2>&1";
             my $res = xCAT::Utils->runcmd($cmd, -1);
             if ($res !~ /error/i) {
@@ -5287,7 +5290,7 @@ sub passwd {
 
         $mpatab->setAttribs({ mpa => $mpa, username => $user }, { password => $pass });
         if ($user eq "USERID") {
-            my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+            my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
             my $blades = &get_blades_for_mpa($mpa);
             if (!defined($blades)) {
                 return ([ 1, "Find blades failed for $mpa" ]);

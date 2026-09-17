@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::sles;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
@@ -932,10 +933,10 @@ sub mkinstall
             }
 
             $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$plat", $profile, $os, $arch);
-            if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$plat", $profile, $os, $arch); }
+            if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$plat", $profile, $os, $arch); }
 
             $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$plat", $profile, $os, $arch);
-            if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$plat", $profile, $os, $arch); }
+            if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$plat", $profile, $os, $arch); }
 
             $pkgdir = "$installroot/$os/$arch";
 
@@ -973,7 +974,7 @@ sub mkinstall
         unless (-r "$tmplfile")
         {
             xCAT::MsgUtils->report_node_error($callback, $node,
-                "No AutoYaST template exists for " . $ent->{profile} . " in directory $installroot/custom/install/$plat or $::XCATROOT/share/xcat/install/$plat"
+                "No AutoYaST template exists for " . $ent->{profile} . " in directory $installroot/custom/install/$plat or $xcatroot/share/xcat/install/$plat"
                 );
             next;
         }

@@ -1,9 +1,5 @@
 package xCAT_plugin::offline;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::Table;
 use Getopt::Long;
 use File::Basename;

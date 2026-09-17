@@ -4,10 +4,10 @@
 
 package xCAT_plugin::nimol;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 
@@ -556,7 +556,7 @@ sub nodeset {
 
     unless (-e $nim_root . "/scripts/xcatvio.script") {
         mkpath($nim_root . "/scripts/");
-        copy($::XCATROOT . "/share/xcat/scripts/xcatvio.script", $nim_root . "/scripts/");
+        copy($xcatroot . "/share/xcat/scripts/xcatvio.script", $nim_root . "/scripts/");
     }
 
     my $res = &create_imgconf_file($nodes, $subreq, $nim_root, $bootimg_root);

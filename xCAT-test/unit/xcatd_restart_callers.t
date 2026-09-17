@@ -27,7 +27,9 @@ like( $unit, qr{^ExecStart=.*?/usr/sbin/xcatd}m,
 my $imgport = read_file(
     File::Spec->catfile( $repo_root, 'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'imgport.pm' )
 );
-like( $imgport, qr{system\("\$::XCATROOT/sbin/restartxcatd"\)},
+# The root may be held in any variable. What matters is that imgport still
+# calls restartxcatd under it, not which name carries the path.
+like( $imgport, qr{system\("\$\w+(?:::\w+)*/sbin/restartxcatd"\)},
     'imgport preserves the xcatd fast-restart path' );
 unlike( $imgport, qr{xCAT::Utils->restartservice\("xcatd"\)},
     'imgport does not replace a fast restart with a full service restart' );

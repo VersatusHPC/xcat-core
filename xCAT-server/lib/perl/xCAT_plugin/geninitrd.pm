@@ -1,11 +1,6 @@
 # IBM(c) 2013 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::geninitrd;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use File::Path;
 use File::Copy;

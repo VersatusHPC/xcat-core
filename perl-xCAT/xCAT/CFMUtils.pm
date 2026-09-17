@@ -2,11 +2,6 @@
 
 package xCAT::CFMUtils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use warnings;
 use File::Path;

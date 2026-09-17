@@ -16,10 +16,11 @@ the sinv command.
 
 package xCAT::SINV;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
+
 use strict;
 use xCAT::MsgUtils;
 use xCAT::NodeRange;
@@ -1495,7 +1496,7 @@ sub storeresults
         xCAT::MsgUtils->message("E", $rsp, $callback);
         return 1;
     }
-    my $cmd = " $::XCATROOT/sbin/xdshcoll <$newtempfile |";
+    my $cmd = " $xcatroot/sbin/xdshcoll <$newtempfile |";
 
     unless (open(XCOLL, "$cmd"))
     {

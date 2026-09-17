@@ -1,9 +1,5 @@
 package xCAT_plugin::vlan::BNTSwitch;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use xCAT::MacMap;
 use xCAT::Table;

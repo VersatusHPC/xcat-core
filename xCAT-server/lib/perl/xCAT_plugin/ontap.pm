@@ -13,11 +13,6 @@ package xCAT_plugin::ontap;
 #This plugin will populate the lun and targetname
 use strict;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use warnings "all";
 use xCAT::Table;
 require xCAT::Utils;

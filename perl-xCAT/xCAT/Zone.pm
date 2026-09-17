@@ -1,12 +1,6 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::Zone;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
-
 # do not put a use or require for  xCAT::Table here. Add to each new routine
 # needing it to avoid reprocessing of user tables ( ExtTab.pm) for each command call
 use POSIX qw(ceil);

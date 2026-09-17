@@ -1,9 +1,10 @@
 package xCAT_plugin::genimage;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::Utils;
 use xCAT::TableUtils;
 use xCAT::SvrUtils;
@@ -301,7 +302,7 @@ sub process_request {
         }
     }
 
-    $profDir = "$::XCATROOT/share/xcat/netboot/$osfamily";
+    $profDir = "$xcatroot/share/xcat/netboot/$osfamily";
     unless (-d $profDir) {
         $callback->({ error => ["Unable to find genimage script in $profDir."], errorcode => [1] });
         return 1;

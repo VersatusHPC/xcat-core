@@ -7,10 +7,6 @@
 
 package xCAT_plugin::xcat2nim;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use Sys::Hostname;
 use xCAT::NodeRange;
 use xCAT::Schema;

@@ -1,10 +1,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::TableUtils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 require xCAT::Table;
@@ -271,7 +271,7 @@ sub bldnonrootSSHFiles
 		         the calling script or from the xdsh client
 
         Globals:
-              $::XCATROOT  ,  $::CALLBACK
+              $xcatroot  ,  $::CALLBACK
         Error:
              0=good,  1=error
         Example:
@@ -546,7 +546,7 @@ rmdir \"/tmp/$to_userid\" \n";
 		         the calling script or from the xdsh client
 
         Globals:
-              $::XCATROOT  ,  $::CALLBACK
+              $xcatroot  ,  $::CALLBACK
         Error:
              0=good,  1=error
         Example:
@@ -629,7 +629,7 @@ sub sendkeysNOzones
 		         the calling script or from the xdsh client
 
         Globals:
-              $::XCATROOT  ,  $::CALLBACK
+              $xcatroot  ,  $::CALLBACK
         Error:
              0=good,  1=error
         Example:

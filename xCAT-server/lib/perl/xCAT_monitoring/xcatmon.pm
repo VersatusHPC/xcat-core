@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::xcatmon;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use xCAT::Utils;
 use xCAT::NetworkUtils;
@@ -130,8 +131,8 @@ sub startNodeStatusMon
     my $callback = shift;
 
     #run the command first to update the status,
-    #my $cmd="$::XCATROOT/sbin/xcatnodemon";
-    my $cmd = "$::XCATROOT/bin/nodestat all -m -u -q";
+    #my $cmd="$xcatroot/sbin/xcatnodemon";
+    my $cmd = "$xcatroot/bin/nodestat all -m -u -q";
 
     #$output=`$cmd 2>&1`;
     #if ($?) {
@@ -168,9 +169,9 @@ sub startNodeStatusMon
         } else {
             $minutes = "0";
         }
-        $newentry = "$minutes * * * * XCATROOT=$::XCATROOT PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
+        $newentry = "$minutes * * * * XCATROOT=$xcatroot PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
     } else {
-        $newentry = "*/$value * * * * XCATROOT=$::XCATROOT PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
+        $newentry = "*/$value * * * * XCATROOT=$xcatroot PATH=$ENV{'PATH'} XCATCFG='$ENV{'XCATCFG'}' $cmd";
     }
     my ($code, $msg) = xCAT::Utils::add_cron_job($newentry);
     my $localhostname = hostname();
@@ -221,8 +222,8 @@ sub stopNodeStatusMon {
     my $scope    = shift;
     my $callback = shift;
 
-    #my $job="$::XCATROOT/sbin/xcatnodemon";
-    my $job = "$::XCATROOT/bin/nodestat all -m -u -q";
+    #my $job="$xcatroot/sbin/xcatnodemon";
+    my $job = "$xcatroot/bin/nodestat all -m -u -q";
     my ($code, $msg) = xCAT::Utils::remove_cron_job($job);
     my $localhostname = hostname();
     if ($code == 0) {

@@ -7,10 +7,10 @@
 
 package xCAT_plugin::rollupdate;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 require xCAT::NodeRange;
 require xCAT::Table;
@@ -980,7 +980,7 @@ sub ll_jobs {
 
             my @rcblines;
             my $rcbcmd = $::FILEATTRS{'reservationcallback'}[0];
-            if (!defined($rcbcmd)) { $rcbcmd = "$::XCATROOT/bin/runrollupdate"; }
+            if (!defined($rcbcmd)) { $rcbcmd = "$xcatroot/bin/runrollupdate"; }
             push(@rcblines, "#!/bin/sh \n");
             push(@rcblines, "# LL Reservation Callback script for xCAT Rolling Update group $ugname \n");
             push(@rcblines, "\n");

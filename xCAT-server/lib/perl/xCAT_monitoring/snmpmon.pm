@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::snmpmon;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use IO::File;
 use xCAT::Utils;
@@ -975,7 +976,7 @@ s/authCommunity\s*(.*)\s* public/authCommunity $1,net public/; #modify it to hav
 
             # now add the new traphandle commands:
             if (!$isSN) {
-                print FILE "traphandle default $::XCATROOT/sbin/xcat_traphandler\n";
+                print FILE "traphandle default $xcatroot/sbin/xcat_traphandler\n";
             }
 
             close(FILE1);
@@ -991,7 +992,7 @@ s/authCommunity\s*(.*)\s* public/authCommunity $1,net public/; #modify it to hav
         if ($isSN) {
             print $handle "forward default $master\n"; #forward the trap from sn to mn
         } else {
-            print $handle "traphandle default $::XCATROOT/sbin/xcat_traphandler\n";
+            print $handle "traphandle default $xcatroot/sbin/xcat_traphandler\n";
         }
         close($handle);
     }

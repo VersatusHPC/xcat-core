@@ -8,11 +8,6 @@
 #
 package xCAT_plugin::hpblade;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use xCAT::Table;
 use xCAT::Utils;

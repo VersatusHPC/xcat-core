@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::kvm;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::GlobalDef;
 use xCAT::NodeRange;
 use xCAT::VMCommon;
@@ -1342,7 +1343,7 @@ sub xhrm_satisfy {
         @nics = split /,/, $confdata->{vm}->{$node}->[0]->{nics};
     }
 
-    $rc |= system("scp $::XCATROOT/share/xcat/scripts/xHRM $hyp:/usr/bin");
+    $rc |= system("scp $xcatroot/share/xcat/scripts/xHRM $hyp:/usr/bin");
 
     foreach (@nics) {
         s/=.*//;    #this code cares not about the model of virtual nic

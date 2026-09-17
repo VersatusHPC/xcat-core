@@ -8,10 +8,10 @@
 #-------------------------------------------------------
 package xCAT_plugin::bmcdiscover;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use IO::Socket;
 use Thread qw(yield);
@@ -1196,7 +1196,7 @@ sub bmcdiscovery_ipmi {
             # For system X and Tuleta, the fru 0 will contain the MTMS; For firestone, fru 3; For habanero, fru 2
             my @fru_num = (0, 2, 3);
             foreach my $fru_cmd_num (@fru_num) {
-                my $fru_cmd = "$::XCATROOT/bin/ipmitool-xcat -I lanplus $bmcusername $bmcpassword " .
+                my $fru_cmd = "$xcatroot/bin/ipmitool-xcat -I lanplus $bmcusername $bmcpassword " .
                   "\-H $ip fru print $fru_cmd_num";
                 my @fru_output_array = xCAT::Utils->runcmd($fru_cmd, -1);
                 if (($::RUNCMD_RC eq 0) && @fru_output_array) {

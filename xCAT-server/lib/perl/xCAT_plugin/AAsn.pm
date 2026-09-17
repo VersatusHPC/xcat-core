@@ -2,10 +2,11 @@
 #-------------------------------------------------------
 package xCAT_plugin::AAsn;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use xCAT::Table;
 
@@ -1221,7 +1222,7 @@ sub setup_TFTP
         #use xCAT_plugin::mknb;
         #for my $architecture ("ppc64", "x86", "x86_64")
         #{
-        #    unless (-d "$::XCATROOT/share/xcat/netboot/$architecture")
+        #    unless (-d "$xcatroot/share/xcat/netboot/$architecture")
         #    {
         #        next;
         #    }
@@ -1259,7 +1260,7 @@ sub setup_TFTP
             $cmdref->{inittime}->[0] = "1";
             $cmdref->{arg}->[0]      = "enact";
             $cmdref->{cwd}->[0]      = "/opt/xcat/sbin";
-            my $plugins_dir = $::XCATROOT . '/lib/perl/xCAT_plugin';
+            my $plugins_dir = $xcatroot . '/lib/perl/xCAT_plugin';
             foreach my $modname (keys %netmethods)
             {
                 my $reqcopy = {%$cmdref};

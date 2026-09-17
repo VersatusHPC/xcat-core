@@ -55,7 +55,6 @@ $rc=xCAT::RemoteShellExp->remoteshellexp("t",$callback,$remoteshellcmd,$nodes,$t
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
 }
 

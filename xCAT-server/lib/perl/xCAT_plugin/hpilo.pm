@@ -35,10 +35,6 @@
 
 package xCAT_plugin::hpilo;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use warnings "all";
 use xCAT::GlobalDef;

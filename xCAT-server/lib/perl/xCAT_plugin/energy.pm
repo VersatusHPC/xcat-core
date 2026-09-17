@@ -10,11 +10,6 @@
 
 package xCAT_plugin::energy;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use warnings "all";
 use Getopt::Long;

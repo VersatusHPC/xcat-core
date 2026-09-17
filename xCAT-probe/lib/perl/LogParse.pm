@@ -2,7 +2,6 @@ package LogParse;
 
 # IBM(c) 2016 EPL license http://www.eclipse.org/legal/epl-v10.html
 
-BEGIN { $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr'; }
 use probe_global_constant;
 use probe_utils;
 use xCAT::NetworkUtils;

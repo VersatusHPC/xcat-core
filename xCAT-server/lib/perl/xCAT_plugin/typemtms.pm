@@ -2,11 +2,6 @@
 # Used to deal with MTMS(machine-type/model and serial) based hardware discovery
 package xCAT_plugin::typemtms;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 sub handled_commands {
     return {
         findme => 'typemtms',

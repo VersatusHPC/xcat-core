@@ -2,10 +2,6 @@
 # The last module to deal with hardware discovery request, write information that which module can deal with this request or no module can deal with it at all
 package xCAT_plugin::zzzdiscovery;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::NetworkUtils;
 
 

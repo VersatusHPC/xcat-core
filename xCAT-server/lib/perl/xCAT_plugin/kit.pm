@@ -8,10 +8,10 @@
 #-------------------------------------------------------
 package xCAT_plugin::kit;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use xCAT::Table;
 use xCAT::Utils;
@@ -1408,12 +1408,12 @@ sub addkit
             if (grep { ($_ ne '.') && ($_ ne '..') } readdir($dir)) {
                 if ($::VERBOSE) {
                     my %rsp;
-                    push @{ $rsp{data} }, "Copying kit plugins from $kitdir/plugins/ to $::XCATROOT/lib/perl/xCAT_plugin";
+                    push @{ $rsp{data} }, "Copying kit plugins from $kitdir/plugins/ to $xcatroot/lib/perl/xCAT_plugin";
                     xCAT::MsgUtils->message("I", \%rsp, $callback);
 
-                    $rc = system("cp -rfv $kitdir/plugins/* $::XCATROOT/lib/perl/xCAT_plugin/");
+                    $rc = system("cp -rfv $kitdir/plugins/* $xcatroot/lib/perl/xCAT_plugin/");
                 } else {
-                    $rc = system("cp -rf $kitdir/plugins/* $::XCATROOT/lib/perl/xCAT_plugin/");
+                    $rc = system("cp -rf $kitdir/plugins/* $xcatroot/lib/perl/xCAT_plugin/");
                 }
 
                 $hasplugin = 1;
@@ -1422,7 +1422,7 @@ sub addkit
 
         if ($rc) {
             my %rsp;
-            push @{ $rsp{data} }, "Failed to copy plugins from $kitdir/plugins/ to $::XCATROOT/lib/perl/xCAT_plugin";
+            push @{ $rsp{data} }, "Failed to copy plugins from $kitdir/plugins/ to $xcatroot/lib/perl/xCAT_plugin";
             xCAT::MsgUtils->message("E", \%rsp, $callback);
             return 1;
         }
@@ -1685,7 +1685,7 @@ sub rmkit
             # remove kit plugins from /opt/xcat/lib/perl/xCAT_plugin
             if ($::VERBOSE) {
                 my %rsp;
-                push @{ $rsp{data} }, "Removing kit plugins from $::XCATROOT/lib/perl/xCAT_plugin/";
+                push @{ $rsp{data} }, "Removing kit plugins from $xcatroot/lib/perl/xCAT_plugin/";
                 xCAT::MsgUtils->message("I", \%rsp, $callback);
             }
 
@@ -1696,11 +1696,11 @@ sub rmkit
             }
             foreach my $file (@files) {
                 if ($file eq '.' or $file eq '..') { next; }
-                if (-e "$::XCATROOT/lib/perl/xCAT_plugin/$file") {
+                if (-e "$xcatroot/lib/perl/xCAT_plugin/$file") {
                     if ($::VERBOSE) {
-                        system("rm -rfv $::XCATROOT/lib/perl/xCAT_plugin/$file");
+                        system("rm -rfv $xcatroot/lib/perl/xCAT_plugin/$file");
                     } else {
-                        system("rm -rf $::XCATROOT/lib/perl/xCAT_plugin/$file");
+                        system("rm -rf $xcatroot/lib/perl/xCAT_plugin/$file");
                     }
                 }
             }

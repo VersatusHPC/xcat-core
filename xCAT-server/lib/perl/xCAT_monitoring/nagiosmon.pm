@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::nagiosmon;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use File::Copy qw/copy cp mv move/;
 use xCAT::NodeRange;
@@ -95,7 +96,7 @@ sub start {
         my $active_nodes = $nodes_status{$::STATUS_ACTIVE};
         if (@$active_nodes > 0) {
             my $nodelist = join(',', @$active_nodes);
-            my $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $nodelist "service nrpe restart" 2>&1`;
+            my $result = `XCATBYPASS=Y $xcatroot/bin/xdsh $nodelist "service nrpe restart" 2>&1`;
             if ($?) {
                 reportError("$localhostname: $result", $callback);
                 return (1, $result);
@@ -155,7 +156,7 @@ sub stop {
         my $active_nodes = $nodes_status{$::STATUS_ACTIVE};
         if (@$active_nodes > 0) {
             my $nodelist = join(',', @$active_nodes);
-            my $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $nodelist "service nrpe stop" 2>&1`;
+            my $result = `XCATBYPASS=Y $xcatroot/bin/xdsh $nodelist "service nrpe stop" 2>&1`;
             if ($?) {
                 reportError("$localhostname: $result", $callback);
                 return (1, $result);
@@ -744,7 +745,7 @@ cfg_file=/etc/nagios/objects/mychildren.cfg
         my $active_nodes = $nodes_status{$::STATUS_ACTIVE};
         if (@$active_nodes > 0) {
             my $nodelist = join(',', @$active_nodes);
-            my $result = `XCATBYPASS=Y $::XCATROOT/bin/updatenode $nodelist -P confNagios 2>&1`;
+            my $result = `XCATBYPASS=Y $xcatroot/bin/updatenode $nodelist -P confNagios 2>&1`;
             if ($?) {
                 my $error = "$result";
                 reportError($error, $callback);

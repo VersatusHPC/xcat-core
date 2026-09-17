@@ -1,11 +1,6 @@
 # IBM(c) 2010 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::dhcp;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use IPC::Open2;
 use IPC::Open3;

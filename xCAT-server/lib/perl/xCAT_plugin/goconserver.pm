@@ -1,9 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 #TODO: delete entries not being refreshed if no noderange
 package xCAT_plugin::goconserver;
-BEGIN {
-        $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use strict;
 use File::Copy;
 use xCAT::Table;
@@ -165,7 +167,7 @@ sub start_goconserver {
             xCAT::MsgUtils->error_message("Failed to create configuration file for goconserver.", $::callback);
             return 1;
         }
-        if (!copy($::XCATROOT."/share/xcat/conf/goconslogrotate", "/etc/logrotate.d/goconserver")) {
+        if (!copy($xcatroot."/share/xcat/conf/goconslogrotate", "/etc/logrotate.d/goconserver")) {
             xCAT::MsgUtils->warn_message("Failed to create logrotate configuration for goconserver.", $::callback);
         }
     }

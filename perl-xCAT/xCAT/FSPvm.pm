@@ -1,11 +1,5 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
-
 package xCAT::FSPvm;
 use strict;
 use Getopt::Long;

@@ -2,11 +2,10 @@
 
 package xCAT_plugin::imgcapture;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 
@@ -270,18 +269,18 @@ sub imgcapture {
     }
 
     my $distname = $os;
-    while ($distname and (!-r "$::XCATROOT/share/xcat/netboot/$distname/")) {
+    while ($distname and (!-r "$xcatroot/share/xcat/netboot/$distname/")) {
         chop($distname);
     }
 
     unless ($distname) {
-        $callback->({ error => ["Unable to find $::XCATROOT/share/xcat/netboot directory for $os"], errorcode => [1] });
+        $callback->({ error => ["Unable to find $xcatroot/share/xcat/netboot directory for $os"], errorcode => [1] });
         return;
     }
 
     my $exlistloc = xCAT::SvrUtils->get_imgcapture_exlist_file_name("$installroot/custom/netboot/$distname", $profile, $os, $arch);
     unless ($exlistloc) {
-        $exlistloc = xCAT::SvrUtils->get_imgcapture_exlist_file_name("$::XCATROOT/share/xcat/netboot/$distname", $profile, $os, $arch);
+        $exlistloc = xCAT::SvrUtils->get_imgcapture_exlist_file_name("$xcatroot/share/xcat/netboot/$distname", $profile, $os, $arch);
     }
 
     my $xcat_imgcapture_tmpfile = "/tmp/xcat_imgcapture.$$";
@@ -403,13 +402,13 @@ sub imgcapture {
 
     # the next step is to call "genimage"
     my $platform = getplatform($os);
-    if (-e "$::XCATROOT/share/xcat/netboot/$platform/genimage") {
+    if (-e "$xcatroot/share/xcat/netboot/$platform/genimage") {
         my $cmd;
 
         if ($osimg) {
-            $cmd = "$::XCATROOT/bin/genimage $osimg ";
+            $cmd = "$xcatroot/bin/genimage $osimg ";
         } else {
-            $cmd = "$::XCATROOT/share/xcat/netboot/$platform/genimage -o $os -a $arch -p $profile ";
+            $cmd = "$xcatroot/share/xcat/netboot/$platform/genimage -o $os -a $arch -p $profile ";
         }
 
         if ($bootif) {

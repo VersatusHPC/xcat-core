@@ -12,10 +12,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::configcec;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 
 #use warnings;

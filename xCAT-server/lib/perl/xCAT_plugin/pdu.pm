@@ -14,10 +14,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::pdu;
 
-BEGIN {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
-
 use xCAT::Table;
 use xCAT::Utils;
 use xCAT::FifoPipe;

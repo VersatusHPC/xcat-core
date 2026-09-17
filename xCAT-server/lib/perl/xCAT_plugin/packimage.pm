@@ -17,10 +17,11 @@
 #-------------------------------------------------------
 package xCAT_plugin::packimage;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use Data::Dumper;
 use xCAT::Table;
@@ -133,7 +134,7 @@ sub process_request {
         $imagename = $ARGV[0];
 
         # load the module in memory
-        eval { require("$::XCATROOT/lib/perl/xCAT/Table.pm") };
+        eval { require("$xcatroot/lib/perl/xCAT/Table.pm") };
         if ($@) {
             $callback->({ error => [$@], errorcode => [1] });
             return 1;
@@ -202,12 +203,12 @@ sub process_request {
     if ($osver =~ /^leap15/) {
         $distname = "sles";
     } else {
-        until (-r "$::XCATROOT/share/xcat/netboot/$distname/" or not $distname) {
+        until (-r "$xcatroot/share/xcat/netboot/$distname/" or not $distname) {
             chop($distname);
         }
     }
     unless ($distname) {
-        $callback->({ error => ["Unable to find $::XCATROOT/share/xcat/netboot directory for $osver"], errorcode => [1] });
+        $callback->({ error => ["Unable to find $xcatroot/share/xcat/netboot directory for $osver"], errorcode => [1] });
         return 1;
     }
     unless ($installroot) {
@@ -301,9 +302,9 @@ sub process_request {
     if (-e "$rootimg_dir/usr/lib/dracut/modules.d/97xcat/install") {
         xCAT::Utils->runcmd("mv $rootimg_dir/usr/lib/dracut/modules.d/97xcat/install $rootimg_dir/.statebackup/install", 0, 1);
     }
-    my $dracut_install = "$::XCATROOT/share/xcat/netboot/$distname/dracut_033/install.netboot";
+    my $dracut_install = "$xcatroot/share/xcat/netboot/$distname/dracut_033/install.netboot";
     if (!-r $dracut_install) {
-        $dracut_install = "$::XCATROOT/share/xcat/netboot/rh/dracut_033/install.netboot";
+        $dracut_install = "$xcatroot/share/xcat/netboot/rh/dracut_033/install.netboot";
     }
     xCAT::Utils->runcmd("cp $dracut_install $rootimg_dir/usr/lib/dracut/modules.d/97xcat/install", 0, 1);
 
@@ -441,7 +442,7 @@ sub process_request {
             foreach my $synclistfile (@filelist) {
                 if ( -f $synclistfile) {
                     print "Syncing files from $synclistfile to root image dir: $rootimg_dir\n";
-                    my $cmd = "$myenv $::XCATROOT/bin/xdcp -i $rootimg_dir -F $synclistfile";
+                    my $cmd = "$myenv $xcatroot/bin/xdcp -i $rootimg_dir -F $synclistfile";
                     xCAT::Utils->runcmd($cmd, 0, 1);
                 }
             }

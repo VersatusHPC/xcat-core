@@ -2,10 +2,6 @@
 
 package xCAT_monitoring::templatemon;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use xCAT_monitoring::monitorctrl;
 use xCAT::Utils;

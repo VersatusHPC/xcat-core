@@ -1,9 +1,11 @@
 # IBM(c) 2012 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_monitoring::gangliamon;
 
-BEGIN {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::NodeRange;
 use Sys::Hostname;
 use Socket;
@@ -161,10 +163,10 @@ sub start {
 
         if ($rec) {
             if ($OS =~ /AIX/) {
-                $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec /etc/rc.d/init.d/gmond restart 2>&1`;
+                $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec /etc/rc.d/init.d/gmond restart 2>&1`;
             }
             else {
-                $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec systemctl restart gmond 2>&1`;
+                $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec systemctl restart gmond 2>&1`;
             }
         }
 
@@ -374,7 +376,7 @@ sub confGmond {
             }
 
             my $node = join(',', @children);
-            my $res_cp = `XCATBYPASS=Y $::XCATROOT/bin/xdcp $node $install_root/postscripts/confGang /tmp 2>&1`;
+            my $res_cp = `XCATBYPASS=Y $xcatroot/bin/xdcp $node $install_root/postscripts/confGang /tmp 2>&1`;
             if ($?) {
                 if ($callback) {
                     my $resp = {};
@@ -388,9 +390,9 @@ sub confGmond {
 
             my $res_conf;
             if ($key_a[0] =~ /noservicenode/) {
-                $res_conf = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node MONSERVER=$hostname MONMASTER=$key_a[1] /tmp/confGang 2>&1`;
+                $res_conf = `XCATBYPASS=Y $xcatroot/bin/xdsh $node MONSERVER=$hostname MONMASTER=$key_a[1] /tmp/confGang 2>&1`;
             } else {
-                $res_conf = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node MONSERVER=$key_a[0] MONMASTER=$key_a[1] /tmp/confGang 2>&1`;
+                $res_conf = `XCATBYPASS=Y $xcatroot/bin/xdsh $node MONSERVER=$key_a[0] MONMASTER=$key_a[1] /tmp/confGang 2>&1`;
             }
 
             if ($?) {
@@ -656,8 +658,8 @@ sub deconfGmond {
 
             my $node = join(',', @children);
             if (-e "/etc/ganglia/gmond.conf") {    # v3.1.0
-                my $res_sv = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node /bin/cp -f /etc/ganglia/gmond.conf /etc/ganglia/gmond.conf.save`;
-                my $res_cp = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node /bin/cp -f /etc/ganglia/gmond.conf.orig /etc/ganglia/gmond.conf`;
+                my $res_sv = `XCATBYPASS=Y $xcatroot/bin/xdsh $node /bin/cp -f /etc/ganglia/gmond.conf /etc/ganglia/gmond.conf.save`;
+                my $res_cp = `XCATBYPASS=Y $xcatroot/bin/xdsh $node /bin/cp -f /etc/ganglia/gmond.conf.orig /etc/ganglia/gmond.conf`;
                 if ($?) {
                     if ($callback) {
                         my $resp = {};
@@ -670,9 +672,9 @@ sub deconfGmond {
             }
 
             else {
-                my $res_sv = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node /bin/cp -f /etc/gmond.conf /etc/gmond.conf.save`;
+                my $res_sv = `XCATBYPASS=Y $xcatroot/bin/xdsh $node /bin/cp -f /etc/gmond.conf /etc/gmond.conf.save`;
 
-                my $res_cp = `XCATBYPASS=Y $::XCATROOT/bin/xdsh $node /bin/cp -f /etc/gmond.conf.orig /etc/gmond.conf`;
+                my $res_cp = `XCATBYPASS=Y $xcatroot/bin/xdsh $node /bin/cp -f /etc/gmond.conf.orig /etc/gmond.conf`;
                 if ($?) {
                     if ($callback) {
                         my $resp = {};
@@ -863,9 +865,9 @@ sub stop {
         }
         if ($rec) {
             if ($OS =~ /AIX/) {
-                $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec /etc/rc.d/init.d/gmond stop 2>&1`;
+                $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec /etc/rc.d/init.d/gmond stop 2>&1`;
             } else {
-                $result = `XCATBYPASS=Y $::XCATROOT/bin/xdsh  $rec systemctl stop gmond 2>&1`;
+                $result = `XCATBYPASS=Y $xcatroot/bin/xdsh  $rec systemctl stop gmond 2>&1`;
             }
         }
 

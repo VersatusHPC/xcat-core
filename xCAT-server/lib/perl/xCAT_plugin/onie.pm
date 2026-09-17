@@ -6,11 +6,6 @@
 
 package xCAT_plugin::onie;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
 use strict;
 use Getopt::Long;
 use Expect;

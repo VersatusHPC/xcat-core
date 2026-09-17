@@ -2,10 +2,10 @@
 
 package xCAT::PPCenergy;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 use Getopt::Long;
@@ -50,7 +50,7 @@ use xCAT::TableUtils;
     'ffovalue'      => 1,
 );
 
-$::CIM_CLIENT_PATH = "$::XCATROOT/sbin/xCAT_cim_client";
+$::CIM_CLIENT_PATH = "$xcatroot/sbin/xCAT_cim_client";
 
 # Parse the arguments of the command line for renergy command
 sub parse_args {

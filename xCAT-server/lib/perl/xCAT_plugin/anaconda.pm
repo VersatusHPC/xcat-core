@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::anaconda;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use Storable qw(dclone);
 use Sys::Syslog;
 use Thread qw(yield);
@@ -1142,7 +1143,7 @@ sub mkinstall
                         my $pltfrm = xCAT_plugin::anaconda::getplatform($ref->{'osvers'});
                         my $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$pltfrm",
                             $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                        if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                        if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$pltfrm",
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         }
 
@@ -1157,7 +1158,7 @@ sub mkinstall
                         my $pltfrm = xCAT_plugin::anaconda::getplatform($ref->{'osvers'});
                         my $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$pltfrm",
                             $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                        if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                        if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$pltfrm",
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         }
 
@@ -1239,18 +1240,18 @@ sub mkinstall
 
                 unless (-r "$installroot/custom/install/$platform/$profile.$genos.$arch.tmpl"
                     or -r "/install/custom/install/$platform/$profile.$genos.tmpl"
-                    or -r "$::XCATROOT/share/xcat/install/$platform/$profile.$genos.$arch.tmpl"
-                    or -r "$::XCATROOT/share/xcat/install/$platform/$profile.$genos.tmpl")
+                    or -r "$xcatroot/share/xcat/install/$platform/$profile.$genos.$arch.tmpl"
+                    or -r "$xcatroot/share/xcat/install/$platform/$profile.$genos.tmpl")
                 {
                     $genos = "rhel$1";
                 }
             }
 
             $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
-            if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
+            if (!$tmplfile) { $tmplfile = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
 
             $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
-            if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
+            if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
 
             $pkgdir = "$installroot/$os/$arch";
 
@@ -1309,7 +1310,7 @@ sub mkinstall
 
         unless (-r "$tmplfile") {
             xCAT::MsgUtils->report_node_error($callback, $node,
-                "No $platform kickstart template exists for " . $profile . " in directory $installroot/custom/install/$platform or $::XCATROOT/share/xcat/install/$platform"
+                "No $platform kickstart template exists for " . $profile . " in directory $installroot/custom/install/$platform or $xcatroot/share/xcat/install/$platform"
                 );
             next;
         }
@@ -1320,7 +1321,7 @@ sub mkinstall
         if ($imagename) {
             $tmperr = "Unable to find template file: $tmplfile";
         } else {
-            $tmperr = "Unable to find template in /install/custom/install/$platform or $::XCATROOT/share/xcat/install/$platform (for $profile/$os/$arch combination)";
+            $tmperr = "Unable to find template in /install/custom/install/$platform or $xcatroot/share/xcat/install/$platform (for $profile/$os/$arch combination)";
         }
 
         if($img_hash{$imagename}->{environvar}){
@@ -1857,7 +1858,7 @@ sub mksysclone
                     #	                my $pltfrm=xCAT_plugin::anaconda::getplatform($ref->{'osvers'});
                     #	    		my $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$pltfrm",
                     #		 			$ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                    #	    		if (! $tmplfile) { $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                    #	    		if (! $tmplfile) { $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$pltfrm",
                     #		 			$ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                     #					 }
                     #			# if we managed to find it, put it in the hash:
@@ -1871,7 +1872,7 @@ sub mksysclone
                         my $pltfrm = xCAT_plugin::anaconda::getplatform($ref->{'osvers'});
                         my $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$pltfrm",
                             $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
-                        if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$pltfrm",
+                        if (!$pkglistfile) { $pkglistfile = xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$pltfrm",
                                 $ref->{'profile'}, $ref->{'osvers'}, $ref->{'osarch'}, $ref->{'osvers'});
                         }
 
@@ -1912,18 +1913,18 @@ sub mksysclone
 
                 unless (-r "$installroot/custom/install/$platform/$profile.$genos.$arch.tmpl"
                     or -r "/install/custom/install/$platform/$profile.$genos.tmpl"
-                    or -r "$::XCATROOT/share/xcat/install/$platform/$profile.$genos.$arch.tmpl"
-                    or -r "$::XCATROOT/share/xcat/install/$platform/$profile.$genos.tmpl")
+                    or -r "$xcatroot/share/xcat/install/$platform/$profile.$genos.$arch.tmpl"
+                    or -r "$xcatroot/share/xcat/install/$platform/$profile.$genos.tmpl")
                 {
                     $genos = "rhel$1";
                 }
             }
 
             #	    $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
-            #	    if (! $tmplfile) { $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
+            #	    if (! $tmplfile) { $tmplfile=xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
 
             #	    $pkglistfile=xCAT::SvrUtils::get_pkglist_file_name("$installroot/custom/install/$platform", $profile, $os, $arch, $genos);
-            #	    if (! $pkglistfile) { $pkglistfile=xCAT::SvrUtils::get_pkglist_file_name("$::XCATROOT/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
+            #	    if (! $pkglistfile) { $pkglistfile=xCAT::SvrUtils::get_pkglist_file_name("$xcatroot/share/xcat/install/$platform", $profile, $os, $arch, $genos); }
 
             #get the partition file from the linuximage table
             my $imgname = "$os-$arch-install-$profile";

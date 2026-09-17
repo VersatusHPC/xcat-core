@@ -1,11 +1,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::Utils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 # do not put a use or require for  xCAT::Table here. Add to each new routine
 # needing it to avoid reprocessing of user tables ( ExtTab.pm) for each command call
@@ -1950,7 +1949,7 @@ sub runxcatd
     if ($cmd eq "xcatstart")
     {    # start xcatd
         xCAT::MsgUtils->message('I', "Starting xcatd.....\n");
-        my $xcmd = "$::XCATROOT/sbin/xcatd &";
+        my $xcmd = "$xcatroot/sbin/xcatd &";
         my $outref = xCAT::Utils->runcmd("$xcmd", 0);
         if ($::RUNCMD_RC != 0)
         {

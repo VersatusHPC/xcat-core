@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 
 package xCAT_plugin::switchdiscover;
-BEGIN
-{
-  $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use Getopt::Long;
 use xCAT::Usage;
@@ -1486,7 +1487,7 @@ sub switchsetup {
     }
 
     foreach my $mytype (keys %$nodes_to_config) {
-        my $config_script = "$::XCATROOT/share/xcat/scripts/config".$mytype;
+        my $config_script = "$xcatroot/share/xcat/scripts/config".$mytype;
         if (-r -x $config_script) {
             my $switches = join(",",@{${nodes_to_config}->{$mytype}});
             if ($mytype eq "onie") {

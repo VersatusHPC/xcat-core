@@ -1,8 +1,4 @@
 # IBM(c) 2014 EPL license http://www.eclipse.org/legal/epl-v10.html
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use warnings;
 use warnings;

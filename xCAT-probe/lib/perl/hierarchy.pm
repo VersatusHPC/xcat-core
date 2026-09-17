@@ -1,8 +1,12 @@
 package hierarchy;
 
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
+
 # IBM(c) 2016 EPL license http://www.eclipse.org/legal/epl-v10.html
 
-BEGIN { $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr'; }
 use probe_utils;
 use xCAT::ServiceNodeUtils;
 
@@ -93,7 +97,7 @@ sub calculate_dispatch_cmd {
                     }
                 }
                 my $args = join(" ", @$argv_ref);
-                $self->{dispatchcmd}->{$sn} = "$::XCATROOT/probe/subcmds/$self->{program_name} $args -H 2>&1";
+                $self->{dispatchcmd}->{$sn} = "$xcatroot/probe/subcmds/$self->{program_name} $args -H 2>&1";
             }
         }
     } else {
@@ -101,10 +105,10 @@ sub calculate_dispatch_cmd {
         #there isn't noderange input from STDIN, dispatch command to all SN if there are SN defined in MN
         #if there isn't SN defined in MN, just dispatch command to MN itself
         my $args = join(" ", @$argv_ref);
-        $self->{dispatchcmd}->{mn} = "$::XCATROOT/probe/subcmds/$self->{program_name} $args -H 2>&1";
+        $self->{dispatchcmd}->{mn} = "$xcatroot/probe/subcmds/$self->{program_name} $args -H 2>&1";
         if (@snlist) {
             my $sns  = join(",", @snlist);
-            $self->{dispatchcmd}->{$sns} = "$::XCATROOT/probe/subcmds/$self->{program_name} $args -H 2>&1";
+            $self->{dispatchcmd}->{$sns} = "$xcatroot/probe/subcmds/$self->{program_name} $args -H 2>&1";
         }
     }
 

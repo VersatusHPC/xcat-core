@@ -7,10 +7,6 @@
 #
 
 package xCAT_plugin::zvmdiscovery;
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 use strict;
 use Data::Dumper;

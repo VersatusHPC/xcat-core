@@ -12,11 +12,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::zone;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
-
 use strict;
 require xCAT::Utils;
 require xCAT::Zone;

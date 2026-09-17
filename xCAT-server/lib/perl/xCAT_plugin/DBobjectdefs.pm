@@ -8,10 +8,11 @@
 
 package xCAT_plugin::DBobjectdefs;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use xCAT::NodeRange;
 use xCAT::Schema;
 use xCAT::DBobjUtils;
@@ -234,12 +235,12 @@ sub parse_attr_for_osimage {
             $tmp_ostype    = "Windows";
             $tmp_imagetype = "windows";
         } else {
-            until (-r "$::XCATROOT/share/xcat/$prov_dir/$tmp_osname/" or not $tmp_osname) {
+            until (-r "$xcatroot/share/xcat/$prov_dir/$tmp_osname/" or not $tmp_osname) {
                 chop($tmp_osname);
             }
             unless ($tmp_osname) {
                 my $rsp;
-                $rsp->{data}->[0] = "Unable to find $::XCATROOT/share/xcat/$prov_dir directory for $tmp_osvers.";
+                $rsp->{data}->[0] = "Unable to find $xcatroot/share/xcat/$prov_dir directory for $tmp_osvers.";
                 xCAT::MsgUtils->message("E", $rsp, $::callback);
                 return -1;
             }
@@ -300,7 +301,7 @@ sub parse_attr_for_osimage {
                 $installroot = $tmp;
             }
             my $cuspath = "$installroot/custom/$prov_dir/$tmp_osname";
-            my $defpath = "$::XCATROOT/share/xcat/$prov_dir/$tmp_osname";
+            my $defpath = "$xcatroot/share/xcat/$prov_dir/$tmp_osname";
             if ($tmp_provmethod eq "install") {
                 $attr_hash->{exlist}      = '';
                 $attr_hash->{postinstall} = '';
@@ -677,7 +678,7 @@ sub processArgs
 
         #all the xCAT shipped object definition templates are installed
         #under directory /opt/xcat/share/xcat/templates/objects/<object-type>/
-        my $objtmpldir = "$::XCATROOT/share/xcat/templates/objects/";
+        my $objtmpldir = "$xcatroot/share/xcat/templates/objects/";
 
         #the path list to search the object definition templates
         #for specified object types,the path is like /opt/xcat/share/xcat/templates/objects/<object-type>/
@@ -3674,7 +3675,7 @@ sub defls
                             my $pm = $myhash{$obj}{'provmethod'};
                             if ($pm eq 'statelite') { $pm = 'netboot'; }
                             my $custpath = "$installroot/custom/$pm/$platform";
-                            my $defpath = "$::XCATROOT/share/xcat/$pm/$platform";
+                            my $defpath = "$xcatroot/share/xcat/$pm/$platform";
 
                             $nodeosimagehash{$obj}{'osvers'} = $os;
                             $tmpprofilelist{$os}{$arch}{$provmethod}{$profile}{'osvers'} = $os;

@@ -2,10 +2,10 @@
 
 package xCAT::DSHCLI;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use File::Basename;
 
@@ -1187,7 +1187,7 @@ sub fork_fanout_dsh
                 ($remote_shell =~ /\/ssh$/) && ($rsh_extension = 'SSH');
 
                 if ($$options{'devicetype'} =~ /EthSwitch/) {
-                    $remote_shell           = "$::XCATROOT/sbin/rshell_api";
+                    $remote_shell           = "$xcatroot/sbin/rshell_api";
                     $rsh_extension          = 'RShellAPI';
                     $rsh_config{'password'} = $$target_properties{'password'};
                     if ($$target_properties{'remotecmdproto'}) {
@@ -2401,7 +2401,7 @@ sub config_dsh
         # file is not found, goto /opt/xcat/share/devicetype
         my $devicepath = "/var/opt/xcat/" . $devicename . "/config";
         if (!-e $devicepath) {
-            $devicepath = "$::XCATROOT/share/xcat/devicetype/" . $devicename . "/config";
+            $devicepath = "$xcatroot/share/xcat/devicetype/" . $devicename . "/config";
         }
 
         # Get configuration from $::XCATDEVCFGDIR
@@ -3983,15 +3983,15 @@ sub parse_and_run_dsh
     @ARGV = @{$args};    # get arguments
     if ($ENV{'XCATROOT'})
     {
-        $::XCATROOT = $ENV{'XCATROOT'};    # setup xcatroot home directory
+        $xcatroot = $ENV{'XCATROOT'};    # setup xcatroot home directory
     }
     elsif (-d '/opt/xcat')
     {
-        $::XCATROOT = "/opt/xcat";
+        $xcatroot = "/opt/xcat";
     }
     else
     {
-        $::XCATROOT = "/usr";
+        $xcatroot = "/usr";
     }
 
     # parse the arguments
@@ -4291,7 +4291,7 @@ sub parse_and_run_dsh
             # go to backup directory if the config file
             # cannot be found under /var/opt/xcat/...
             if (!-e $devicepath) {
-                $devicepath = "$::XCATROOT/share/xcat/devicetype/" . $devicename . "/config";
+                $devicepath = "$xcatroot/share/xcat/devicetype/" . $devicename . "/config";
             }
             if (-e $devicepath)
             {
@@ -4458,11 +4458,11 @@ sub parse_and_run_dcp
     @ARGV = @{$args};    # get arguments
     if ($ENV{'XCATROOT'})
     {
-        $::XCATROOT = $ENV{'XCATROOT'};    # setup xcatroot home directory
+        $xcatroot = $ENV{'XCATROOT'};    # setup xcatroot home directory
     }
     else
     {
-        $::XCATROOT = "/opt/xcat";
+        $xcatroot = "/opt/xcat";
     }
 
 
@@ -6408,7 +6408,7 @@ sub runlocal_on_rootimg
     my ($class, $options, $imagename) = @_;
     my $cmd;
     if (xCAT::Utils->isAIX()) {    # use xcatchroot
-        $cmd = "$::XCATROOT/bin/xcatchroot -i $$options{'rootimg'} \"$$options{'command'}\"";
+        $cmd = "$xcatroot/bin/xcatchroot -i $$options{'rootimg'} \"$$options{'command'}\"";
     } else {
         $cmd = "chroot $$options{'rootimg'} $$options{'command'}";
     }

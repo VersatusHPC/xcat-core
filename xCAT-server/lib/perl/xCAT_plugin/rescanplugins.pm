@@ -12,10 +12,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::rescanplugins;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use xCAT::Utils;
 use xCAT::MsgUtils;
 use Getopt::Long;

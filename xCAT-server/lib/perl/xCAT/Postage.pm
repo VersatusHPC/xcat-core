@@ -1,13 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::Postage;
 
-BEGIN
-{
-    $::XCATROOT =
-      $ENV{'XCATROOT'} ? $ENV{'XCATROOT'}
-      : -d '/opt/xcat' ? '/opt/xcat'
-      :                  '/usr';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
+
 use xCAT::Table;
 use xCAT::MsgUtils;
 use xCAT::NodeRange;
@@ -254,7 +252,7 @@ sub makescript {
 
     # if not customized template use the default
     unless (-r $tmpl) {
-        $tmpl = "$::XCATROOT/share/xcat/mypostscript/mypostscript.tmpl"; #the default xcat mypostscript template
+        $tmpl = "$xcatroot/share/xcat/mypostscript/mypostscript.tmpl"; #the default xcat mypostscript template
     } else {    # using customized template
                 # need to update with new added exports for this release
         addexports($tmpl, $callback);
@@ -262,7 +260,7 @@ sub makescript {
 
     unless (-r "$tmpl") {
         my $rsp;
-        $rsp->{data}->[0] = "No mypostscript template exists in directory /install/postscripts or $::XCATROOT/share/xcat/mypostscript/mypostscript.tmpl.\n";
+        $rsp->{data}->[0] = "No mypostscript template exists in directory /install/postscripts or $xcatroot/share/xcat/mypostscript/mypostscript.tmpl.\n";
         xCAT::MsgUtils->message("SE", $rsp, $callback, 1);
         return;
     }
@@ -1310,7 +1308,7 @@ sub getImageitems_for_node
             {
                 $ospkglist =
                   xCAT::SvrUtils->get_pkglist_file_name(
-                    "$::XCATROOT/share/xcat/$stat/$platform",
+                    "$xcatroot/share/xcat/$stat/$platform",
                     $profile, $os, $arch);
             }
 
@@ -1322,7 +1320,7 @@ sub getImageitems_for_node
             {
                 $pkglist =
                   xCAT::SvrUtils->get_otherpkgs_pkglist_file_name(
-                    "$::XCATROOT/share/xcat/$stat/$platform",
+                    "$xcatroot/share/xcat/$stat/$platform",
                     $profile, $os, $arch);
             }
         }

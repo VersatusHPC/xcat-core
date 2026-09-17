@@ -2,10 +2,10 @@
 
 package xCAT_plugin::updatenode;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use xCAT::Table;
 use xCAT::Schema;
@@ -2851,7 +2851,7 @@ qq~/usr/sbin/lsnim -l $imagedef{$img}{lpp_source} 2>/dev/null~;
 
             # sync source files to SN
             my $cpcmd =
-qq~$::XCATROOT/bin/prsync -o "rlHpEAogDz" $srcdir $snkey:$dir 2>/dev/null~;
+qq~$xcatroot/bin/prsync -o "rlHpEAogDz" $srcdir $snkey:$dir 2>/dev/null~;
             $output =
               xCAT::InstUtils->xcmd($callback, $subreq, "xdsh", $nimprime,
                 $cpcmd, 0);
@@ -3084,7 +3084,7 @@ sub updateAIXsoftware
 
                 # cp file to SN
                 # has pkgdir already been copied.
-                my $rcpcmd = "$::XCATROOT/bin/xdcp $serv $pkglist_file $pkgdir ";
+                my $rcpcmd = "$xcatroot/bin/xdcp $serv $pkglist_file $pkgdir ";
                 my $output = xCAT::Utils->runcmd("$rcpcmd", -1);
                 if ($::RUNCMD_RC != 0)
                 {

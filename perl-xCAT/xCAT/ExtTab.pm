@@ -2,17 +2,16 @@
 #-------------------------------------------------------
 package xCAT::ExtTab;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 
 #
 #NO xCAT perl library routines should be used in this begin block
 #(i.e. MsgUtils,Utils, etc)
 #
-#use lib "$::XCATROOT/lib/perl";
+#use lib "$xcatroot/lib/perl";
 
 use File::Path;
 %ext_tabspec = ();
@@ -20,7 +19,7 @@ use File::Path;
 
 
 # loads user defined table spec. They are stored under /opt/xcat/lib/perl/xCAT_schema directory
-my $path = "$::XCATROOT/lib/perl/xCAT_schema";
+my $path = "$xcatroot/lib/perl/xCAT_schema";
 my $filelist;    # no specific files
 my @extSchema = &get_filelist($path, $filelist, "pm");
 

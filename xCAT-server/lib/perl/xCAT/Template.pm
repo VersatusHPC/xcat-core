@@ -18,13 +18,6 @@ use xCAT::PasswordUtils;
 use xCAT::MsgUtils;
 use XML::Simple;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-
-
-
 my $netdnssupport = eval {
     require Net::DNS;
     1;

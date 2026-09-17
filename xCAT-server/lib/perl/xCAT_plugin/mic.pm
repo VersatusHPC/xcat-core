@@ -6,10 +6,10 @@
 
 package xCAT_plugin::mic;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 use Getopt::Long;
@@ -487,7 +487,7 @@ sub copytar {
     my $rootimgdir  = "$destdir/overlay";
 
     # set a default package list
-    my $pkglist = "$::XCATROOT/share/xcat/netboot/mic/compute.pkglist";
+    my $pkglist = "$xcatroot/share/xcat/netboot/mic/compute.pkglist";
     $litab->setAttribs({ 'imagename' => $imagename }, { 'pkgdir' => $destdir, 'pkglist' => $pkglist, 'otherpkgdir' => $otherpkgdir, 'rootimgdir' => $rootimgdir });
 
     xCAT::MsgUtils->message("I", { data => ["The image $imagename is created."] }, $callback);
@@ -618,7 +618,7 @@ sub rflash {
 
     # run the cmd on the host to flash the mic
     my @args = ("-s", "-v", "-e");
-    push @args, "$::XCATROOT/sbin/flashmic";
+    push @args, "$xcatroot/sbin/flashmic";
     my $master = $request->{'_xcatdest'};
 
     # in case there are multiple servicenode entries, assume the first entry
@@ -946,7 +946,7 @@ sub nodeset {
 
     # run the cmd on the host to configure the mic
     my @args = ("-s", "-v", "-e");
-    push @args, "$::XCATROOT/sbin/configmic";
+    push @args, "$xcatroot/sbin/configmic";
     my $master = $request->{'_xcatdest'};
 
     # in case there are multiple servicenode entries, assume the first entry

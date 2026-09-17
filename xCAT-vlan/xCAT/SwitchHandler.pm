@@ -1,9 +1,10 @@
 package xCAT::SwitchHandler;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use xCAT::Table;
 use xCAT::Utils;
@@ -143,7 +144,7 @@ sub getsnmpsession {
     if ($tmp->{0}) {
 
         #print "Desc=" . $tmp->{0} . "\n";
-        my @switch_plugins = glob("$::XCATROOT/lib/perl/xCAT_plugin/vlan/*.pm");
+        my @switch_plugins = glob("$xcatroot/lib/perl/xCAT_plugin/vlan/*.pm");
         foreach my $fn (@switch_plugins) {
             $fn =~ /.*\/([^\/]*).pm$/;
             my $module = $1;

@@ -1,10 +1,6 @@
 # IBM(c) 2010 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT_plugin::activedirectory;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 my $callback;
 use Getopt::Long;
 use xCAT::ADUtils;

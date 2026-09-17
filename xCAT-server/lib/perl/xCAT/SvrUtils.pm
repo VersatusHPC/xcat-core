@@ -1,10 +1,11 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 package xCAT::SvrUtils;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 require xCAT::Table;
 require xCAT::NodeRange;
 require xCAT::Utils;
@@ -780,11 +781,11 @@ sub update_tables_with_templates
     } elsif ($osver =~ /^leap15/) {
         $osname = "sles";
     } else {
-        until (-r "$::XCATROOT/share/xcat/install/$osname/" or not $osname) {
+        until (-r "$xcatroot/share/xcat/install/$osname/" or not $osname) {
             chop($osname);
         }
         unless ($osname) {
-            return (1, "Unable to find $::XCATROOT/share/xcat/install directory for $osver");
+            return (1, "Unable to find $xcatroot/share/xcat/install directory for $osver");
         }
     }
 
@@ -823,7 +824,7 @@ sub update_tables_with_templates
         $installroot = $tmp;
     }
     my $cuspath = "$installroot/custom/install/$osname";
-    my $defpath = "$::XCATROOT/share/xcat/install/$osname";
+    my $defpath = "$xcatroot/share/xcat/install/$osname";
 
     #now get all the profile names for full installation
     my %profiles  = ();
@@ -1006,11 +1007,11 @@ sub update_tables_with_mgt_image
     } elsif ($osver =~ /^leap15/) {
         $osname = "sles";
     } else {
-        until (-r "$::XCATROOT/share/xcat/install/$osname/" or not $osname) {
+        until (-r "$xcatroot/share/xcat/install/$osname/" or not $osname) {
             chop($osname);
         }
         unless ($osname) {
-            return (1, "Unable to find $::XCATROOT/share/xcat/install directory for $osver");
+            return (1, "Unable to find $xcatroot/share/xcat/install directory for $osver");
         }
     }
 
@@ -1043,7 +1044,7 @@ sub update_tables_with_mgt_image
         $installroot = $tmp;
     }
     my $cuspath = "$installroot/custom/install/$osname";
-    my $defpath = "$::XCATROOT/share/xcat/install/$osname";
+    my $defpath = "$xcatroot/share/xcat/install/$osname";
 
     #now get all the profile names for full installation
     my %profiles  = ();
@@ -1226,11 +1227,11 @@ sub update_tables_with_diskless_image
     } elsif ($osver =~ /^leap15/) {
         $osname = "sles";
     } else {
-        until (-r "$::XCATROOT/share/xcat/netboot/$osname/" or not $osname) {
+        until (-r "$xcatroot/share/xcat/netboot/$osname/" or not $osname) {
             chop($osname);
         }
         unless ($osname) {
-            return (1, "Unable to find $::XCATROOT/share/xcat/netboot directory for $osver");
+            return (1, "Unable to find $xcatroot/share/xcat/netboot directory for $osver");
         }
     }
 
@@ -1261,7 +1262,7 @@ sub update_tables_with_diskless_image
         $installroot = $tmp;
     }
     my $cuspath = "$installroot/custom/netboot/$osname";
-    my $defpath = "$::XCATROOT/share/xcat/netboot/$osname";
+    my $defpath = "$xcatroot/share/xcat/netboot/$osname";
     my $osimagetab;
     my $linuximagetab;
 

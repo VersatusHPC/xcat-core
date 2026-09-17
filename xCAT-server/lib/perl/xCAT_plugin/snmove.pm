@@ -9,10 +9,11 @@
 #-------------------------------------------------------
 package xCAT_plugin::snmove;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use Sys::Hostname;
 use File::Basename;
@@ -2246,7 +2247,7 @@ sub sfsSLconfig
             my $srloc = xCAT::InstUtils->get_nim_attr_val($imghash{$i}{shared_root}, "location", $callback, $nimprime, $sub_req);
 
             if ($srloc) {
-                my $cpcmd = qq~$::XCATROOT/bin/xdcp $targetsn ~;
+                my $cpcmd = qq~$xcatroot/bin/xdcp $targetsn ~;
                 my $output;
                 if (-f "$srloc/statelite.table") {
                     $cpcmd .= qq~$srloc/statelite.table ~;
@@ -2275,7 +2276,7 @@ sub sfsSLconfig
 
                 my $ddir = "$srloc/.default";
                 if (-d $ddir) {
-                    $cpcmd = qq~$::XCATROOT/bin/xdcp $targetsn -R $srloc/.default $srloc/~;
+                    $cpcmd = qq~$xcatroot/bin/xdcp $targetsn -R $srloc/.default $srloc/~;
                 }
 
                 $output = xCAT::InstUtils->xcmd($callback, $sub_req, "xdsh", $nimprime, $cpcmd, 0);

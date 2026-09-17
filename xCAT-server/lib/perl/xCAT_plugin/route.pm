@@ -13,10 +13,6 @@
 #-------------------------------------------------------
 package xCAT_plugin::route;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 use strict;
 use xCAT::Table;
 use xCAT::Utils;

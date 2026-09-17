@@ -3,6 +3,11 @@
 
 package xCAT::LparNetbootExp;
 
+# xcatd sets $::XCATROOT to this same expression before it loads this
+# module. Reading the environment here keeps the value without depending
+# on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 
 #-----------------------------------------------------------------------------
 
@@ -41,7 +46,6 @@ Usage: Return macaddress
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
 }
 
@@ -3121,7 +3125,7 @@ sub lparnetbootexp
     # open the console
     ####################################
     nc_msg($verbose, "open port\n");
-    $cmd = $::XCATROOT . '/bin/rcons ' . $node . ' -f';
+    $cmd = $xcatroot . '/bin/rcons ' . $node . ' -f';
     my $rconsole = Expect->new;
     ##################################################
     # raw_pty() disables command echoing and CRLF

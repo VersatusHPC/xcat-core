@@ -14,7 +14,7 @@ $ENV{XCATCFG}  ||= 'SQLite:/tmp';
 $ENV{XCATROOT} ||= "$FindBin::Bin/../../xCAT-server";
 
 my $ddns_plugin_path =
-  "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/ddns.pm";
+  "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/ddns.pm";
 if ( -f $ddns_plugin_path ) {
     require $ddns_plugin_path;
 }

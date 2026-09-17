@@ -23,7 +23,7 @@ BEGIN {
 }
 
 my $source_hosts_plugin =
-  "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/hosts.pm";
+  "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/hosts.pm";
 require $source_hosts_plugin;
 
 sub set_host_lines

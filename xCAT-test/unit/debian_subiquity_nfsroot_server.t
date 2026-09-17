@@ -27,7 +27,7 @@ my $repo_root = File::Spec->rel2abs(
     File::Spec->catdir( $FindBin::Bin, '..', '..' )
 );
 my $plugin = File::Spec->catfile(
-    $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'debian.pm'
+    $repo_root, 'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'debian.pm'
 );
 plan skip_all => "debian.pm not found" unless -f $plugin;
 

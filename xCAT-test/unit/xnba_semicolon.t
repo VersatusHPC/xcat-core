@@ -4,7 +4,7 @@ use warnings;
 use Test::More;
 
 my $xnba_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/lib/perl/xCAT_plugin/xnba.pm" : '';
-$xnba_path = "xCAT-server/lib/xcat/plugins/xnba.pm"
+$xnba_path = "xCAT-server/lib/perl/xCAT_plugin/xnba.pm"
     unless -f $xnba_path;
 
 plan skip_all => "xnba.pm not found" unless -f $xnba_path;

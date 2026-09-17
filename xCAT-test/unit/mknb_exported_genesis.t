@@ -41,7 +41,7 @@ BEGIN {
 }
 
 my $source_mknb_plugin =
-  "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/mknb.pm";
+  "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/mknb.pm";
 if (-f $source_mknb_plugin) {
     require $source_mknb_plugin;
 } else {

@@ -7,7 +7,7 @@ use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 
-my $source = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/destiny.pm";
+my $source = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/destiny.pm";
 open(my $source_fh, '<', $source) or die "open $source: $!";
 my $content = do { local $/; <$source_fh> };
 close($source_fh) or die "close $source: $!";

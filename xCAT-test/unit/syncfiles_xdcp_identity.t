@@ -18,9 +18,9 @@ sub slurp {
     return $c;
 }
 
-my $syncfiles  = slurp('xCAT-server/lib/xcat/plugins/syncfiles.pm');
-my $updatenode = slurp('xCAT-server/lib/xcat/plugins/updatenode.pm');
-my $xdsh       = slurp('xCAT-server/lib/xcat/plugins/xdsh.pm');
+my $syncfiles  = slurp('xCAT-server/lib/perl/xCAT_plugin/syncfiles.pm');
+my $updatenode = slurp('xCAT-server/lib/perl/xCAT_plugin/updatenode.pm');
+my $xdsh       = slurp('xCAT-server/lib/perl/xCAT_plugin/xdsh.pm');
 
 plan skip_all => 'plugins not found'
   unless defined($syncfiles) && defined($updatenode) && defined($xdsh);

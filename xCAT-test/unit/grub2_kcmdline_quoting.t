@@ -12,7 +12,7 @@ use Test::More;
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
-my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/grub2.pm";
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/grub2.pm";
 plan skip_all => 'grub2.pm not found' unless -r $plugin;
 eval { require $plugin; 1 } or plan skip_all => "could not load grub2.pm: $@";
 

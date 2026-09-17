@@ -8,7 +8,7 @@ use Test::More;
 use Getopt::Long qw(GetOptionsFromArray);
 
 my $plugin = File::Spec->catfile( $FindBin::Bin, '..', '..',
-    'xCAT-server', 'lib', 'xcat', 'plugins', 'nodestat.pm' );
+    'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'nodestat.pm' );
 plan skip_all => 'nodestat.pm not found' unless -r $plugin;
 
 open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";

@@ -30,7 +30,7 @@ BEGIN {
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
-my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/debian.pm";
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/debian.pm";
 require $plugin;
 
 my @cases = (

@@ -7,7 +7,7 @@ use File::Spec;
 use Test::More;
 
 my $plugin = File::Spec->catfile( $FindBin::Bin, '..', '..',
-    'xCAT-server', 'lib', 'xcat', 'plugins', 'mknb.pm' );
+    'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'mknb.pm' );
 plan skip_all => 'mknb.pm not found' unless -r $plugin;
 
 open( my $fh, '<', $plugin ) or die "Unable to read $plugin: $!";

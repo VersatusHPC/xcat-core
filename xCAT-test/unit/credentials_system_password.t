@@ -98,7 +98,7 @@ BEGIN {
 
 my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $plugin = File::Spec->catfile(
-    $repo_root, qw(xCAT-server lib xcat plugins credentials.pm)
+    $repo_root, qw(xCAT-server lib perl xCAT_plugin credentials.pm)
 );
 require $plugin;
 

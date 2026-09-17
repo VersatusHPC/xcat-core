@@ -23,7 +23,7 @@ BEGIN {
     $INC{'xCAT/ServiceNodeUtils.pm'} = __FILE__;
 }
 
-my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/networks.pm";
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/networks.pm";
 $plugin = "$ENV{XCATROOT}/lib/perl/xCAT_plugin/networks.pm" unless -f $plugin;
 require $plugin;
 

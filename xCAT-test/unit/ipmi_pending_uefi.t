@@ -77,7 +77,7 @@ package main;
 my $repo_root = File::Spec->catdir($FindBin::Bin, '..', '..');
 $ENV{XCATROOT} = File::Spec->catdir($repo_root, 'xCAT-server');
 my $plugin = File::Spec->catfile(
-    $repo_root, qw(xCAT-server lib xcat plugins ipmi.pm)
+    $repo_root, qw(xCAT-server lib perl xCAT_plugin ipmi.pm)
 );
 do $plugin or die $@ || "Unable to load $plugin: $!";
 

@@ -4,7 +4,7 @@ use warnings;
 use Test::More;
 
 my $grub2_path = defined $ENV{XCATROOT} ? "$ENV{XCATROOT}/lib/perl/xCAT_plugin/grub2.pm" : '';
-$grub2_path = "xCAT-server/lib/xcat/plugins/grub2.pm"
+$grub2_path = "xCAT-server/lib/perl/xCAT_plugin/grub2.pm"
     unless -f $grub2_path;
 
 plan skip_all => "grub2.pm not found" unless -f $grub2_path;

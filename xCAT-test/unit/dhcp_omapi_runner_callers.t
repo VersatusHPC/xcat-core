@@ -20,7 +20,7 @@ use xCAT::DHCP::OmapiRunner;
 
 $ENV{XCATCFG} ||= 'SQLite:/tmp';
 
-my $source_dhcp_plugin = repo_path('xCAT-server/lib/xcat/plugins/dhcp.pm');
+my $source_dhcp_plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/dhcp.pm');
 require $source_dhcp_plugin;
 
 sub write_file {

@@ -15,7 +15,7 @@ $ENV{XCATCFG} ||= 'SQLite:/tmp';
 # `makedhcp -q <node>` must answer from dhcpd.conf and never spawn omshell: Ubuntu's ISC
 # DHCP 4.4 omshell can wedge at 100% CPU, unreapable, which hung the CI provisioning retry
 # loop on focal.
-my $source_dhcp_plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/dhcp.pm";
+my $source_dhcp_plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/dhcp.pm";
 if ( -f $source_dhcp_plugin ) {
     require $source_dhcp_plugin;
 } else {

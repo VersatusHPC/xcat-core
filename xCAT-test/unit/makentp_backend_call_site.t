@@ -21,7 +21,7 @@ my $repo_root = File::Spec->rel2abs(
     File::Spec->catdir( $FindBin::Bin, '..', '..' )
 );
 my $plugin = File::Spec->catfile(
-    $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'makentp.pm'
+    $repo_root, 'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'makentp.pm'
 );
 plan skip_all => "makentp.pm not found" unless -f $plugin;
 

@@ -8,7 +8,7 @@ use Cwd qw(realpath);
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
-use lib "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin";
 use lib "$FindBin::Bin/../../xCAT-server/share/xcat/netboot/imgutils";
 
 require sles;

@@ -11,7 +11,7 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $plugin = repo_path('xCAT-server/lib/xcat/plugins/confluent.pm');
+my $plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/confluent.pm');
 plan skip_all => 'confluent.pm not found' unless -r $plugin;
 
 # Every collaborator this plugin reaches for is stood in below: the tables, the
@@ -334,7 +334,7 @@ sub params_for {
     # produced through the real transport and read the bytes. Confluent::TLV is
     # in the checkout and JSON is a hard dependency of the server package, so a
     # failure to load either is a broken transport, not an absent environment.
-    my $tlvpm = repo_path('xCAT-server/lib/xcat/Confluent/TLV.pm');
+    my $tlvpm = repo_path('xCAT-server/lib/perl/Confluent/TLV.pm');
     require $tlvpm;
     require JSON;
 

@@ -52,7 +52,7 @@ Requires: perl-IO-Socket-SSL perl-XML-Simple perl-XML-Parser perl-Digest-SHA1 pe
 # Time::HiRes and Text::Balanced) are not pulled in transitively by perl-xCAT
 # either. List them here or the affected subcommands die at load time.
 Requires: perl-Net-Telnet perl-Net-DNS perl-Crypt-CBC perl-Crypt-Rijndael
-# DB_File is only used by the Confluent client (lib/xcat/Confluent/Client.pm). EL10
+# DB_File is only used by the Confluent client (lib/perl/Confluent/Client.pm). EL10
 # dropped libdb: EPEL still carries perl-DB_File for x86_64 and ppc64le, but riscv64 has
 # no EPEL at all, so on EL10 ask for the module weakly -- it is installed where it exists
 # and skipped where it cannot. The dependency generator still turns that "use DB_File"
@@ -219,7 +219,7 @@ chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/scripts/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/sles/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/rh/*
 
-cp lib/xcat/plugins/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin
+cp lib/perl/xCAT_plugin/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin/*
 
 cp lib/perl/xCAT/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT
@@ -248,7 +248,7 @@ rm $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin/confluent.pm
 cp lib/xcat/dsh/Context/* $RPM_BUILD_ROOT/%{prefix}/xdsh/Context
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/xdsh/Context/*
 
-cp -r lib/xcat/monitoring/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring
+cp -r lib/perl/xCAT_monitoring/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/*
 
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/samples
@@ -256,10 +256,10 @@ chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/samples/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/pcp
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/pcp/*
 
-cp -r lib/xcat/Confluent/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/Confluent
+cp -r lib/perl/Confluent/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/Confluent
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/Confluent/*
 
-cp -r lib/xcat/schema/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_schema
+cp -r lib/perl/xCAT_schema/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_schema
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_schema/*
 
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_schema/samples

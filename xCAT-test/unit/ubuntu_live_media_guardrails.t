@@ -8,7 +8,7 @@ use Test::More;
 
 use XCAT::Test::File qw(slurp_repo_file);
 
-my $debian_pm = slurp_repo_file('xCAT-server/lib/xcat/plugins/debian.pm');
+my $debian_pm = slurp_repo_file('xCAT-server/lib/perl/xCAT_plugin/debian.pm');
 like( $debian_pm, qr/sub is_ubuntu_live_media/, 'copycds can detect Ubuntu live media' );
 like( $debian_pm, qr/casper\/install-sources\.yaml/, 'copycds recognizes Subiquity install source metadata' );
 like( $debian_pm, qr/casper\/\*\.squashfs/, 'copycds recognizes live squashfs media' );

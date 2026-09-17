@@ -55,7 +55,7 @@ BEGIN {
     $INC{'xCAT/NodeRange.pm'} = __FILE__;
 }
 
-my $source_mknb_plugin = repo_path('xCAT-server/lib/xcat/plugins/mknb.pm');
+my $source_mknb_plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/mknb.pm');
 require $source_mknb_plugin;
 
 my ($legacy, $selected) = xCAT_plugin::mknb::_select_network_addresses(

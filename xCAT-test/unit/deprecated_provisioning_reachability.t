@@ -42,8 +42,8 @@ sub unreachable_after_return {
     return @found;
 }
 
-my $destiny = slurp('xCAT-server/lib/xcat/plugins/destiny.pm');
-my $packimage = slurp('xCAT-server/lib/xcat/plugins/packimage.pm');
+my $destiny = slurp('xCAT-server/lib/perl/xCAT_plugin/destiny.pm');
+my $packimage = slurp('xCAT-server/lib/perl/xCAT_plugin/packimage.pm');
 
 plan skip_all => 'destiny.pm or packimage.pm not found'
   unless defined($destiny) && defined($packimage);

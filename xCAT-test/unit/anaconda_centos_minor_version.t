@@ -14,7 +14,7 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 
-my $plugin = repo_path('xCAT-server/lib/xcat/plugins/anaconda.pm');
+my $plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/anaconda.pm');
 plan skip_all => 'anaconda.pm not found' unless -r $plugin;
 $ENV{XCATROOT} ||= repo_path('xCAT-server');
 require $plugin;

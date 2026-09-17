@@ -20,7 +20,7 @@ use XCAT::Test::File qw(repo_path);
 # without a further step. An image the management node already has is never
 # replaced, and the media of every other architecture is left alone.
 
-my $plugin = repo_path('xCAT-server/lib/xcat/plugins/anaconda.pm');
+my $plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/anaconda.pm');
 plan skip_all => "$plugin not found" unless -r $plugin;
 $ENV{XCATROOT} ||= repo_path('xCAT-server');
 require $plugin;

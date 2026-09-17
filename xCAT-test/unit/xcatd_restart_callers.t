@@ -25,7 +25,7 @@ like( $unit, qr{^ExecStart=.*?/usr/sbin/xcatd}m,
     'the native systemd unit starts xcatd directly' );
 
 my $imgport = read_file(
-    File::Spec->catfile( $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'imgport.pm' )
+    File::Spec->catfile( $repo_root, 'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'imgport.pm' )
 );
 like( $imgport, qr{system\("\$::XCATROOT/sbin/restartxcatd"\)},
     'imgport preserves the xcatd fast-restart path' );

@@ -48,7 +48,7 @@ BEGIN {
     $INC{'xCAT/DiscoveryUtils.pm'} = __FILE__;
 }
 
-my $plugin = repo_path('xCAT-server/lib/xcat/plugins/nodediscover.pm');
+my $plugin = repo_path('xCAT-server/lib/perl/xCAT_plugin/nodediscover.pm');
 plan skip_all => "$plugin not found" unless -r $plugin;
 
 require $plugin;

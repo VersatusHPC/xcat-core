@@ -25,7 +25,7 @@ BEGIN {
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
-my $plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/debian.pm";
+my $plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/debian.pm";
 plan skip_all => 'debian.pm not found' unless -r $plugin;
 eval { require $plugin; 1 } or plan skip_all => "could not load debian.pm: $@";
 

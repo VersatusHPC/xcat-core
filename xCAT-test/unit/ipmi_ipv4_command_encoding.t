@@ -88,7 +88,7 @@ use Test::More;
 my $repo_root = $ENV{XCAT_IPMI_PLUGIN_ROOT}
   || File::Spec->catdir( $FindBin::Bin, '..', '..' );
 my $plugin = File::Spec->catfile(
-    $repo_root, 'xCAT-server', 'lib', 'xcat', 'plugins', 'ipmi.pm' );
+    $repo_root, 'xCAT-server', 'lib', 'perl', 'xCAT_plugin', 'ipmi.pm' );
 require $plugin;
 
 my $system_inet_aton = \&xCAT_plugin::ipmi::inet_aton;

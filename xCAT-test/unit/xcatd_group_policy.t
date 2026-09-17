@@ -61,7 +61,7 @@ require xCAT::Utils;
 my $source_xcatd = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT/xcatd.pm";
 require $source_xcatd;
 
-my $source_rollupdate = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/rollupdate.pm";
+my $source_rollupdate = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/rollupdate.pm";
 require $source_rollupdate;
 
 sub validate_policies {

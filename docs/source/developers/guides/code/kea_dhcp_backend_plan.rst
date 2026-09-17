@@ -70,7 +70,7 @@ where both implementations can be installed.
 Architecture
 ------------
 
-Refactor ``xCAT-server/lib/xcat/plugins/dhcp.pm`` into shared orchestration plus
+Refactor ``xCAT-server/lib/perl/xCAT_plugin/dhcp.pm`` into shared orchestration plus
 backend-specific modules.
 
 Suggested modules:

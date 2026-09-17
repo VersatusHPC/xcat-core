@@ -12,7 +12,7 @@ use Test::More;
 
 $ENV{XCATCFG} ||= 'SQLite:/tmp';
 
-my $source_dhcp_plugin = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/dhcp.pm";
+my $source_dhcp_plugin = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/dhcp.pm";
 if ( -f $source_dhcp_plugin ) {
     require $source_dhcp_plugin;
 } else {

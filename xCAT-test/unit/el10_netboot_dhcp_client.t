@@ -12,7 +12,7 @@ my $spec = slurp_repo_file('xCAT-server/xCAT-server.spec');
 unlike( $spec, qr/\bdnf\s+download\b/, 'xCAT-server RPM scripts do not download packages' );
 unlike( $spec, qr{/install/dhcp_pkgs}, 'xCAT-server RPM scripts do not write hidden DHCP package directories' );
 
-my $anaconda = slurp_repo_file('xCAT-server/lib/xcat/plugins/anaconda.pm');
+my $anaconda = slurp_repo_file('xCAT-server/lib/perl/xCAT_plugin/anaconda.pm');
 unlike( $anaconda, qr{/install/dhcp_pkgs}, 'copycds does not inject hidden DHCP package directories into pkgdir' );
 
 my @pkglist_files = qw(

@@ -10,7 +10,7 @@ use Test::More;
 
 my @plugin_candidates = (
     File::Spec->catfile(
-        $FindBin::Bin, '..', '..', 'xCAT-server', 'lib', 'xcat', 'plugins',
+        $FindBin::Bin, '..', '..', 'xCAT-server', 'lib', 'perl', 'xCAT_plugin',
         'openbmc.pm'
     ),
 );

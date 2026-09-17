@@ -13,7 +13,7 @@ use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 
 my $anaconda = File::Spec->catfile(
     $repo_root,
-    'xCAT-server/lib/xcat/plugins/anaconda.pm'
+    'xCAT-server/lib/perl/xCAT_plugin/anaconda.pm'
 );
 do $anaconda or die $@ || "Unable to load $anaconda: $!";
 

@@ -35,9 +35,9 @@ $INC{'xCAT/IMMUtils.pm'} = __FILE__;
 
 foreach my $relative (
     qw(
-      xCAT-server/lib/xcat/plugins/bmcconfig.pm
-      xCAT-server/lib/xcat/plugins/energy.pm
-      xCAT-server/lib/xcat/plugins/zvm.pm
+      xCAT-server/lib/perl/xCAT_plugin/bmcconfig.pm
+      xCAT-server/lib/perl/xCAT_plugin/energy.pm
+      xCAT-server/lib/perl/xCAT_plugin/zvm.pm
       )
   ) {
     my $plugin_path = repo_path($relative);

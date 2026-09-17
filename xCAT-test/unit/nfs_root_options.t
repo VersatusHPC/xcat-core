@@ -60,7 +60,7 @@ is(
 );
 
 foreach my $plugin (qw(anaconda debian sles)) {
-    my $path = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/$plugin.pm";
+    my $path = "$FindBin::Bin/../../xCAT-server/lib/perl/xCAT_plugin/$plugin.pm";
     open(my $fh, '<', $path) or die "Unable to read $path: $!";
     my $source = do { local $/; <$fh> };
     close($fh);

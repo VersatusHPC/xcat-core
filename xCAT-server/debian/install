@@ -21,11 +21,11 @@ share/xcat/ib/netboot/sles/* opt/xcat/share/xcat/ib/netboot/sles
 share/xcat/ib/netboot/rh/* opt/xcat/share/xcat/ib/netboot/rh
 
 lib/perl/xCAT/* opt/xcat/lib/perl/xCAT/
-lib/xcat/plugins/* opt/xcat/lib/perl/xCAT_plugin/
-lib/xcat/schema/* opt/xcat/lib/perl/xCAT_schema/
-lib/xcat/monitoring/* opt/xcat/lib/perl/xCAT_monitoring/
+lib/perl/xCAT_plugin/* opt/xcat/lib/perl/xCAT_plugin/
+lib/perl/xCAT_schema/* opt/xcat/lib/perl/xCAT_schema/
+lib/perl/xCAT_monitoring/* opt/xcat/lib/perl/xCAT_monitoring/
 lib/xcat/dsh/Context/* opt/xcat/xdsh/Context
-lib/xcat/Confluent/* opt/xcat/lib/perl/Confluent/
+lib/perl/Confluent/* opt/xcat/lib/perl/Confluent/
 
 lib/xcat/shfunctions opt/xcat/lib
 etc/init.d/xcatd opt/xcat/share/xcat/scripts

@@ -7,7 +7,7 @@ use File::Spec;
 use Test::More;
 
 my $repo_root = File::Spec->catdir( $FindBin::Bin, '..', '..' );
-my $plugin = File::Spec->catfile( $repo_root, 'xCAT-server/lib/xcat/plugins/dhcp.pm' );
+my $plugin = File::Spec->catfile( $repo_root, 'xCAT-server/lib/perl/xCAT_plugin/dhcp.pm' );
 
 plan skip_all => "$plugin not found" unless -r $plugin;
 

@@ -6,8 +6,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 
-# if AIX - make sure we include perl 5.8.2 in INC path.
-
 use POSIX qw(ceil);
 use File::Path;
 use Socket;

@@ -2,8 +2,6 @@
 
 package xCAT::MsgUtils;
 
-# if AIX - make sure we include perl 5.8.2 in INC path.
-
 use strict;
 use Sys::Syslog;
 use xCAT::Utils;

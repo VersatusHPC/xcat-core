@@ -50,8 +50,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
 }
 
-# if AIX - make sure we include perl 5.8.2 in INC path.
-
 my $cachethreshold = 16; #How many nodes in 'getNodesAttribs' before switching to full DB retrieval
 
 #TODO: dynamic tracking/adjustment, the point where cache is cost effective differs based on overall db size

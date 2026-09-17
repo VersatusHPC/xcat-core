@@ -14,13 +14,13 @@
 
 =cut
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-    $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-}
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 
-use lib "$::XCATROOT/lib/perl";
+# The use lib above runs at compile time, so the root is spelled inline
+# there. This lexical is assigned at run time and carries the same value to
+# the rest of the program.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 use strict;
 use xCAT::Utils;
 use xCAT::SvrUtils;
@@ -166,7 +166,7 @@ if ($::INITIALINSTALL || $::FORCE)
 {
     if (($::osname eq 'Linux') && $ENV{'XCATPGPW'})
     {
-        my $cmd = "XCATPGPW=$ENV{'XCATPGPW'} $::XCATROOT/bin/pgsqlsetup -i -N";
+        my $cmd = "XCATPGPW=$ENV{'XCATPGPW'} $xcatroot/bin/pgsqlsetup -i -N";
         my $outref = xCAT::Utils->runcmd("$cmd", 0);
         if ($::RUNCMD_RC != 0)
         {
@@ -215,7 +215,7 @@ if (($::osname eq 'AIX') && ($ENV{'INUCLIENTS'} == 1))
             $flag = "-d";
         }
 
-        my $mkcmd = qq~/usr/sbin/mkitab "xcatconfig:2:once:$::XCATROOT/sbin/xcatconfig $flag > /dev/console 2>&1"~;
+        my $mkcmd = qq~/usr/sbin/mkitab "xcatconfig:2:once:$xcatroot/sbin/xcatconfig $flag > /dev/console 2>&1"~;
         system("$mkcmd");
     }
     exit(0);
@@ -310,7 +310,7 @@ if (($::INITIALINSTALL) || ($::UPDATEINSTALL))
 
             # add xCAT paths
             my $eccmd =
-qq~echo '# xCAT setup\nXCATROOT=$::XCATROOT\nPATH=\$XCATROOT/bin:\$XCATROOT/sbin:\$XCATROOT/share/xcat/tools:\$PATH\nMANPATH=\$XCATROOT/share/man:\$MANPATH\nexport XCATROOT PATH MANPATH' >>$profname~;
+qq~echo '# xCAT setup\nXCATROOT=$xcatroot\nPATH=\$XCATROOT/bin:\$XCATROOT/sbin:\$XCATROOT/share/xcat/tools:\$PATH\nMANPATH=\$XCATROOT/share/man:\$MANPATH\nexport XCATROOT PATH MANPATH' >>$profname~;
             $outref = xCAT::Utils->runcmd("$eccmd", 0);
             if ($::RUNCMD_RC != 0)
             {
@@ -365,7 +365,7 @@ if ($::INITIALINSTALL || $::FORCE || $::UPDATEINSTALL)
         # Add the xcatd subsystem to the AIX
         no strict 'refs';
         my $mkssys_cmd =
-"mkssys -p $::XCATROOT/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a \"-f\"";
+"mkssys -p $xcatroot/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a \"-f\"";
         system($mkssys_cmd);
         use strict;
 
@@ -379,7 +379,7 @@ if ($::INITIALINSTALL || $::FORCE || $::UPDATEINSTALL)
             my $outref = xCAT::Utils->runcmd("$rcmd", -1);
             if ($::RUNCMD_RC != 0) {
                 my $mkitab_cmd =
-"mkitab \"xcatd:2:once:$::XCATROOT/sbin/restartxcatd > /dev/console 2>&1\" > /dev/null 2>&1";
+"mkitab \"xcatd:2:once:$xcatroot/sbin/restartxcatd > /dev/console 2>&1\" > /dev/null 2>&1";
                 xCAT::Utils->runcmd("$mkitab_cmd", 0);
                 if ($::RUNCMD_RC != 0) {
                     xCAT::MsgUtils->message('E', "Could not set up inittab.");
@@ -458,7 +458,7 @@ if ($::INITIALINSTALL || $::FORCE || $::UPDATEINSTALL || $::genCredentials)
     my $xcmd;
     if ($::osname eq 'AIX')
     {
-        $xcmd = "$::XCATROOT/sbin/restartxcatd";
+        $xcmd = "$xcatroot/sbin/restartxcatd";
         system($xcmd);
     }
     else
@@ -1210,57 +1210,57 @@ sub initDB
         my $confdir     = "/etc/xcat";
         my $syncdir     = "/var/xcat/syncfiles";
         my $nodesyncdir = "/var/xcat/node/syncfiles";
-        $chtabcmds = "$::XCATROOT/sbin/chtab key=blademaxp site.value=64;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=domain site.value=$domain;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=fsptimeout site.value=0;";
+        $chtabcmds = "$xcatroot/sbin/chtab key=blademaxp site.value=64;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=domain site.value=$domain;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=fsptimeout site.value=0;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=installdir site.value=$installdir;";
+          "$xcatroot/sbin/chtab key=installdir site.value=$installdir;";
 
         if ($::osname eq 'Linux')
         {
-            $chtabcmds .= "$::XCATROOT/sbin/chtab key=ipmimaxp site.value=64;";
+            $chtabcmds .= "$xcatroot/sbin/chtab key=ipmimaxp site.value=64;";
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=ipmiretries site.value=3;";
+              "$xcatroot/sbin/chtab key=ipmiretries site.value=3;";
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=ipmitimeout site.value=2;";
+              "$xcatroot/sbin/chtab key=ipmitimeout site.value=2;";
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=consoleondemand site.value=no;";
+              "$xcatroot/sbin/chtab key=consoleondemand site.value=no;";
         }
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=master site.value=$master;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=master site.value=$master;";
         if ($forwarders) {
-            $chtabcmds .= "$::XCATROOT/sbin/chtab key=forwarders site.value=$forwarders;";
+            $chtabcmds .= "$xcatroot/sbin/chtab key=forwarders site.value=$forwarders;";
         }
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=nameservers site.value=$master;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=maxssh site.value=8;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=ppcmaxp site.value=64;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=ppcretry site.value=3;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=ppctimeout site.value=0;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=powerinterval site.value=0;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=syspowerinterval site.value=0;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=sharedtftp site.value=1;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=nameservers site.value=$master;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=maxssh site.value=8;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=ppcmaxp site.value=64;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=ppcretry site.value=3;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=ppctimeout site.value=0;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=powerinterval site.value=0;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=syspowerinterval site.value=0;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=sharedtftp site.value=1;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=SNsyncfiledir site.value=$syncdir;";
+          "$xcatroot/sbin/chtab key=SNsyncfiledir site.value=$syncdir;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=nodesyncfiledir site.value=$nodesyncdir;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=tftpdir site.value=$tftpdir;";
+          "$xcatroot/sbin/chtab key=nodesyncfiledir site.value=$nodesyncdir;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=tftpdir site.value=$tftpdir;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=xcatdport site.value=$xcatport;";
+          "$xcatroot/sbin/chtab key=xcatdport site.value=$xcatport;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=xcatiport site.value=$xcatiport;";
+          "$xcatroot/sbin/chtab key=xcatiport site.value=$xcatiport;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=xcatconfdir site.value=$confdir;";
+          "$xcatroot/sbin/chtab key=xcatconfdir site.value=$confdir;";
         $chtabcmds .=
-          "$::XCATROOT/sbin/chtab key=timezone site.value=\"$timezone\";";
+          "$xcatroot/sbin/chtab key=timezone site.value=\"$timezone\";";
 
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=useNmapfromMN site.value=no;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=enableASMI site.value=no;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=db2installloc site.value=\/mntdb2;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=databaseloc site.value=\/var\/lib;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=sshbetweennodes site.value=ALLGROUPS;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=dnshandler site.value=ddns;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=vsftp site.value=n;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=cleanupxcatpost site.value=no;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=cleanupdiskfullxcatpost site.value=no;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=useNmapfromMN site.value=no;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=enableASMI site.value=no;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=db2installloc site.value=\/mntdb2;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=databaseloc site.value=\/var\/lib;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=sshbetweennodes site.value=ALLGROUPS;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=dnshandler site.value=ddns;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=vsftp site.value=n;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=cleanupxcatpost site.value=no;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=cleanupdiskfullxcatpost site.value=no;";
         my $omapi_algorithm =
           xCAT::DHCP::OmapiPolicy->new_install_default_algorithm(
             is_new_install => $initializing_new_site,
@@ -1269,24 +1269,24 @@ sub initDB
           );
         if ($omapi_algorithm) {
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=dhcpomapialgorithm site.value=$omapi_algorithm;";
+              "$xcatroot/sbin/chtab key=dhcpomapialgorithm site.value=$omapi_algorithm;";
         }
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=dhcplease site.value=43200;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=auditnosyslog site.value=0;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=xcatsslversion site.value=;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=xcattlspolicy site.value=modern;";
-        $chtabcmds .= "$::XCATROOT/sbin/chtab key=auditskipcmds site.value=ALL;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=dhcplease site.value=43200;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=auditnosyslog site.value=0;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=xcatsslversion site.value=;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=xcattlspolicy site.value=modern;";
+        $chtabcmds .= "$xcatroot/sbin/chtab key=auditskipcmds site.value=ALL;";
 
-        #$chtabcmds .= "$::XCATROOT/sbin/chtab key=useflowcontrol site.value=yes;"; # need to fix 4031
+        #$chtabcmds .= "$xcatroot/sbin/chtab key=useflowcontrol site.value=yes;"; # need to fix 4031
 
         if ($::osname eq 'AIX')
         {
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=useSSHonAIX site.value=yes;";
+              "$xcatroot/sbin/chtab key=useSSHonAIX site.value=yes;";
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=useNFSv4onAIX site.value=no;";
+              "$xcatroot/sbin/chtab key=useNFSv4onAIX site.value=no;";
             $chtabcmds .=
-              "$::XCATROOT/sbin/chtab key=consoleondemand site.value=yes;";
+              "$xcatroot/sbin/chtab key=consoleondemand site.value=yes;";
         }
 
         my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
@@ -1325,7 +1325,7 @@ sub initDB
             if (($otherpkgsexist == 0) || ($::initDB))
             {
                 $chtabcmds =
-"$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postbootscripts='otherpkgs';";
+"$xcatroot/sbin/chtab node=xcatdefaults postscripts.postbootscripts='otherpkgs';";
                 $otherpkgsprocessed = 1;
             }
 
@@ -1335,25 +1335,25 @@ sub initDB
             if (($otherpkgsprocessed == 1) || ($otherpkgsexist == 2))
             {
                 $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,syncfiles';";
+"$xcatroot/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,syncfiles';";
             }
             else
             {    # put otherpkgs in postscripts attr
                 $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,otherpkgs,syncfiles';";
+"$xcatroot/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,otherpkgs,syncfiles';";
             }
 
             # add servicenode default
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=service postscripts.postscripts='servicenode'";
+"$xcatroot/sbin/chtab node=service postscripts.postscripts='servicenode'";
 
         }
         if ($::osname eq 'AIX') {    # we don't use otherpkgs on AIX
 
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,syncfiles';";
+"$xcatroot/sbin/chtab node=xcatdefaults postscripts.postscripts='syslog,remoteshell,syncfiles';";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=service postscripts.postscripts='servicenode'";
+"$xcatroot/sbin/chtab node=service postscripts.postscripts='servicenode'";
 
         }
 
@@ -1378,50 +1378,50 @@ sub initDB
         if ($::osname eq 'AIX')
         {
             $chtabcmds =
-"$::XCATROOT/sbin/chtab priority=1 policy.name=root policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=1 policy.name=root policy.rule=allow;";
             if (defined($MNname)) {
                 $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
+"$xcatroot/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
             }
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.4 policy.commands=getpostscript policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.4 policy.commands=getpostscript policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.5 policy.commands=getcredentials policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.5 policy.commands=getcredentials policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.6 policy.commands=syncfiles policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.6 policy.commands=syncfiles policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
         }
         else    # linux
         {
             $chtabcmds =
-"$::XCATROOT/sbin/chtab priority=1 policy.name=root policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=1 policy.name=root policy.rule=allow;";
             if (defined($MNname)) {
                 $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
+"$xcatroot/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
             }
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2 policy.commands=getbmcconfig policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2 policy.commands=getbmcconfig policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2.1 policy.commands=remoteimmsetup policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2.1 policy.commands=remoteimmsetup policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=3 policy.commands=nextdestiny policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=3 policy.commands=nextdestiny policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4 policy.commands=getdestiny policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4 policy.commands=getdestiny policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.4 policy.commands=getpostscript policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.4 policy.commands=getpostscript policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.5 policy.commands=getcredentials policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.5 policy.commands=getcredentials policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.6 policy.commands=syncfiles policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.6 policy.commands=syncfiles policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.7 policy.commands=litefile policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.7 policy.commands=litefile policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.8 policy.commands=litetree policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.8 policy.commands=litetree policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.9 policy.commands=getadapter policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.9 policy.commands=getadapter policy.rule=allow;";
         }
         my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
         if ($::RUNCMD_RC != 0)
@@ -1440,13 +1440,13 @@ sub initDB
         # setup Management Node policy to trusted
         my $chtabcmds;
         $chtabcmds =
-"$::XCATROOT/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
+"$xcatroot/sbin/chtab priority=1.2 policy.name=$MNname policy.rule=trusted;";
         $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2.3 policy.commands=lsxcatd policy.rule=allow;";
         $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=2.1 policy.commands=remoteimmsetup policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=2.1 policy.commands=remoteimmsetup policy.rule=allow;";
         $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.9 policy.commands=getadapter policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.9 policy.commands=getadapter policy.rule=allow;";
         my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
 
         if ($::RUNCMD_RC != 0)
@@ -1462,9 +1462,9 @@ sub initDB
         # add statelite policies on update for Linux
         if ($::osname eq 'Linux') {
             $chtabcmds =
-"$::XCATROOT/sbin/chtab priority=4.7 policy.commands=litefile policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.7 policy.commands=litefile policy.rule=allow;";
             $chtabcmds .=
-"$::XCATROOT/sbin/chtab priority=4.8 policy.commands=litetree policy.rule=allow;";
+"$xcatroot/sbin/chtab priority=4.8 policy.commands=litetree policy.rule=allow;";
             my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
             if ($::RUNCMD_RC != 0)
             {
@@ -1489,15 +1489,15 @@ sub initDB
 
                 # otherpkgs already in postscripts or in postbootscripts
                 # just add syncfiles
-                $chtabcmds = "$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postscripts+='syncfiles'";
+                $chtabcmds = "$xcatroot/sbin/chtab node=xcatdefaults postscripts.postscripts+='syncfiles'";
             }
             else
             {    #  otherpkgs does not exist
                     #  put in postbootscripts
-                $chtabcmds = "$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postbootscripts+='otherpkgs';";
+                $chtabcmds = "$xcatroot/sbin/chtab node=xcatdefaults postscripts.postbootscripts+='otherpkgs';";
             }
         } else {    # AIX ,  no otherpkgs just add syncfiles
-            $chtabcmds = "$::XCATROOT/sbin/chtab node=xcatdefaults postscripts.postscripts+='syncfiles'";
+            $chtabcmds = "$xcatroot/sbin/chtab node=xcatdefaults postscripts.postscripts+='syncfiles'";
         }
 
         if ($chtabcmds ne "") {
@@ -1515,7 +1515,7 @@ sub initDB
 
         # remove any xcatdefaults node in nodelist
         # leave to cleanup from previous bug
-        my $rmdefault = "$::XCATROOT/sbin/chtab -d node=xcatdefaults nodelist";
+        my $rmdefault = "$xcatroot/sbin/chtab -d node=xcatdefaults nodelist";
         $outref = xCAT::Utils->runcmd("$rmdefault", 0);
         if ($::RUNCMD_RC != 0)
         {
@@ -1528,12 +1528,12 @@ sub initDB
 
         # switch from bind.pm to ddns.pm
         # give a warning message for the first time
-        my $cmds = "XCATBYPASS=Y $::XCATROOT/sbin/tabdump site 2>/dev/null |grep dnshandler";
+        my $cmds = "XCATBYPASS=Y $xcatroot/sbin/tabdump site 2>/dev/null |grep dnshandler";
         $outref = xCAT::Utils->runcmd("$cmds", -1);
         if ($::RUNCMD_RC != 0)
         {
             # set site.dnshandler
-            $cmds = "$::XCATROOT/sbin/chtab key=dnshandler site.value=ddns;";
+            $cmds = "$xcatroot/sbin/chtab key=dnshandler site.value=ddns;";
             $outref = xCAT::Utils->runcmd("$cmds", 0);
             if ($::RUNCMD_RC != 0)
             {
@@ -1542,7 +1542,7 @@ sub initDB
         }
 
         # Set default value for site.xcatsslversion when update xcat
-        $cmds = "XCATBYPASS=Y $::XCATROOT/sbin/tabdump site 2>/dev/null | grep xcatsslversion";
+        $cmds = "XCATBYPASS=Y $xcatroot/sbin/tabdump site 2>/dev/null | grep xcatsslversion";
         xCAT::Utils->runcmd("$cmds", -1);
         if ($::RUNCMD_RC == 0) {
             xCAT::MsgUtils->message('I',
@@ -1682,7 +1682,7 @@ sub genCredentials
 "\nSetting up basic certificates.  Respond with a \'y\' when prompted.\n"
         );
         my $cmd =
-"echo 'y\ny\ny\ny' |$::XCATROOT/share/xcat/scripts/setup-xcat-ca.sh 'xCAT CA'";
+"echo 'y\ny\ny\ny' |$xcatroot/share/xcat/scripts/setup-xcat-ca.sh 'xCAT CA'";
         verbose("Running $cmd");
         my $rc = system($cmd);
         if ($rc >> 8)
@@ -1724,7 +1724,7 @@ sub genCredentials
     if ((!-d "/etc/xcat/cert") || $::FORCE || $::genCredentials)
     {
         my $cmd =
-"echo 'y\ny\ny\ny' |$::XCATROOT/share/xcat/scripts/setup-server-cert.sh $hname";
+"echo 'y\ny\ny\ny' |$xcatroot/share/xcat/scripts/setup-server-cert.sh $hname";
         verbose("Running $cmd");
         my $rc = system($cmd);
         if ($rc >> 8)
@@ -1737,7 +1737,7 @@ sub genCredentials
             if ($::genCredentials) {    # if just generating new credentials
                 xCAT::MsgUtils->message('I', "Created xCAT certificate.");
                 my $chtabcmds =
-"$::XCATROOT/sbin/chtab priority=1.2 policy.name=$hname policy.rule=trusted;";
+"$xcatroot/sbin/chtab priority=1.2 policy.name=$hname policy.rule=trusted;";
                 my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
                 if ($::RUNCMD_RC != 0)
                 {
@@ -1755,7 +1755,7 @@ sub genCredentials
     {
 
         my $cmd =
-"echo 'y\ny\ny\ny' |$::XCATROOT/share/xcat/scripts/setup-local-client.sh root";
+"echo 'y\ny\ny\ny' |$xcatroot/share/xcat/scripts/setup-local-client.sh root";
         verbose("Running $cmd");
         my $rc = system($cmd);
         if ($rc >> 8)
@@ -1773,7 +1773,7 @@ sub genCredentials
     {
         $add_user_func->('conserver');
         my $cmd =
-"echo 'y\ny\ny\ny' |$::XCATROOT/share/xcat/scripts/setup-local-client.sh conserver";
+"echo 'y\ny\ny\ny' |$xcatroot/share/xcat/scripts/setup-local-client.sh conserver";
         verbose("Running $cmd");
         my $rc = system($cmd);
         if ($rc >> 8)
@@ -2038,7 +2038,7 @@ sub mknb
     # The xCAT-genesis-scripts.spec file touches /etc/xcat/genesis-scripts-updated or
     # the xCAT-genesis-base.spec file touches /etc/xcat/genesis-base-updated,
     # so we know to run mknb here.
-    my $cmd = "$::XCATROOT/sbin/mknb";
+    my $cmd = "$xcatroot/sbin/mknb";
     my $run_mknb = 0;
     if (-f '/etc/xcat/genesis-scripts-updated') {
         unlink '/etc/xcat/genesis-scripts-updated';
@@ -2053,7 +2053,7 @@ sub mknb
         }
     }
     my @architectures =
-      _genesis_architectures_to_build($::XCATROOT, $run_mknb);
+      _genesis_architectures_to_build($xcatroot, $run_mknb);
     if (@architectures) {
         unless ($run_mknb) {
             xCAT::MsgUtils->message('I', "Running '$cmd' for installed OpenEmbedded Genesis images ...");
@@ -2084,7 +2084,7 @@ sub makenetworks
 {
 
     # run makenetworks
-    my $cmd = "XCATBYPASS=Y $::XCATROOT/sbin/makenetworks";
+    my $cmd = "XCATBYPASS=Y $xcatroot/sbin/makenetworks";
     my $outref = xCAT::Utils->runcmd("$cmd", 0);
     if ($::RUNCMD_RC != 0)
     {
@@ -2262,7 +2262,7 @@ sub cleanupPSTable
                 $newpslist .= "\'";
                 if ($changeit == 1) {    # we had to modify the line
                     my $chtabcmds .=
-"$::XCATROOT/sbin/chtab node=$node postscripts.postscripts=$newpslist;";
+"$xcatroot/sbin/chtab node=$node postscripts.postscripts=$newpslist;";
                     my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
                     if ($::RUNCMD_RC != 0)
                     {
@@ -2302,7 +2302,7 @@ sub setupMNinDB
     # check to see if MN already defined in the nodelist
 
     my $defined = 0;
-    my $cmds = "XCATBYPASS=Y $::XCATROOT/sbin/tabdump nodelist | grep  __mgmtnode";
+    my $cmds = "XCATBYPASS=Y $xcatroot/sbin/tabdump nodelist | grep  __mgmtnode";
     my @output = xCAT::Utils->runcmd("$cmds", -1);
 
     if ($::RUNCMD_RC == 0)             # found nodes in __mgmtnode
@@ -2323,7 +2323,7 @@ sub setupMNinDB
 
     # now add with the new name , if not already there
     if ($defined == 0) {
-        my $chtabcmds = "$::XCATROOT/sbin/chtab node=$mnname nodelist.groups=__mgmtnode;";
+        my $chtabcmds = "$xcatroot/sbin/chtab node=$mnname nodelist.groups=__mgmtnode;";
         my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);
         if ($::RUNCMD_RC != 0)
         {
@@ -2338,7 +2338,7 @@ sub setupMNinDB
 
     # now add to the servicenode table with default settings
     # check to see if MN already defined in the servicenode table
-    my $cmds = "XCATBYPASS=Y $::XCATROOT/sbin/tabdump servicenode | grep  __mgmtnode";
+    my $cmds = "XCATBYPASS=Y $xcatroot/sbin/tabdump servicenode | grep  __mgmtnode";
     my $output = xCAT::Utils->runcmd("$cmds", -1);
     if ($::RUNCMD_RC != 0)    # no management node defined
     {
@@ -2348,10 +2348,10 @@ sub setupMNinDB
 
             # always setup tftp
             $chtabcmds =
-"$::XCATROOT/sbin/chtab node=__mgmtnode servicenode.tftpserver=yes ";
+"$xcatroot/sbin/chtab node=__mgmtnode servicenode.tftpserver=yes ";
 
             # check setting of site.vsftp to see if we want to setup ftp
-            $cmds = "XCATBYPASS=Y $::XCATROOT/sbin/tabdump site | grep vsftp";
+            $cmds = "XCATBYPASS=Y $xcatroot/sbin/tabdump site | grep vsftp";
             $output = xCAT::Utils->runcmd("$cmds", -1);
             if ($::RUNCMD_RC == 0) {    # vsftp  defined
                     # check the setting to see if we want ftp
@@ -2362,7 +2362,7 @@ sub setupMNinDB
             }
         } else {    # AIX, don't define any services just add the MN node
             $chtabcmds =
-"$::XCATROOT/sbin/chtab node=__mgmtnode servicenode.ftpserver=no;";
+"$xcatroot/sbin/chtab node=__mgmtnode servicenode.ftpserver=no;";
         }
 
         my $outref = xCAT::Utils->runcmd("$chtabcmds", 0);

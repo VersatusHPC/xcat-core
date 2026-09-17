@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 package xCAT::SwitchHandler;
 
 BEGIN

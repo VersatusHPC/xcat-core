@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeAnyLoggedError_H'} = {
     Name          => q(AnyNodeAnyLoggedError_H),

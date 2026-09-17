@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::EventResponse{'MsgEventsToRootAnyTime_HB'} = {
     Name   => q(MsgEventsToRootAnyTime_HB),

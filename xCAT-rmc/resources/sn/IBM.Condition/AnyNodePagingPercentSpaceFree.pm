@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AnyNodePagingPercentSpaceFree'} = {
     Name            => q(AnyNodePagingPercentSpaceFree),

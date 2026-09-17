@@ -1,4 +1,3 @@
-#!/usr/bin/env perl
 # IBM(c) 2015 EPL license http://www.eclipse.org/legal/epl-v10.html
 
 package xCAT_plugin::makentp;

@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'CheckFTPonSN_AIX'} = {
     Name            => q(CheckFTPonSN_AIX),

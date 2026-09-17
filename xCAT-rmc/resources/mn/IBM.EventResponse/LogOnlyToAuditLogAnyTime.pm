@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::EventResponse{'LogOnlyToAuditLogAnyTime'} = {
     Name    => q(LogOnlyToAuditLogAnyTime),

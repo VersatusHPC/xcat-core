@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'NodeReachability_H'} = {
     Name          => q(NodeReachability_H),

@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 # IBM(c) 2021 EPL license http://www.eclipse.org/legal/epl-v10.html
 # 
 # This module extends XML::Simple class.

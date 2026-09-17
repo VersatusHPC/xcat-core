@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeFileSystemInodesUsed_H'} = {
     Name          => q(AnyNodeFileSystemInodesUsed_H),

@@ -1,4 +1,3 @@
-#!/usr/bin/perl -w
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 # #(C)IBM Corp
 package imgutils;

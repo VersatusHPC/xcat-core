@@ -1,4 +1,3 @@
-#!/usr/bin/env perl
 ## IBM(c) 20013 EPL license http://www.eclipse.org/legal/epl-v10.html
 #
 # This plugin is used to handle the command requests for Xeon Phi (mic) support

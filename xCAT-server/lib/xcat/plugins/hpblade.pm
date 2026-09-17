@@ -1,4 +1,3 @@
-#!/usr/bin/env perl
 #
 # © Copyright 2009 Hewlett-Packard Development Company, L.P.
 # EPL license http://www.eclipse.org/legal/epl-v10.html

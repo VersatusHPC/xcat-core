@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeNetworkInterfaceStatus_H'} = {
     Name          => q(AnyNodeNetworkInterfaceStatus_H),

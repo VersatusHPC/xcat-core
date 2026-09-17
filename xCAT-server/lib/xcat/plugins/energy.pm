@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 # IBM(c) 2014 EPL license http://www.eclipse.org/legal/epl-v10.html
 
 =head3  xCAT_plugin::energy

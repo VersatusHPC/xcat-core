@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::EventResponse{'LogEvents_HB'} = {
     Name   => q(LogEvents_HB),

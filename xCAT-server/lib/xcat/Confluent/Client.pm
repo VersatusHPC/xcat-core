@@ -1,4 +1,3 @@
-#!/usr/bin/env perl
 # IBM(c) 2014 EPL license http://www.eclipse.org/legal/epl-v10.html
 BEGIN
 {

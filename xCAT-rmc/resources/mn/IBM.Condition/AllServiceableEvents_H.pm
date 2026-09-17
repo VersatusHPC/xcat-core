@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AllServiceableEvents_H'} = {
     Name          => q(AllServiceableEvents_H),

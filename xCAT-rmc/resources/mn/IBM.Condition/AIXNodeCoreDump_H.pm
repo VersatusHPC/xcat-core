@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AIXNodeCoreDump_H'} = {
     Name          => q(AIXNodeCoreDump_H),

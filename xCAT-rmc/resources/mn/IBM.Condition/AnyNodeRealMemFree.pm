@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeRealMemFree'} = {
     Name            => q(AnyNodeRealMemFree),

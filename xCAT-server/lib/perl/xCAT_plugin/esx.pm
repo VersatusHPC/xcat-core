@@ -25,6 +25,10 @@ use Fcntl qw/:flock/;
 use IO::Socket;    #Need name resolution
 use Scalar::Util qw/looks_like_number/;
 
+# xcatd sets $::XCATROOT to this same expression before it requires this module.
+# Reading the environment here keeps the value without depending on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 #use Data::Dumper;
 Getopt::Long::Configure("bundling");
 Getopt::Long::Configure("pass_through");
@@ -4774,33 +4778,33 @@ sub makecustomizedmod {
     }
     close($shadow);
     umask($oldmask);
-    if ($osver =~ /esxi4/ and -e "$::XCATROOT/share/xcat/netboot/esxi/38.xcat-enableipv6") {
+    if ($osver =~ /esxi4/ and -e "$xcatroot/share/xcat/netboot/esxi/38.xcat-enableipv6") {
         mkpath($tempdir . "/etc/vmware/init/init.d");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/38.xcat-enableipv6", $tempdir . "/etc/vmware/init/init.d/38.xcat-enableipv6");
-    } elsif ($osver =~ /esxi[56]/ and -e "$::XCATROOT/share/xcat/netboot/esxi/xcat-ipv6.json") {
+        copy("$xcatroot/share/xcat/netboot/esxi/38.xcat-enableipv6", $tempdir . "/etc/vmware/init/init.d/38.xcat-enableipv6");
+    } elsif ($osver =~ /esxi[56]/ and -e "$xcatroot/share/xcat/netboot/esxi/xcat-ipv6.json") {
         mkpath($tempdir . "/usr/libexec/jumpstart/plugins/");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/xcat-ipv6.json", $tempdir . "/usr/libexec/jumpstart/plugins/xcat-ipv6.json");
+        copy("$xcatroot/share/xcat/netboot/esxi/xcat-ipv6.json", $tempdir . "/usr/libexec/jumpstart/plugins/xcat-ipv6.json");
     }
-    if ($osver =~ /esxi4/ and -e "$::XCATROOT/share/xcat/netboot/esxi/47.xcat-networking") {
-        copy("$::XCATROOT/share/xcat/netboot/esxi/47.xcat-networking", $tempdir . "/etc/vmware/init/init.d/47.xcat-networking");
-    } elsif ($osver =~ /esxi[56]/ and -e "$::XCATROOT/share/xcat/netboot/esxi/39.ipv6fixup") {
+    if ($osver =~ /esxi4/ and -e "$xcatroot/share/xcat/netboot/esxi/47.xcat-networking") {
+        copy("$xcatroot/share/xcat/netboot/esxi/47.xcat-networking", $tempdir . "/etc/vmware/init/init.d/47.xcat-networking");
+    } elsif ($osver =~ /esxi[56]/ and -e "$xcatroot/share/xcat/netboot/esxi/39.ipv6fixup") {
         mkpath($tempdir . "/etc/init.d");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/39.ipv6fixup", $tempdir . "/etc/init.d/39.ipv6fixup");
+        copy("$xcatroot/share/xcat/netboot/esxi/39.ipv6fixup", $tempdir . "/etc/init.d/39.ipv6fixup");
         chmod(0755, "$tempdir/etc/init.d/39.ipv6fixup");
     }
-    if ($osver =~ /esxi[56]/ and -e "$::XCATROOT/share/xcat/netboot/esxi/48.esxifixup") {
+    if ($osver =~ /esxi[56]/ and -e "$xcatroot/share/xcat/netboot/esxi/48.esxifixup") {
         mkpath($tempdir . "/etc/init.d");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/48.esxifixup", $tempdir . "/etc/init.d/48.esxifixup");
+        copy("$xcatroot/share/xcat/netboot/esxi/48.esxifixup", $tempdir . "/etc/init.d/48.esxifixup");
         chmod(0755, "$tempdir/etc/init.d/48.esxifixup");
     }
-    if ($osver =~ /esxi5/ and -e "$::XCATROOT/share/xcat/netboot/esxi/99.esxiready") {
+    if ($osver =~ /esxi5/ and -e "$xcatroot/share/xcat/netboot/esxi/99.esxiready") {
         mkpath($tempdir . "/etc/init.d");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/99.esxiready", $tempdir . "/etc/init.d/99.esxiready");
+        copy("$xcatroot/share/xcat/netboot/esxi/99.esxiready", $tempdir . "/etc/init.d/99.esxiready");
         chmod(0755, "$tempdir/etc/init.d/99.esxiready");
     }
-    if (-e "$::XCATROOT/share/xcat/netboot/esxi/xcatsplash") {
+    if (-e "$xcatroot/share/xcat/netboot/esxi/xcatsplash") {
         mkpath($tempdir . "/etc/vmware/");
-        copy("$::XCATROOT/share/xcat/netboot/esxi/xcatsplash", $tempdir . "/etc/vmware/welcome");
+        copy("$xcatroot/share/xcat/netboot/esxi/xcatsplash", $tempdir . "/etc/vmware/welcome");
     }
     my $dossh = 0;
     if (-r "/root/.ssh/id_rsa.pub") {
@@ -4852,13 +4856,13 @@ sub esxi_kickstart_from_template {
     my $plat = getplatform($args{os});
     my $template = xCAT::SvrUtils::get_tmpl_file_name("$installdir/custom/install/$plat", $args{profile}, $args{os}, $args{arch}, $args{os});
     unless ($template) {
-        $template = xCAT::SvrUtils::get_tmpl_file_name("$::XCATROOT/share/xcat/install/$plat", $args{profile}, $args{os}, $args{arch}, $args{os});
+        $template = xCAT::SvrUtils::get_tmpl_file_name("$xcatroot/share/xcat/install/$plat", $args{profile}, $args{os}, $args{arch}, $args{os});
     }
     my $tmperr;
     if (-r "$template") {
         $tmperr = xCAT::Template->subvars($template, "$installdir/autoinst/" . $args{node}, $args{node}, undef, undef, undef, $args{tmpl_hash});
     } else {
-        $tmperr = "Unable to find template in /install/custom/install/$plat or $::XCATROOT/share/xcat/install/$plat (for $args{profile}/$args{os}/$args{arch} combination)";
+        $tmperr = "Unable to find template in /install/custom/install/$plat or $xcatroot/share/xcat/install/$plat (for $args{profile}/$args{os}/$args{arch} combination)";
     }
     if ($tmperr) {
         xCAT::SvrUtils::sendmsg([ 1, $tmperr ], $output_handler, $args{node});
@@ -5036,8 +5040,8 @@ sub mkcommonboot {
                 push @reqmods, "mod.tgz";
                 $mods{"mod.tgz"} = 1;
             }
-            if ($osver =~ /esxi4/ and -r "$::XCATROOT/share/xcat/netboot/syslinux/mboot.c32") { #prefer xCAT patched mboot.c32 with BOOTIF for mboot
-                copy("$::XCATROOT/share/xcat/netboot/syslinux/mboot.c32", $dest);
+            if ($osver =~ /esxi4/ and -r "$xcatroot/share/xcat/netboot/syslinux/mboot.c32") { #prefer xCAT patched mboot.c32 with BOOTIF for mboot
+                copy("$xcatroot/share/xcat/netboot/syslinux/mboot.c32", $dest);
             } elsif (-r "$custprofpath/mboot.c32") {
                 copy("$custprofpath/mboot.c32", $dest);
             } elsif (-r "$srcdir/mboot.c32") {

@@ -7,11 +7,7 @@ use Getopt::Long;
 use Data::Dumper;
 use Term::ANSIColor;
 use Time::Local;
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
 my $osver;
 my $log="/tmp/pkg.log";
 my $needhelp  = 0;

@@ -9,10 +9,6 @@
 # and zHCP agent.
 ###############################################################################
 package xCAT::verifynode;
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 $XML::Simple::PREFERRED_PARSER='XML::Parser';
 
@@ -25,7 +21,7 @@ use Sys::Syslog qw( :DEFAULT setlogsock);
 use Text::Wrap;
 use LWP;
 use JSON;
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 use xCAT::zvmMsgs;
 require HTTP::Request;
 

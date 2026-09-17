@@ -8,8 +8,7 @@
 # as makeclouddata command here. we couldn't sym link the command makecloudata
 # to this script ../bin/xcatclientnnr in xCAT-OpenStack.spec.
 
-BEGIN { $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr'; }
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
 use Cwd;
 use File::Basename;
 use xCAT::Client;

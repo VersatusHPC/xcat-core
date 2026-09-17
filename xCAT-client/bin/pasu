@@ -3,15 +3,11 @@
 # Lenovo(c) 2015 EPL license http://www.eclipse.org/legal/epl-v10.html
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 # Run asu64 or iflash64 utility out of band to multiple nodes, either sequentially or in parallel
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
 my $iam = $0;
 use strict;
 close(STDIN);
 open(STDIN, "<", "/dev/null");
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
 use IO::Socket::SSL;
 use XML::Simple;
 $XML::Simple::PREFERRED_PARSER = 'XML::Parser';

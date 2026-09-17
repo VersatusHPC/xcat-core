@@ -4,11 +4,7 @@
 # micctrl command, this script only help to generate the /etc/hosts,
 # /root/.ssh from the management node to the root file system.
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 
 use strict;
 use File::Path;

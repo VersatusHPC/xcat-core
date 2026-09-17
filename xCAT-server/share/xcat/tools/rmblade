@@ -7,12 +7,8 @@
 ## 4.  so if blade is placed in new slot or back in then xCAT goes
 ##     through rediscover process again.
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 use strict;
 use Socket;    # for name resolution
 use Getopt::Long;

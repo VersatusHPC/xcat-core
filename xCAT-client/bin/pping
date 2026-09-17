@@ -4,12 +4,8 @@
 #I've not had the time.  Net::Ping shows perl code I could see being adapted for a somewhat
 #asynchronous ICMP ping (the tcp syn is interesting, but far too limited, and that is currently the only async
 #method Net::Ping provides.
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
 use strict;
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
 
 use xCAT::Utils;
 use xCAT::TableUtils;

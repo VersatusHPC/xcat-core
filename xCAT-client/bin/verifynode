@@ -9,10 +9,6 @@
 ###############################################################################
 
 package xCAT_plugin::verifynode;
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 $XML::Simple::PREFERRED_PARSER='XML::Parser';
 
@@ -26,7 +22,7 @@ use File::Spec;
 use File::Temp;
 use Getopt::Long;
 use Getopt::Long qw(GetOptionsFromString);
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 use MIME::Base64;
 use POSIX qw/strftime/;
 use Scalar::Util qw( looks_like_number );

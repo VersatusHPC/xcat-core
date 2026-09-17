@@ -23,10 +23,9 @@ BEGIN
     use Time::HiRes qw(sleep);
     use File::Path;
     use Fcntl qw(:DEFAULT :flock);
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 my $sleepint = int(rand(10)); #Stagger start to avoid overwhelming conserver/xCATd
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 require xCAT::Client;
 require xCAT::Utils;
 require File::Basename;

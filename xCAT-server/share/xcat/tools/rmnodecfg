@@ -4,12 +4,8 @@
 # usage: rmnodecfg <noderange>
 # this does not remove it completely from xCAT.  You may want to do this
 # command before running noderm to completely purge the system of the node
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 use strict;
 use Socket;
 

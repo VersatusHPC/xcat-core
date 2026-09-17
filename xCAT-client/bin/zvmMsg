@@ -21,15 +21,11 @@
 
 #-------------------------------------------------------
 package xCAT::zvmMsgs;
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 $XML::Simple::PREFERRED_PARSER='XML::Parser';
 
 use Getopt::Long;
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 use Text::Wrap;
 use xCAT::zvmMsgs;
 use strict;

@@ -3,7 +3,6 @@ package hierarchy;
 # IBM(c) 2016 EPL license http://www.eclipse.org/legal/epl-v10.html
 
 BEGIN { $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr'; }
-use lib "$::XCATROOT/probe/lib/perl";
 use probe_utils;
 use xCAT::ServiceNodeUtils;
 

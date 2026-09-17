@@ -1,14 +1,8 @@
 #!/usr/bin/perl
-BEGIN
-{
-    $::XCATROOT =
-      $ENV{'XCATROOT'} ? $ENV{'XCATROOT'}
-      : -d '/opt/xcat' ? '/opt/xcat'
-      :                  '/usr';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
-use lib "$::XCATROOT/xdsh";
+use lib "$xcatroot/xdsh";
 use strict;
 
 use Getopt::Long;
@@ -20,7 +14,7 @@ use xCAT::Utils;
 use xCAT::TableUtils;
 use File::Basename;
 
-$::XCATROOT = "/opt/xcat";
+$xcatroot = "/opt/xcat";
 my $os        = "";
 my $profile   = "";
 my $interface = "";
@@ -247,7 +241,7 @@ if ($osfamily =~ /sles/ && $osfamily =~ /sp/) {
 }
 
 #print "OSfamily: $osfamily\n";
-$profDir = "$::XCATROOT/share/xcat/netboot/$osfamily";
+$profDir = "$xcatroot/share/xcat/netboot/$osfamily";
 unless (-d $profDir) {
     print "Unable to find genimage script in $profDir\n";
     exit 1;
@@ -268,7 +262,7 @@ if ((!$imagename) && (!$profile)) {
     }
     @profiles = sort keys %seen;
     if ($#profiles == -1) {
-        print "There are no profiles in $::XCATROOT/share/xcat/netboot/$osfamily.\n";
+        print "There are no profiles in $xcatroot/share/xcat/netboot/$osfamily.\n";
         exit 1;
     }
     $match = 0;

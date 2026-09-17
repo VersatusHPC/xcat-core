@@ -1,10 +1,7 @@
 #!/usr/bin/env perl
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use Sys::Syslog;
 use xCAT::Table;
 use xCAT::Utils;
@@ -396,7 +393,7 @@ sub getMoreInfo {
 
     # get the info from rinv command if nothing in the vpd table
     if (!$vpd) {
-        my $result = `XCATBYPASS=Y $::XCATROOT/bin/rinv $node all 2>&1 | egrep -i '(model|serial)' | grep -v Univ`;
+        my $result = `XCATBYPASS=Y $xcatroot/bin/rinv $node all 2>&1 | egrep -i '(model|serial)' | grep -v Univ`;
         if ($? == 0) {    #success
             chomp($result);
             my @b = split(/\n/, $result);

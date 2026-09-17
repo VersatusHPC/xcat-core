@@ -1,15 +1,9 @@
 #!/usr/bin/env perl
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
-BEGIN
-{
-    $::XCATROOT =
-      $ENV{'XCATROOT'} ? $ENV{'XCATROOT'}
-      : -d '/opt/xcat' ? '/opt/xcat'
-      :                  '/usr';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
-use lib "$::XCATROOT/xdsh";
+use lib "$xcatroot/xdsh";
 use strict;
 use File::Basename;
 use Cwd;

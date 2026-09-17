@@ -1,11 +1,8 @@
 #!/usr/bin/perl
 #!/usr/bin/env perl
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use strict;
 use xCAT::Table;
@@ -89,7 +86,7 @@ my @hostinfo = xCAT::NetworkUtils->determinehostname();
 my %iphash   = ();
 foreach (@hostinfo) { $iphash{$_} = 1; }
 if (($conserver) && ($iphash{$conserver} != 1)) {
-    system("ssh -o BatchMode=yes $conserver $::XCATROOT/bin/replaycons $node $bps $tail 2>&1");
+    system("ssh -o BatchMode=yes $conserver $xcatroot/bin/replaycons $node $bps $tail 2>&1");
     exit(0);
 }
 

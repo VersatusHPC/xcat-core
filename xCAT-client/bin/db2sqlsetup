@@ -41,7 +41,6 @@
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
 }
 
@@ -53,7 +52,8 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use DBI;
 use xCAT::Utils;
 use xCAT::NetworkUtils;
@@ -594,9 +594,9 @@ sub startxcatd
     if ($::osname eq 'AIX')
     {
         if ($ENV{'XCATDB2QUIET'} == 1) {    # don't show errors
-            $xcmd = "$::XCATROOT/sbin/restartxcatd >/dev/null 2>&1";
+            $xcmd = "$xcatroot/sbin/restartxcatd >/dev/null 2>&1";
         } else {
-            $xcmd = "$::XCATROOT/sbin/restartxcatd";
+            $xcmd = "$xcatroot/sbin/restartxcatd";
         }
         system($xcmd);
 

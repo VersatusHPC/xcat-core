@@ -32,11 +32,8 @@ use Term::ANSIColor;
 use Time::Local;
 use IO::Select;
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 
 my $date;
 my $regrootdir = "/home/autotest_code";
@@ -56,7 +53,7 @@ my $regresultdir      = "$regrootdir/regresult";
 my $todayregresultdir = "";
 my $maildir           = "$regrootdir/mail";
 my $mailfile          = "";
-my $rootdir           = "$::XCATROOT/share/xcat/tools/autotest";
+my $rootdir           = "$xcatroot/share/xcat/tools/autotest";
 my %confkeys;
 my $mail_list       = 0;
 my $needhelp        = 0;

@@ -13,11 +13,11 @@
 #####################################################
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use xCAT::Utils;
 use Getopt::Long;
 
@@ -63,7 +63,7 @@ if ($DBname ne "DB2") {
 if ($tablelist) {    # input list of tables
     @tablist = split(/\,/, $tablelist);
 } else {             # get all tables
-    $cmd = "$::XCATROOT/sbin/runsqlcmd \"select tabname from syscat.tables where TABSCHEMA='XCATDB';\"";
+    $cmd = "$xcatroot/sbin/runsqlcmd \"select tabname from syscat.tables where TABSCHEMA='XCATDB';\"";
     @tablist = xCAT::Utils->runcmd($cmd, 0);
     if ($::RUNCMD_RC != 0)
     {
@@ -115,7 +115,7 @@ foreach my $table (@tablist) {
     } else {
         `logger -p local4.info -t xcat " insptbls: $cmd"`;
     }
-    $cmd = "$::XCATROOT/sbin/runsqlcmd \"INSPECT ROWCOMPESTIMATE TABLE NAME $table results keep $table.res;\"";
+    $cmd = "$xcatroot/sbin/runsqlcmd \"INSPECT ROWCOMPESTIMATE TABLE NAME $table results keep $table.res;\"";
     xCAT::Utils->runcmd($cmd, 0);
     if ($::RUNCMD_RC != 0)
     {

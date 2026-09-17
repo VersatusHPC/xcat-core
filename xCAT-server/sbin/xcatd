@@ -6,7 +6,6 @@ use Carp qw(cluck confess);
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 
     # Required when using DB2 as the xCAT database:
     $ENV{'DB2INSTANCE'} = 'xcatdb';
@@ -42,9 +41,10 @@ my $cmdlog_svrpid;
 if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
-use lib "$::XCATROOT/xdsh";
+use lib "$xcatroot/xdsh";
 use Storable qw(freeze thaw nstore_fd store_fd fd_retrieve);
 use Sys::Hostname;
 use xCAT::Utils;
@@ -223,7 +223,7 @@ if ($tmp and $tmp->{value}) { $maxsslclients = $tmp->{value}; }
 if ($tmp and $tmp->{value}) { $batchclients = $tmp->{value}; }
 
 
-my $plugins_dir = $::XCATROOT . '/lib/perl/xCAT_plugin';
+my $plugins_dir = $xcatroot . '/lib/perl/xCAT_plugin';
 ($tmp) = $sitetab->getAttribs({ 'key' => 'xcatconfdir' }, 'value');
 $xcatdir = (($tmp and $tmp->{value}) ? $tmp->{value} : "/etc/xcat");
 
@@ -285,7 +285,7 @@ if (xCAT::Utils->isMN()) {
     xCAT::ExtTab->updateTables();
 
     # run any sql commands
-    `$::XCATROOT/sbin/runsqlcmd`;
+    `$xcatroot/sbin/runsqlcmd`;
 }
 
 my $startupchild;
@@ -3314,7 +3314,7 @@ sub enable_callingtrace {
     my @debugfuns = ();
 
     # Get the functions of xcatd
-    my $xcatdpath = $::XCATROOT . "/sbin/xcatd";
+    my $xcatdpath = $xcatroot . "/sbin/xcatd";
     if (!open(XCATDLINES, "<$xcatdpath")) {
         xCAT::MsgUtils->message("SL", "Enable subroutine calling trace failed: cannot open $xcatdpath");
     } else {
@@ -3350,7 +3350,7 @@ sub enable_callingtrace {
         foreach (keys %$plugin) {
             my $glob = $plugin->{$_};
             if ($glob =~ /\*([^:]*)::/) {
-                $path = $::XCATROOT . "/lib/perl/$1/";
+                $path = $xcatroot . "/lib/perl/$1/";
                 last;
             }
         }

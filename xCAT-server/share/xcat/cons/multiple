@@ -23,10 +23,10 @@ BEGIN
     use Time::HiRes qw(sleep);
     use File::Path;
     use Fcntl qw(:DEFAULT :flock);
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 my $sleepint = int(rand(10));
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 require xCAT::Client;
 require xCAT::Utils;
 use strict;
@@ -62,7 +62,7 @@ my $result;
 ##########################################################################
 sub invoke_fsp {
 
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = ($xcatroot) ? "$xcatroot/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
     my $action = "console";
     my $type   = "0";
     my $Rc     = 0;

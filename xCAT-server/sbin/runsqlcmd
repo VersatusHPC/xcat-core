@@ -19,11 +19,11 @@
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use xCAT::Utils;
 use Getopt::Long;
 use xCAT::MsgUtils;
@@ -100,7 +100,7 @@ if ($command) {    # command on command line
 
     if (!($filelist)) {    # if no file list and no directory set default
         if (!($directory)) {
-            $directory = "$::XCATROOT/lib/perl/xCAT_schema";
+            $directory = "$xcatroot/lib/perl/xCAT_schema";
         }
     }
 }

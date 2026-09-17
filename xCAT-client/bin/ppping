@@ -12,10 +12,10 @@
 BEGIN
 {
     # XCATROOT must be set for this script to work
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 use strict;
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use xCAT::Utils;
 use POSIX qw(:signal_h :errno_h :sys_wait_h);
@@ -143,7 +143,7 @@ $SIG{CHLD} = sub { while (waitpid(-1, WNOHANG) > 0) { $children--; } };
 my @reachable_nodes   = ();
 my @unreachable_nodes = ();
 debug("[start] - find unreachable nodes\n");
-my $cmd = "$::XCATROOT/bin/pping " . join(',', @nodes) . " --noexpand 2>&1";
+my $cmd = "$xcatroot/bin/pping " . join(',', @nodes) . " --noexpand 2>&1";
 debug("Running '$cmd'\n");
 open(PPING, "$cmd |") or die("Cannot open ppinginternal pipe: $!");
 while (<PPING>) {
@@ -201,7 +201,7 @@ foreach my $interf (@interfaces) {
         debug("SERIAL:$::SERIAL\n");
         debug("[start] - xdsh to each reachable node\n");
         foreach (@reachable_nodes) {
-            my $command = "$::XCATROOT/bin/xdsh $_ $bypass -s -e $::XCATROOT/sbin/pping2 \"$i_string$quiet$allnodes\" 2>&1";
+            my $command = "$xcatroot/bin/xdsh $_ $bypass -s -e $xcatroot/sbin/pping2 \"$i_string$quiet$allnodes\" 2>&1";
             debug("Running '$command'\n");
             open(PPING2, "$command |") or die("Cannot open xdsh internal pipe: $!");
 
@@ -219,7 +219,7 @@ foreach my $interf (@interfaces) {
     else {
         debug("SERIAL not set.\n");
         my $node_string = join(',', @reachable_nodes);
-        my $command = "$::XCATROOT/bin/xdsh $node_string $bypass -s -e $::XCATROOT/sbin/pping2 \"$i_string$quiet$allnodes\" 2>&1";
+        my $command = "$xcatroot/bin/xdsh $node_string $bypass -s -e $xcatroot/sbin/pping2 \"$i_string$quiet$allnodes\" 2>&1";
         debug("Running '$command'\n");
         open(PPING2, "$command |") or die("Cannot open xdsh internal pipe: $!");
 

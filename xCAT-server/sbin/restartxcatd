@@ -32,14 +32,8 @@
 
 #-----------------------------------------------------------------------------
 
-BEGIN
-{
-    $::XCATROOT =
-      $ENV{'XCATROOT'} ? $ENV{'XCATROOT'}
-      : -d '/opt/xcat' ? '/opt/xcat'
-      :                  '/usr';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 use Getopt::Long;
 use File::Basename;
 use xCAT::MsgUtils;
@@ -104,7 +98,7 @@ $cmd    = "/usr/bin/lssrc -s xcatd | grep \"xcatd Subsystem is not on file\"";
 if (scalar(@output)) {
 
     # create the subsystem if it does not exist
-    $cmd = "mkssys -p $::XCATROOT/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a \"-f\"";
+    $cmd = "mkssys -p $xcatroot/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a \"-f\"";
     $rc = system($cmd);
     if ($rc >> 8) {
         xCAT::MsgUtils->message("E", "Error: Cannot create the xcatd subsystem.\n");
@@ -241,7 +235,7 @@ $wait = 60;
 while ($wait > 0) {
     sleep 10;
     $wait = $wait - 10;
-    xCAT::Utils->runcmd("$::XCATROOT/sbin/tabdump site", -1);
+    xCAT::Utils->runcmd("$xcatroot/sbin/tabdump site", -1);
     if ($::RUNCMD_RC == 0) {
         $wait = 0;
     }

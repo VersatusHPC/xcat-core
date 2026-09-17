@@ -15,9 +15,8 @@ built on any product build machine.
 
 BEGIN
 {
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-    $::XCATSHARE = $::XCATROOT . '/share/xcat';
+    $::XCATSHARE = $xcatroot . '/share/xcat';
 }
 
 if ($^O =~ /^aix/i) {
@@ -25,7 +24,8 @@ if ($^O =~ /^aix/i) {
     exit 1;
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 require xCAT::BuildKitUtils;
 use Getopt::Long;
 use strict;

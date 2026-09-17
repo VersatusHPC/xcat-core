@@ -1,9 +1,6 @@
 #!/usr/bin/env perl
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 
 use File::Basename;
 use File::Path;
@@ -79,7 +76,7 @@ if (@ARGV > 0) {
     }
 
     #load the module in memory
-    eval { require("$::XCATROOT/lib/perl/xCAT/Table.pm") };
+    eval { require("$xcatroot/lib/perl/xCAT/Table.pm") };
     if ($@) {
         print $@;
         exit 1;

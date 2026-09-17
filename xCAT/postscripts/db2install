@@ -27,10 +27,6 @@
 
 #-----------------------------------------------------------------------------
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 # if AIX - make sure we include perl 5.8.2 in INC path.
 #       Needed to find perl dependencies shipped in deps tarball.
@@ -38,7 +34,8 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use strict;
 use IO::Socket;
 use File::Path;
@@ -557,12 +554,12 @@ sub rundb2sqlsetup
             &runcmd("mkdir -p $::databaseloc");
         }
         $cmd =
-"DATABASELOC=$::databaseloc XCATDB2SERVER=$::MN XCATDB2PW=$password $::XCATROOT/bin/db2sqlsetup -i -C";
+"DATABASELOC=$::databaseloc XCATDB2SERVER=$::MN XCATDB2PW=$password $xcatroot/bin/db2sqlsetup -i -C";
     } else {
         $cmd =
-"XCATDB2SERVER=$::MN XCATDB2PW=$password $::XCATROOT/bin/db2sqlsetup -i -C";
+"XCATDB2SERVER=$::MN XCATDB2PW=$password $xcatroot/bin/db2sqlsetup -i -C";
     }
-    $msg = "db2install:Running Client setup. \"$::XCATROOT/bin/db2sqlsetup -i -C\"\n";
+    $msg = "db2install:Running Client setup. \"$xcatroot/bin/db2sqlsetup -i -C\"\n";
     `logger -t xcat -p local4.info $msg`;
 
     $rc = &runcmd($cmd);

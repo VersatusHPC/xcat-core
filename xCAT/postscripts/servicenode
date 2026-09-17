@@ -32,10 +32,6 @@
 
 #-----------------------------------------------------------------------------
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 # if AIX - make sure we include perl 5.8.2 in INC path.
 #       Needed to find perl dependencies shipped in deps tarball.
@@ -43,7 +39,8 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use strict;
 
 # MAIN
@@ -158,7 +155,7 @@ else
     &runcmd("xcatclient -d");
     # start xcat if it is not up when stateless or statelite
     if ($ENV{NODESETSTATE} && ($ENV{NODESETSTATE} eq "netboot" || $ENV{NODESETSTATE} eq "statelite")) {
-        $rc = &runcmd("$::XCATROOT/bin/lsxcatd -v 2>/dev/null || service xcatd restart");
+        $rc = &runcmd("$xcatroot/bin/lsxcatd -v 2>/dev/null || service xcatd restart");
         if ($rc != 0) {
             $msg = " servicenode: Could not start xcat.\n\n $::outref \n";
             `logger -t $log_label -p local4.warning "$msg"`;
@@ -253,7 +250,7 @@ sub setupAIXsn
     &getcreds;
 
     # Add the xcatd subsystem to the AIX
-    my $mkssys_cmd = "mkssys -p $::XCATROOT/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a '-f' ";
+    my $mkssys_cmd = "mkssys -p $xcatroot/sbin/xcatd -s xcatd -u 0 -S -n 15 -f 15 -a '-f' ";
 
     if (&runcmd($mkssys_cmd) != 0) {
         $msg = "servicenode: Could not create subsystem for xcatd. It maybe already have been added.\n";
@@ -261,13 +258,13 @@ sub setupAIXsn
     }
 
     # start xcatd
-    if (&runcmd("$::XCATROOT/sbin/restartxcatd") != 0) {
+    if (&runcmd("$xcatroot/sbin/restartxcatd") != 0) {
         $msg = "servicenode: Could not start xcat.\n\n $::outref \n";
         `logger -t $log_label -p local4.warning  $msg`;
     }
 
     # add xcatd to /etc/inittab???
-    my $mkitab_cmd = qq~/usr/sbin/mkitab "xcatd:2:once:$::XCATROOT/sbin/restartxcatd > /dev/console 2>&1"~;
+    my $mkitab_cmd = qq~/usr/sbin/mkitab "xcatd:2:once:$xcatroot/sbin/restartxcatd > /dev/console 2>&1"~;
 
     if (&runcmd($mkitab_cmd) != 0) {
 

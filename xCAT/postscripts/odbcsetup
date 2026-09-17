@@ -16,10 +16,6 @@
 
 #-----------------------------------------------------------------------------
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
 
 # if AIX - make sure we include perl 5.8.2 in INC path.
 #       Needed to find perl dependencies shipped in deps tarball.
@@ -27,7 +23,8 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 use strict;
 use xCAT::Utils;
 use xCAT::MsgUtils;
@@ -112,9 +109,9 @@ sub setupdb2odbc
     chomp $xcatcfg;
     my ($database, $instance, $password) = split('\|', $xcatcfg);
     if ($::databaseloc) {
-        $cmd = "DATABASELOC=$::databaseloc $::XCATROOT/bin/db2sqlsetup -o -C";
+        $cmd = "DATABASELOC=$::databaseloc $xcatroot/bin/db2sqlsetup -o -C";
     } else {
-        $cmd = "$::XCATROOT/bin/db2sqlsetup -o -C";
+        $cmd = "$xcatroot/bin/db2sqlsetup -o -C";
     }
     $msg = "odbcsetup: Running Client ODBC setup. \"$cmd\"\n";
     `logger -t $log_label -p local4.info $msg`;
@@ -138,7 +135,7 @@ sub setupmysqlodbc
     my $msg;
     my $rc = 0;
     my $cmd;
-    $cmd = "$::XCATROOT/bin/mysqlsetup -o";
+    $cmd = "$xcatroot/bin/mysqlsetup -o";
     $msg = "odbcsetup: Running Client ODBC setup. \"$cmd\"\n";
     `logger -t $log_label -p local4.info $msg`;
 
@@ -162,7 +159,7 @@ sub setupPGodbc
     my $msg;
     my $rc = 0;
     my $cmd;
-    $cmd = "$::XCATROOT/bin/pgsqlsetup -o";
+    $cmd = "$xcatroot/bin/pgsqlsetup -o";
     $msg = "odbcsetup: Running Client ODBC setup. \"$cmd\"\n";
     `logger -t $log_label -p local4.info $msg`;
 

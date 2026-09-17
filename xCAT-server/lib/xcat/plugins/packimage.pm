@@ -22,7 +22,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 use strict;
-use lib "$::XCATROOT/lib/perl";
 use Data::Dumper;
 use xCAT::Table;
 use Getopt::Long;

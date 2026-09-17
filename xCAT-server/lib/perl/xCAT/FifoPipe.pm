@@ -8,7 +8,6 @@ BEGIN {
       :                  '/usr';
 }
 
-use lib "$::XCATROOT/lib/perl";
 
 use strict;
 use xCAT::Table;

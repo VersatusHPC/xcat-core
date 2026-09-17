@@ -6,7 +6,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 my $callback;
-use lib "$::XCATROOT/lib/perl";
 use Getopt::Long;
 use xCAT::ADUtils;
 use Net::DNS;

@@ -18,7 +18,6 @@ use Getopt::Long;
 use XML::Simple;
 $XML::Simple::PREFERRED_PARSER='XML::Parser';
 
-use lib "$::XCATROOT/lib/perl";
 use Time::HiRes qw(gettimeofday sleep);
 use xCAT::Table;
 use xCAT::MsgUtils;

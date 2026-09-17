@@ -5,7 +5,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 require xCAT::Table;
 require xCAT::NodeRange;
 require xCAT::Utils;

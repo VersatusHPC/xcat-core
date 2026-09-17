@@ -12,7 +12,6 @@ package xCAT_plugin::localrest;
 BEGIN {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : -d '/opt/xcat' ? '/opt/xcat' : '/usr';
 }
-use lib "$::XCATROOT/lib/perl";
 
 use xCAT::Utils;
 use xCAT::MsgUtils;

@@ -56,7 +56,6 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
 my $cachethreshold = 16; #How many nodes in 'getNodesAttribs' before switching to full DB retrieval
 
 #TODO: dynamic tracking/adjustment, the point where cache is cost effective differs based on overall db size

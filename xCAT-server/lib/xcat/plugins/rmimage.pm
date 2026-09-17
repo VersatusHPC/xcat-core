@@ -6,7 +6,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 
-use lib "$::XCATROOT/lib/perl";
 use Getopt::Long;
 use File::Path;
 use Cwd qw(realpath);

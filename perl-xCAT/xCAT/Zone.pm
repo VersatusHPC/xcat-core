@@ -12,7 +12,6 @@ if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
 
-use lib "$::XCATROOT/lib/perl";
 
 # do not put a use or require for  xCAT::Table here. Add to each new routine
 # needing it to avoid reprocessing of user tables ( ExtTab.pm) for each command call

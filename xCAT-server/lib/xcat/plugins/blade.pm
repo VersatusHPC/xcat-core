@@ -12,7 +12,6 @@ BEGIN
 
 }
 
-use lib "$::XCATROOT/lib/perl";
 
 #use Net::SNMP qw(:snmp INTEGER);
 use xCAT::Table;

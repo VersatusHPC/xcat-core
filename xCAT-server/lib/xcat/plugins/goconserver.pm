@@ -4,7 +4,6 @@ package xCAT_plugin::goconserver;
 BEGIN {
         $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 use strict;
 use File::Copy;
 use xCAT::Table;

@@ -1,7 +1,6 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 
 package xCAT_plugin::lsslp;
-use lib "/opt/xcat/lib/perl";
 use strict;
 use Getopt::Long;
 use Socket;

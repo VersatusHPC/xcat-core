@@ -7,7 +7,6 @@ BEGIN
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
 
-use lib "$::XCATROOT/lib/perl";
 
 use strict;
 use warnings;

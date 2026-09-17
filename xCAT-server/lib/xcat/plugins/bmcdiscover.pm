@@ -12,7 +12,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 
 use IO::Socket;
 use Thread qw(yield);

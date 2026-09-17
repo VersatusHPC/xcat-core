@@ -6,7 +6,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 
 sub handled_commands {
     return {

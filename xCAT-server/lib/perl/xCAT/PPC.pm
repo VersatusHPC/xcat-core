@@ -2,7 +2,6 @@
 
 package xCAT::PPC;
 use strict;
-use lib "/opt/xcat/lib/perl";
 use xCAT::Table;
 use xCAT::Utils;
 use xCAT::TableUtils;

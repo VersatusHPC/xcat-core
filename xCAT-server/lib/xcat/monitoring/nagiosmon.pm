@@ -5,7 +5,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 use strict;
 use File::Copy qw/copy cp mv move/;
 use xCAT::NodeRange;

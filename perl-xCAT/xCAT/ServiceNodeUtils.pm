@@ -11,7 +11,6 @@ BEGIN
 if ($^O =~ /^aix/i) {
     unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
 }
-use lib "$::XCATROOT/lib/perl";
 use strict;
 #-----------------------------------------------------------------------------
 

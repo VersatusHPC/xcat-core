@@ -4,7 +4,6 @@ package xCAT_monitoring::gangliamon;
 BEGIN {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 use xCAT::NodeRange;
 use Sys::Hostname;
 use Socket;

@@ -2,7 +2,6 @@
 
 package xCAT::FSPflash;
 use strict;
-use lib "/opt/xcat/lib/perl";
 use Getopt::Long;
 use xCAT::PPCcli qw(SUCCESS EXPECT_ERROR RC_ERROR NR_ERROR);
 use xCAT::Usage;

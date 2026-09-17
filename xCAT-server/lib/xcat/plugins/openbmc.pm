@@ -10,7 +10,6 @@ BEGIN
         push @INC, $async_path;
     }
 }
-use lib "$::XCATROOT/lib/perl";
 use strict;
 use warnings "all";
 

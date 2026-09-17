@@ -7,7 +7,6 @@ BEGIN
 
 
 package xCAT::FSPvm;
-use lib "$::XCATROOT/lib/perl";
 use strict;
 use Getopt::Long;
 use xCAT::PPCdb;

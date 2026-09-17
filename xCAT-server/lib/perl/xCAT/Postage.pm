@@ -8,7 +8,6 @@ BEGIN
       : -d '/opt/xcat' ? '/opt/xcat'
       :                  '/usr';
 }
-use lib "$::XCATROOT/lib/perl";
 use xCAT::Table;
 use xCAT::MsgUtils;
 use xCAT::NodeRange;

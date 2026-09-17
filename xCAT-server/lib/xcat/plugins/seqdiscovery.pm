@@ -20,7 +20,6 @@ use Getopt::Long;
 use XML::Simple;
 $XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 
-use lib "$::XCATROOT/lib/perl";
 use xCAT::NodeRange;
 use xCAT::Table;
 use xCAT::NetworkUtils;

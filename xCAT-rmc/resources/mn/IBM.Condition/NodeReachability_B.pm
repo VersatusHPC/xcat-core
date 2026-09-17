@@ -3,7 +3,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 use xCAT::Utils;
 
 if (exists($ENV{RSCT_VER})) {

@@ -8,7 +8,6 @@
 
 package xCAT_plugin::FIP;
 
-use lib ("/opt/xcat/lib/perl");
 use Data::Dumper;
 use Getopt::Long;
 use xCAT::MsgUtils;

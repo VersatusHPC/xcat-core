@@ -5,7 +5,6 @@ BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
-use lib "$::XCATROOT/lib/perl";
 use xCAT::GlobalDef;
 use xCAT::NodeRange;
 use xCAT_monitoring::monitorctrl;

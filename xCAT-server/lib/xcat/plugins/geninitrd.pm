@@ -7,7 +7,6 @@ BEGIN
 }
 
 use strict;
-use lib "$::XCATROOT/lib/perl";
 use File::Path;
 use File::Copy;
 use xCAT::MsgUtils;

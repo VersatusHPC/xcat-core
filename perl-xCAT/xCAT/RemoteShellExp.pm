@@ -60,7 +60,6 @@ BEGIN
 }
 
 
-use lib "$::XCATROOT/lib/perl";
 use xCAT::Utils;
 use Getopt::Long;
 use xCAT::MsgUtils;

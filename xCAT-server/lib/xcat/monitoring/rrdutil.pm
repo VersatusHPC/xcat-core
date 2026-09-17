@@ -9,7 +9,6 @@ BEGIN
 }
 
 #Modules to use:
-use lib "$::XCATROOT/lib/perl";
 use xCAT::Utils;
 
 ################################################

@@ -16,7 +16,9 @@ built on any product build machine.
 BEGIN
 {
     $::XCATDIR  = $ENV{'XCATDIR'}  ? $ENV{'XCATDIR'}  : '/etc/xcat';
-    $::XCATSHARE = $xcatroot . '/share/xcat';
+    # This runs at compile time, so the root is spelled inline. The lexical
+    # below is not assigned yet here.
+    $::XCATSHARE = ( $ENV{XCATROOT} || '/opt/xcat' ) . '/share/xcat';
 }
 
 if ($^O =~ /^aix/i) {

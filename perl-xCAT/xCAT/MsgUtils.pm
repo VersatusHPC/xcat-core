@@ -3,10 +3,6 @@
 package xCAT::MsgUtils;
 
 # if AIX - make sure we include perl 5.8.2 in INC path.
-#       Needed to find perl dependencies shipped in deps tarball.
-if ($^O =~ /^aix/i) {
-    unshift(@INC, qw(/usr/opt/perl5/lib/5.8.2/aix-thread-multi /usr/opt/perl5/lib/5.8.2 /usr/opt/perl5/lib/site_perl/5.8.2/aix-thread-multi /usr/opt/perl5/lib/site_perl/5.8.2));
-}
 
 use strict;
 use Sys::Syslog;

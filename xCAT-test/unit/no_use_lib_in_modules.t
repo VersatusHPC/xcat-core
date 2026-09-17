@@ -60,16 +60,8 @@ find(
             $scanned{$package}++;
 
             open( my $fh, '<', $File::Find::name ) or die "Unable to read $File::Find::name: $!";
-            my $aix_guard = 0;
             while ( my $line = <$fh> ) {
                 next if $line =~ /^\s*#/;
-
-                # The AIX branch prepends the perl 5.8.2 paths that xCAT ships its
-                # dependencies against. It cannot run anywhere else, and no lane
-                # builds or tests AIX, so removing it is a change nothing here can
-                # verify.
-                $aix_guard = 4 if $line =~ /\$\^O\s*=~\s*\/\^aix\/i/;
-                if ($aix_guard) { $aix_guard--; next }
 
                 foreach my $rule (@PATTERNS) {
                     my ( $re, $name ) = @$rule;

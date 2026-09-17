@@ -2,24 +2,12 @@
 use strict;
 use warnings;
 
-use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 
 # mkinstall logged "Unknown arch" for every architecture other than x86_64, x86, ppc64le and
 # ppc64el, so each diskful riscv64 install produced a false message. install_darch names the
 # architectures xCAT installs Ubuntu on and the Debian name each one maps to.
-
-# xCAT modules put $::XCATROOT/lib/perl ahead of @INC as they compile, so on a host with xCAT
-# installed the modules loaded after the first one would come from /opt/xcat. XCATROOT points
-# at this checkout before any of them compiles.
-BEGIN {
-    my $root = tempdir( CLEANUP => 1 );
-    make_path("$root/lib");
-    symlink( "$FindBin::Bin/../../perl-xCAT", "$root/lib/perl" ) or die "symlink: $!";
-    $ENV{XCATROOT} = $root;
-}
 
 BEGIN {
     package xCAT::TableUtils;

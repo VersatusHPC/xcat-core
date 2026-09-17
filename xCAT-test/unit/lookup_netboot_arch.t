@@ -2,22 +2,10 @@
 use strict;
 use warnings;
 
-use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../perl-xCAT";
 use Test::More;
-
-# xCAT modules put $::XCATROOT/lib/perl ahead of @INC as they compile, so on a host with xCAT
-# installed the schema, loaded after them, would come from /opt/xcat. XCATROOT points at this
-# checkout before any of them compiles.
-BEGIN {
-    my $root = tempdir( CLEANUP => 1 );
-    make_path("$root/lib");
-    symlink( "$FindBin::Bin/../../perl-xCAT", "$root/lib/perl" ) or die "symlink: $!";
-    $ENV{XCATROOT} = $root;
-}
 
 use XCAT::Test::File qw(repo_path);
 use xCAT::ProfiledNodeUtils;

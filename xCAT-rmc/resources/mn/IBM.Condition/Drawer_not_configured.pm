@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'Drawer_not_configured'} = {
     Name            => q(Drawer_not_configured),

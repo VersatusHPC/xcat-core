@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'CheckNFSonSN'} = {
     Name            => q(CheckNFSonSN),

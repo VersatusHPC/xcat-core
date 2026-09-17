@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::EventResponse{'LogEventToTealEvenetLog'} = {
     Name   => q(LogEventToTealEvenetLog),

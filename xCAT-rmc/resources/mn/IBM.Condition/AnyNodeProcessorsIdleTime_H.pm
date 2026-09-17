@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeProcessorsIdleTime_H'} = {
     Name          => q(AnyNodeProcessorsIdleTime_H),

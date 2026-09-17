@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';

@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 my $cmd;
 if (-r "/var/xcat/rmcmon/scripts/monerrorlog") {

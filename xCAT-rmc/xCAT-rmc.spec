@@ -32,7 +32,7 @@ mkdir -p $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/rmc
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/sbin/rmcmon
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/lib/perl/TEAL
 
-cp lib/perl/xCAT_monitoring/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring
+cp plugin/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring
 cp -r resources $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_monitoring/rmc
 
 cp scripts/* $RPM_BUILD_ROOT/%{prefix}/sbin/rmcmon

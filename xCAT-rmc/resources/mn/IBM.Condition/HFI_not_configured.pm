@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'HFI_not_configured'} = {
     Name             => q(HFI_not_configured),

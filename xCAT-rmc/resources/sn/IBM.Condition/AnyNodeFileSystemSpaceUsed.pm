@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeFileSystemSpaceUsed'} = {
     Name            => q(AnyNodeFileSystemSpaceUsed),

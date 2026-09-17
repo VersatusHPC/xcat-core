@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'VarSpaceUsed'} = {
     Name            => q(VarSpaceUsed),

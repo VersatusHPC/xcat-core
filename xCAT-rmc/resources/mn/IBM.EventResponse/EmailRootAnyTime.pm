@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::EventResponse{'EmailRootAnyTime'} = {
     Name   => q(EmailRootAnyTime),

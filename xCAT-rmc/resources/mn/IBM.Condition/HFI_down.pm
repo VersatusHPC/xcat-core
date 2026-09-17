@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'HFI_down'} = {
     Name            => q(HFI_down),

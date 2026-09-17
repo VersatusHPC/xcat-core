@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::EventResponse{'EmailRootOffShift'} = {
     Name   => q(EmailRootOffShift),

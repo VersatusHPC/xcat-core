@@ -19,14 +19,6 @@
 
 #-------------------------------------------------------------------------------
 
-# rmcmon runs this command in a process of its own, and readFiles() loads
-# resource files that can need an xCAT module. Nothing else sets @INC here.
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
-
 use Getopt::Long;
 
 

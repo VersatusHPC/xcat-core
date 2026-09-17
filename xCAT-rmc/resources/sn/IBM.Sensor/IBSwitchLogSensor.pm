@@ -1,7 +1,9 @@
+#!/usr/bin/perl
 BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
 }
+use lib "$::XCATROOT/lib/perl";
 
 my $cmd;
 if   ($^O =~ /^linux/i) { $cmd = "$::XCATROOT/sbin/rmcmon/monerrorlog"; }

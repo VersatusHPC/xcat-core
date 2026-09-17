@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'CheckxCATonSN'} = {
     Name            => q(CheckxCATonSN),

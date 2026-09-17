@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'CheckCONSonSN'} = {
     Name            => q(CheckCONSonSN),

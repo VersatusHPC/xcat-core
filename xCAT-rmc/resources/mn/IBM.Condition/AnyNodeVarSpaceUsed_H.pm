@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 
 $RES::Condition{'AnyNodeVarSpaceUsed_H'} = {
     Name          => q(AnyNodeVarSpaceUsed_H),

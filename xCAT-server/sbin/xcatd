@@ -48,7 +48,9 @@ use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/lib/perl';
 $::XCATROOT = $ENV{XCATROOT} || '/opt/xcat';
 my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
-use lib "$xcatroot/xdsh";
+# use lib runs at compile time, so the root is spelled inline here. The lexical
+# above is still undefined at that point.
+use lib ( $ENV{XCATROOT} || '/opt/xcat' ) . '/xdsh';
 use Storable qw(freeze thaw nstore_fd store_fd fd_retrieve);
 use Sys::Hostname;
 use xCAT::Utils;

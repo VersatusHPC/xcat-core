@@ -2,9 +2,10 @@
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 #####################################################################
 use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/lib/perl';
-my $xcatroot = $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' );
 # DSHCLI resolves its contexts with require Context::DSH and require Context::XCAT.
-use lib "$xcatroot/xdsh";
+# use lib runs at compile time, so the root is spelled inline here. A lexical
+# assigned above is still undefined at that point.
+use lib ( $ENV{XCATROOT} || ( -d '/opt/xcat' ? '/opt/xcat' : '/usr' ) ) . '/xdsh';
 use xCAT::MsgUtils;
 use xCAT::DSHCLI;
 use locale;

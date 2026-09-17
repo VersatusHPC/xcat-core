@@ -12,6 +12,10 @@ use xCAT::Scope;
 
 use strict;
 use Data::Dumper;
+
+# xcatd sets $::XCATROOT to this same expression before it requires this module.
+# Reading the environment here keeps the value without depending on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
 my @cservers = qw(mrv cyclades);
 my %termservers;     #list of noted termservers
 my $siteondemand;    # The site value for consoleondemand
@@ -613,8 +617,8 @@ sub donodeent {
             # either there is no console method (shouldnt happen) or not one of the supported terminal servers
             return $node;
         }
-        if (!grep(/^$cmeth$/, @cservers) && ! -x $::XCATROOT . "/share/xcat/cons/" . $cmeth) {
-            xCAT::SvrUtils::sendmsg([ 0, "ignore, ". $::XCATROOT . "/share/xcat/cons/$cmeth is not excutable. Please check mgt or cons attribute." ], $::callback, $node);
+        if (!grep(/^$cmeth$/, @cservers) && ! -x $xcatroot . "/share/xcat/cons/" . $cmeth) {
+            xCAT::SvrUtils::sendmsg([ 0, "ignore, ". $xcatroot . "/share/xcat/cons/$cmeth is not excutable. Please check mgt or cons attribute." ], $::callback, $node);
             next;
         }
         push @$content, "#xCAT BEGIN $node CONS\n";
@@ -638,7 +642,7 @@ sub donodeent {
                 if (defined($ENV{'XCATSSLVER'})) {
                     $env = "XCATSSLVER=$ENV{'XCATSSLVER'} ";
                 }
-                push @$content, "  exec $locerror$env" . $::XCATROOT . "/share/xcat/cons/" . $cmeth . " " . $node . ";\n"
+                push @$content, "  exec $locerror$env" . $xcatroot . "/share/xcat/cons/" . $cmeth . " " . $node . ";\n"
             }
         }
         if (defined($cfgent->{consoleondemand})) {

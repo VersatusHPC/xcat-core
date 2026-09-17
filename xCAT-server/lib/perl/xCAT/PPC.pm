@@ -21,6 +21,10 @@ use xCAT_monitoring::monitorctrl;
 use Thread qw(yield);
 use xCAT::PPCdb;
 
+# xcatd sets $::XCATROOT to this same expression before it requires this module.
+# Reading the environment here keeps the value without depending on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 #use Data::Dumper;
 
 ##########################################
@@ -2050,7 +2054,7 @@ sub preprocess_request {
 
                     if (($linuxrequired || xCAT::Utils->isAIX()) && ($masters[0] ne $snkey)) {
                         my $install_dir = xCAT::TableUtils->getInstallDir();
-                        my $cmd = "$::XCATROOT/bin/xdcp $snkey -R  $install_dir/packages_fw $install_dir/";
+                        my $cmd = "$xcatroot/bin/xdcp $snkey -R  $install_dir/packages_fw $install_dir/";
                         my $result = xCAT::Utils->runcmd("$cmd", -1);
                         if ($::RUNCMD_RC != 0) {
                             $callback->({ data => ["$result. Could not copy rpms in the $install_dir/packages_fw  to $snkey.\n"] });
@@ -2485,11 +2489,11 @@ sub check_fsp_api
     my $request = shift;
 
     #    my $fsp_api = "/opt/xcat/sbin/fsp-api";
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = "$xcatroot/sbin/fsp-api";
 
     #my $libfsp  = "/usr/lib/libfsp.a";
-    my $libfsp_aix = ($::XCATROOT) ? "$::XCATROOT/lib/libfsp.so" : "/opt/xcat/lib/libfsp.so";
-    my $libfsp_linux = ($::XCATROOT) ? "$::XCATROOT/lib/libfsp.a" : "/opt/xcat/lib/libfsp.a";
+    my $libfsp_aix = "$xcatroot/lib/libfsp.so";
+    my $libfsp_linux = "$xcatroot/lib/libfsp.a";
 
     #    my $libfsp  = "/opt/xcat/lib/libfsp.a";
     #    my $libfsp    = ($::XCATROOT) ? "$::XCATROOT/lib/libfsp.a" : "/opt/xcat/lib/libfsp.a";

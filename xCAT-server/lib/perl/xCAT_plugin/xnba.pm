@@ -14,6 +14,10 @@ use xCAT::TableUtils;
 use xCAT::ServiceNodeUtils;
 use xCAT::Usage;
 
+# xcatd sets $::XCATROOT to this same expression before it requires this module.
+# Reading the environment here keeps the value without depending on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 my $dhcpconf = "/etc/dhcpd.conf";
 
 #my $tftpdir = "/tftpboot";
@@ -834,8 +838,8 @@ sub process_request {
 
     if ($::XNBA_pxelinux_required) {
         if (!-r "$globaltftpdir/xcat/pxelinux.0") {
-            if (-r $::XCATROOT . "/share/xcat/netboot/syslinux/pxelinux.0") {
-                copy($::XCATROOT . "/share/xcat/netboot/syslinux/pxelinux.0", "$globaltftpdir/xcat/pxelinux.0");
+            if (-r $xcatroot . "/share/xcat/netboot/syslinux/pxelinux.0") {
+                copy($xcatroot . "/share/xcat/netboot/syslinux/pxelinux.0", "$globaltftpdir/xcat/pxelinux.0");
                 chmod(0644, "$globaltftpdir/xcat/pxelinux.0");
             }
         }

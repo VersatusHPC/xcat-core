@@ -13,6 +13,10 @@ use xCAT::PPCcfg;
 #use xCAT::PPCcli;
 use xCAT::MsgUtils qw(verbose_message);
 
+# xcatd sets $::XCATROOT to this same expression before it requires this module.
+# Reading the environment here keeps the value without depending on the global.
+my $xcatroot = $ENV{XCATROOT} || '/opt/xcat';
+
 ##########################################
 # Globals
 ##########################################
@@ -609,7 +613,7 @@ sub passwd {
             while (my ($cec, $h) = each(%$hash)) {
                 while (my ($node, $d) = each(%$h)) {
                     my $type = @$d[4];
-                    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+                    my $fsp_api = "$xcatroot/sbin/fsp-api";
                     xCAT::MsgUtils->verbose_message($request, "rspconfig :modify password of $usr for node:$node.");
                     my $cmd = xCAT::FSPcfg::fsp_api_passwd($request, $node, $d, $usr, $passwd, $newpasswd);
                     my $Rc       = @$cmd[2];
@@ -868,7 +872,7 @@ sub fsp_api_passwd {
     my $Rc      = 0;
     my %outhash = ();
     my $res     = 0;
-    my $fsp_api = ($::XCATROOT) ? "$::XCATROOT/sbin/fsp-api" : "/opt/xcat/sbin/fsp-api";
+    my $fsp_api = "$xcatroot/sbin/fsp-api";
 
     $id       = $$attrs[0];
     $fsp_name = $$attrs[3];

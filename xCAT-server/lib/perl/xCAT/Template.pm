@@ -1642,7 +1642,9 @@ sub envvar
         $envvar =~ s/^\$//;
     }
 
-    return $::XCATROOT if $envvar eq 'XCATROOT' && !exists $ENV{XCATROOT};
+    # The environment has no XCATROOT in this branch, so the answer is the
+    # packaged default, which is what xcatd would have put in the global.
+    return '/opt/xcat' if $envvar eq 'XCATROOT' && !exists $ENV{XCATROOT};
 
     return ($ENV{$envvar});
 }

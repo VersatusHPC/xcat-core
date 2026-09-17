@@ -8,8 +8,6 @@ use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
 use Test::More;
 use xCAT::Template;
 
-local $::XCATROOT = '/opt/xcat-from-package';
-
 {
     local $ENV{XCATROOT} = '/opt/xcat-from-environment';
     is(
@@ -20,12 +18,15 @@ local $::XCATROOT = '/opt/xcat-from-package';
 }
 
 {
+    # The global holds a value the packaged default cannot produce, so this
+    # assertion fails if envvar still reads it.
+    local $::XCATROOT = '/opt/xcat-from-package';
     local $ENV{XCATROOT};
     delete $ENV{XCATROOT};
     is(
         xCAT::Template::envvar('$XCATROOT'),
-        '/opt/xcat-from-package',
-        'the package global supplies XCATROOT when the environment omits it',
+        '/opt/xcat',
+        'the packaged default, not the global, supplies XCATROOT when the environment omits it',
     );
 }
 

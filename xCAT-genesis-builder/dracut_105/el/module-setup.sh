@@ -693,12 +693,22 @@ install() {
     dracut_install /lib64/rsyslog/imtcp.so
     dracut_install /lib64/rsyslog/lmnet.so
     dracut_install /lib64/rsyslog/imuxsock.so
-    dracut_install /usr/lib64/libnfsidmap/nsswitch.so
-    dracut_install killall logger nc nslookup bc chown chroot dd expr kill mkdosfs parted rsync shutdown sort ssh-keygen tr blockdev findfs insmod kexec lvm mdadm mke2fs pivot_root sshd swapon tune2fs pvcreate lvremove vgremove vgcreate  lvcreate  lvscan  lvchange vgchange pvdisplay lvdisplay vgdisplay blkid dmsetup sfdisk # for sysclone
-    dracut_install /lib/udev/rules.d/10-dm.rules
-    dracut_install /lib/udev/rules.d/11-dm-lvm.rules
-    dracut_install /lib/udev/rules.d/13-dm-disk.rules
-    dracut_install /lib/udev/rules.d/95-dm-notify.rules
+    # These six are the sysclone payload. Their paths and package names differ between EL and
+    # SUSE -- SUSE keeps the udev rules only under /usr/lib, and ships nc in netcat-openbsd
+    # rather than in the nmap package -- so install what is present rather than asserting the
+    # EL layout. dracut_install is fatal when a name is missing, which stopped the whole SUSE
+    # genesis build at %install.
+    _dracut_install_opt /usr/lib64/libnfsidmap/nsswitch.so
+    _dracut_install_opt /usr/lib/libnfsidmap/nsswitch.so
+    dracut_install killall logger nslookup bc chown chroot dd expr kill mkdosfs parted rsync shutdown sort ssh-keygen tr blockdev findfs insmod kexec lvm mdadm mke2fs pivot_root sshd swapon tune2fs pvcreate lvremove vgremove vgcreate  lvcreate  lvscan  lvchange vgchange pvdisplay lvdisplay vgdisplay blkid dmsetup sfdisk # for sysclone
+    # nc: EL gets it from nmap-ncat, SUSE from netcat-openbsd. Install whichever the build root has.
+    for _nc in nc ncat netcat; do
+        command -v "$_nc" >/dev/null 2>&1 && { dracut_install "$_nc"; break; }
+    done
+    for _dmrule in 10-dm 11-dm-lvm 13-dm-disk 95-dm-notify; do
+        _dracut_install_opt "/lib/udev/rules.d/${_dmrule}.rules"
+        _dracut_install_opt "/usr/lib/udev/rules.d/${_dmrule}.rules"
+    done
     # The DB files for lspci
     dracut_install /usr/share/hwdata/pci.ids
     # The DB files for udevadm

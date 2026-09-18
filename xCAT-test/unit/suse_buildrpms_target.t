@@ -34,7 +34,7 @@ like($src, qr/chroot_additional_packages.*perl-generators/s,
     'an EL chroot still gets perl-generators');
 
 # The genesis BuildRequires: EL names that SUSE either spells differently or already provides.
-for my $pair (['kernel-core', 'kernel-default'], ['nmap-ncat', 'ncat'],
+for my $pair (['kernel-core', 'kernel-default'], ['nmap-ncat', 'netcat-openbsd'],
               ['procps-ng', 'procps'], ['iproute', 'iproute2']) {
     my ($el, $suse) = @{$pair};
     like($src, qr/'\Q$el\E'\s*=>\s*'\Q$suse\E'/,

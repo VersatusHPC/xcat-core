@@ -1,0 +1,63 @@
+2026-09-18 17:15:52,226 - Mock Version: 6.8
+2026-09-18 17:15:52,233 - Start(bootstrap): chroot init
+2026-09-18 17:15:52,279 - Start(bootstrap): cleaning package manager metadata
+2026-09-18 17:15:52,280 - Finish(bootstrap): cleaning package manager metadata
+2026-09-18 17:15:52,557 - Finish(bootstrap): chroot init
+2026-09-18 17:15:52,558 - Start: chroot init
+2026-09-18 17:15:52,564 - Start: unpacking root cache
+2026-09-18 17:15:54,719 - Finish: unpacking root cache
+2026-09-18 17:15:54,722 - Start: cleaning package manager metadata
+2026-09-18 17:15:54,724 - Finish: cleaning package manager metadata
+2026-09-18 17:15:55,050 - Start: dnf4 update
+2026-09-18 17:15:59,067 - Finish: dnf4 update
+2026-09-18 17:15:59,178 - Finish: chroot init
+2026-09-18 17:15:59,178 - Start: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:15:59,178 - Start: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:16:37,387 - Finish: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:16:37,387 - Start: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:16:37,388 - Start: Outputting list of installed packages
+2026-09-18 17:16:37,624 - Finish: Outputting list of installed packages
+2026-09-18 17:17:02,703 - Finish: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:02,703 - Finish: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:09,567 - Mock Version: 6.8
+2026-09-18 17:17:09,571 - Start(bootstrap): chroot init
+2026-09-18 17:17:09,620 - Start(bootstrap): cleaning package manager metadata
+2026-09-18 17:17:09,621 - Finish(bootstrap): cleaning package manager metadata
+2026-09-18 17:17:09,910 - Finish(bootstrap): chroot init
+2026-09-18 17:17:09,912 - Start: chroot init
+2026-09-18 17:17:09,917 - Start: unpacking root cache
+2026-09-18 17:17:12,080 - Finish: unpacking root cache
+2026-09-18 17:17:12,082 - Start: cleaning package manager metadata
+2026-09-18 17:17:12,085 - Finish: cleaning package manager metadata
+2026-09-18 17:17:12,423 - Start: dnf4 update
+2026-09-18 17:17:16,788 - Finish: dnf4 update
+2026-09-18 17:17:16,903 - Finish: chroot init
+2026-09-18 17:17:16,903 - Start: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:16,903 - Start: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:56,104 - Finish: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:56,104 - Start: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:17:56,106 - Start: Outputting list of installed packages
+2026-09-18 17:17:56,344 - Finish: Outputting list of installed packages
+2026-09-18 17:18:21,235 - Finish: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:18:21,235 - Finish: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:18:33,108 - Mock Version: 6.8
+2026-09-18 17:18:33,112 - Start(bootstrap): chroot init
+2026-09-18 17:18:33,161 - Start(bootstrap): cleaning package manager metadata
+2026-09-18 17:18:33,162 - Finish(bootstrap): cleaning package manager metadata
+2026-09-18 17:18:33,446 - Finish(bootstrap): chroot init
+2026-09-18 17:18:33,447 - Start: chroot init
+2026-09-18 17:18:33,453 - Start: unpacking root cache
+2026-09-18 17:18:35,688 - Finish: unpacking root cache
+2026-09-18 17:18:35,692 - Start: cleaning package manager metadata
+2026-09-18 17:18:35,694 - Finish: cleaning package manager metadata
+2026-09-18 17:18:36,014 - Start: dnf4 update
+2026-09-18 17:18:40,130 - Finish: dnf4 update
+2026-09-18 17:18:40,240 - Finish: chroot init
+2026-09-18 17:18:40,240 - Start: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:18:40,240 - Start: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:19:20,223 - Finish: build setup for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:19:20,224 - Start: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:19:20,225 - Start: Outputting list of installed packages
+2026-09-18 17:19:20,467 - Finish: Outputting list of installed packages
+2026-09-18 17:19:46,578 - Finish: rpmbuild xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm
+2026-09-18 17:19:46,578 - Finish: build phase for xCAT-genesis-base-x86_64-2.19.0-snap202609181715.src.rpm

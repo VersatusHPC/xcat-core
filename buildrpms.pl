@@ -364,13 +364,13 @@ sub buildsources_genesis_base($) {
             'kernel-core'          => 'kernel-default',
             'kernel-modules'       => undef,   # Leap ships every module in kernel-default
             'kernel-modules-extra' => undef,   # no kernel-modules* subpackage exists
-            'nmap-ncat'            => 'ncat',
             'procps-ng'            => 'procps',
             'iproute'              => 'iproute2',
             'vim-minimal'          => 'vim',
             'perl-interpreter'     => undef,   # provided by perl on SUSE
             'dracut-network'       => undef,   # the network module ships in the base dracut
             'lldpad'               => undef,   # FCoE/DCB, not in the default repos and not needed
+            'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
         );
         my @out;
         for my $l (@lines) {

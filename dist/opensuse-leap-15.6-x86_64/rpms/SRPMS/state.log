@@ -52,3 +52,21 @@
 2026-09-18 17:48:55,463 - Finish: rpmbuild -bs
 2026-09-18 17:48:55,467 - Finish: buildsrpm
 2026-09-18 17:48:55,468 - Finish: run
+2026-09-18 17:54:41,838 - Mock Version: 6.8
+2026-09-18 17:54:41,843 - Start(bootstrap): chroot init
+2026-09-18 17:54:41,890 - Start(bootstrap): cleaning package manager metadata
+2026-09-18 17:54:41,891 - Finish(bootstrap): cleaning package manager metadata
+2026-09-18 17:54:42,173 - Finish(bootstrap): chroot init
+2026-09-18 17:54:42,175 - Start: chroot init
+2026-09-18 17:54:42,181 - Start: unpacking root cache
+2026-09-18 17:54:44,265 - Finish: unpacking root cache
+2026-09-18 17:54:44,268 - Start: cleaning package manager metadata
+2026-09-18 17:54:44,270 - Finish: cleaning package manager metadata
+2026-09-18 17:54:44,606 - Start: dnf4 update
+2026-09-18 17:54:49,159 - Finish: dnf4 update
+2026-09-18 17:54:49,273 - Finish: chroot init
+2026-09-18 17:54:49,273 - Start: buildsrpm
+2026-09-18 17:54:49,282 - Start: rpmbuild -bs
+2026-09-18 17:54:49,435 - Finish: rpmbuild -bs
+2026-09-18 17:54:49,438 - Finish: buildsrpm
+2026-09-18 17:54:49,439 - Finish: run

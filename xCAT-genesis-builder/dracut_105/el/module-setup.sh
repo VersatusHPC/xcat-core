@@ -30,6 +30,16 @@ installkernel() {
     done < "$modules_dep"
 }
 
+# The same tolerance for a BINARY named without a path: dracut_install resolves those through
+# PATH, so the file test _dracut_install_opt uses cannot answer for them.
+_dracut_install_opt_bin() {
+    local b
+    for b in "$@"; do
+        command -v "$b" >/dev/null 2>&1 && dracut_install "$b"
+    done
+    return 0
+}
+
 _dracut_install_opt() {
     local src="$1"
     local dst=$2;
@@ -50,7 +60,9 @@ install() {
     dracut_install mkswap df ifenslave ssh-keygen scp clear
     # getdestiny makes its request file with mktemp.
     dracut_install mktemp
-    dracut_install lldpad
+    # lldpad/lldptool are the FCoE/DCB tools. They are not in the default SUSE repositories,
+    # so the genesis BuildRequires drops them there and the binaries are absent.
+    _dracut_install_opt_bin lldpad
 
     # RHEL 10 packages no ISC dhcp-client. Install whichever client the build root carries;
     # doxcat chooses between them at run time.
@@ -91,13 +103,18 @@ install() {
     _dracut_install_opt /sbin/rsyslogd || _dracut_install_opt /usr/sbin/rsyslogd
     _dracut_install_opt /bin/rpm      || _dracut_install_opt /usr/bin/rpm
     #dracut_install chmod /sbin/route /sbin/ifconfig /usr/bin/whoami /usr/bin/head /usr/bin/tail basename /etc/redhat-release ping tr lsusb /usr/share/hwdata/usb.ids #ibm fw wrapper requirements
-    dracut_install chmod ip /usr/bin/whoami /usr/bin/head /usr/bin/tail basename /etc/redhat-release ping tr lsusb /usr/share/hwdata/usb.ids #ibm fw wrapper requirements
+    dracut_install chmod ip /usr/bin/whoami /usr/bin/head /usr/bin/tail basename tr lsusb #ibm fw wrapper requirements
+    # The release marker is named for the distribution; every distribution has os-release.
+    _dracut_install_opt /etc/redhat-release
+    _dracut_install_opt /etc/os-release
+    _dracut_install_opt_bin ping
+    _dracut_install_opt /usr/share/hwdata/usb.ids || _dracut_install_opt /usr/share/usb.ids
     # uxspi prereqs. dmidecode also improves the decision on loading ipmi_si. Neither is
     # packaged for ppc64le, so install whichever the build root carries.
     for _fw_tool in efibootmgr dmidecode; do
         command -v "$_fw_tool" >/dev/null 2>&1 && dracut_install "$_fw_tool"
     done
-    dracut_install lldptool
+    _dracut_install_opt_bin lldptool
     # Time zones. EL ships a posix/ duplicate of the zone tree; SUSE ships only the tree
     # itself, and dracut_install is fatal on a miss, so every zone below stopped the SUSE
     # image build. Take the posix/ copy where it exists and the plain one otherwise. The

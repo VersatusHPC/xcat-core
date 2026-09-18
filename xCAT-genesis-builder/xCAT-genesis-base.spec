@@ -52,6 +52,7 @@ BuildRequires: efibootmgr
 %endif
 BuildRequires: dosfstools
 BuildRequires: dracut
+BuildRequires: dracut-network
 # doxcat chooses its DHCP client at run time. RHEL 10 packages no ISC dhcp-client; its
 # baseos packages dhcpcd, which carries its own resolv.conf, hostname and ntp hooks and so
 # needs no dhclient-script.
@@ -64,15 +65,18 @@ BuildRequires: dhcpcd
 BuildRequires: ethtool
 BuildRequires: gawk
 BuildRequires: ipmitool
-BuildRequires: iproute2
+BuildRequires: iproute
 BuildRequires: kexec-tools
-BuildRequires: kernel-default
+BuildRequires: kernel-core
+BuildRequires: kernel-modules
+BuildRequires: kernel-modules-extra
+BuildRequires: lldpad
 BuildRequires: lvm2
 BuildRequires: mdadm
 BuildRequires: mstflint
 BuildRequires: net-tools
 BuildRequires: nfs-utils
-BuildRequires: ncat
+BuildRequires: nmap-ncat
 BuildRequires: openssh-clients
 BuildRequires: openssh-server
 # getcert, getdestiny, getipmi and getadapter run the openssl command. el8 and el9 hold it in
@@ -81,14 +85,15 @@ BuildRequires: openssl
 BuildRequires: parted
 BuildRequires: pciutils
 BuildRequires: perl
-BuildRequires: procps
+BuildRequires: perl-interpreter
+BuildRequires: procps-ng
 BuildRequires: psmisc
 BuildRequires: rsync
 BuildRequires: rsyslog
 BuildRequires: tmux
 BuildRequires: usbutils
 BuildRequires: util-linux
-BuildRequires: vim
+BuildRequires: vim-minimal
 BuildRequires: wget
 BuildRequires: xfsprogs
 

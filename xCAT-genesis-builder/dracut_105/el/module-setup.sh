@@ -52,12 +52,17 @@ _dracut_install_opt() {
 
 install() {
     dracut_install wget openssl tar mstflint ipmitool cpio gzip lsmod ethtool modprobe touch echo cut wc bash
-    dracut_install netstat # broadcom update requires
+    # netstat: EL packages it in net-tools; SUSE moved it to net-tools-deprecated, which the
+    # genesis BuildRequires adds there. Tolerate its absence rather than lose the whole image.
+    _dracut_install_opt_bin netstat # broadcom update requires
     dracut_install uniq # mellanox update requires
     dracut_install grep ip hostname /usr/bin/awk egrep grep dirname expr
     dracut_install mount.nfs sshd vi reboot lspci parted tmux mkfs mkfs.ext4 mkfs.xfs xfs_db
     #dracut_install libvirtd /usr/share/libvirt/cpu_map.xml /usr/bin/qemu-img /usr/libexec/qemu-kvm
-    dracut_install mkswap df ifenslave ssh-keygen scp clear
+    dracut_install mkswap df ssh-keygen scp clear
+    # ifenslave configures bonding on EL and Debian; SUSE does it through wicked and ships no
+    # such binary.
+    _dracut_install_opt_bin ifenslave
     # getdestiny makes its request file with mktemp.
     dracut_install mktemp
     # lldpad/lldptool are the FCoE/DCB tools. They are not in the default SUSE repositories,

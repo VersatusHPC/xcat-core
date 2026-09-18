@@ -18034,3 +18034,582 @@ RPM build errors:
     Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
     Bad exit status from /var/tmp/rpm-tmp.U5jzE6 (%install)
 Child return code was: 1
+Mock Version: 6.8
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', '959e57b52fac4d1fa08fa7213bbcedff', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', '5008ab7bdf624c6ea7de4cdeb7c6c21b', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', 'f10e54335d2e4e3487a2ec88c09a0b6d', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bb --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Executing(%prep): /bin/sh -e /var/tmp/rpm-tmp.ZG6j3o
++ umask 022
++ cd /builddir/build/BUILD
++ cd /builddir/build/BUILD
++ rm -rf xCAT-genesis-base-build-support
++ /usr/bin/bzip2 -dc /builddir/build/SOURCES/xCAT-genesis-base-build-support.tar.bz2
++ /usr/bin/tar -xof -
++ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd xCAT-genesis-base-build-support
++ /usr/bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+Executing(%build): /bin/sh -e /var/tmp/rpm-tmp.Jqju5s
++ umask 022
++ cd /builddir/build/BUILD
++ /usr/bin/rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
+++ dirname /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ /usr/bin/mkdir -p /builddir/build/BUILDROOT
++ /usr/bin/mkdir /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ cd xCAT-genesis-base-build-support
++ exit 0
+Executing(%install): /bin/sh -e /var/tmp/rpm-tmp.vVhDDg
++ umask 022
++ cd /builddir/build/BUILD
++ cd xCAT-genesis-base-build-support
++ set -euxo pipefail
++ rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ mkdir -p /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64//opt/xcat/share/xcat/netboot/genesis/x86_64
+++ mktemp -d /var/tmp/xcat-genesis.x86_64.XXXXXX
++ GENESIS_TMPDIR=/var/tmp/xcat-genesis.x86_64.abDXQ9
++ GENESIS_ROOT=/var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64
++ GENESIS_FS=/var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ DRACUT_IMAGE=/var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs
++ trap cleanup EXIT
++ '[' -d /usr/share/dracut/modules.d ']'
++ DRACUT_PARENT=/usr/lib/dracut/modules.d
++ DRACUTMODDIR=/usr/lib/dracut/modules.d/97xcat
++ rm -rf /usr/lib/dracut/modules.d/97xcat
++ mkdir -p /usr/lib/dracut/modules.d/97xcat
++ cp -a /builddir/build/BUILD/xCAT-genesis-base-build-support/dracut_105/el/. /usr/lib/dracut/modules.d/97xcat/
++ chmod 0755 /usr/lib/dracut/modules.d/97xcat/module-setup.sh /usr/lib/dracut/modules.d/97xcat/xcatroot /usr/lib/dracut/modules.d/97xcat/dhclient-script
+++ ls -1 /lib/modules
+++ sort -V
+++ tail -n 1
++ KERNELVERSION=6.4.0-150600.23.103-default
++ test -n 6.4.0-150600.23.103-default
++ mkdir -p /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/etc/ssh
++ mkdir -p /run/rpcbind
++ dracut --compress gzip -m 'xcat base' --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs 6.4.0-150600.23.103-default
+dracut[W]: Invalid persistent policy, your system does not have a /dev/disk/by-uuid directory.
+dracut[I]: Executing: /usr/bin/dracut --compress gzip -m "xcat base" --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs 6.4.0-150600.23.103-default
+dracut[I]: *** Including module: udev-rules ***
+dracut[I]: *** Including module: xcat ***
+dracut-install: ERROR: installing 'netstat'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.3jpJfJ/initramfs -a netstat
+dracut-install: ERROR: installing 'ifenslave'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.3jpJfJ/initramfs -a mkswap df ifenslave ssh-keygen scp clear
+dracut[I]: *** Including module: base ***
+dracut[I]: *** Including modules done ***
+dracut[I]: *** Installing kernel module dependencies ***
+dracut[I]: *** Installing kernel module dependencies done ***
+dracut[I]: *** Resolving executable dependencies ***
+dracut[I]: *** Resolving executable dependencies done ***
+dracut[I]: *** Hardlinking files ***
+dracut[I]: *** Hardlinking files done ***
+dracut[I]: *** Store current command line parameters ***
+dracut[I]: Stored kernel commandline:
+dracut[I]: No dracut internal kernel commandline stored in the initramfs
+dracut[I]: *** Stripping files ***
+dracut[I]: *** Stripping files done ***
+dracut[I]: *** Creating image file '/var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs' ***
+dracut[I]: *** Creating initramfs image file '/var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs' done ***
++ cd /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ zcat /var/tmp/xcat-genesis.x86_64.abDXQ9/genesis.rfs
++ cpio -dumi
+377479 blocks
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin/. /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ ln -s usr/bin /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/. /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ ln -s usr/sbin /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/. /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/
++ rm -rf /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ ln -s usr/lib /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64 ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64/. /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64/
++ rm -rf /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ ln -s usr/lib64 /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ '[' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' '!' -d /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' -L /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/ntp/lib ']'
++ mkdir -p /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d
++ '[' -e /lib/udev/rules.d/80-net-name-slot.rules ']'
++ cp /builddir/build/BUILD/xCAT-genesis-base-build-support/80-net-name-slot.rules /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d/
++ KERNEL_IMAGE=/boot/vmlinuz-6.4.0-150600.23.103-default
++ '[' '!' -e /boot/vmlinuz-6.4.0-150600.23.103-default ']'
++ test -n /boot/vmlinuz-6.4.0-150600.23.103-default
++ test -e /boot/vmlinuz-6.4.0-150600.23.103-default
++ cp /boot/vmlinuz-6.4.0-150600.23.103-default /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/kernel
++ GENESIS_REQUIRED=
++ bash /builddir/build/BUILD/xCAT-genesis-base-build-support/verify-genesis-payload --commands-from /usr/lib/dracut/modules.d/97xcat/module-setup.sh /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
+verify-genesis-payload: /var/tmp/xcat-genesis.x86_64.abDXQ9//opt/xcat/share/xcat/netboot/genesis/x86_64/fs is incomplete:
+  ifenslave (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  insmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lsmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvscan (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  mkdosfs (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  modprobe (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  netstat (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  poweroff (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  ps (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  reboot (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  shutdown (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vi (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
++ cleanup
++ rm -rf /var/tmp/xcat-genesis.x86_64.abDXQ9
++ rm -rf /usr/lib/dracut/modules.d/97xcat
+error: Bad exit status from /var/tmp/rpm-tmp.vVhDDg (%install)
+RPM build errors:
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Bad exit status from /var/tmp/rpm-tmp.vVhDDg (%install)
+Child return code was: 1
+Mock Version: 6.8
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', '08e81512bf6a4652b03963efd313e82a', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', 'bfbb74f141d14c21aa4cbf6701abb5b6', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', 'd0a57a39443f48a19c7078df08383e51', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bb --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Executing(%prep): /bin/sh -e /var/tmp/rpm-tmp.IMuXmH
++ umask 022
++ cd /builddir/build/BUILD
++ cd /builddir/build/BUILD
++ rm -rf xCAT-genesis-base-build-support
++ /usr/bin/bzip2 -dc /builddir/build/SOURCES/xCAT-genesis-base-build-support.tar.bz2
++ /usr/bin/tar -xof -
++ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd xCAT-genesis-base-build-support
++ /usr/bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+Executing(%build): /bin/sh -e /var/tmp/rpm-tmp.dJMOZs
++ umask 022
++ cd /builddir/build/BUILD
++ /usr/bin/rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
+++ dirname /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ /usr/bin/mkdir -p /builddir/build/BUILDROOT
++ /usr/bin/mkdir /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ cd xCAT-genesis-base-build-support
++ exit 0
+Executing(%install): /bin/sh -e /var/tmp/rpm-tmp.dToXBd
++ umask 022
++ cd /builddir/build/BUILD
++ cd xCAT-genesis-base-build-support
++ set -euxo pipefail
++ rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ mkdir -p /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64//opt/xcat/share/xcat/netboot/genesis/x86_64
+++ mktemp -d /var/tmp/xcat-genesis.x86_64.XXXXXX
++ GENESIS_TMPDIR=/var/tmp/xcat-genesis.x86_64.dTM6eh
++ GENESIS_ROOT=/var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64
++ GENESIS_FS=/var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ DRACUT_IMAGE=/var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs
++ trap cleanup EXIT
++ '[' -d /usr/share/dracut/modules.d ']'
++ DRACUT_PARENT=/usr/lib/dracut/modules.d
++ DRACUTMODDIR=/usr/lib/dracut/modules.d/97xcat
++ rm -rf /usr/lib/dracut/modules.d/97xcat
++ mkdir -p /usr/lib/dracut/modules.d/97xcat
++ cp -a /builddir/build/BUILD/xCAT-genesis-base-build-support/dracut_105/el/. /usr/lib/dracut/modules.d/97xcat/
++ chmod 0755 /usr/lib/dracut/modules.d/97xcat/module-setup.sh /usr/lib/dracut/modules.d/97xcat/xcatroot /usr/lib/dracut/modules.d/97xcat/dhclient-script
+++ ls -1 /lib/modules
+++ sort -V
+++ tail -n 1
++ KERNELVERSION=6.4.0-150600.23.103-default
++ test -n 6.4.0-150600.23.103-default
++ mkdir -p /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/etc/ssh
++ mkdir -p /run/rpcbind
++ dracut --compress gzip -m 'xcat base' --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs 6.4.0-150600.23.103-default
+dracut[W]: Invalid persistent policy, your system does not have a /dev/disk/by-uuid directory.
+dracut[I]: Executing: /usr/bin/dracut --compress gzip -m "xcat base" --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs 6.4.0-150600.23.103-default
+dracut[I]: *** Including module: udev-rules ***
+dracut[I]: *** Including module: xcat ***
+dracut-install: ERROR: installing 'netstat'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.u7XnTx/initramfs -a netstat
+dracut-install: ERROR: installing 'ifenslave'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.u7XnTx/initramfs -a mkswap df ifenslave ssh-keygen scp clear
+dracut[I]: *** Including module: base ***
+dracut[I]: *** Including modules done ***
+dracut[I]: *** Installing kernel module dependencies ***
+dracut[I]: *** Installing kernel module dependencies done ***
+dracut[I]: *** Resolving executable dependencies ***
+dracut[I]: *** Resolving executable dependencies done ***
+dracut[I]: *** Hardlinking files ***
+dracut[I]: *** Hardlinking files done ***
+dracut[I]: *** Store current command line parameters ***
+dracut[I]: Stored kernel commandline:
+dracut[I]: No dracut internal kernel commandline stored in the initramfs
+dracut[I]: *** Stripping files ***
+dracut[I]: *** Stripping files done ***
+dracut[I]: *** Creating image file '/var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs' ***
+dracut[I]: *** Creating initramfs image file '/var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs' done ***
++ cd /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ zcat /var/tmp/xcat-genesis.x86_64.dTM6eh/genesis.rfs
++ cpio -dumi
+377479 blocks
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin/. /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ ln -s usr/bin /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/. /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ ln -s usr/sbin /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/. /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/
++ rm -rf /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ ln -s usr/lib /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64 ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64/. /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64/
++ rm -rf /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ ln -s usr/lib64 /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ '[' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' '!' -d /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' -L /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/ntp/lib ']'
++ mkdir -p /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d
++ '[' -e /lib/udev/rules.d/80-net-name-slot.rules ']'
++ cp /builddir/build/BUILD/xCAT-genesis-base-build-support/80-net-name-slot.rules /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d/
++ KERNEL_IMAGE=/boot/vmlinuz-6.4.0-150600.23.103-default
++ '[' '!' -e /boot/vmlinuz-6.4.0-150600.23.103-default ']'
++ test -n /boot/vmlinuz-6.4.0-150600.23.103-default
++ test -e /boot/vmlinuz-6.4.0-150600.23.103-default
++ cp /boot/vmlinuz-6.4.0-150600.23.103-default /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/kernel
++ GENESIS_REQUIRED=
++ bash /builddir/build/BUILD/xCAT-genesis-base-build-support/verify-genesis-payload --commands-from /usr/lib/dracut/modules.d/97xcat/module-setup.sh /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
+verify-genesis-payload: /var/tmp/xcat-genesis.x86_64.dTM6eh//opt/xcat/share/xcat/netboot/genesis/x86_64/fs is incomplete:
+  ifenslave (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  insmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lsmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvscan (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  mkdosfs (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  modprobe (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  netstat (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  poweroff (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  ps (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  reboot (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  shutdown (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vi (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
++ cleanup
++ rm -rf /var/tmp/xcat-genesis.x86_64.dTM6eh
++ rm -rf /usr/lib/dracut/modules.d/97xcat
+error: Bad exit status from /var/tmp/rpm-tmp.dToXBd (%install)
+RPM build errors:
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Bad exit status from /var/tmp/rpm-tmp.dToXBd (%install)
+Child return code was: 1
+Mock Version: 6.8
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', '4e1f62c5dbb44bb48bb39a8fec84c648', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', 'e0e2e770ba0447e8bfbaf41baad99ab6', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bs --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Wrote: /builddir/build/SRPMS/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.src.rpm
+Child return code was: 0
+Using nspawn with args ['--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off']
+Executing command: ['/usr/bin/systemd-nspawn', '-q', '-M', '548dde1d3c3644229f1b82fd2a933fd4', '-D', '/var/lib/mock/xCAT-genesis-base-opensuse-leap-15.6-x86_64/root', '-a', '-u', 'mockbuild', '--capability=cap_ipc_lock', '--bind=/dev/btrfs-control', '--bind=/dev/mapper/control', '--bind=/dev/fuse', '--bind=/dev/loop-control', '--bind=/dev/loop0', '--bind=/dev/loop1', '--bind=/dev/loop2', '--bind=/dev/loop3', '--bind=/dev/loop4', '--bind=/dev/loop5', '--bind=/dev/loop6', '--bind=/dev/loop7', '--bind=/dev/loop8', '--bind=/dev/loop9', '--bind=/dev/loop10', '--bind=/dev/loop11', '--resolv-conf=off', '--console=pipe', '--setenv=TERM=vt100', '--setenv=SHELL=/bin/bash', '--setenv=HOME=/builddir', '--setenv=HOSTNAME=mock', '--setenv=PATH=/usr/bin:/bin:/usr/sbin:/sbin', '--setenv=PROMPT_COMMAND=printf "\\033]0;<mock-chroot>\\007"', '--setenv=PS1=<mock-chroot> \\s-\\v\\$ ', '--setenv=LANG=C.UTF-8', '--setenv=SOURCE_DATE_EPOCH=1789750463', 'bash', '--login', '-c', '/usr/bin/rpmbuild -bb --noclean --target x86_64 --nodeps /builddir/build/SPECS/xCAT-genesis-base.spec'] with env {'TERM': 'vt100', 'SHELL': '/bin/bash', 'HOME': '/builddir', 'HOSTNAME': 'mock', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'PROMPT_COMMAND': 'printf "\\033]0;<mock-chroot>\\007"', 'PS1': '<mock-chroot> \\s-\\v\\$ ', 'LANG': 'C.UTF-8', 'SOURCE_DATE_EPOCH': '1789750463', 'SYSTEMD_NSPAWN_TMPFS_TMP': '0', 'SYSTEMD_SECCOMP': '0'} and shell False
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+warning: Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+Building target platforms: x86_64
+Building for target x86_64
+Executing(%prep): /bin/sh -e /var/tmp/rpm-tmp.n7V57y
++ umask 022
++ cd /builddir/build/BUILD
++ cd /builddir/build/BUILD
++ rm -rf xCAT-genesis-base-build-support
++ /usr/bin/bzip2 -dc /builddir/build/SOURCES/xCAT-genesis-base-build-support.tar.bz2
++ /usr/bin/tar -xof -
++ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd xCAT-genesis-base-build-support
++ /usr/bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+Executing(%build): /bin/sh -e /var/tmp/rpm-tmp.nGXL7X
++ umask 022
++ cd /builddir/build/BUILD
++ /usr/bin/rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
+++ dirname /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ /usr/bin/mkdir -p /builddir/build/BUILDROOT
++ /usr/bin/mkdir /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ cd xCAT-genesis-base-build-support
++ exit 0
+Executing(%install): /bin/sh -e /var/tmp/rpm-tmp.XEZqBx
++ umask 022
++ cd /builddir/build/BUILD
++ cd xCAT-genesis-base-build-support
++ set -euxo pipefail
++ rm -rf /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64
++ mkdir -p /builddir/build/BUILDROOT/xCAT-genesis-base-x86_64-2.19.0-snap202609181759.x86_64//opt/xcat/share/xcat/netboot/genesis/x86_64
+++ mktemp -d /var/tmp/xcat-genesis.x86_64.XXXXXX
++ GENESIS_TMPDIR=/var/tmp/xcat-genesis.x86_64.Z3wJ1J
++ GENESIS_ROOT=/var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64
++ GENESIS_FS=/var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ DRACUT_IMAGE=/var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs
++ trap cleanup EXIT
++ '[' -d /usr/share/dracut/modules.d ']'
++ DRACUT_PARENT=/usr/lib/dracut/modules.d
++ DRACUTMODDIR=/usr/lib/dracut/modules.d/97xcat
++ rm -rf /usr/lib/dracut/modules.d/97xcat
++ mkdir -p /usr/lib/dracut/modules.d/97xcat
++ cp -a /builddir/build/BUILD/xCAT-genesis-base-build-support/dracut_105/el/. /usr/lib/dracut/modules.d/97xcat/
++ chmod 0755 /usr/lib/dracut/modules.d/97xcat/module-setup.sh /usr/lib/dracut/modules.d/97xcat/xcatroot /usr/lib/dracut/modules.d/97xcat/dhclient-script
+++ ls -1 /lib/modules
+++ sort -V
+++ tail -n 1
++ KERNELVERSION=6.4.0-150600.23.103-default
++ test -n 6.4.0-150600.23.103-default
++ mkdir -p /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/etc/ssh
++ mkdir -p /run/rpcbind
++ dracut --compress gzip -m 'xcat base' --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs 6.4.0-150600.23.103-default
+dracut[W]: Invalid persistent policy, your system does not have a /dev/disk/by-uuid directory.
+dracut[I]: Executing: /usr/bin/dracut --compress gzip -m "xcat base" --no-early-microcode -N -f /var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs 6.4.0-150600.23.103-default
+dracut[I]: *** Including module: udev-rules ***
+dracut[I]: *** Including module: xcat ***
+dracut-install: ERROR: installing 'netstat'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.oipkkM/initramfs -a netstat
+dracut-install: ERROR: installing 'ifenslave'
+dracut[E]: FAILED: /usr/lib/dracut/dracut-install -D /var/tmp/dracut.oipkkM/initramfs -a mkswap df ifenslave ssh-keygen scp clear
+dracut[I]: *** Including module: base ***
+dracut[I]: *** Including modules done ***
+dracut[I]: *** Installing kernel module dependencies ***
+dracut[I]: *** Installing kernel module dependencies done ***
+dracut[I]: *** Resolving executable dependencies ***
+dracut[I]: *** Resolving executable dependencies done ***
+dracut[I]: *** Hardlinking files ***
+dracut[I]: *** Hardlinking files done ***
+dracut[I]: *** Store current command line parameters ***
+dracut[I]: Stored kernel commandline:
+dracut[I]: No dracut internal kernel commandline stored in the initramfs
+dracut[I]: *** Stripping files ***
+dracut[I]: *** Stripping files done ***
+dracut[I]: *** Creating image file '/var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs' ***
+dracut[I]: *** Creating initramfs image file '/var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs' done ***
++ cd /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
++ zcat /var/tmp/xcat-genesis.x86_64.Z3wJ1J/genesis.rfs
++ cpio -dumi
+377479 blocks
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin/. /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/bin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ ln -s usr/bin /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/bin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/. /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/
++ true
++ rm -rf /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ ln -s usr/sbin /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/. /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/
++ rm -rf /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ ln -s usr/lib /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib
++ for _d in bin sbin lib lib64
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' '!' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64 ']'
++ '[' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64 ']'
++ cp -a /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64/. /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib64/
++ rm -rf /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ ln -s usr/lib64 /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib64
++ '[' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' '!' -d /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ '[' -L /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/lib/dracut/hooks ']'
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/usr/sbin/dhclient-script
++ for script in "$GENESIS_FS/sbin/dhclient-script" "$GENESIS_FS/usr/sbin/dhclient-script" "$GENESIS_FS/sbin/xcatroot"
++ '[' -f /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot ']'
++ chmod 0755 /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/sbin/xcatroot
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/lib64/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/local/share/perl5 ']'
++ for perl_dir in /usr/share/perl5 /usr/lib64/perl5 /usr/local/lib64/perl5 /usr/local/share/perl5 /usr/share/ntp/lib
++ '[' -d /usr/share/ntp/lib ']'
++ mkdir -p /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d
++ '[' -e /lib/udev/rules.d/80-net-name-slot.rules ']'
++ cp /builddir/build/BUILD/xCAT-genesis-base-build-support/80-net-name-slot.rules /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs/lib/udev/rules.d/
++ KERNEL_IMAGE=/boot/vmlinuz-6.4.0-150600.23.103-default
++ '[' '!' -e /boot/vmlinuz-6.4.0-150600.23.103-default ']'
++ test -n /boot/vmlinuz-6.4.0-150600.23.103-default
++ test -e /boot/vmlinuz-6.4.0-150600.23.103-default
++ cp /boot/vmlinuz-6.4.0-150600.23.103-default /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/kernel
++ GENESIS_REQUIRED=
++ bash /builddir/build/BUILD/xCAT-genesis-base-build-support/verify-genesis-payload --commands-from /usr/lib/dracut/modules.d/97xcat/module-setup.sh /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs
+verify-genesis-payload: /var/tmp/xcat-genesis.x86_64.Z3wJ1J//opt/xcat/share/xcat/netboot/genesis/x86_64/fs is incomplete:
+  ifenslave (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  insmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lsmod (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  lvscan (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  mkdosfs (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  modprobe (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  netstat (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  poweroff (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  ps (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  pvdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  reboot (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  shutdown (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgchange (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgcreate (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgdisplay (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vgremove (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
+  vi (installed by /usr/lib/dracut/modules.d/97xcat/module-setup.sh)
++ cleanup
++ rm -rf /var/tmp/xcat-genesis.x86_64.Z3wJ1J
++ rm -rf /usr/lib/dracut/modules.d/97xcat
+error: Bad exit status from /var/tmp/rpm-tmp.XEZqBx (%install)
+RPM build errors:
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Macro expanded in comment on line 18: %{tarch} unexpanded, and rpm then builds a package
+    Bad exit status from /var/tmp/rpm-tmp.XEZqBx (%install)
+Child return code was: 1

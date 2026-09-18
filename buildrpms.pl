@@ -371,6 +371,7 @@ sub buildsources_genesis_base($) {
             'dracut-network'       => undef,   # the network module ships in the base dracut
             'lldpad'               => undef,   # FCoE/DCB, not in the default repos and not needed
             'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
+            'net-tools'            => 'net-tools-deprecated',  # netstat moved out of net-tools on SUSE
         );
         my @out;
         for my $l (@lines) {

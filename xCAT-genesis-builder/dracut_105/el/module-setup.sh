@@ -32,6 +32,28 @@ installkernel() {
 
 # The same tolerance for a BINARY named without a path: dracut_install resolves those through
 # PATH, so the file test _dracut_install_opt uses cannot answer for them.
+# Install a command and, when its name is a symlink, recreate that name with an ABSOLUTE link.
+#
+# dracut copies a relative symlink into the image with an extra path component. On Leap the host
+# has /usr/sbin/modprobe -> ../bin/kmod, which resolves correctly there, and the image ends up with
+# /usr/sbin/modprobe -> ../usr/bin/kmod, i.e. /usr/usr/bin/kmod, which does not exist. pvcreate came
+# out pointing at itself. The binaries land in the image; the names that reach them dangle, so
+# modprobe, insmod and the LVM tools all fail at run time on a SUSE node.
+#
+# An absolute link cannot be mis-resolved. On EL every one of these names resolves to the same
+# target it did before, so the image is unchanged there.
+_dracut_install_resolved() {
+    local c path target
+    for c in "$@"; do
+        path=$(command -v "$c" 2>/dev/null) || continue
+        target=$(readlink -f "$path" 2>/dev/null) || continue
+        dracut_install "$target"
+        [ "$target" = "$path" ] && continue
+        mkdir -p "$initdir${path%/*}"
+        ln -sf "$target" "$initdir$path"
+    done
+}
+
 _dracut_install_opt_bin() {
     local b
     for b in "$@"; do
@@ -51,13 +73,13 @@ _dracut_install_opt() {
 }
 
 install() {
-    dracut_install wget openssl tar mstflint ipmitool cpio gzip lsmod ethtool modprobe touch echo cut wc bash
+    _dracut_install_resolved wget openssl tar mstflint ipmitool cpio gzip lsmod ethtool modprobe touch echo cut wc bash
     # netstat: EL packages it in net-tools; SUSE moved it to net-tools-deprecated, which the
     # genesis BuildRequires adds there. Tolerate its absence rather than lose the whole image.
     _dracut_install_opt_bin netstat # broadcom update requires
     dracut_install uniq # mellanox update requires
     dracut_install grep ip hostname /usr/bin/awk egrep grep dirname expr
-    dracut_install mount.nfs sshd vi reboot lspci parted tmux mkfs mkfs.ext4 mkfs.xfs xfs_db
+    _dracut_install_resolved mount.nfs sshd vi reboot lspci parted tmux mkfs mkfs.ext4 mkfs.xfs xfs_db
     #dracut_install libvirtd /usr/share/libvirt/cpu_map.xml /usr/bin/qemu-img /usr/libexec/qemu-kvm
     dracut_install mkswap df ssh-keygen scp clear
     # ifenslave configures bonding on EL and Debian; SUSE does it through wicked and ships no
@@ -102,7 +124,10 @@ install() {
     # glibc NSS: /lib64 on EL, /usr/lib64 on SUSE.
     _dracut_install_opt /lib64/libnss_dns.so.2
     _dracut_install_opt /usr/lib64/libnss_dns.so.2
-    dracut_install poweroff hwclock date /usr/share/terminfo/x/xterm /usr/share/terminfo/s/screen /etc/nsswitch.conf /etc/services
+    # poweroff, hwclock and date are symlinks on SUSE; the data files are not, so they keep the
+    # plain install that asserts their presence.
+    _dracut_install_resolved poweroff hwclock date
+    dracut_install /usr/share/terminfo/x/xterm /usr/share/terminfo/s/screen /etc/nsswitch.conf /etc/services
     dracut_install /etc/protocols umount /usr/lib/rpm/rpmrc
     # SUSE keeps these under /usr; EL under the /sbin and /bin compatibility paths.
     _dracut_install_opt /sbin/rsyslogd || _dracut_install_opt /usr/sbin/rsyslogd
@@ -239,7 +264,7 @@ install() {
     _dracut_install_opt /sbin/rpc.statd  || _dracut_install_opt /usr/sbin/rpc.statd
     _dracut_install_opt /usr/sbin/sm-notify  || _dracut_install_opt /sbin/sm-notify
     _dracut_install_opt /usr/sbin/rpc.idmapd || _dracut_install_opt /sbin/rpc.idmapd
-    dracut_install ps free find #debug
+    _dracut_install_resolved ps free find #debug
     inst_dir /var/lib/nfs
     inst_dir /var/lib/nfs/statd/sm
     inst_dir /var/lib/nfs/statd/sm.bak
@@ -262,7 +287,7 @@ install() {
     # genesis build at %install.
     _dracut_install_opt /usr/lib64/libnfsidmap/nsswitch.so
     _dracut_install_opt /usr/lib/libnfsidmap/nsswitch.so
-    dracut_install killall logger nslookup bc chown chroot dd expr kill mkdosfs parted rsync shutdown sort ssh-keygen tr blockdev findfs insmod kexec lvm mdadm mke2fs pivot_root sshd swapon tune2fs pvcreate lvremove vgremove vgcreate  lvcreate  lvscan  lvchange vgchange pvdisplay lvdisplay vgdisplay blkid dmsetup sfdisk # for sysclone
+    _dracut_install_resolved killall logger nslookup bc chown chroot dd expr kill mkdosfs parted rsync shutdown sort ssh-keygen tr blockdev findfs insmod kexec lvm mdadm mke2fs pivot_root sshd swapon tune2fs pvcreate lvremove vgremove vgcreate lvcreate lvscan lvchange vgchange pvdisplay lvdisplay vgdisplay blkid dmsetup sfdisk # for sysclone
     # nc: EL gets it from nmap-ncat, SUSE from netcat-openbsd. Install whichever the build root has.
     for _nc in nc ncat netcat; do
         command -v "$_nc" >/dev/null 2>&1 && { dracut_install "$_nc"; break; }

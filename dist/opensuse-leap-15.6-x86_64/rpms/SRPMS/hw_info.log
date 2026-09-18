@@ -49,7 +49,7 @@ Vulnerability Vmscape:                   Not affected
 
 Memory:
                total        used        free      shared  buff/cache   available
-Mem:            15Gi       3.2Gi       2.7Gi       141Mi        10Gi        12Gi
+Mem:            15Gi       3.2Gi       2.9Gi       141Mi        10Gi        12Gi
 Swap:             0B          0B          0B
 
 

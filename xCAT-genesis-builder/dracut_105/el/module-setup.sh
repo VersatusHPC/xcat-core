@@ -82,7 +82,9 @@ install() {
     for _lc_file in /usr/lib/locale/C.utf8/LC_*; do
         _dracut_install_opt "$_lc_file"
     done
-    dracut_install /lib64/libnss_dns.so.2
+    # glibc NSS: /lib64 on EL, /usr/lib64 on SUSE.
+    _dracut_install_opt /lib64/libnss_dns.so.2
+    _dracut_install_opt /usr/lib64/libnss_dns.so.2
     dracut_install poweroff hwclock date /usr/share/terminfo/x/xterm /usr/share/terminfo/s/screen /etc/nsswitch.conf /etc/services
     dracut_install /sbin/rsyslogd /etc/protocols umount /bin/rpm /usr/lib/rpm/rpmrc
     #dracut_install chmod /sbin/route /sbin/ifconfig /usr/bin/whoami /usr/bin/head /usr/bin/tail basename /etc/redhat-release ping tr lsusb /usr/share/hwdata/usb.ids #ibm fw wrapper requirements
@@ -679,20 +681,13 @@ install() {
     inst "/usr/share/terminfo/l/linux"
     inst "/usr/share/terminfo/v/vt100"
     inst_hook cmdline 10 "$moddir/xcat-cmdline.sh"
-    dracut_install /lib64/rsyslog/lmtcpclt.so
-    dracut_install /lib64/rsyslog/omtesting.so
-    dracut_install /lib64/rsyslog/lmnetstrms.so
-    dracut_install /lib64/rsyslog/imfile.so
-    dracut_install /lib64/rsyslog/imklog.so
-    dracut_install /lib64/rsyslog/lmzlibw.so
-    dracut_install /lib64/rsyslog/immark.so
-    dracut_install /lib64/rsyslog/imudp.so
-    dracut_install /lib64/rsyslog/lmregexp.so
-    dracut_install /lib64/rsyslog/lmtcpsrv.so
-    dracut_install /lib64/rsyslog/lmnsd_ptcp.so
-    dracut_install /lib64/rsyslog/imtcp.so
-    dracut_install /lib64/rsyslog/lmnet.so
-    dracut_install /lib64/rsyslog/imuxsock.so
+    # rsyslog modules. EL keeps them in /lib64/rsyslog, SUSE in /usr/lib64/rsyslog, and
+    # dracut_install is fatal on a miss -- which stopped the SUSE image build here. Install
+    # from whichever root this distribution uses.
+    for _rsmod in lmtcpclt omtesting lmnetstrms imfile imklog lmzlibw immark imudp lmregexp lmtcpsrv lmnsd_ptcp imtcp lmnet imuxsock; do
+        _dracut_install_opt "/lib64/rsyslog/${_rsmod}.so"
+        _dracut_install_opt "/usr/lib64/rsyslog/${_rsmod}.so"
+    done
     # These six are the sysclone payload. Their paths and package names differ between EL and
     # SUSE -- SUSE keeps the udev rules only under /usr/lib, and ships nc in netcat-openbsd
     # rather than in the nmap package -- so install what is present rather than asserting the

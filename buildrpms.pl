@@ -37,6 +37,7 @@ BEGIN {
 use Carp;
 use Cwd qw();
 use Data::Dumper;
+use File::Basename qw(dirname);
 use File::Copy qw(cp);
 use File::Path qw(make_path remove_tree);
 use File::Slurper qw(read_text write_text);
@@ -350,6 +351,72 @@ sub is_suse_target {
     return $target =~ m{suse|sles|leap}i ? 1 : 0;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 genesis_spec_source
+
+    Descriptions: The genesis spec as git carries it, with the EL package names.
+    Arguments: none
+    Returns: the path, relative to the checkout
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub genesis_spec_source {
+    return "xCAT-genesis-builder/xCAT-genesis-base.spec";
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 genesis_spec_path
+
+    Descriptions: The genesis spec mock builds this target from. A SUSE target builds from a
+    translated copy under the target's own dist directory, because one clone builds several
+    targets: a run forks a child per (package, target) pair, and the SUSE pipeline builds
+    sles15 and then sles12 from the same checkout. A copy per target keeps the translation a
+    function of the target, and leaves the tracked spec for the next reader.
+    Arguments: $target
+    Returns: the path, relative to the checkout
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub genesis_spec_path {
+    my ($target) = @_;
+    return genesis_spec_source() unless is_suse_target($target);
+    return "dist/$target/xCAT-genesis-base.spec";
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 rewrite_genesis_buildrequires
+
+    Descriptions: Translate the genesis BuildRequires in the spec text for one target. A SUSE
+    chroot carries the same software under another name, or inside a package that is already
+    present, so the buildroot install fails before %build unless the names are translated. A
+    name the map sends to undef is dropped. EL text is returned as it came.
+    Arguments: $text, $target
+    Returns: the spec text for $target
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub rewrite_genesis_buildrequires {
+    my ($text, $target) = @_;
+    return $text unless is_suse_target($target);
+
+    my %map = genesis_buildrequires_map($target);
+    my @out;
+    for my $line (split /^/, $text) {
+        if ($line =~ /^BuildRequires:\s+(\S+)\s*$/ && exists $map{$1}) {
+            next unless defined $map{$1};
+            $line = "BuildRequires: $map{$1}\n";
+        }
+        push @out, $line;
+    }
+    return join '', @out;
+}
+
 sub createmockconfig {
     my ($pkg, $target) = @_;
     my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
@@ -389,26 +456,14 @@ sub buildsources_genesis_base($) {
     die "Assertion failed! No directory xCAT-genesis-builder in the current directory"
         unless -d "./xCAT-genesis-builder";
 
-    # The genesis spec names its BuildRequires with EL package names. A SUSE chroot carries the
-    # same software under different names, or inside a package that is already present, so the
-    # buildroot install fails before %build unless the names are translated. Rewrite only these,
-    # in place, for a SUSE target; a no-op on EL.
+    # Translate the genesis BuildRequires for a SUSE chroot into the copy this target builds
+    # from. The tracked spec is read and never written, so the translation depends on $target
+    # alone.
     if (is_suse_target($target)) {
-        my $spec = "xCAT-genesis-builder/xCAT-genesis-base.spec";
-        my @lines = map { "$_\n" } split /\n/, read_text($spec);
-        my %map = genesis_buildrequires_map($target);
-        my @out;
-        for my $l (@lines) {
-            if ($l =~ /^BuildRequires:\s+(\S+)\s*$/ && exists $map{$1}) {
-                next unless defined $map{$1};
-                push @out, "BuildRequires: $map{$1}\n";
-            } else {
-                push @out, $l;
-            }
-        }
-        open my $o, '>', $spec or die "cannot write $spec: $!";
-        print {$o} @out;
-        close $o;
+        my $spec = genesis_spec_path($target);
+        make_path(dirname($spec));
+        write_text($spec,
+            rewrite_genesis_buildrequires(read_text(genesis_spec_source()), $target));
     }
 
     my $staging_parent = "/tmp/xcat-genesis-base-build-support.$$";
@@ -523,11 +578,10 @@ sub buildspkgs {
       : "dist/$target/rpms/SRPMS/$pkg-$VERSION-$RELEASE.src.rpm";
     return if -f $diskcache and not $opts{force};
 
-    my $dir = sub {
-        return "xCAT-genesis-builder"
-            if $pkg eq "xCAT-genesis-base";
-        $pkg;
-    }->();
+    # The genesis spec a SUSE target builds from is a translated copy, not the tracked file.
+    my $specfile = $pkg eq "xCAT-genesis-base"
+        ? genesis_spec_path($target)
+        : "$pkg/$pkg.spec";
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
@@ -557,7 +611,7 @@ mock -r $chroot \\
     --define "clamp_mtime_to_source_date_epoch 1" \\
     --define "_buildhost xcat-build" \\
     --buildsrpm \\
-    --spec $dir/$pkg.spec \\
+    --spec $specfile \\
     --sources $SOURCES \\
     --resultdir "dist/$target/rpms/SRPMS/"
 EOF

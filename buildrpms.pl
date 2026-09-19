@@ -305,6 +305,14 @@ EOF
     $? >> 0;
 }
 
+# A SUSE build target: an openSUSE Leap chroot, or one built from SLE media. SUSE differs from
+# EL in two build-time ways -- the perl requires generator and several BuildRequires names -- and
+# both are handled here rather than in a separate copy of this script.
+sub is_suse_target {
+    my ($target) = @_;
+    return $target =~ m{suse|sles|leap}i ? 1 : 0;
+}
+
 sub createmockconfig {
     my ($pkg, $target) = @_;
     my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
@@ -314,7 +322,15 @@ sub createmockconfig {
     cp "/etc/mock/$target.cfg", $cfgfile;
     my $contents = read_text($cfgfile);
     $contents =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
-    if ($pkg eq "perl-xCAT" && $target !~ /suse|sles|leap/i) {
+    if (is_suse_target($target)) {
+        # openSUSE ships fileattrs/perllib.attr with the requires generator commented out
+        # ("disabled for now"), so a SUSE build emits perl(...) provides and no perl(...)
+        # requires -- perl-xCAT then carries no perl(JSON) and xCAT dies at load time. There
+        # is no perl-generators package on Leap to install instead, so point the generator at
+        # perl.req, over the same .pm files the provides already use.
+        $contents .= "config_opts['macros']['__perllib_requires'] = '/usr/lib/rpm/perl.req'\n";
+    }
+    elsif ($pkg eq "perl-xCAT") {
         # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora; it does not
         # exist on openSUSE/SLES (rpm there generates perl provides itself), so injecting
         # it into a SUSE chroot aborts chroot setup. Suppress it for SUSE targets.
@@ -335,6 +351,42 @@ sub buildsources_genesis_base($) {
 
     die "Assertion failed! No directory xCAT-genesis-builder in the current directory"
         unless -d "./xCAT-genesis-builder";
+
+    # The genesis spec names its BuildRequires with EL package names. A SUSE chroot carries the
+    # same software under different names, or inside a package that is already present, so the
+    # buildroot install fails before %build unless the names are translated. Rewrite only these,
+    # in place, for a SUSE target; a no-op on EL.
+    if (is_suse_target($target)) {
+        my $spec = "xCAT-genesis-builder/xCAT-genesis-base.spec";
+        my @lines = map { "$_\n" } split /\n/, read_text($spec);
+        # EL name -> SUSE name (undef => drop the BuildRequires entirely)
+        my %map = (
+            'kernel-core'          => 'kernel-default',
+            'kernel-modules'       => undef,   # Leap ships every module in kernel-default
+            'kernel-modules-extra' => undef,   # no kernel-modules* subpackage exists
+            'procps-ng'            => 'procps',
+            'iproute'              => 'iproute2',
+            'vim-minimal'          => 'vim',
+            'perl-interpreter'     => undef,   # provided by perl on SUSE
+            'dracut-network'       => undef,   # the network module ships in the base dracut
+            'lldpad'               => undef,   # FCoE/DCB, not in the default repos and not needed
+            'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
+            'net-tools'            => 'net-tools-deprecated',  # netstat moved out of net-tools on SUSE
+        );
+        my @out;
+        for my $l (@lines) {
+            if ($l =~ /^BuildRequires:\s+(\S+)\s*$/ && exists $map{$1}) {
+                next unless defined $map{$1};
+                push @out, "BuildRequires: $map{$1}\n";
+            } else {
+                push @out, $l;
+            }
+        }
+        open my $o, '>', $spec or die "cannot write $spec: $!";
+        print {$o} @out;
+        close $o;
+    }
+
     my $staging_parent = "/tmp/xcat-genesis-base-build-support.$$";
     my $staging_root = "$staging_parent/xCAT-genesis-base-build-support";
     my $support_tarball = "$SOURCES/xCAT-genesis-base-build-support.tar.bz2";

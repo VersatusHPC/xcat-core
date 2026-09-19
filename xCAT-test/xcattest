@@ -1848,6 +1848,17 @@ sub get_current_os {
         if ($::RUNCMD_RC == 0) {
             return "sles";
         }
+        # openSUSE Leap carries /etc/os-release with ID="opensuse-leap" and no SLES string, and
+        # ships no /etc/SuSE-release, so it used to leave this sub returning nothing. An empty
+        # answer matches no case's os: restriction, and xcattest skipped every such case on a Leap
+        # management node -- reporting "has an invalid OS option", which reads like the case is
+        # wrong rather than like the distribution was not recognised.
+        # Leap and SLE of the same major share a package set and xCAT treats them alike, so Leap
+        # answers with the SLE family.
+        &runcmd("grep -q -e opensuse -e openSUSE $file");
+        if ($::RUNCMD_RC == 0) {
+            return "sles";
+        }
     } elsif (-f "/etc/SuSE-release") {
         return "sles";
     } else {

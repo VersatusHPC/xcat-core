@@ -46,4 +46,16 @@ unlike($text, qr/%if.*suse_version.*\n\s*Requires:.*goconserver/,
         'kea-hooks is not a hard requirement: it exists only beside kea');
 }
 
+# The time daemon has the same constraint, found the hard way: named as package names,
+# "(chrony or ntp)" is refused on the SLE 12 family even where chrony is installable, while the
+# file-capability alternative in the same package resolves on the same node. Name the files.
+{
+    my ($ntpreq) = $text =~ /^(Requires:.*(?:chronyd|chrony\b).*)$/m;
+    ok(defined $ntpreq, 'a time daemon is required');
+    like($ntpreq // '', qr{\Q(/usr/sbin/chronyd or /usr/sbin/ntpd)\E},
+        '... by file capability, which the SLE 12 resolver accepts');
+    unlike($text, qr/^Requires:\s*\(chrony or ntp\)/m,
+        '... not by package name, which it refuses');
+}
+
 done_testing();

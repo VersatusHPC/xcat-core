@@ -83,7 +83,12 @@ Requires: net-tools
 Requires: /usr/bin/killall
 # makentp/setupntp configure the MN as an NTP server for its compute nodes and support chronyd/ntpd
 # only. chrony is the default on EL7+/SLES15+ (and the only option on EL8+); ntp covers the rest.
-Requires: (chrony or ntp)
+# The time daemon. Named as package names, "(chrony or ntp)" is refused on the SLE 12 family --
+# zypper reports "nothing provides (chrony or ntp)" even where chrony is installable -- while the
+# file-capability alternative beside it, "(/usr/sbin/dhcpd or kea)", resolves on the same node in
+# the same transaction. Name the daemons by the files they install, which both families provide:
+# chrony ships /usr/sbin/chronyd and ntp ships /usr/sbin/ntpd.
+Requires: (/usr/sbin/chronyd or /usr/sbin/ntpd)
 # DHCP backend resolved at INSTALL time (not build time) via an RPM rich
 # dependency, so a single flat xcat-core build is correct on every EL: el10+
 # dropped ISC dhcp from its distro and uses Kea; el8/el9 use ISC dhcpd. SLES

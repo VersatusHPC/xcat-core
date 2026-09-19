@@ -605,23 +605,24 @@ if [ "$1" -gt "1" ]; then #only on upgrade for AIX...
 fi
 %endif
 
-#Apply the correct httpd/apache configuration file according to the httpd/apache version
-if [ -n "$(httpd -v 2>&1 |grep -e '^Server version\s*:.*/2\.4')" ]
-then
-   rm -rf /etc/httpd/conf.d/xcat-ws.conf
-   cp /etc/%httpconfigdir/conf.orig/xcat-ws.conf.apache24 /etc/httpd/conf.d/xcat-ws.conf
-fi
+#Apply the correct httpd/apache configuration file according to the httpd/apache version.
+#The server version and the configuration directory are independent facts. openSUSE installs
+#the 2.4 server as httpd, reads /etc/apache2/conf.d, and has neither apachectl nor apache2ctl,
+#so one probe paired with one directory left the 2.2 file where apache2 reads it. apache2 then
+#refuses to start on "Invalid command 'Order'" and a node cannot fetch its boot script over HTTP.
+httpver=""
+for probe in httpd apachectl apache2ctl; do
+   command -v $probe >/dev/null 2>&1 || continue
+   httpver=$($probe -v 2>&1 | sed -n 's|^Server version[ 	]*:.*Apache/\([0-9][0-9]*\.[0-9][0-9]*\).*|\1|p' | head -1)
+   [ -n "$httpver" ] && break
+done
 
-if [ -n "$(apachectl -v 2>&1 |grep -e '^Server version\s*:.*/2\.4')" ]
-then
-   rm -rf /etc/apache2/conf.d/xcat-ws.conf
-   cp /etc/%httpconfigdir/conf.orig/xcat-ws.conf.apache24 /etc/apache2/conf.d/xcat-ws.conf
-fi
-
-if [ -n "$(apache2ctl -v 2>&1 |grep -e '^Server version\s*:.*/2\.4')" ]
-then
-   rm -rf /etc/apache2/conf.d/xcat-ws.conf
-   cp /etc/%httpconfigdir/conf.orig/xcat-ws.conf.apache24 /etc/apache2/conf.d/xcat-ws.conf
+if [ "$httpver" = "2.4" ]; then
+   for confdir in /etc/httpd/conf.d /etc/apache2/conf.d; do
+      [ -d "$confdir" ] || continue
+      rm -f "$confdir/xcat-ws.conf"
+      cp /etc/%httpconfigdir/conf.orig/xcat-ws.conf.apache24 "$confdir/xcat-ws.conf"
+   done
 fi
 
 exit 0

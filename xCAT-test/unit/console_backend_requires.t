@@ -32,4 +32,18 @@ like($r, qr/goconserver >= /,        'the goconserver version floor is kept');
 unlike($text, qr/%if.*suse_version.*\n\s*Requires:.*goconserver/,
     'the choice is not made by a build-time conditional');
 
+# The DHCP backend has the same shape of problem and the same constraint: libsolv 0.6, which the
+# SLE 12 family uses, parses a plain alternative but not a conditional. A conditional dependency
+# is quoted whole as a package name and the install fails.
+{
+    my @dhcp = $text =~ /^(Requires:.*(?:dhcpd|\bkea\b).*)$/mg;
+    my ($sel) = grep { /dhcpd/ } @dhcp;
+    ok(defined $sel, 'the DHCP backend is required');
+    unlike($sel // '', qr/\bif\b/, '... without a conditional libsolv 0.6 cannot parse');
+    like($sel // '', qr{\Q(/usr/sbin/dhcpd or kea)\E},
+        '... as an alternative, dhcpd first so kea is the EL 10 fallback');
+    unlike($text, qr/^Requires:.*kea-hooks/m,
+        'kea-hooks is not a hard requirement: it exists only beside kea');
+}
+
 done_testing();

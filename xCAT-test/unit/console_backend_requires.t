@@ -31,6 +31,13 @@ like($text, qr{^Requires:\s*/usr/sbin/chronyd\s*$}m,
 # declare -- goconserver everywhere it can be built, conserver-xcat on the SLE 12 family.
 like($text, qr{^Requires:\s*xcat-console-backend\s*$}m,
     'the console backend is required through a shared capability');
+
+# The capability alone leaves the resolver free to pick either backend, and on the sles15 cell it
+# picked conserver-xcat: makeconservercf ran /etc/init.d/conserver stop, which hung the run for
+# 24 minutes. goconserver is the default everywhere it exists; a Recommends names it without
+# making xCAT uninstallable on the SLE 12 family, where it is absent.
+like($text, qr{^Recommends:\s*goconserver\s*$}m,
+     'goconserver is recommended, so it is the backend wherever it exists');
 unlike($text, qr{^Requires:.*\bgoconserver\b}m,
     '... and no longer names goconserver, which one family cannot build');
 like($text, qr{^Conflicts:\s*goconserver\s*<\s*0\.3\.3-snap}m,

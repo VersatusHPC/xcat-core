@@ -522,6 +522,11 @@ sub buildpkgs {
 
     say "Building $pkg $diskcache";
 
+    # _binary_payload: rpm on the EL build host compresses payloads with zstd, and rpm 4.11 --
+    # what the SLE 12 family ships -- cannot decompress it. The header reads fine and the install
+    # then dies in the middle of the transaction with "unpacking of archive failed: cpio: Bad
+    # magic". xz is understood by every rpm since 4.8, including the builder's, so one flat build
+    # stays installable on every family.
     sh_retry(<<"EOF") == 0 or die "FATAL: rpm rebuild failed for $pkg ($target)\n";
 mock -r $chroot \\
     -N \\
@@ -532,6 +537,7 @@ mock -r $chroot \\
     --define "use_source_date_epoch_as_buildtime 1" \\
     --define "clamp_mtime_to_source_date_epoch 1" \\
     --define "_buildhost xcat-build" \\
+    --define "_binary_payload w6.xzdio" \\
     --resultdir "dist/$target/rpms/" \\
     --rebuild dist/$target/rpms/SRPMS/$spkgname
 EOF

@@ -14,6 +14,7 @@ use strict;
 use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use Data::Dumper;
+use File::Path qw(rmtree);
 require xCAT::Table;
 require xCAT::Utils;
 require xCAT::TableUtils;
@@ -761,7 +762,14 @@ sub remove_node_config_files {
         foreach my $suffix ("", ".post", ".pre") {
             my $path = "$config_dir/$one_node$suffix";
             next unless (-e $path);
-            unlink $path;
+
+            # A Subiquity node keeps meta-data, user-data and vendor-data in a directory
+            # named after the node. unlink cannot remove it.
+            if (-d $path) {
+                rmtree($path);
+            } else {
+                unlink $path;
+            }
         }
     }
 }

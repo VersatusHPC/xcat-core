@@ -3168,7 +3168,10 @@ sub dhcpd_sysconfig_uses_interface_key
         $os_version .= ".$os_minor";
     }
 
-    if (   $os_family =~ /(sles|opensuse[-_]?leap|leap)/i
+    # Leap 42.3 declares ID=opensuse, Leap 15.x declares ID=opensuse-leap, so the bare
+    # "opensuse" family is a Leap release too. Tumbleweed carries no major and returns
+    # above.
+    if (   $os_family =~ /(sles|opensuse|leap)/i
         && xCAT::Utils->version_cmp( $os_version, '11' ) >= 0) {
         return 1;
     }

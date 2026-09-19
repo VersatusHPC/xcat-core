@@ -83,6 +83,14 @@ Requires: net-tools
 Requires: /usr/bin/killall
 # makentp/setupntp configure the MN as an NTP server for its compute nodes and support chronyd/ntpd
 # only. chrony is the default on EL7+/SLES15+ (and the only option on EL8+); ntp covers the rest.
+# NOTE on the alternatives below. The SLE 12 family's resolver (libsolv 0.6) refuses a boolean
+# dependency whose operands are PACKAGE NAMES when one of those names exists in no repository --
+# "(chrony or ntp)" is rejected there even though chrony is installable, and so is
+# "(/usr/sbin/dhcpd or kea)". It accepts the same choice when both operands are FILE capabilities,
+# and an absent file is simply unprovided rather than fatal. So every alternative here names
+# files. It also reports only the first unsatisfiable dependency per run, which is why these were
+# found one at a time.
+#
 # The time daemon. Named as package names, "(chrony or ntp)" is refused on the SLE 12 family --
 # zypper reports "nothing provides (chrony or ntp)" even where chrony is installable -- while the
 # file-capability alternative beside it, "(/usr/sbin/dhcpd or kea)", resolves on the same node in
@@ -102,7 +110,7 @@ Requires: (/usr/sbin/chronyd or /usr/sbin/ntpd)
 # does parse a plain alternative, so express the same choice that way. Order matters and is the
 # point: dhcpd is taken wherever it exists (EL 8 and 9, SUSE, Ubuntu), and kea is the fallback
 # on EL 10, which is exactly where dhcpd is gone.
-Requires: (/usr/sbin/dhcpd or kea)
+Requires: (/usr/sbin/dhcpd or /usr/sbin/kea-dhcp4)
 # kea-hooks is only meaningful beside kea, and the same conditional form is unparseable there.
 # A weak dependency gives the same outcome: taken on EL 10 where it exists, ignored elsewhere.
 Recommends: kea-hooks
@@ -126,7 +134,11 @@ Requires: perl-IO-Stty >= 0.04-5
 # time. goconserver is named first, so it is taken wherever it exists, and conserver-xcat is the
 # fallback where it does not. xCAT already selects the backend at run time -- makegocons when
 # /usr/bin/goconserver is present, makeconservercf otherwise.
-Requires: (goconserver >= 0.3.3-snap202011021058 or conserver-xcat)
+Requires: (/usr/bin/goconserver or /usr/sbin/conserver)
+# A file capability carries no version, so the floor that used to ride on "goconserver >= ..."
+# is expressed as a conflict instead. It binds only if goconserver is the backend present, which
+# is the same guarantee, and it costs nothing where conserver-xcat is used.
+Conflicts: goconserver < 0.3.3-snap202011021058
 %endif
 
 %ifarch i386 i586 i686 x86 x86_64

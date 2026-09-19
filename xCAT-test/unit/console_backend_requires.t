@@ -1,13 +1,12 @@
 #!/usr/bin/perl
-# xCAT needs a console backend, and which one exists depends on the family. goconserver's go.mod
-# asks for Go 1.25; the SLE 12 family never had a toolchain near that, so it builds conserver-xcat
-# instead. A hard "Requires: goconserver" makes xCAT uninstallable there.
+# rpm 4.11, which the SLE 12 family ships, cannot parse a boolean dependency at all:
 #
-# It cannot be a build-time %if either: one flat core is built on EL and installed on every
-# family, so %{?suse_version} describes the builder rather than the node. The requirement has to
-# name both and let the resolver choose, with goconserver first so it wins where it exists.
+#   error: Dependency tokens must begin with alpha-numeric, '_' or '/':
+#          Requires: (/bin/bash or /usr/sbin/nosuchthing)
 #
-# The spec IS the artifact -- this is a packaging contract with nothing to execute.
+# So no "one of these two" requirement can be expressed in this spec, in any form, and the three
+# that were written that way each have to be solved a different way. This test pins all three and
+# refuses any new boolean dependency.
 use strict;
 use warnings;
 use Test::More;
@@ -18,56 +17,31 @@ open my $fh, '<', $spec or die "cannot read $spec: $!\n";
 my $text = do { local $/; <$fh> };
 close $fh;
 
-my @req = $text =~ /^(Requires:.*goconserver.*)$/mg;
-is(scalar(@req), 1, 'the console backend is required exactly once');
-my $r = $req[0] // '';
+# No boolean dependency anywhere. This is the rule the whole file exists for.
+my @boolean = $text =~ /^(?:Requires|Recommends|Suggests|Conflicts):\s*(\(.*\))$/mg;
+is_deeply(\@boolean, [],
+    'no dependency in this spec is boolean: rpm 4.11 cannot parse one')
+    or diag("these are unparseable on the SLE 12 family: @boolean");
 
-like($r, qr/^\QRequires: (\E/,       'it is a boolean dependency, resolved at install time');
-like($r, qr{\Q(/usr/bin/goconserver or /usr/sbin/conserver)\E},
-    'both backends are named by file, goconserver first');
-like($text, qr/^Conflicts:\s*goconserver\s*<\s*0\.3\.3-snap/m,
-    'the version floor survives as a conflict, since a file capability carries none');
+# The time daemon needs no alternative: chrony ships on every rpm family this spec serves.
+like($text, qr{^Requires:\s*/usr/sbin/chronyd\s*$}m,
+    'the time daemon is a plain file requirement');
 
-# A build-time conditional would silently bake the BUILDER's family into a package installed on
-# every family, which is the defect this replaces.
-unlike($text, qr/%if.*suse_version.*\n\s*Requires:.*goconserver/,
-    'the choice is not made by a build-time conditional');
+# The console backend keeps a HARD requirement through a capability both xcat-dep packages
+# declare -- goconserver everywhere it can be built, conserver-xcat on the SLE 12 family.
+like($text, qr{^Requires:\s*xcat-console-backend\s*$}m,
+    'the console backend is required through a shared capability');
+unlike($text, qr{^Requires:.*\bgoconserver\b}m,
+    '... and no longer names goconserver, which one family cannot build');
+like($text, qr{^Conflicts:\s*goconserver\s*<\s*0\.3\.3-snap}m,
+    '... while the version floor survives as a conflict');
 
-# The DHCP backend has the same shape of problem and the same constraint: libsolv 0.6, which the
-# SLE 12 family uses, parses a plain alternative but not a conditional. A conditional dependency
-# is quoted whole as a package name and the install fails.
-{
-    my @dhcp = $text =~ /^(Requires:.*(?:dhcpd|\bkea\b).*)$/mg;
-    my ($sel) = grep { /dhcpd/ } @dhcp;
-    ok(defined $sel, 'the DHCP backend is required');
-    unlike($sel // '', qr/\bif\b/, '... without a conditional libsolv 0.6 cannot parse');
-    like($sel // '', qr{\Q(/usr/sbin/dhcpd or /usr/sbin/kea-dhcp4)\E},
-        '... as a file alternative, dhcpd first so kea is the EL 10 fallback');
-    unlike($text, qr/^Requires:.*kea-hooks/m,
-        'kea-hooks is not a hard requirement: it exists only beside kea');
-}
-
-# The time daemon has the same constraint, found the hard way: named as package names,
-# "(chrony or ntp)" is refused on the SLE 12 family even where chrony is installable, while the
-# file-capability alternative in the same package resolves on the same node. Name the files.
-{
-    my ($ntpreq) = $text =~ /^(Requires:.*(?:chronyd|chrony\b).*)$/m;
-    ok(defined $ntpreq, 'a time daemon is required');
-    like($ntpreq // '', qr{\Q(/usr/sbin/chronyd or /usr/sbin/ntpd)\E},
-        '... by file capability, which the SLE 12 resolver accepts');
-    unlike($text, qr/^Requires:\s*\(chrony or ntp\)/m,
-        '... not by package name, which it refuses');
-}
-
-# The rule this family forced: a boolean dependency whose operand is a package name that exists
-# in no repository is refused there, while an absent FILE operand is merely unprovided. Every
-# alternative in this spec must therefore name files on both sides.
-{
-    my @alts = $text =~ /^Requires:\s*(\([^)]*\bor\b[^)]*\))/mg;
-    ok(scalar(@alts) >= 3, 'the spec carries the expected alternatives');
-    my @named = grep { !m{^\(\s*/} || m{\bor\s+(?!/)} } @alts;
-    is_deeply(\@named, [], 'no alternative names a package instead of a file')
-        or diag("these would be refused on the SLE 12 family: @named");
-}
+# The DHCP server is the one guarantee that had to weaken, and it must stay visible as such.
+like($text, qr{^Recommends:\s*/usr/sbin/dhcpd\s*$}m,  'dhcpd is recommended');
+like($text, qr{^Recommends:\s*/usr/sbin/kea-dhcp4\s*$}m, 'kea is recommended for EL 10');
+unlike($text, qr{^Requires:.*(?:dhcpd|kea-dhcp4)}m,
+    '... and neither is a hard requirement, which no single family could satisfy');
+like($text, qr/DELIBERATE WEAKENING/,
+    'the weakening is marked in the spec so it is not mistaken for an oversight');
 
 done_testing();

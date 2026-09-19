@@ -96,7 +96,11 @@ Requires: /usr/bin/killall
 # file-capability alternative beside it, "(/usr/sbin/dhcpd or kea)", resolves on the same node in
 # the same transaction. Name the daemons by the files they install, which both families provide:
 # chrony ships /usr/sbin/chronyd and ntp ships /usr/sbin/ntpd.
-Requires: (/usr/sbin/chronyd or /usr/sbin/ntpd)
+# chrony is present on every rpm family this spec serves -- EL 8/9/10 and every SUSE including
+# Leap 42.3 -- so the time daemon needs no alternative at all. (Ubuntu takes debian/control, not
+# this file.) An alternative could not be expressed anyway: rpm 4.11 on the SLE 12 family rejects
+# a boolean dependency outright.
+Requires: /usr/sbin/chronyd
 # DHCP backend resolved at INSTALL time (not build time) via an RPM rich
 # dependency, so a single flat xcat-core build is correct on every EL: el10+
 # dropped ISC dhcp from its distro and uses Kea; el8/el9 use ISC dhcpd. SLES
@@ -110,7 +114,14 @@ Requires: (/usr/sbin/chronyd or /usr/sbin/ntpd)
 # does parse a plain alternative, so express the same choice that way. Order matters and is the
 # point: dhcpd is taken wherever it exists (EL 8 and 9, SUSE, Ubuntu), and kea is the fallback
 # on EL 10, which is exactly where dhcpd is gone.
-Requires: (/usr/sbin/dhcpd or /usr/sbin/kea-dhcp4)
+# The DHCP server is the one requirement that cannot stay hard. EL 10 dropped ISC dhcpd and
+# ships kea; every other family has dhcpd; neither package is ours to give a shared capability,
+# and rpm 4.11 on the SLE 12 family cannot parse an alternative. Weak dependencies are honoured
+# on all of them, so each family pulls the server it has, and makedhcp fails loudly and early if
+# a node somehow has none. THIS IS A DELIBERATE WEAKENING -- restore a hard requirement here as
+# soon as the SLE 12 family is out of support.
+Recommends: /usr/sbin/dhcpd
+Recommends: /usr/sbin/kea-dhcp4
 # kea-hooks is only meaningful beside kea, and the same conditional form is unparseable there.
 # A weak dependency gives the same outcome: taken on EL 10 where it exists, ignored elsewhere.
 Recommends: kea-hooks
@@ -134,7 +145,10 @@ Requires: perl-IO-Stty >= 0.04-5
 # time. goconserver is named first, so it is taken wherever it exists, and conserver-xcat is the
 # fallback where it does not. xCAT already selects the backend at run time -- makegocons when
 # /usr/bin/goconserver is present, makeconservercf otherwise.
-Requires: (/usr/bin/goconserver or /usr/sbin/conserver)
+# The console backend is goconserver everywhere except the SLE 12 family, which cannot build it
+# and ships conserver-xcat. Both declare xcat-console-backend in xcat-dep, so the requirement
+# stays hard without naming either one.
+Requires: xcat-console-backend
 # A file capability carries no version, so the floor that used to ride on "goconserver >= ..."
 # is expressed as a conflict instead. It binds only if goconserver is the backend present, which
 # is the same guarantee, and it costs nothing where conserver-xcat is used.

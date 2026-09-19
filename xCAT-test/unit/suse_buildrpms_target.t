@@ -7,7 +7,7 @@
 # stage the new file. One script cannot drift from itself.
 use strict;
 use warnings;
-use Test::More tests => 20;
+use Test::More tests => 21;
 use File::Temp qw(tempdir);
 
 my $script = 'buildrpms.pl';
@@ -64,4 +64,6 @@ eval "package M; $mapsub; 1" or die "cannot load genesis_buildrequires_map: $@";
     is($sle12{'openssh-clients'}, 'openssh',   'Leap 42.3 ships one openssh package (clients)');
     is($sle12{'openssh-server'},  'openssh',   '... and the server is in it too');
     ok(!exists $sle12{'tmux'}, 'Leap 42.3 has tmux, so it is kept');
+    ok(exists $sle12{'hostname'} && !defined $sle12{'hostname'},
+        'hostname is dropped on 42.3: it collides with net-tools over /bin/hostname');
 }

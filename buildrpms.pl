@@ -337,6 +337,11 @@ sub genesis_buildrequires_map {
     delete $map{'net-tools'};
     $map{'openssh-clients'} = 'openssh';
     $map{'openssh-server'}  = 'openssh';
+    # On 42.3 the hostname package and net-tools both own /bin/hostname, /bin/domainname and
+    # their manpages, so asking for both fails the buildroot transaction test on six file
+    # conflicts. net-tools is the one the genesis payload needs for netstat, and it carries
+    # hostname too, so drop the separate request.
+    $map{'hostname'}        = undef;
     return %map;
 }
 

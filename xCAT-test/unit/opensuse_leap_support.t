@@ -34,6 +34,23 @@ sub calllist {
     return @out;
 }
 
+# imgutils::get_package_names skips blank lines and comments, so a pkglist
+# assertion must skip them too.
+sub pkglist_names {
+    my ($path) = @_;
+    open(my $fh, '<', $path) or return ();
+    my @names;
+    while (<$fh>) {
+        chomp;
+        s/\s+$//;
+        next if /^\s*$/;
+        next if /^\s*#/;
+        push(@names, $_);
+    }
+    close($fh);
+    return @names;
+}
+
 # xcatd (xCAT-server/sbin/xcatd, build_handlers) splits a handled_commands value
 # on ":" for the table name and on "=" for the column and the pattern, then
 # matches the node attribute against that pattern unanchored.
@@ -328,10 +345,58 @@ is(
 );
 
 my $share_netboot = "$FindBin::Bin/../../xCAT-server/share/xcat/netboot/sles";
+my $leap42_netboot_pkglist_path = "$share_netboot/compute.leap42.x86_64.pkglist";
+my $sles12_netboot_pkglist_path = "$share_netboot/compute.sles12.x86_64.pkglist";
+
 is(
     imgutils::get_profile_def_filename('leap42.3', 'compute', 'x86_64', $share_netboot, 'pkglist'),
-    realpath("$share_netboot/compute.sles12.x86_64.pkglist"),
-    'a Leap 42 diskless image falls back to the SLE 12 netboot pkglist'
+    realpath($leap42_netboot_pkglist_path) || $leap42_netboot_pkglist_path,
+    'a Leap 42 diskless image gets the shipped Leap 42 netboot pkglist'
+);
+
+# imgutils::get_profile_def_filename tries every osbase with the arch before it
+# tries any osbase without it, so an arch-less compute.leap42.pkglist would stay
+# behind compute.sles12.x86_64.pkglist.
+isnt(
+    imgutils::get_profile_def_filename('leap42.3', 'compute', 'x86_64', $share_netboot, 'pkglist'),
+    realpath($sles12_netboot_pkglist_path),
+    'a Leap 42 diskless image does not read the SLE 12 netboot pkglist'
+);
+
+# The postinstall has no Leap 42 variant. genimage exits 1 when it finds none,
+# so the SLE 12 file must keep resolving.
+is(
+    imgutils::get_profile_def_filename('leap42.3', 'compute', 'x86_64', $share_netboot, 'postinstall'),
+    realpath("$share_netboot/compute.sles12.x86_64.postinstall"),
+    'a Leap 42 diskless image keeps the SLE 12 netboot postinstall'
+);
+
+my @leap42_netboot_names = pkglist_names($leap42_netboot_pkglist_path);
+ok(scalar(@leap42_netboot_names), 'the Leap 42 netboot pkglist is shipped and names packages');
+
+# openSUSE Leap 42.3 carries neither name on its DVD. genimage installs the list
+# with "zypper --non-interactive install -l --no-recommends", which abandons the
+# whole transaction on one name it cannot resolve, so kernel-default never lands
+# in the rootimg and genimage stops on the missing kernel file.
+my %absent_from_leap42 = map { $_ => 1 } qw(open-lldp fcoe-utils);
+is_deeply(
+    [ grep { $absent_from_leap42{$_} } @leap42_netboot_names ],
+    [],
+    'the Leap 42 netboot pkglist names no package the Leap 42.3 DVD does not carry'
+);
+
+foreach my $kept (qw(kernel-default kernel-firmware xfsprogs nfs-kernel-server openssh)) {
+    ok(
+        scalar(grep { $_ eq $kept } @leap42_netboot_names),
+        "the Leap 42 netboot pkglist keeps $kept"
+    );
+}
+
+# Everything else in the SLE 12 list is on the Leap 42.3 DVD under the same name.
+is_deeply(
+    [ sort @leap42_netboot_names ],
+    [ sort grep { !$absent_from_leap42{$_} } pkglist_names($sles12_netboot_pkglist_path) ],
+    'the Leap 42 netboot pkglist drops only the two names the Leap 42.3 DVD lacks'
 );
 
 my $leap42_template_path = "$share_install/compute.leap42.tmpl";

@@ -61,8 +61,15 @@ is(scalar(@bad), 0, 'no postscript ships a /usr/bin shell shebang')
         open my $s, '<', $p or die "cannot read $p: $!";
         my $t = do { local $/; <$s> };
         close $s;
-        like($t, qr/^%global\s+__brp_mangle_shebangs_exclude_from\s+\S+/m,
-            "$rel keeps rpm from rewriting its shebangs to the builder layout");
+        my ($excl) = $t =~ /^%global\s+__brp_mangle_shebangs_exclude_from\s+(\S+)/m;
+        ok(defined $excl, "$rel keeps rpm from rewriting its shebangs to the builder layout")
+            or next;
+        # The pattern has to cover where THIS package ships scripts. xCAT-confluent installs to
+        # /opt/confluent, not /opt/xcat, and was missed by a pattern that only named the latter.
+        my %needs = ('xCAT-confluent/xCAT-confluent.spec' => qr{/opt/confluent/});
+        if (my $re = $needs{$rel}) {
+            like($excl, $re, "$rel covers the directory it actually ships scripts to");
+        }
     }
 }
 

@@ -5,7 +5,7 @@ Name: xCAT-confluent
 # dependency, which no pre-merge distribution can satisfy -- on the SLE 12 family bash is
 # /bin/bash and the install fails with "nothing provides /usr/bin/bash". Leave the shebangs as
 # written; /bin/bash resolves on a merged system through the /bin symlink.
-%global __brp_mangle_shebangs_exclude_from /opt/xcat/|/install/
+%global __brp_mangle_shebangs_exclude_from /opt/xcat/|/install/|/opt/confluent/
 Version: %{?version:%{version}}%{!?version:%(cat Version)}
 Release: %{?release:%{release}}%{!?release:%(cat Release)}
 Epoch: 4

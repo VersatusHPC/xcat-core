@@ -735,22 +735,35 @@ Usage:
             $warnstr .= "Details: $retstrref->[1]";
         }
     }
-    # For each node in the noderange remove its configureation files in $config_dir, if file exists
     setrsp_progress("Removing configuration files...");
-    my $config_dir = "/install/autoinst/";
-    foreach my $one_node (@$nodes) {
-        if ( -e "$config_dir/$one_node") {
-            unlink "$config_dir/$one_node";
-        }
-        if ( -e "$config_dir/$one_node.post") {
-            unlink "$config_dir/$one_node.post";
-        }
-        if ( -e "$config_dir/$one_node.pre") {
-            unlink "$config_dir/$one_node.pre";
-        }
-    }
+    remove_node_config_files("/install/autoinst/", $nodes);
     setrsp_progress("Removed all nodes.");
     setrsp_success($nodes, $warnstr);
+}
+
+#-------------------------------------------------------
+
+=head3  remove_node_config_files
+
+    Description : Remove the autoinstall configuration that a node left in the
+                  autoinstall directory.
+    Arguments   : $config_dir - the autoinstall directory, normally /install/autoinst
+                  $nodes - reference to the list of node names
+    Returns     : N/A
+
+=cut
+
+#-------------------------------------------------------
+sub remove_node_config_files {
+    my ($config_dir, $nodes) = @_;
+
+    foreach my $one_node (@$nodes) {
+        foreach my $suffix ("", ".post", ".pre") {
+            my $path = "$config_dir/$one_node$suffix";
+            next unless (-e $path);
+            unlink $path;
+        }
+    }
 }
 
 #-------------------------------------------------------

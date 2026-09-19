@@ -90,8 +90,17 @@ Requires: (chrony or ntp)
 # has no "system-release" provide, so the condition is false there and it
 # falls to dhcp-server (/usr/sbin/dhcpd), preserving prior behavior.
 # system-release is versioned per release package (el10=10.x, el9=9.x, el8=8.x).
-Requires: (kea if (system-release >= 10) else /usr/sbin/dhcpd)
-Requires: (kea-hooks if (system-release >= 10))
+# The DHCP backend. EL 10 dropped ISC dhcpd and ships kea; every other family still has dhcpd.
+# This was written as "(kea if (system-release >= 10) else /usr/sbin/dhcpd)", and libsolv 0.6 --
+# the SLE 12 family's resolver -- cannot parse a conditional dependency: it quotes the whole
+# expression as a package name and the install fails with "nothing provides (kea if ...)". It
+# does parse a plain alternative, so express the same choice that way. Order matters and is the
+# point: dhcpd is taken wherever it exists (EL 8 and 9, SUSE, Ubuntu), and kea is the fallback
+# on EL 10, which is exactly where dhcpd is gone.
+Requires: (/usr/sbin/dhcpd or kea)
+# kea-hooks is only meaningful beside kea, and the same conditional form is unparseable there.
+# A weak dependency gives the same outcome: taken on EL 10 where it exists, ignored elsewhere.
+Recommends: kea-hooks
 # On RHEL this pulls in openssh-server, on SLES it pulls in openssh
 Requires: /usr/bin/ssh
 %if %nots390x
@@ -103,7 +112,16 @@ Requires: perl-IO-Stty >= 0.04-5
 %endif
 
 %ifos linux
-Requires: goconserver >= 0.3.3-snap202011021058
+# The console backend. goconserver needs a Go toolchain the SLE 12 family never had -- its
+# go.mod asks for Go 1.25 and the newest Go for that family is far older -- so that family builds
+# conserver-xcat instead, and a hard requirement on goconserver makes xCAT uninstallable there.
+#
+# This cannot be a build-time %if: one flat core is built on EL and installed on every family, so
+# %{?suse_version} describes the BUILDER, not the node. The resolver has to choose at install
+# time. goconserver is named first, so it is taken wherever it exists, and conserver-xcat is the
+# fallback where it does not. xCAT already selects the backend at run time -- makegocons when
+# /usr/bin/goconserver is present, makeconservercf otherwise.
+Requires: (goconserver >= 0.3.3-snap202011021058 or conserver-xcat)
 %endif
 
 %ifarch i386 i586 i686 x86 x86_64

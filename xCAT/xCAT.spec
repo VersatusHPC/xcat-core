@@ -1,5 +1,12 @@
 Summary: Meta-package for a common, default xCAT setup
 Name: xCAT
+# The postscripts in /install/postscripts run on COMPUTE NODES, whose distribution is not the
+# build host's. rpm on a /usr-merged builder rewrites their "#!/bin/bash" to "#!/usr/bin/bash"
+# and then generates "Requires: /usr/bin/bash" for this package, which no pre-merge distribution
+# can satisfy: on the SLE 12 family bash is /bin/bash, and zypper refuses the install with
+# "nothing provides /usr/bin/bash needed by xCAT". One flat build is meant to serve every family,
+# so the builder's filesystem layout must not reach the packages.
+%global __brp_mangle_shebangs_exclude_from /install/postscripts/
 Version: %{?version:%{version}}%{!?version:%(cat Version)}
 Release: %{?release:%{release}}%{!?release:%(cat Release)}
 License: EPL

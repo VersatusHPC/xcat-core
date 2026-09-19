@@ -507,10 +507,13 @@ sub get_os_search_list {
     }
     push(@list, join('.', @word));
 
-    # openSUSE Leap 15.x uses the same AutoYaST asset layout as SLES 15.
+    # openSUSE Leap 15.x uses the same AutoYaST asset layout as SLES 15, and
+    # Leap 42.x the SLES 12 one.
     # Do not extend this to Leap 16 without validating its installer path.
     if ($baseos =~ /^(leap15)(?:\..*)?$/) {
         push(@list, "sle15");
+    } elsif ($baseos =~ /^(leap42)(?:\..*)?$/) {
+        push(@list, "sles12");
     }
 
     return @list;
@@ -779,7 +782,7 @@ sub update_tables_with_templates
         $osname    = "hyperv";
         $ostype    = "Windows";
         $imagetype = "windows";
-    } elsif ($osver =~ /^leap15/) {
+    } elsif ($osver =~ /^leap(?:15|42)/) {
         $osname = "sles";
     } else {
         until (-r "$::XCATROOT/share/xcat/install/$osname/" or not $osname) {
@@ -805,9 +808,11 @@ sub update_tables_with_templates
         }
     } elsif ($osver =~ /^leap15/) {
         $genos = "sle15";
+    } elsif ($osver =~ /^leap42/) {
+        $genos = "sles12";
     }
-    # For Leap, let get_os_search_list prefer leap15 assets before the sle15 fallback.
-    my $file_lookup_genos = ($osver =~ /^leap15/) ? undef : $genos;
+    # For Leap, let get_os_search_list prefer the leap assets before the SLE fallback.
+    my $file_lookup_genos = ($osver =~ /^leap(?:15|42)/) ? undef : $genos;
 
     #print "osver=$osver, arch=$arch, osname=$osname, genos=$genos\n";
     my $installroot = xCAT::TableUtils->getInstallDir();
@@ -1005,7 +1010,7 @@ sub update_tables_with_mgt_image
         $osname    = "hyperv";
         $ostype    = "Windows";
         $imagetype = "windows";
-    } elsif ($osver =~ /^leap15/) {
+    } elsif ($osver =~ /^leap(?:15|42)/) {
         $osname = "sles";
     } else {
         until (-r "$::XCATROOT/share/xcat/install/$osname/" or not $osname) {
@@ -1225,7 +1230,7 @@ sub update_tables_with_diskless_image
         $osname    = "windows";
         $ostype    = "Windows";
         $imagetype = "windows";
-    } elsif ($osver =~ /^leap15/) {
+    } elsif ($osver =~ /^leap(?:15|42)/) {
         $osname = "sles";
     } else {
         until (-r "$::XCATROOT/share/xcat/netboot/$osname/" or not $osname) {
@@ -1243,9 +1248,11 @@ sub update_tables_with_diskless_image
         $genos = "rhels$1";
     } elsif ($osver =~ /^leap15/) {
         $genos = "sle15";
+    } elsif ($osver =~ /^leap42/) {
+        $genos = "sles12";
     }
-    # For Leap, let get_os_search_list prefer leap15 assets before the sle15 fallback.
-    my $file_lookup_genos = ($osver =~ /^leap15/) ? undef : $genos;
+    # For Leap, let get_os_search_list prefer the leap assets before the SLE fallback.
+    my $file_lookup_genos = ($osver =~ /^leap(?:15|42)/) ? undef : $genos;
 
     #print "osver=$osver, arch=$arch, osname=$osname, genos=$genos, profile=$profile\n";
     my $installroot = xCAT::TableUtils->getInstallDir();

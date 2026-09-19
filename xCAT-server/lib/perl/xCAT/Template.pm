@@ -340,7 +340,7 @@ sub subvars {
                         $writerepo .="$repo_in_post\n";
                         $writerepo .="EOF\n";
                     }
-                } elsif ($platform =~ /^(sles|suse|leap15)/) {
+                } elsif ($platform =~ /^(sles|suse|leap15|leap42)/) {
                     my $http = "http://#TABLE:noderes:\$NODE:nfsserver#$httpportsuffix/$pkgdir";
                     $source .= "         <listentry>
                <media_url>$http</media_url>

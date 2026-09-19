@@ -329,16 +329,14 @@ sub genesis_buildrequires_map {
         'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
         'net-tools'            => 'net-tools-deprecated',  # netstat moved out of net-tools on SUSE
     );
-    return %map unless $target =~ /^sles-12\./;
+    return %map unless $target =~ /^opensuse-leap-42\./;
 
-    # SLE 12 predates the Leap 15 package splits, so several of the names above do not exist
-    # there either. net-tools was not split, and it is what carries /bin/hostname; openssh is one
-    # package, not a client and a server; tmux is not on the SLE 12 SP5 media at all.
+    # Leap 42.3 is the openSUSE build of the SLE 12 family, and it predates two Leap 15 package
+    # splits: net-tools was not split there, and openssh is one package rather than a client and
+    # a server. Everything else above already holds.
     delete $map{'net-tools'};
-    $map{'hostname'}        = 'net-tools';
     $map{'openssh-clients'} = 'openssh';
     $map{'openssh-server'}  = 'openssh';
-    $map{'tmux'}            = undef;
     return %map;
 }
 

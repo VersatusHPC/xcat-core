@@ -7,7 +7,7 @@
 # stage the new file. One script cannot drift from itself.
 use strict;
 use warnings;
-use Test::More tests => 21;
+use Test::More tests => 20;
 use File::Temp qw(tempdir);
 
 my $script = 'buildrpms.pl';
@@ -22,7 +22,7 @@ eval "package T; $sub; 1" or die "cannot load is_suse_target: $@";
 
 ok( T::is_suse_target('opensuse-leap-15.6-x86_64'),  'a Leap target is a SUSE target');
 ok( T::is_suse_target('opensuse-leap-15.6-ppc64le'), '... on either arch');
-ok( T::is_suse_target('sles-12.5-x86_64'),           'a SLE target built from media is a SUSE target');
+ok( T::is_suse_target('opensuse-leap-42.3-x86_64'),  'the Leap 42.3 target is a SUSE target');
 ok(!T::is_suse_target('alma+epel-10-x86_64'),        'an EL target is not');
 ok(!T::is_suse_target('rocky-10-riscv64-xcat'),      'nor is the cross-built riscv64 target');
 
@@ -59,11 +59,9 @@ eval "package M; $mapsub; 1" or die "cannot load genesis_buildrequires_map: $@";
     ok(!exists $leap{'openssh-server'},  'Leap has openssh-server, so it is not rewritten');
     ok(!exists $leap{'tmux'},            'Leap has tmux, so it is kept');
 
-    my %sle12 = M::genesis_buildrequires_map('sles-12.5-x86_64');
-    ok(!exists $sle12{'net-tools'},      'SLE 12 never split net-tools, so it is left alone');
-    is($sle12{'hostname'},        'net-tools', 'SLE 12 takes /bin/hostname from net-tools');
-    is($sle12{'openssh-clients'}, 'openssh',   'SLE 12 ships one openssh package (clients)');
+    my %sle12 = M::genesis_buildrequires_map('opensuse-leap-42.3-x86_64');
+    ok(!exists $sle12{'net-tools'},      'Leap 42.3 never split net-tools, so it is left alone');
+    is($sle12{'openssh-clients'}, 'openssh',   'Leap 42.3 ships one openssh package (clients)');
     is($sle12{'openssh-server'},  'openssh',   '... and the server is in it too');
-    ok(exists $sle12{'tmux'} && !defined $sle12{'tmux'},
-        'tmux is dropped: it is not on the SLE 12 SP5 media');
+    ok(!exists $sle12{'tmux'}, 'Leap 42.3 has tmux, so it is kept');
 }

@@ -23,9 +23,10 @@ is(scalar(@req), 1, 'the console backend is required exactly once');
 my $r = $req[0] // '';
 
 like($r, qr/^\QRequires: (\E/,       'it is a boolean dependency, resolved at install time');
-like($r, qr/goconserver[^)]*\bor\b[^)]*conserver-xcat/,
-    'goconserver is named first, with conserver-xcat as the alternative');
-like($r, qr/goconserver >= /,        'the goconserver version floor is kept');
+like($r, qr{\Q(/usr/bin/goconserver or /usr/sbin/conserver)\E},
+    'both backends are named by file, goconserver first');
+like($text, qr/^Conflicts:\s*goconserver\s*<\s*0\.3\.3-snap/m,
+    'the version floor survives as a conflict, since a file capability carries none');
 
 # A build-time conditional would silently bake the BUILDER's family into a package installed on
 # every family, which is the defect this replaces.
@@ -40,8 +41,8 @@ unlike($text, qr/%if.*suse_version.*\n\s*Requires:.*goconserver/,
     my ($sel) = grep { /dhcpd/ } @dhcp;
     ok(defined $sel, 'the DHCP backend is required');
     unlike($sel // '', qr/\bif\b/, '... without a conditional libsolv 0.6 cannot parse');
-    like($sel // '', qr{\Q(/usr/sbin/dhcpd or kea)\E},
-        '... as an alternative, dhcpd first so kea is the EL 10 fallback');
+    like($sel // '', qr{\Q(/usr/sbin/dhcpd or /usr/sbin/kea-dhcp4)\E},
+        '... as a file alternative, dhcpd first so kea is the EL 10 fallback');
     unlike($text, qr/^Requires:.*kea-hooks/m,
         'kea-hooks is not a hard requirement: it exists only beside kea');
 }
@@ -56,6 +57,17 @@ unlike($text, qr/%if.*suse_version.*\n\s*Requires:.*goconserver/,
         '... by file capability, which the SLE 12 resolver accepts');
     unlike($text, qr/^Requires:\s*\(chrony or ntp\)/m,
         '... not by package name, which it refuses');
+}
+
+# The rule this family forced: a boolean dependency whose operand is a package name that exists
+# in no repository is refused there, while an absent FILE operand is merely unprovided. Every
+# alternative in this spec must therefore name files on both sides.
+{
+    my @alts = $text =~ /^Requires:\s*(\([^)]*\bor\b[^)]*\))/mg;
+    ok(scalar(@alts) >= 3, 'the spec carries the expected alternatives');
+    my @named = grep { !m{^\(\s*/} || m{\bor\s+(?!/)} } @alts;
+    is_deeply(\@named, [], 'no alternative names a package instead of a file')
+        or diag("these would be refused on the SLE 12 family: @named");
 }
 
 done_testing();

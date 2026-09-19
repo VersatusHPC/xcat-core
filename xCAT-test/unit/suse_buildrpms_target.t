@@ -7,7 +7,7 @@
 # stage the new file. One script cannot drift from itself.
 use strict;
 use warnings;
-use Test::More tests => 12;
+use Test::More tests => 21;
 use File::Temp qw(tempdir);
 
 my $script = 'buildrpms.pl';
@@ -45,3 +45,25 @@ for my $pair (['kernel-core', 'kernel-default'], ['nmap-ncat', 'netcat-openbsd']
 # stages it, and that is the property the fork could not keep.
 like($src, qr/verify-genesis-payload/,
     'buildrpms.pl stages verify-genesis-payload into the genesis build support');
+
+# The map is release-aware: SLE 12 predates the Leap 15 package splits, so names that are correct
+# on Leap resolve to nothing on the SLE 12 SP5 media. Drive the routine rather than reading it.
+my ($mapsub) = $src =~ /(sub genesis_buildrequires_map \{.*?\n\})/s
+    or die "genesis_buildrequires_map is not in buildrpms.pl -- the map was inlined again";
+eval "package M; $mapsub; 1" or die "cannot load genesis_buildrequires_map: $@";
+
+{
+    my %leap = M::genesis_buildrequires_map('opensuse-leap-15.6-x86_64');
+    is($leap{'net-tools'}, 'net-tools-deprecated', 'Leap keeps the net-tools split');
+    ok(!exists $leap{'hostname'},        'Leap has a hostname package, so it is not rewritten');
+    ok(!exists $leap{'openssh-server'},  'Leap has openssh-server, so it is not rewritten');
+    ok(!exists $leap{'tmux'},            'Leap has tmux, so it is kept');
+
+    my %sle12 = M::genesis_buildrequires_map('sles-12.5-x86_64');
+    ok(!exists $sle12{'net-tools'},      'SLE 12 never split net-tools, so it is left alone');
+    is($sle12{'hostname'},        'net-tools', 'SLE 12 takes /bin/hostname from net-tools');
+    is($sle12{'openssh-clients'}, 'openssh',   'SLE 12 ships one openssh package (clients)');
+    is($sle12{'openssh-server'},  'openssh',   '... and the server is in it too');
+    ok(exists $sle12{'tmux'} && !defined $sle12{'tmux'},
+        'tmux is dropped: it is not on the SLE 12 SP5 media');
+}

@@ -149,6 +149,10 @@ Requires: perl-IO-Stty >= 0.04-5
 # and ships conserver-xcat. Both declare xcat-console-backend in xcat-dep, so the requirement
 # stays hard without naming either one.
 Requires: xcat-console-backend
+# The capability alone leaves the choice to the resolver, and it has picked conserver-xcat where
+# both exist. goconserver is the backend everywhere it is built; naming it as a Recommends makes
+# it the default without making xCAT uninstallable on the SLE 12 family, which has no goconserver.
+Recommends: goconserver
 # A file capability carries no version, so the floor that used to ride on "goconserver >= ..."
 # is expressed as a conflict instead. It binds only if goconserver is the backend present, which
 # is the same guarantee, and it costs nothing where conserver-xcat is used.

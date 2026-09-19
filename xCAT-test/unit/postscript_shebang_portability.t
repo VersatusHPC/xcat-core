@@ -43,4 +43,27 @@ if (opendir my $dh, $dir) {
 is(scalar(@bad), 0, 'no postscript ships a /usr/bin shell shebang')
     or diag("these would be unsatisfiable before the /usr merge: @bad");
 
+# Every xCAT package that ships scripts for cluster nodes needs the same exclusion, not just the
+# one that was found first. Three separate packages reached a SLE 12 node with an unsatisfiable
+# /usr/bin/bash before this was swept properly.
+{
+    my @specs = qw(
+        xCAT/xCAT.spec
+        xCAT-test/xCAT-test.spec
+        xCAT-client/xCAT-client.spec
+        xCAT-confluent/xCAT-confluent.spec
+        xCAT-rmc/xCAT-rmc.spec
+        xCAT-vlan/xCAT-vlan.spec
+    );
+    for my $rel (@specs) {
+        my $p = "$root/$rel";
+        unless (-f $p) { fail("$rel is missing"); next }
+        open my $s, '<', $p or die "cannot read $p: $!";
+        my $t = do { local $/; <$s> };
+        close $s;
+        like($t, qr/^%global\s+__brp_mangle_shebangs_exclude_from\s+\S+/m,
+            "$rel keeps rpm from rewriting its shebangs to the builder layout");
+    }
+}
+
 done_testing();

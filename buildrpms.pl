@@ -308,6 +308,38 @@ EOF
 # A SUSE build target: an openSUSE Leap chroot, or one built from SLE media. SUSE differs from
 # EL in two build-time ways -- the perl requires generator and several BuildRequires names -- and
 # both are handled here rather than in a separate copy of this script.
+# The genesis spec names its BuildRequires with EL package names. Return the EL -> SUSE name map
+# for a target; a value of undef means drop the BuildRequires, because SUSE already provides the
+# software inside a package the buildroot has.
+#
+# Arguments: the mock target name.
+# Returns:   the map as a hash.
+sub genesis_buildrequires_map {
+    my ($target) = @_;
+    my %map = (
+        'kernel-core'          => 'kernel-default',
+        'kernel-modules'       => undef,   # Leap ships every module in kernel-default
+        'kernel-modules-extra' => undef,   # no kernel-modules* subpackage exists
+        'procps-ng'            => 'procps',
+        'iproute'              => 'iproute2',
+        'vim-minimal'          => 'vim',
+        'perl-interpreter'     => undef,   # provided by perl on SUSE
+        'dracut-network'       => undef,   # the network module ships in the base dracut
+        'lldpad'               => undef,   # FCoE/DCB, not in the default repos and not needed
+        'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
+        'net-tools'            => 'net-tools-deprecated',  # netstat moved out of net-tools on SUSE
+    );
+    return %map unless $target =~ /^opensuse-leap-42\./;
+
+    # Leap 42.3 is the openSUSE build of the SLE 12 family, and it predates two Leap 15 package
+    # splits: net-tools was not split there, and openssh is one package rather than a client and
+    # a server. Everything else above already holds.
+    delete $map{'net-tools'};
+    $map{'openssh-clients'} = 'openssh';
+    $map{'openssh-server'}  = 'openssh';
+    return %map;
+}
+
 sub is_suse_target {
     my ($target) = @_;
     return $target =~ m{suse|sles|leap}i ? 1 : 0;
@@ -359,20 +391,7 @@ sub buildsources_genesis_base($) {
     if (is_suse_target($target)) {
         my $spec = "xCAT-genesis-builder/xCAT-genesis-base.spec";
         my @lines = map { "$_\n" } split /\n/, read_text($spec);
-        # EL name -> SUSE name (undef => drop the BuildRequires entirely)
-        my %map = (
-            'kernel-core'          => 'kernel-default',
-            'kernel-modules'       => undef,   # Leap ships every module in kernel-default
-            'kernel-modules-extra' => undef,   # no kernel-modules* subpackage exists
-            'procps-ng'            => 'procps',
-            'iproute'              => 'iproute2',
-            'vim-minimal'          => 'vim',
-            'perl-interpreter'     => undef,   # provided by perl on SUSE
-            'dracut-network'       => undef,   # the network module ships in the base dracut
-            'lldpad'               => undef,   # FCoE/DCB, not in the default repos and not needed
-            'nmap-ncat'            => 'netcat-openbsd',  # SUSE ships nc here, not in the nmap package
-            'net-tools'            => 'net-tools-deprecated',  # netstat moved out of net-tools on SUSE
-        );
+        my %map = genesis_buildrequires_map($target);
         my @out;
         for my $l (@lines) {
             if ($l =~ /^BuildRequires:\s+(\S+)\s*$/ && exists $map{$1}) {

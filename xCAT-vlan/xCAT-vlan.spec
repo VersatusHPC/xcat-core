@@ -1,5 +1,11 @@
 Summary: Executables and data of the xCAT vlan management project
 Name: xCAT-vlan
+# These scripts run on cluster nodes, whose distribution is not the build host's. rpm on a
+# /usr-merged builder rewrites "#!/bin/bash" to "#!/usr/bin/bash" and generates the matching file
+# dependency, which no pre-merge distribution can satisfy -- on the SLE 12 family bash is
+# /bin/bash and the install fails with "nothing provides /usr/bin/bash". Leave the shebangs as
+# written; /bin/bash resolves on a merged system through the /bin symlink.
+%global __brp_mangle_shebangs_exclude_from /opt/xcat/|/install/
 Version: %{?version:%{version}}%{!?version:%(cat Version)}
 Release: %{?release:%{release}}%{!?release:%(cat Release)}
 Epoch: 4

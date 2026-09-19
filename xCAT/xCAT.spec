@@ -103,7 +103,16 @@ Requires: perl-IO-Stty >= 0.04-5
 %endif
 
 %ifos linux
-Requires: goconserver >= 0.3.3-snap202011021058
+# The console backend. goconserver needs a Go toolchain the SLE 12 family never had -- its
+# go.mod asks for Go 1.25 and the newest Go for that family is far older -- so that family builds
+# conserver-xcat instead, and a hard requirement on goconserver makes xCAT uninstallable there.
+#
+# This cannot be a build-time %if: one flat core is built on EL and installed on every family, so
+# %{?suse_version} describes the BUILDER, not the node. The resolver has to choose at install
+# time. goconserver is named first, so it is taken wherever it exists, and conserver-xcat is the
+# fallback where it does not. xCAT already selects the backend at run time -- makegocons when
+# /usr/bin/goconserver is present, makeconservercf otherwise.
+Requires: (goconserver >= 0.3.3-snap202011021058 or conserver-xcat)
 %endif
 
 %ifarch i386 i586 i686 x86 x86_64

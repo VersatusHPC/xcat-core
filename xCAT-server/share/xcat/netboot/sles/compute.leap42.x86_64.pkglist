@@ -1,0 +1,46 @@
+# The openSUSE Leap 42.3 DVD has no open-lldp and no fcoe-utils. zypper
+# abandons the whole transaction on a name it cannot resolve, so the two
+# names are dropped here and the rest of the SLE 12 list is kept.
+aaa_base
+coreutils
+bash
+nfs-kernel-server
+keyutils
+lvm2
+openssl
+dhcp-client
+openssh
+procps
+psmisc
+wget
+sysconfig
+rsyslog
+vim
+rsync
+timezone
+bc
+ntp
+gzip
+e2fsprogs
+xfsprogs
+parted
+binutils
+tar
+open-iscsi
+curl
+plymouth
+btrfsprogs
+cryptsetup
+dmraid
+mdadm
+multipath-tools
+gpg2
+which
+cifs-utils
+util-linux-systemd
+plymouth-dracut
+udev
+kernel-default
+kernel-firmware
+adaptec-firmware
+xz

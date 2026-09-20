@@ -151,6 +151,11 @@ my @sysconfig_policy_cases = (
     [ 'opensuse-leap15.6',       1, 'openSUSE Leap 15.6' ],
     [ 'opensuse_leap15.6',       1, 'underscored openSUSE Leap 15.6' ],
     [ 'leap15.6',                1, 'short Leap 15.6' ],
+    # Leap 42.3 reports ID=opensuse in /etc/os-release, so osver() gives 'opensuse42'.
+    # Leap 15.x reports ID=opensuse-leap. Both are SUSE and both read DHCPD_INTERFACE.
+    [ 'opensuse42.3',            1, 'openSUSE Leap 42.3 (ID=opensuse)' ],
+    [ 'opensuse42',              1, 'openSUSE Leap 42 without a minor' ],
+    [ 'opensuse15.6',            1, 'openSUSE 15.6 (ID=opensuse)' ],
     [ 'rhel6',                    0, 'RHEL 6' ],
     [ 'rhel6.10',                 0, 'RHEL 6.10' ],
     [ 'rhel7',                    1, 'RHEL 7' ],

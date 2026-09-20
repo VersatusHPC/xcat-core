@@ -200,7 +200,7 @@ sub process_request {
     }
 
     my $distname = $osver;
-    if ($osver =~ /^leap15/) {
+    if ($osver =~ /^leap(?:15|42)/) {
         $distname = "sles";
     } else {
         until (-r "$::XCATROOT/share/xcat/netboot/$distname/" or not $distname) {

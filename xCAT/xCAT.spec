@@ -1,5 +1,12 @@
 Summary: Meta-package for a common, default xCAT setup
 Name: xCAT
+# The postscripts in /install/postscripts run on COMPUTE NODES, whose distribution is not the
+# build host's. rpm on a /usr-merged builder rewrites their "#!/bin/bash" to "#!/usr/bin/bash"
+# and then generates "Requires: /usr/bin/bash" for this package, which no pre-merge distribution
+# can satisfy: on the SLE 12 family bash is /bin/bash, and zypper refuses the install with
+# "nothing provides /usr/bin/bash needed by xCAT". One flat build is meant to serve every family,
+# so the builder's filesystem layout must not reach the packages.
+%global __brp_mangle_shebangs_exclude_from /install/postscripts/
 Version: %{?version:%{version}}%{!?version:%(cat Version)}
 Release: %{?release:%{release}}%{!?release:%(cat Release)}
 License: EPL
@@ -76,15 +83,54 @@ Requires: net-tools
 Requires: /usr/bin/killall
 # makentp/setupntp configure the MN as an NTP server for its compute nodes and support chronyd/ntpd
 # only. chrony is the default on EL7+/SLES15+ (and the only option on EL8+); ntp covers the rest.
-Requires: (chrony or ntp)
+# NOTE on the alternatives below. The SLE 12 family's resolver (libsolv 0.6) refuses a boolean
+# dependency whose operands are PACKAGE NAMES when one of those names exists in no repository --
+# "(chrony or ntp)" is rejected there even though chrony is installable, and so is
+# "(/usr/sbin/dhcpd or kea)". It accepts the same choice when both operands are FILE capabilities,
+# and an absent file is simply unprovided rather than fatal. So every alternative here names
+# files. It also reports only the first unsatisfiable dependency per run, which is why these were
+# found one at a time.
+#
+# The time daemon. Named as package names, "(chrony or ntp)" is refused on the SLE 12 family --
+# zypper reports "nothing provides (chrony or ntp)" even where chrony is installable -- while the
+# file-capability alternative beside it, "(/usr/sbin/dhcpd or kea)", resolves on the same node in
+# the same transaction. Name the daemons by the files they install, which both families provide:
+# chrony ships /usr/sbin/chronyd and ntp ships /usr/sbin/ntpd.
+# chrony is present on every rpm family this spec serves -- EL 8/9/10 and every SUSE including
+# Leap 42.3 -- so the time daemon needs no alternative at all. (Ubuntu takes debian/control, not
+# this file.) An alternative could not be expressed anyway: rpm 4.11 on the SLE 12 family rejects
+# a boolean dependency outright.
+Requires: /usr/sbin/chronyd
 # DHCP backend resolved at INSTALL time (not build time) via an RPM rich
 # dependency, so a single flat xcat-core build is correct on every EL: el10+
 # dropped ISC dhcp from its distro and uses Kea; el8/el9 use ISC dhcpd. SLES
 # has no "system-release" provide, so the condition is false there and it
 # falls to dhcp-server (/usr/sbin/dhcpd), preserving prior behavior.
 # system-release is versioned per release package (el10=10.x, el9=9.x, el8=8.x).
-Requires: (kea if (system-release >= 10) else /usr/sbin/dhcpd)
-Requires: (kea-hooks if (system-release >= 10))
+# The DHCP backend. EL 10 dropped ISC dhcpd and ships kea; every other family still has dhcpd.
+# This was written as "(kea if (system-release >= 10) else /usr/sbin/dhcpd)", and libsolv 0.6 --
+# the SLE 12 family's resolver -- cannot parse a conditional dependency: it quotes the whole
+# expression as a package name and the install fails with "nothing provides (kea if ...)". It
+# does parse a plain alternative, so express the same choice that way. Order matters and is the
+# point: dhcpd is taken wherever it exists (EL 8 and 9, SUSE, Ubuntu), and kea is the fallback
+# on EL 10, which is exactly where dhcpd is gone.
+# The DHCP server is the one requirement that cannot stay hard. EL 10 dropped ISC dhcpd and
+# ships kea; every other family has dhcpd; neither package is ours to give a shared capability,
+# and rpm 4.11 on the SLE 12 family cannot parse an alternative. Weak dependencies are honoured
+# on all of them, so each family pulls the server it has, and makedhcp fails loudly and early if
+# a node somehow has none. THIS IS A DELIBERATE WEAKENING -- restore a hard requirement here as
+# soon as the SLE 12 family is out of support.
+Recommends: /usr/sbin/dhcpd
+# Name the package as well as the file: a file capability is only visible to a resolver that
+# reads filelists. dhcp-server is the package name on EL and on openSUSE alike, and where it does
+# not exist the Recommends is simply unmet. A host that switches weak dependencies off -- the
+# openSUSE Minimal-VM image sets solver.onlyRequires = true -- installs neither, and has to name
+# its own DHCP server.
+Recommends: dhcp-server
+Recommends: /usr/sbin/kea-dhcp4
+# kea-hooks is only meaningful beside kea, and the same conditional form is unparseable there.
+# A weak dependency gives the same outcome: taken on EL 10 where it exists, ignored elsewhere.
+Recommends: kea-hooks
 # On RHEL this pulls in openssh-server, on SLES it pulls in openssh
 Requires: /usr/bin/ssh
 %if %nots390x
@@ -96,7 +142,27 @@ Requires: perl-IO-Stty >= 0.04-5
 %endif
 
 %ifos linux
-Requires: goconserver >= 0.3.3-snap202011021058
+# The console backend. goconserver needs a Go toolchain the SLE 12 family never had -- its
+# go.mod asks for Go 1.25 and the newest Go for that family is far older -- so that family builds
+# conserver-xcat instead, and a hard requirement on goconserver makes xCAT uninstallable there.
+#
+# This cannot be a build-time %if: one flat core is built on EL and installed on every family, so
+# %{?suse_version} describes the BUILDER, not the node. The resolver has to choose at install
+# time. goconserver is named first, so it is taken wherever it exists, and conserver-xcat is the
+# fallback where it does not. xCAT already selects the backend at run time -- makegocons when
+# /usr/bin/goconserver is present, makeconservercf otherwise.
+# The console backend is goconserver everywhere except the SLE 12 family, which cannot build it
+# and ships conserver-xcat. Both declare xcat-console-backend in xcat-dep, so the requirement
+# stays hard without naming either one.
+Requires: xcat-console-backend
+# The capability alone leaves the choice to the resolver, and it has picked conserver-xcat where
+# both exist. goconserver is the backend everywhere it is built; naming it as a Recommends makes
+# it the default without making xCAT uninstallable on the SLE 12 family, which has no goconserver.
+Recommends: goconserver
+# A file capability carries no version, so the floor that used to ride on "goconserver >= ..."
+# is expressed as a conflict instead. It binds only if goconserver is the backend present, which
+# is the same guarantee, and it costs nothing where conserver-xcat is used.
+Conflicts: goconserver < 0.3.3-snap202011021058
 %endif
 
 %ifarch i386 i586 i686 x86 x86_64

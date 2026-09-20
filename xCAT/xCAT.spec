@@ -121,10 +121,11 @@ Requires: /usr/sbin/chronyd
 # a node somehow has none. THIS IS A DELIBERATE WEAKENING -- restore a hard requirement here as
 # soon as the SLE 12 family is out of support.
 Recommends: /usr/sbin/dhcpd
-# A file capability is not resolved reliably: two sles15 runs of the same cell, same spec, gave
-# dhcp-server to one and not the other, and makedhcp then reported the isc backend unavailable.
-# dhcp-server is the package name on EL and on openSUSE alike; where it does not exist the
-# Recommends is simply unmet.
+# Name the package as well as the file: a file capability is only visible to a resolver that
+# reads filelists. dhcp-server is the package name on EL and on openSUSE alike, and where it does
+# not exist the Recommends is simply unmet. A host that switches weak dependencies off -- the
+# openSUSE Minimal-VM image sets solver.onlyRequires = true -- installs neither, and has to name
+# its own DHCP server.
 Recommends: dhcp-server
 Recommends: /usr/sbin/kea-dhcp4
 # kea-hooks is only meaningful beside kea, and the same conditional form is unparseable there.

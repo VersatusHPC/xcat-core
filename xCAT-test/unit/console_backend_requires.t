@@ -45,6 +45,12 @@ like($text, qr{^Conflicts:\s*goconserver\s*<\s*0\.3\.3-snap}m,
 
 # The DHCP server is the one guarantee that had to weaken, and it must stay visible as such.
 like($text, qr{^Recommends:\s*/usr/sbin/dhcpd\s*$}m,  'dhcpd is recommended');
+# A file capability is weaker than a package name: a resolver has to look inside filelists to
+# see it at all. dhcp-server is the package name on EL and on openSUSE alike, so name it too.
+# This does not help where weak dependencies are switched off entirely -- the openSUSE Minimal-VM
+# image sets solver.onlyRequires = true, and there NOTHING recommended is installed.
+like($text, qr{^Recommends:\s*dhcp-server\s*$}m,
+     'the ISC DHCP server is recommended by package name, not only by file');
 like($text, qr{^Recommends:\s*/usr/sbin/kea-dhcp4\s*$}m, 'kea is recommended for EL 10');
 unlike($text, qr{^Requires:.*(?:dhcpd|kea-dhcp4)}m,
     '... and neither is a hard requirement, which no single family could satisfy');

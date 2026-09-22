@@ -117,7 +117,11 @@ SKIP: {
 my $spec = slurp('xCAT/xCAT.spec');
 SKIP: {
     skip 'xCAT.spec not found', 1 unless defined $spec;
-    like($spec, qr/^Requires:\s*\(chrony or ntp\)/m,
+    # Two spellings satisfy this, and the choice is a packaging constraint, not a preference.
+    # The SLE 12 family refuses the boolean form: zypper answers "nothing provides
+    # (chrony or ntp)" even where chrony is installable, so that family names the file
+    # capability instead. Accept either, and fail when neither is present.
+    like($spec, qr{^Requires:\s*(?:\(chrony or ntp\)|/usr/sbin/chronyd)\s*$}m,
         'the xCAT rpm requires a server-capable NTP daemon');
 }
 

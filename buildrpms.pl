@@ -657,14 +657,22 @@ sub setup_local_repos {
 }
 
 
-# Index one repo dir with deterministic, upstream-matching metadata. createrepo_c's
-# defaults already emit primary/filelists/other as *.xml.zst plus *.sqlite.bz2
-# (--database), exactly the upstream shape; --set-timestamp-to-revision pins the
-# repomd timestamp to SOURCE_DATE_EPOCH.
+# Index one repo dir with deterministic, upstream-matching metadata: primary/filelists/other as
+# *.xml.zst, with --set-timestamp-to-revision pinning the repomd timestamp to SOURCE_DATE_EPOCH.
+#
+# NO --database. It writes *.sqlite.bz2, and building those needs SQLite, which needs POSIX locks.
+# The build tree lives on /opt/xcat-ci-shared, an NFS mount from the filer that the hypervisor
+# re-exports, and a re-export cannot proxy locks upstream: every lock there answers errno 524. So
+# createrepo_c died with "Cannot open .repodata/primary.sqlite: Can not create db_info table: disk
+# I/O error" on every target once the build hosts moved off virtiofs. Measured on the share: a
+# bare sqlite3 connect fails there and succeeds on local disk, and createrepo_c succeeds without
+# --database and fails with it.
+#
+# Nothing this project ships reads the sqlite metadata. dnf on el8+ and zypper both read the XML.
 sub createrepo_dir {
     my ($dir, $extra) = @_;
     $extra //= '';
-    sh_or_die(qq(createrepo_c --update --database )
+    sh_or_die(qq(createrepo_c --update )
        . qq(--revision "$SOURCE_DATE_EPOCH" --set-timestamp-to-revision $extra "$dir"),
         "Failed to createrepo_c $dir\n");
 }

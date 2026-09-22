@@ -1,5 +1,10 @@
 Summary: xCAT automated test tool
 Name: xCAT-test
+# These scripts run on the management node and on compute nodes, whose distribution the cluster
+# chooses rather than the builder. rpm on a /usr-merged builder rewrites "#!/bin/bash" to
+# "#!/usr/bin/bash" and generates "Requires: /usr/bin/bash", which no pre-merge distribution can
+# satisfy -- on the SLE 12 family bash is /bin/bash. Leave the shebangs as written.
+%global __brp_mangle_shebangs_exclude_from /opt/xcat/
 Version: %{?version:%{version}}%{!?version:%(cat Version)}
 Release: %{?release:%{release}}%{!?release:%(cat Release)}
 Epoch: 4

@@ -25,6 +25,51 @@ sub handled_commands {
       }
 }
 
+#-------------------------------------------------------
+
+=head3 _netboot_osfamily
+
+    Descriptions:
+        Map an osimage os version to the directory under share/xcat/netboot
+        that holds its genimage script.
+
+    Arguments:
+        $osver - the os version, for example sles12.3 or leap42.3
+
+    Returns:
+        The directory name.
+
+=cut
+
+#-------------------------------------------------------
+sub _netboot_osfamily
+{
+    my ($osver) = @_;
+
+    return unless defined $osver;
+
+    my $osfamily = $osver;
+    $osfamily =~ s/\d+//g;
+    $osfamily =~ s/\.//g;
+    if ($osfamily =~ /rh/) {
+        $osfamily = "rh";
+    }
+
+    # OS version on s390x can contain 'sp', e.g. sles11sp1
+    # If the $osfamily contains 'sles' and 'sp', the $osfamily = sles
+    if ($osfamily =~ /sles/ && $osfamily =~ /sp/) {
+        $osfamily = "sles";
+    }
+
+    # openSUSE Leap reuses the existing SLES diskless image scripts.
+    if ($osver =~ /^leap(?:15|42)/) {
+        $osfamily = "sles";
+    }
+
+    $osfamily =~ s/ //g;
+    return $osfamily;
+}
+
 sub process_request {
     my $request  = shift;
     my $callback = shift;
@@ -273,24 +318,7 @@ sub process_request {
 
 
     ### Get the Profile ####
-    my $osfamily = $osver;
-    $osfamily =~ s/\d+//g;
-    $osfamily =~ s/\.//g;
-    if ($osfamily =~ /rh/) {
-        $osfamily = "rh";
-    }
-
-    # OS version on s390x can contain 'sp', e.g. sles11sp1
-    # If the $osfamily contains 'sles' and 'sp', the $osfamily = sles
-    if ($osfamily =~ /sles/ && $osfamily =~ /sp/) {
-        $osfamily = "sles";
-    }
-    # openSUSE Leap 15.x reuses the existing SLES diskless image scripts.
-    if ($osver =~ /^leap15/) {
-        $osfamily = "sles";
-    }
-
-    $osfamily =~ s/ //g;
+    my $osfamily = _netboot_osfamily($osver);
 
     #-m flag is used only for ubuntu, debian and ferdora12, for others genimage will create
     #initrd.gz for both netboot and statelite, no -m is needed.

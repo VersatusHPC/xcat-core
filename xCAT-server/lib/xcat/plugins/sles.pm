@@ -37,10 +37,10 @@ sub handled_commands
 {
     return {
         copycd      => "sles",
-        mknetboot   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)",
-        mkinstall   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)",
-        mkstatelite => "nodetype:os=(sle.*)|(leap15.*)",
-        mksysclone  => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)"
+        mknetboot   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)|(leap42.*)",
+        mkinstall   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)|(leap42.*)",
+        mkstatelite => "nodetype:os=(sle.*)|(leap15.*)|(leap42.*)",
+        mksysclone  => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)|(leap42.*)"
     };
 }
 
@@ -67,6 +67,38 @@ sub _find_genesis_boot_files
     }
     return unless defined($initrd);
     return ($kernel, $initrd);
+}
+
+#-------------------------------------------------------
+
+=head3 _install_template_platform
+
+    Descriptions:
+        Map a nodetype os value to the directory under share/xcat/install
+        that holds its templates and pkglists.
+
+    Arguments:
+        $os - the nodetype os value, for example sles12.3 or leap42.3
+
+    Returns:
+        The directory name, or undef when no SUSE directory applies.
+
+=cut
+
+#-------------------------------------------------------
+sub _install_template_platform
+{
+    my ($os) = @_;
+
+    return unless defined $os;
+    return "sles" if $os =~ /sles.*/;
+    return "sle"  if $os =~ /sle.*/;
+    return "suse" if $os =~ /suse.*/;
+
+    # openSUSE Leap ships no assets of its own. Leap 15 reads the SLE 15
+    # autoyast profile and Leap 42 the SLE 12 one, both under install/sles.
+    return "sles" if $os =~ /leap15.*/ or $os =~ /leap42.*/;
+    return;
 }
 
 sub precreate_sles11_mypostscript
@@ -341,7 +373,7 @@ sub mknetboot
 
             # TODO: should get the $pkgdir value from the linuximage table
             $pkgdir = "$installroot/$osver/$arch";
-        } elsif ($osver =~ /suse.*/ or $osver =~ /leap15.*/) {
+        } elsif ($osver =~ /suse.*/ or $osver =~ /leap15.*/ or $osver =~ /leap42.*/) {
             $platform = "sles";
         }
 
@@ -918,15 +950,8 @@ sub mkinstall
             $os      = $ent->{os};
             $arch    = $ent->{arch};
             $profile = $ent->{profile};
-            if ($os =~ /sles.*/) {
-                $plat = "sles";
-            } elsif ($os =~ /sle.*/) {
-                $plat = "sle";
-            } elsif ($os =~ /suse.*/) {
-                $plat = "suse";
-            } elsif ($os =~ /leap15.*/) {
-                $plat = "sles";
-            } else {
+            $plat = _install_template_platform($os);
+            unless ($plat) {
                 $plat = "foobar";
                 print "You should never get here!  Programmer error!";
                 return;
@@ -1622,7 +1647,10 @@ sub _opensuse_leap_distname
 {
     my $version = shift;
     return unless defined $version;
-    return unless $version =~ /^(15(?:\.\d+)?)/;
+
+    # Leap 15.x and Leap 42.x are the validated generations. Leap 16 uses a
+    # different installer and is not covered.
+    return unless $version =~ /^((?:15|42)(?:\.\d+)?)/;
     return "leap$1";
 }
 
@@ -1681,12 +1709,66 @@ sub _detect_opensuse_leap_media
     return ($distname, $arch);
 }
 
+#-------------------------------------------------------
+
+=head3 _detect_opensuse_leap_content
+
+    Descriptions:
+        Read the distribution name and the architecture out of an openSUSE
+        media "content" file. Leap 42.3 media carries no .treeinfo, and its
+        media.1/products line names no SLE product, so the SLE parser in
+        copycd finds no name for it.
+
+    Arguments:
+        $mntpath - the mounted media
+
+    Returns:
+        ($distname, $arch), or an empty list when the media is not Leap.
+
+=cut
+
+#-------------------------------------------------------
+sub _detect_opensuse_leap_content
+{
+    my ($mntpath) = @_;
+
+    return unless defined $mntpath;
+    my $contentfile = "$mntpath/content";
+    return unless -r $contentfile;
+
+    open(my $fh, "<", $contentfile) or return;
+    my ($distro, $repoid, $defaultbase, $basearchs);
+    while (my $line = <$fh>) {
+        chomp($line);
+        $distro      = $1 if $line =~ /^DISTRO\s+(.+?)\s*$/;
+        $repoid      = $1 if $line =~ /^REPOID\s+(\S+)/;
+        $defaultbase = $1 if $line =~ /^DEFAULTBASE\s+(\S+)/;
+        $basearchs   = $1 if $line =~ /^BASEARCHS\s+(\S+)/;
+    }
+    close($fh);
+
+    return unless defined $distro and $distro =~ /openSUSE\s+Leap/i;
+
+    my ($version) = $distro =~ /openSUSE\s+Leap\s+(\d+(?:\.\d+)?)/i;
+    my $distname = _opensuse_leap_distname($version);
+    return unless $distname;
+
+    # Leap 42.3 declares neither DEFAULTBASE nor BASEARCHS. Its REPOID ends
+    # with the architecture.
+    my $arch = $defaultbase || $basearchs;
+    if (!$arch and $repoid and $repoid =~ m{/([^/]+)$}) {
+        $arch = $1;
+    }
+
+    return ($distname, $arch);
+}
+
 sub _copycd_distname_supported
 {
     my $distname = shift;
     return 1 unless $distname;
     return 1 if $distname =~ /^(?:sle|suse)/;
-    return 1 if $distname =~ /^leap15(?:\..*)?$/;
+    return 1 if $distname =~ /^leap(?:15|42)(?:\..*)?$/;
     return;
 }
 
@@ -1781,6 +1863,16 @@ sub copycd
         $distname = $opensuse_distname unless $distname;
         $darch = $opensuse_arch if $opensuse_arch;
         $discnumber = 1;
+    }
+
+    if (!$discnumber) {
+        my ($content_distname, $content_arch) = _detect_opensuse_leap_content($mntpath);
+        if ($content_distname) {
+            $detdistname = $content_distname;
+            $distname = $content_distname unless $distname;
+            $darch = $content_arch if $content_arch;
+            $discnumber = 1;
+        }
     }
 
     if (!$discnumber and -r $mntpath . "/content")

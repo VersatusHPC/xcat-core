@@ -1,0 +1,12 @@
+@base
+iputils
+vim
+openssl
+rsync
+net-tools
+rsyslog
+nfs-client
+wget
+openssh
+zypper
+ntp

@@ -141,3 +141,4 @@ if [[ -n $metadata_file ]]; then
 fi
 
 printf '%s\n' "$destiny"
+

@@ -58,6 +58,14 @@ cmd:/opt/xcat/share/xcat/tools/autotest/testcase/installation/stage_sn_apt_repo.
 check:rc==0
 check:output=~apt index ok
 
+# service.ubuntu.otherpkgs.pkglist names mariadb-client with no directory, so the otherpkgs
+# postscript writes a source line for otherpkgdir itself. apt-get update then fails on it, and
+# the postscript deletes the source line it had just written for xcat-core, because the
+# apt-cache show that follows returns non-zero. Index this level too.
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/installation/stage_sn_apt_repo.sh /install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat
+check:rc==0
+check:output=~apt index ok
+
 cmd:chdef -t osimage __GETNODEATTR($$SN,os)__-__GETNODEATTR($$SN,arch)__-install-service otherpkgdir=/install/post/otherpkgs/__GETNODEATTR($$SN,os)__/__GETNODEATTR($$SN,arch)__/xcat
 check:rc==0
 

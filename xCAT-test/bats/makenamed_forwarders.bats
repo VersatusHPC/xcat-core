@@ -74,3 +74,34 @@ setup()
     [ "$status" -eq 0 ]
     [ "$output" = "" ]
 }
+
+# named runs as "bind" on Debian and writes its managed-keys database into the configured
+# directory. /var/named is created root-owned, so the write fails, DNSSEC initialisation fails
+# with it, and the server answers NXDOMAIN to every query -- including forwarded ones, which is
+# how a correct forwarder list still resolved nothing on xcat22-sn.
+
+@test "Ubuntu names the directory its named can write" {
+    printf 'DISTRIB_ID=Ubuntu\nDISTRIB_RELEASE=24.04\n' >"${BATS_TEST_TMPDIR}/lsb"
+    run named_directory "${BATS_TEST_TMPDIR}/lsb" "${BATS_TEST_TMPDIR}/absent-os" "${BATS_TEST_TMPDIR}/absent-suse"
+    [ "$output" = "/var/cache/bind" ]
+}
+
+@test "SLES keeps its own directory" {
+    : >"${BATS_TEST_TMPDIR}/lsb"
+    printf 'ID="sles"\n' >"${BATS_TEST_TMPDIR}/os"
+    run named_directory "${BATS_TEST_TMPDIR}/lsb" "${BATS_TEST_TMPDIR}/os" "${BATS_TEST_TMPDIR}/absent-suse"
+    [ "$output" = "/var/lib/named" ]
+}
+
+@test "EL keeps /var/named" {
+    : >"${BATS_TEST_TMPDIR}/lsb"
+    printf 'ID="almalinux"\n' >"${BATS_TEST_TMPDIR}/os"
+    run named_directory "${BATS_TEST_TMPDIR}/lsb" "${BATS_TEST_TMPDIR}/os" "${BATS_TEST_TMPDIR}/absent-suse"
+    [ "$output" = "/var/named" ]
+}
+
+@test "an absent lsb-release is not Ubuntu" {
+    printf 'ID="almalinux"\n' >"${BATS_TEST_TMPDIR}/os"
+    run named_directory "${BATS_TEST_TMPDIR}/absent-lsb" "${BATS_TEST_TMPDIR}/os" "${BATS_TEST_TMPDIR}/absent-suse"
+    [ "$output" = "/var/named" ]
+}

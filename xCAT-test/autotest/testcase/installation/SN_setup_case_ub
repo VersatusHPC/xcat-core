@@ -90,10 +90,13 @@ check:output=~\d\d:\d\d:\d\d
 cmd:xdsh $$SN "ps -ef |grep xcatd"
 check:rc==0
 check:output=~xcatd:
-cmd:xdsh $$SN "lsdef"
+# Ubuntu's /etc/bash.bashrc returns before /etc/profile.d on a non-interactive shell, so the
+# xCAT commands are not on the PATH xdsh gets. The EL shell reads profile.d there and the EL
+# case does not need this.
+cmd:xdsh $$SN ". /etc/profile.d/xcat.sh; lsdef"
 check:rc==0
 check:output=~$$SN: $$SN
-cmd:xdsh $$SN "tabdump site"
+cmd:xdsh $$SN ". /etc/profile.d/xcat.sh; tabdump site"
 check:rc==0
 check:output=~tftpdir
 cmd:xdsh $$SN "mount"

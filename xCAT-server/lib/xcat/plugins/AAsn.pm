@@ -827,11 +827,14 @@ sub setup_DNS
     #}
 
     #my $rc = xCAT::Utils->startService($serv);
+    # Restart, not start. makenamed.conf has just rewritten named.conf, and a start is a no-op
+    # where the package already runs the daemon -- Debian does -- so the service keeps serving the
+    # configuration it read at install time.
     my $rc = 0;
     if (xCAT::Utils->isAIX()) {
         $rc = xCAT::Utils->startService("named");
     } elsif (xCAT::Utils->isLinux()) {
-        $rc = xCAT::Utils->startservice("named");
+        $rc = xCAT::Utils->restartservice("named");
     }
 
     if ($rc != 0)

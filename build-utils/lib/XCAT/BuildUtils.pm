@@ -1142,6 +1142,10 @@ sub mock_chroot_extras {
     # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora. openSUSE has no such
     # package -- rpm generates perl provides itself -- so asking for it there aborts chroot setup.
     push @extras, 'perl-generators' if $pkg eq 'perl-xCAT' && !$suse;
+    # pod2man and perl(Pod::Man) are in 'perl' on openSUSE Leap, not in 'perl-base' which
+    # patterns-devel-base-devel_rpm_build installs, and the mock template sets
+    # install_weak_deps=0. There is no perl-podlators there. An EL chroot already has pod2man.
+    push @extras, 'perl' if $suse;
     return @extras;
 }
 

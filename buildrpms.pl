@@ -59,7 +59,8 @@ use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildi
     sweep_build_sources_dirs stage_xcat_probe_sources stage_xcatsn_templates
                         stage_genesis_base_sources
                         write_script read_line targetarch_from_target
-                        openeuler_build_target openeuler_repo_subdir);
+                        openeuler_build_target openeuler_repo_subdir
+                        mock_chroot_extras);
 use POSIX ();                   # EEXIST, for the directory build lock (see main())
 use Getopt::Long qw(GetOptions);
 use POSIX qw(strftime);
@@ -328,12 +329,11 @@ sub createmockconfig {
     cp "/etc/mock/$target.cfg", $cfgfile;
     my $contents = read_text($cfgfile);
     $contents =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
-    if ($pkg eq "perl-xCAT" && $target !~ /suse|sles|leap/i) {
-        # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora; it does not
-        # exist on openSUSE/SLES (rpm there generates perl provides itself), so injecting
-        # it into a SUSE chroot aborts chroot setup. Suppress it for SUSE targets.
-        $contents .= "config_opts['chroot_additional_packages'] = 'perl-generators'\n";
-    }
+    # rpmbuild runs with --nodeps, so a BuildRequires installs nothing. Anything a %build step
+    # calls has to be named for the chroot. mock_chroot_extras holds that decision.
+    my @extras = mock_chroot_extras($pkg, $target);
+    $contents .= "config_opts['chroot_additional_packages'] = '" . join(' ', @extras) . "'\n"
+        if @extras;
     $contents .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$SOURCE_DATE_EPOCH'\n";
     # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with
     #   "Failed to determine whether the unified cgroups hierarchy is used: No medium found"

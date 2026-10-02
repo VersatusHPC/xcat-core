@@ -17,6 +17,7 @@ use Exporter 'import';
 use File::Copy qw(copy move);
 use File::Basename qw(basename);
 use File::Path qw(make_path remove_tree);
+use File::Temp qw(tempdir tempfile);
 use File::Slurper qw(read_text write_text);
 use POSIX qw(strftime);
 use Pod::Usage qw(pod2usage);
@@ -25,11 +26,13 @@ use feature 'say';
 our @EXPORT_OK = qw(
     source_date_epoch snap_release deb_version
     stage_probe_helpers XCAT_PROBE_HELPERS stage_genesis_base_sources
+    stage_xcat_probe_sources
     deb_package_arches dist_arches default_dists
     orig_tarball_name upstream_version resolve_dest
     pin_control_version rewrite_changelog_header
     reprepro_distributions reprepro_options
     lock_id_for take_build_lock
+    build_sources_dir prepare_build_sources_dir
     sh_quote clean_debian_residue git_revision
     backup_file restore_file
     sh sh_or_die usage
@@ -427,6 +430,49 @@ sub stage_genesis_base_sources {
         "Error creating $tarball");
 
     remove_tree($staging_parent);
+    return $tarball;
+}
+
+# Stage the xCAT-probe package sources, with the xCAT helper modules xcatprobe loads at
+# runtime copied in beside them. The archive is built under a temporary name in $sources_dir
+# and renamed into place, so a mock build never reads a partial file.
+#
+# $sources_dir is the staging directory of ONE package build, and it is validated rather than
+# interpolated: buildrpms.pl sets it in the child it forks per package, so a caller that runs
+# before the fork passes the empty string. That composed /xCAT-probe-<version>.tar.gz and every
+# RPM target died on the rename. Composing the file name here also keeps one spelling of it.
+sub stage_xcat_probe_sources {
+    my ($checkout, $sources_dir, $version, $epoch) = @_;
+    my $source = "$checkout/xCAT-probe";
+    die "Assertion failed! No directory xCAT-probe in $checkout\n"
+        unless -d $source;
+    die "stage_xcat_probe_sources: staging directory is required\n"
+        unless defined $sources_dir && length $sources_dir;
+    die "stage_xcat_probe_sources: no staging directory $sources_dir\n"
+        unless -d $sources_dir;
+    die "stage_xcat_probe_sources: version is required\n"
+        unless defined $version && length $version;
+
+    my $tarball        = "$sources_dir/xCAT-probe-$version.tar.gz";
+    my $staging_parent = tempdir("xcat-probe-source.XXXXXX", TMPDIR => 1, CLEANUP => 1);
+    my $staging_root   = "$staging_parent/xCAT-probe";
+    sh_or_die(qq(cp -a "$source" "$staging_root"), "Error staging xCAT-probe sources");
+
+    my $helper_dir = "$staging_root/lib/perl/xCAT";
+    remove_tree($helper_dir) if -e $helper_dir;
+    make_path($helper_dir);
+    chmod 0755, $helper_dir;
+    chmod 0644, $_ for stage_probe_helpers("$checkout/perl-xCAT/xCAT", $helper_dir);
+
+    my ($archive_fh, $archive_path) =
+        tempfile(".xCAT-probe-$version.XXXXXX", DIR => $sources_dir, UNLINK => 1);
+    close $archive_fh;
+    sh_or_die(qq(tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="\@$epoch" )
+            . qq(--use-compress-program="gzip -n" -cf "$archive_path" -C "$staging_parent" xCAT-probe),
+        "Error creating $tarball");
+    chmod 0644, $archive_path;
+    rename $archive_path, $tarball
+        or die "Unable to publish $tarball: $!\n";
     return $tarball;
 }
 
@@ -893,6 +939,61 @@ sub genesis_log_errors {
         }
     }
     return @found;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 build_sources_dir
+
+Descriptions: The rpmbuild SOURCES directory for one package and one target.
+
+Arguments:
+  $package   - the package being built, e.g. xCAT
+  $target    - the mock target, e.g. openeuler-24.03sp4-x86_64
+  $uniqueext - the mock uniqueext, or undef
+  $home      - the home directory; defaults to $ENV{HOME}
+
+Returns: the absolute path of the staging directory.
+
+=cut
+
+#-------------------------------------------------------------------------------
+# Keyed like the mock chroot. buildrpms.pl forks a child per package and target, and
+# mock --sources copies the whole directory, so one shared directory lets a peer's tar
+# truncate an archive mid-copy. xCAT and xCATsn both write etc.tar.gz.
+sub build_sources_dir {
+    my ($package, $target, $uniqueext, $home) = @_;
+
+    # An empty key names the shared directory again.
+    die "build_sources_dir: package is required\n" unless defined $package && length $package;
+    die "build_sources_dir: target is required\n"  unless defined $target  && length $target;
+
+    $home = $ENV{HOME} unless defined $home && length $home;
+    die "build_sources_dir: no home directory\n" unless defined $home && length $home;
+
+    my $key = "$package-$target";
+    $key .= "-$uniqueext" if defined $uniqueext && length $uniqueext;
+    return "$home/rpmbuild/$key/SOURCES";
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 prepare_build_sources_dir
+
+Descriptions: Create the staging directory for one package and target, and return it.
+
+Arguments: the same as build_sources_dir.
+
+Returns: the absolute path of the staging directory.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub prepare_build_sources_dir {
+    my $dir = build_sources_dir(@_);
+    make_path($dir);
+    die "build_sources_dir: $dir was not created\n" unless -d $dir;
+    return $dir;
 }
 
 1;

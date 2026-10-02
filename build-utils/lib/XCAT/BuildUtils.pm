@@ -32,6 +32,7 @@ our @EXPORT_OK = qw(
     pin_control_version rewrite_changelog_header
     reprepro_distributions reprepro_options
     lock_id_for take_build_lock
+    mock_chroot_extras
     build_sources_dir prepare_build_sources_dir
     sh_quote clean_debian_residue git_revision
     backup_file restore_file
@@ -994,6 +995,40 @@ sub prepare_build_sources_dir {
     make_path($dir);
     die "build_sources_dir: $dir was not created\n" unless -d $dir;
     return $dir;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_chroot_extras
+
+    Descriptions: The packages a mock chroot needs beyond its own chroot_setup_cmd,
+                  for one package of one target.
+
+                  buildrpms.pl builds with rpmbuild --nodeps, so a BuildRequires in
+                  a spec installs nothing. Whatever a %build step runs has to be put
+                  in the chroot here.
+
+    Arguments:
+        $pkg     - the xCAT package being built, e.g. perl-xCAT, xCAT-client
+        $target  - the mock target, e.g. alma+epel-10-x86_64, opensuse-leap-15.6-x86_64
+
+    Returns: the package names, as a list. Empty when the chroot needs nothing extra.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_chroot_extras {
+    my ($pkg, $target) = @_;
+    my $suse = $target =~ /suse|sles|leap/i;
+    my @extras;
+    # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora. openSUSE has no such
+    # package -- rpm generates perl provides itself -- so asking for it there aborts chroot setup.
+    push @extras, 'perl-generators' if $pkg eq 'perl-xCAT' && !$suse;
+    # pod2man and perl(Pod::Man) are in 'perl' on openSUSE Leap, not in 'perl-base' which
+    # patterns-devel-base-devel_rpm_build installs, and the mock template sets
+    # install_weak_deps=0. There is no perl-podlators there. An EL chroot already has pod2man.
+    push @extras, 'perl' if $suse;
+    return @extras;
 }
 
 1;

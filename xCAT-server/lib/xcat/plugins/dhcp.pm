@@ -2898,9 +2898,13 @@ sub kea_build_dhcp4_intent
         my $interface = $netif;
         my $remote = 0;
         if ($interface =~ /!remote!\S*/) {
+            # A relay agent answers this network, so no local NIC carries it and
+            # site.dhcpinterfaces never names it. The ISC path writes the subnet from the
+            # networks table alone (see the @nrn loop in process_request), and the Kea path
+            # must too: without a subnet4, subnet_id_for_ip finds nothing for a node on the
+            # network and makedhcp writes no reservation.
             $remote = 1;
             $interface =~ s/!remote!\s*(.*)$/$1/;
-            next unless $dhcp_interfaces{'!remote!'};
         } else {
             next unless $dhcp_interfaces{$interface};
         }
@@ -3923,7 +3927,7 @@ sub kea_node_client_classes_for_nodes
 
     my $nrtab = xCAT::Table->new('noderes');
     my $mactab = xCAT::Table->new('mac');
-    return { classes => [], noip => [] } unless $nrtab && $mactab;
+    return { classes => [], noip => [], localboot => [] } unless $nrtab && $mactab;
 
     my $iscsitab = xCAT::Table->new('iscsi', -create => 0);
     my $chaintab = xCAT::Table->new('chain', -create => 0);

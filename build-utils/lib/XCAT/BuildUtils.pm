@@ -45,6 +45,7 @@ our @EXPORT_OK = qw(
     genesis_chroot_name genesis_target_arch genesis_build_plan
     genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
     genesis_dists genesis_dist_reason
+    mock_chroot_extras
 );
 
 # Both builders echo the commands they run under --verbose.  Set once, after
@@ -1112,6 +1113,36 @@ sub _pid_alive {
     my ($pid) = @_;
     return 1 if kill 0, $pid;
     return $!{EPERM} ? 1 : 0;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_chroot_extras
+
+    Descriptions: The packages a mock chroot needs beyond its own chroot_setup_cmd,
+                  for one package of one target.
+
+                  buildrpms.pl builds with rpmbuild --nodeps, so a BuildRequires in
+                  a spec installs nothing. Whatever a %build step runs has to be put
+                  in the chroot here.
+
+    Arguments:
+        $pkg     - the xCAT package being built, e.g. perl-xCAT, xCAT-client
+        $target  - the mock target, e.g. alma+epel-10-x86_64, opensuse-leap-15.6-x86_64
+
+    Returns: the package names, as a list. Empty when the chroot needs nothing extra.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_chroot_extras {
+    my ($pkg, $target) = @_;
+    my $suse = $target =~ /suse|sles|leap/i;
+    my @extras;
+    # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora. openSUSE has no such
+    # package -- rpm generates perl provides itself -- so asking for it there aborts chroot setup.
+    push @extras, 'perl-generators' if $pkg eq 'perl-xCAT' && !$suse;
+    return @extras;
 }
 
 1;

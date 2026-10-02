@@ -87,3 +87,11 @@ declare -F set_sles11_uefi_bootloader &>/dev/null || function set_sles11_uefi_bo
             "$profile"
     fi
 }
+
+declare -F xcat_updateflag &>/dev/null || function xcat_updateflag {
+    # updateflag opens the socket in gawk, and the anaconda %post chroot has no resolver and no
+    # management node entry in /etc/hosts. MASTER_IP is the address the kickstart resolved.
+    local flagger="$1"
+    shift
+    "$flagger" "${MASTER_IP:-$MASTER}" "$@"
+}

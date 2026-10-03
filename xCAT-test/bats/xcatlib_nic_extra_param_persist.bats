@@ -67,8 +67,8 @@ stub_nmcli_no_connection()
     printf 'TYPE=Ethernet\n' >"$f"
     source "$LIB"
     xcat_persist_nic_extra_param "$f" CONNECTED_MODE yes
-    ! grep -q '\[user\]' "$f"
-    ! grep -q 'xcat\.CONNECTED_MODE' "$f"
+    refute_grep -q '\[user\]' "$f"
+    refute_grep -q 'xcat\.CONNECTED_MODE' "$f"
 }
 
 @test "a keyfile keeps the key under [user] with the xcat prefix" {
@@ -79,7 +79,7 @@ stub_nmcli_no_connection()
     [ "$status" -eq 0 ]
     grep -q '^\[user\]' "$f"
     grep -qx 'xcat.CONNECTED_MODE=yes' "$f"
-    ! grep -qx 'CONNECTED_MODE=yes' "$f"
+    refute_grep -qx 'CONNECTED_MODE=yes' "$f"
 }
 
 @test "writing the same key twice does not duplicate it" {

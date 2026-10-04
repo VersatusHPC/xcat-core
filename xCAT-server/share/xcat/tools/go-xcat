@@ -1913,12 +1913,16 @@ function github_issue_6525_workaround()
 # installed copy and a source repository do not count, so a binary repository
 # that was disabled is still reported. A failed query stops the run with the
 # package manager's own error.
+#
+# The format starts with a newline. dnf asks to import a repository key on stdout
+# and does not end the question with a newline, so without it the first record
+# continues the question's line and the comparison below never matches.
 function repo_carries()
 {
 	local rpm="$1"
 	local found errors
 	errors="$(mktemp)"
-	found="$(${action} repoquery -q --arch "${GO_XCAT_ARCH},noarch" --qf '%{name}' "${rpm}" 2>"${errors}")" || {
+	found="$(${action} repoquery -q --arch "${GO_XCAT_ARCH},noarch" --qf $'\n%{name}' "${rpm}" 2>"${errors}")" || {
 		cat "${errors}"
 		rm -f "${errors}"
 		echo "Could not query the package repositories with '${action} repoquery'"

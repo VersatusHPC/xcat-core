@@ -29,7 +29,10 @@ else
 fi
 sed -e "s@##XCATCADIR##@$XCATCADIR@" $XCATROOT/share/xcat/ca/openssl.cnf.tmpl > $XCATCADIR/openssl.cnf
 cp $XCATROOT/share/xcat/ca/Makefile $XCATCADIR/
-touch $XCATCADIR/index.attr
+# openssl reads unique_subject from the database attribute file. An empty file sends it to
+# openssl.cnf, where the setting is commented out, and openssl 3.0.2 logs
+# "NCONF_get_string:no value ... name=unique_subject" on the error stack. State the value.
+echo "unique_subject = no" > $XCATCADIR/index.attr
 cd $XCATCADIR
 make init
 #openssl req -nodes -config openssl.cnf -days 7300 -x509 -newkey rsa:2048 -out ca-cert.pem -extensions v3_ca -outform PEM -subj /CN="$CNA"

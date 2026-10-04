@@ -48,6 +48,51 @@ xcat_uses_nm_keyfile()
     esac
 }
 
+# Persist the nicextraparams NetworkManager has no native setting for, CONNECTED_MODE among
+# them. Call it after the last nmcli call of the run: every nmcli call rewrites the profile on
+# disk from NetworkManager's in-memory model and drops what the model does not carry.
+#
+#   $1   the connection name, for example xcat-ens4
+#   $2   OSVER, which decides where NetworkManager keeps the profile
+#   $3   the token configeth uses for an attribute that is not set
+#   $4+  the nicextraparams tokens
+#
+# A keyfile is not reloaded after the write, so it keeps the section. NetworkManager tolerates
+# an [user] section it does not model.
+xcat_persist_nic_extra_params()
+{
+    local con_name="$1"
+    local osver="$2"
+    local default_token="$3"
+    shift 3
+
+    local keyfile_dir="${XCAT_NM_KEYFILE_DIR:-/etc/NetworkManager/system-connections}"
+    local target="" uuid ep name value i
+
+    xcat_uses_nm_keyfile "$osver" "$con_name" || return 0
+    # NetworkManager names a keyfile "<id>-<uuid>.nmconnection", not "<id>.nmconnection",
+    # when a file of that name is already there, so resolve it by uuid.
+    uuid=$(nmcli -g connection.uuid connection show "$con_name" 2>/dev/null)
+    [ -n "$uuid" ] && target=$(grep -l "uuid=$uuid" "$keyfile_dir"/*.nmconnection 2>/dev/null | head -1)
+    [ -n "$target" ] && [ -f "$target" ] || return 0
+
+    for ep in "$@"; do
+        [ -z "$ep" ] && continue
+        [ "$ep" = "$default_token" ] && continue
+        parse_nic_extra_params "$ep"
+        i=0
+        while [ $i -lt ${#array_extra_param_names[@]} ]; do
+            name="${array_extra_param_names[$i]}"
+            value="${array_extra_param_values[$i]}"
+            grep -q '^\[user\]' "$target" || printf '\n[user]\n' >> "$target"
+            grep -q "^xcat\.${name}=" "$target" || echo "xcat.${name}=${value}" >> "$target"
+            i=$((i+1))
+        done
+    done
+    chmod 600 "$target"
+    return 0
+}
+
 function debianpreconf(){
     #create the config sub dir
     if [ ! -d "/etc/network/interfaces.d" ];then

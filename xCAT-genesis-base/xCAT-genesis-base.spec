@@ -52,7 +52,10 @@ BuildRequires: efibootmgr
 %endif
 BuildRequires: dosfstools
 BuildRequires: dracut
+# Leap and SLE ship the dracut network modules inside dracut. There is no dracut-network.
+%if ! 0%{?suse_version}
 BuildRequires: dracut-network
+%endif
 # doxcat chooses its DHCP client at run time. RHEL 10 packages no ISC dhcp-client; its
 # baseos packages dhcpcd, which carries its own resolv.conf, hostname and ntp hooks and so
 # needs no dhclient-script.
@@ -74,9 +77,14 @@ BuildRequires: kernel
 BuildRequires: tar
 BuildRequires: tzdata
 %else
+%if 0%{?suse_version}
+# SUSE packages one kernel flavour with its modules. There is no kernel-core/-modules split.
+BuildRequires: kernel-default
+%else
 BuildRequires: kernel-core
 BuildRequires: kernel-modules
 BuildRequires: kernel-modules-extra
+%endif
 %endif
 BuildRequires: lldpad
 BuildRequires: lvm2
@@ -84,7 +92,11 @@ BuildRequires: mdadm
 BuildRequires: mstflint
 BuildRequires: net-tools
 BuildRequires: nfs-utils
+%if 0%{?suse_version}
+BuildRequires: ncat
+%else
 BuildRequires: nmap-ncat
+%endif
 BuildRequires: openssh-clients
 BuildRequires: openssh-server
 # getcert, getdestiny, getipmi and getadapter run the openssl command. el8 and el9 hold it in
@@ -93,15 +105,26 @@ BuildRequires: openssl
 BuildRequires: parted
 BuildRequires: pciutils
 BuildRequires: perl
+# On SUSE the perl package IS the interpreter, and rpm generates the perl dependencies itself.
+%if ! 0%{?suse_version}
 BuildRequires: perl-interpreter
+%endif
+%if 0%{?suse_version}
+BuildRequires: procps
+%else
 BuildRequires: procps-ng
+%endif
 BuildRequires: psmisc
 BuildRequires: rsync
 BuildRequires: rsyslog
 BuildRequires: tmux
 BuildRequires: usbutils
 BuildRequires: util-linux
+%if 0%{?suse_version}
+BuildRequires: vim-small
+%else
 BuildRequires: vim-minimal
+%endif
 BuildRequires: wget
 BuildRequires: xfsprogs
 

@@ -85,13 +85,27 @@ xcat_persist_nic_extra_params()
     shift 3
 
     local keyfile_dir="${XCAT_NM_KEYFILE_DIR:-/etc/NetworkManager/system-connections}"
-    local target="" uuid ep name value i
+    local ifcfg_dir="${XCAT_IFCFG_DIR:-/etc/sysconfig/network-scripts/}"
+    local keyfile=0
+    local target="" uuid base ep name value i
 
-    xcat_uses_nm_keyfile "$osver" "$con_name" || return 0
-    # NetworkManager names a keyfile "<id>-<uuid>.nmconnection", not "<id>.nmconnection",
-    # when a file of that name is already there, so resolve it by uuid.
-    uuid=$(nmcli -g connection.uuid connection show "$con_name" 2>/dev/null)
-    [ -n "$uuid" ] && target=$(grep -l "uuid=$uuid" "$keyfile_dir"/*.nmconnection 2>/dev/null | head -1)
+    if xcat_uses_nm_keyfile "$osver" "$con_name"; then
+        keyfile=1
+        # NetworkManager names a keyfile "<id>-<uuid>.nmconnection", not "<id>.nmconnection",
+        # when a file of that name is already there, so resolve it by uuid.
+        uuid=$(nmcli -g connection.uuid connection show "$con_name" 2>/dev/null)
+        [ -n "$uuid" ] && target=$(grep -l "uuid=$uuid" "$keyfile_dir"/*.nmconnection 2>/dev/null | head -1)
+    else
+        # NetworkManager names the ifcfg file "<name>-1" when one of that name is already
+        # there. The NAME= line inside says which connection the file holds, which is how
+        # configipv4 picks the same one.
+        base="${ifcfg_dir}ifcfg-${con_name}"
+        if [ -f "${base}-1" ] && grep -qx "NAME=${con_name}" "${base}-1"; then
+            target="${base}-1"
+        elif [ -f "$base" ] && grep -qx "NAME=${con_name}" "$base"; then
+            target="$base"
+        fi
+    fi
     [ -n "$target" ] && [ -f "$target" ] || return 0
 
     for ep in "$@"; do
@@ -102,12 +116,18 @@ xcat_persist_nic_extra_params()
         while [ $i -lt ${#array_extra_param_names[@]} ]; do
             name="${array_extra_param_names[$i]}"
             value="${array_extra_param_values[$i]}"
-            grep -q '^\[user\]' "$target" || printf '\n[user]\n' >> "$target"
-            grep -q "^xcat\.${name}=" "$target" || echo "xcat.${name}=${value}" >> "$target"
+            if [ "$keyfile" = 1 ]; then
+                grep -q '^\[user\]' "$target" || printf '\n[user]\n' >> "$target"
+                grep -q "^xcat\.${name}=" "$target" || echo "xcat.${name}=${value}" >> "$target"
+            elif grep -q "^${name}=" "$target"; then
+                sed -i "s|^${name}=.*|${name}=${value}|" "$target"
+            else
+                echo "${name}=${value}" >> "$target"
+            fi
             i=$((i+1))
         done
     done
-    chmod 600 "$target"
+    [ "$keyfile" = 1 ] && chmod 600 "$target"
     return 0
 }
 

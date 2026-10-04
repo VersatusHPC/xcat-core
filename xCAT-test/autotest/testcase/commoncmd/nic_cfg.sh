@@ -175,12 +175,25 @@ case "$1" in
         ;;
     backup)
         be=$(detect_backend); rm -rf "$BACKUP"; mkdir -p "$BACKUP"
+        # A node can run a backend whose config directory does not exist. A netplan-only Ubuntu
+        # node has no /etc/network/interfaces.d, so there is nothing to snapshot -- and `cp` on
+        # the absent directory returns 1, which fails the caller's rc check.
         case "$be" in
-            nm)   cp -af "$NMDIR"/. "$BACKUP"/ 2>/dev/null ;;
-            suse) cp -af "$SUSEDIR"/ifcfg-* "$BACKUP"/ 2>/dev/null ;;
-            rh)   cp -af "$RHDIR" "$BACKUP"/ 2>/dev/null ;;
-            ubuntu) cp -af "$UBUDIR"/. "$BACKUP"/ 2>/dev/null ;;
+            nm)     src=$NMDIR ;;
+            suse)   src=$SUSEDIR ;;
+            rh)     src=$RHDIR ;;
+            ubuntu) src=$UBUDIR ;;
+            *)      src= ;;
         esac
+        if [ -n "$src" ] && [ -d "$src" ]; then
+            case "$be" in
+                # restore reads back "$BACKUP/ifcfg-*", so keep the glob rather than the dir.
+                suse) cp -af "$src"/ifcfg-* "$BACKUP"/ 2>/dev/null || true ;;
+                # restore reads back "$BACKUP/network-scripts/.", so copy the directory itself.
+                rh)   cp -af "$src" "$BACKUP"/ ;;
+                *)    cp -af "$src"/. "$BACKUP"/ ;;
+            esac
+        fi
         ;;
     restore)
         be=$(detect_backend)

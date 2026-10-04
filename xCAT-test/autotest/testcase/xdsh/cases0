@@ -130,7 +130,9 @@ start:xdsh_o
 label:cn_os_ready,parallel_cmds
 cmd:xdsh $$CN -o "-v" date
 check:rc==0
-check:output=~$$CN: OpenSSH
+#OpenSSH 10 prints its own version as "debug1: OpenSSH_<ver>", earlier releases as
+#"OpenSSH_<ver>", so the banner does not always follow the node name directly.
+check:output=~$$CN:.*OpenSSH_
 check:output=~$$CN: debug
 end
 

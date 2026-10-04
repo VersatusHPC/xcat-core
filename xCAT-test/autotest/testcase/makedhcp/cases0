@@ -10,7 +10,9 @@ check:rc==0
 cmd:sleep 20
 cmd:ps -e | grep -E "dhcpd|kea-dhcp4" | grep -v grep
 check:rc==0
-cmd:if systemctl is-active kea-dhcp4 >/dev/null 2>&1; then systemctl status kea-dhcp4; elif cat /etc/*release | grep Ubuntu >/dev/null; then service isc-dhcp-server status; else service dhcpd status; fi
+#The Kea unit is "kea-dhcp4" on EL and "kea-dhcp4-server" on Debian, so a probe for the EL
+#name alone falls through to isc-dhcp-server, which xCAT does not use and does not start.
+cmd:u=; for c in kea-dhcp4 kea-dhcp4-server; do systemctl is-active $c >/dev/null 2>&1 && u=$c && break; done; if [ -n "$u" ]; then systemctl status $u; elif cat /etc/*release | grep Ubuntu >/dev/null; then service isc-dhcp-server status; else service dhcpd status; fi
 check:output=~running
 cmd:if [ -f "/etc/dhcp/dhcpd.conf.bak" ]; then mv -f /etc/dhcp/dhcpd.conf.bak /etc/dhcp/dhcpd.conf; elif [ -f "/etc/dhcpd.conf.bak" ]; then mv -f /etc/dhcpd.conf.bak /etc/dhcpd.conf; fi; if [ -f "/etc/kea/kea-dhcp4.conf.bak" ]; then mv -f /etc/kea/kea-dhcp4.conf.bak /etc/kea/kea-dhcp4.conf; fi
 end
@@ -149,11 +151,16 @@ cmd:lsdef -l $$CN -z > /tmp/$$CN.stanza
 cmd:chdef -t node -o $$CN mac=11:22:33:44:55:66
 cmd:makedhcp -a
 check:rc==0
-cmd:if [ -f /var/lib/kea/kea-leases4.csv ]; then cat /var/lib/kea/kea-leases4.csv; elif [ -f /var/lib/dhcp/dhcpd.leases ]; then cat /var/lib/dhcp/dhcpd.leases;  fi
+#makedhcp -a writes a RESERVATION. The ISC backend keeps one in the lease file, which is why
+#this case read it; the Kea backend keeps one in kea-dhcp4.conf, and the lease file holds only
+#addresses a node has leased, so the fake MAC below never appears there.
+cmd:if [ -f /etc/kea/kea-dhcp4.conf ]; then cat /etc/kea/kea-dhcp4.conf; elif [ -f /var/lib/dhcp/dhcpd.leases ]; then cat /var/lib/dhcp/dhcpd.leases;  fi
 check:output=~$$CN
 check:output=~11:22:33:44:55:66
 cmd:chdef -t node -o $$CN mac=
 cmd:cat /tmp/$$CN.stanza | chdef -z
+#Rewrite the reservation, so the node keeps the MAC it had before this case ran.
+cmd:makedhcp -a
 end
 
 start:makedhcp_a_d

@@ -72,12 +72,18 @@ cmd:xdsh $$CN "service xcatd status"
 check:rc==0
 check:output=~running
 
-#Verify xCAT public key was installed
+#Verify xCAT public key was installed. rpm records the key's PRIMARY user id. The published
+#key carries "xCAT Signing Key <xcat-build@xcat.org>" first and the older
+#"xCAT Automatic Signing Key <xcat-build-temp-ci@xcat.org>" as a revoked second user id, so
+#only the first one appears. Both are named here because an older channel still serves a key
+#whose primary user id is the Automatic one.
 cmd:if [[ "$$OS" =~ "ubuntu" ]]; then xdsh $$CN "apt-key list"; else xdsh $$CN "rpm -q gpg-pubkey --qf '%{name}-%{version}-%{release} --> %{summary}\n'"; fi
-check:output=~xCAT Automatic Signing Key
+check:output=~xCAT Signing Key|xCAT Automatic Signing Key
 
-#Remove public key on non-Ubuntu system. It was installed during go-xcat RPM installs
-cmd:if [[ "$$OS" != "ubuntu" ]]; then xdsh $$CN "rpm -e gpg-pubkey-ca548a47-5b2c830b"; fi
+#Remove the xCAT public key on a non-Ubuntu system. It was installed during the go-xcat RPM
+#installs. The key is removed by the id rpm reports, because the id of the published key
+#changes when the key is rotated.
+cmd:if [[ "$$OS" != "ubuntu" ]]; then xdsh $$CN "rpm -q gpg-pubkey --qf '%{name}-%{version}-%{release} %{summary}\n' | grep -E 'xCAT (Automatic )?Signing Key' | cut -d' ' -f1 | xargs -r rpm -e"; fi
 
 cmd:xdsh $$CN "service xcatd stop"
 end

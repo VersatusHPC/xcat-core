@@ -11,3 +11,10 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	@true
+
+# The payload is a root filesystem, not a library directory. dh_fixperms runs "chmod a-X" over
+# every *.so* it finds, which takes the execute bit off usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+# and libc.so.6. The kernel opens the ELF interpreter with MAY_EXEC, so without it /init cannot
+# start and the node panics with "No working init found".
+override_dh_fixperms:
+	dh_fixperms -X/opt/xcat/share/xcat/netboot/genesis

@@ -483,6 +483,51 @@ sub is_selinux_enforcing {
 
 =head3
     Description:
+        Get the SELinux mode of the current operating system
+    Arguments:
+         None
+    Returns:
+        "enforcing", "permissive" or "disabled"
+=cut
+
+#------------------------------------------
+sub selinux_mode {
+    return "disabled" unless (probe_utils->is_selinux_enable());
+    return "enforcing" if (probe_utils->is_selinux_enforcing());
+    return "permissive";
+}
+
+#------------------------------------------
+
+=head3
+    Description:
+        Report how the xcatmn probe must treat one SELinux mode
+    Arguments:
+        mode: a value returned by selinux_mode
+    Returns:
+        (level, message)
+        level is "o" for ok, "w" for warning and "f" for failed
+=cut
+
+#------------------------------------------
+sub selinux_verdict {
+    my $mode = shift;
+    $mode = shift if (($mode) && ($mode =~ /probe_utils/));
+    $mode = "" unless (defined $mode);
+
+    if ($mode eq "enforcing") {
+        return ("f", "SELinux is enforcing on current server");
+    }
+    if ($mode eq "permissive") {
+        return ("w", "SELinux is permissive on current server");
+    }
+    return ("o", "SELinux is disabled on current server");
+}
+
+#------------------------------------------
+
+=head3
+    Description:
         Test if firewall is opened in current operating system
     Arguments:
          None

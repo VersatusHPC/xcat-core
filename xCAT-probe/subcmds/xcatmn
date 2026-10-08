@@ -92,7 +92,7 @@ sub do_main_job {
     $rst = 0 if ($flag eq "w");
     $rc |= $rst;
 
-    #check if SElinux is disabled
+    #check the SELinux mode
     ($rst, $flag) = check_selinux(\$checkpoint, \@error);
     print_check_result($checkpoint, $flag, $rst, \@error);
     $rst = 0 if ($flag eq "w");
@@ -685,27 +685,15 @@ sub check_disk {
 sub check_selinux {
     my $checkpoint_ref =  shift;
     my $error_ref = shift;
-    my $rst       = 0;
-    my $flag      = "w";
-    my $msg       = "";
 
-    $$checkpoint_ref = "Checking SELinux is disabled...";
+    $$checkpoint_ref = "Checking SELinux mode...";
     @$error_ref = ();
 
-    if (probe_utils->is_selinux_enable()) {
-        $msg = "SELinux is enabled on current server";
-        $rst = 1;
-        $flag = "w";
-    }
-    if (probe_utils->is_selinux_enforcing()) {
-        $msg = "SELinux is enforcing on current server";
-        $rst = 1;
-        $flag = "f";
-    }
-    if ($rst) { 
-        push @error_ref, "$msg";
-    }
-    return ($rst, $flag);
+    my ($flag, $msg) = probe_utils::selinux_verdict(probe_utils::selinux_mode());
+    return (0, $flag) if ($flag eq "o");
+
+    push @$error_ref, $msg;
+    return (1, $flag);
 }
 
 sub check_firewall {

@@ -501,7 +501,10 @@ sub selinux_mode {
 
 =head3
     Description:
-        Report how the xcatmn probe must treat one SELinux mode
+        Report how the xcatmn probe must treat one SELinux mode.
+        xCAT installs and runs with SELinux enforcing, so enforcing is not a
+        failure. makedns does not write a complete DNS setup under SELinux, so
+        every mode but disabled is a warning.
     Arguments:
         mode: a value returned by selinux_mode
     Returns:
@@ -516,7 +519,7 @@ sub selinux_verdict {
     $mode = "" unless (defined $mode);
 
     if ($mode eq "enforcing") {
-        return ("f", "SELinux is enforcing on current server");
+        return ("w", "SELinux is enforcing on current server. The makedns command does not write a complete DNS setup under SELinux.");
     }
     if ($mode eq "permissive") {
         return ("w", "SELinux is permissive on current server");

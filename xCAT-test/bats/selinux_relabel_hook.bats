@@ -93,13 +93,16 @@ source_hook()
     done
 }
 
-@test "a squashfs root keeps the labels of the image" {
+# The hook used to return before it did anything for a squashfs root, because a relabel
+# "would copy every file to the overlay". Measured on an el10 node: 153 inodes of 27232,
+# 0.85 s. The skip left /etc/ld.so.cache at tmpfs_t and the boot logged 175 denials.
+@test "a squashfs root is relabelled like any other" {
     : >"$xcat_sfs_image"
     for hook in "${HOOKS[@]}"; do
         : >"$CALLS"
         source_hook "$hook"
-        run cat "$CALLS"
-        [ -z "$output" ]
+        run grep -c '^chroot ' "$CALLS"
+        [ "$output" = 1 ]
     done
 }
 
@@ -113,14 +116,20 @@ source_hook()
     done
 }
 
-@test "an image without file_contexts warns and runs no setfiles" {
+# An image that asks for a label and does not get one is a failure, not a quiet pass:
+# the hook returns non-zero and names the reason where userspace can read it.
+@test "an image without file_contexts warns, runs no setfiles and reports a failure" {
     rm -f "$NEWROOT/etc/selinux/targeted/contexts/files/file_contexts"
     for hook in "${HOOKS[@]}"; do
         : >"$CALLS"
-        source_hook "$hook"
+        rm -f "$NEWROOT/etc/xcat-selinux-relabel-failed"
+        run source_hook "$hook"
+        [ "$status" -ne 0 ]
         run grep -c '^chroot ' "$CALLS"
         [ "$output" = 0 ]
         run grep -c '^warn: .*file_contexts' "$CALLS"
         [ "$output" = 1 ]
+        run cat "$NEWROOT/etc/xcat-selinux-relabel-failed"
+        [[ "$output" == *"file_contexts is not in the image"* ]]
     done
 }

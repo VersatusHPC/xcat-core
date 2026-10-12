@@ -120,6 +120,13 @@ sub mount_chroot {
         #system("mount devtmpfs $rootimage_dir/dev -t devtmpfs");
         system("cd /dev;find .|cpio -H newc -o >$rootimage_dir/dev/dev.archive;cd -");
         system("cd $rootimage_dir/dev;cpio -idum<./dev.archive;rm -f ./dev.archive;cd -");
+
+        # The copy carries the device nodes but not their SELinux types, so the
+        # new /dev/null takes the type of the rootimg tree. A scriptlet that
+        # redirects to it is then denied against that type instead of
+        # null_device_t, which the base policy allows for every domain.
+        my $devnull = imgutils::chroot_devnull_command($rootimage_dir);
+        system($devnull) if ($devnull);
     }
 
     if (-d "/run") {
@@ -869,6 +876,10 @@ if ($postinstall_filename) {
 
     unuse_hackuname();
 }
+
+# After every package install and every postinstall script, so that no later
+# step puts a temporary file's type back on a file it renamed.
+imgutils::relabel_rootimg($rootimg_dir);
 
 # all the attributes have been gathered
 # now, update the linuximage and osimage tables

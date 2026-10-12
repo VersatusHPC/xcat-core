@@ -713,6 +713,11 @@ if ($postinstall_filename) {
 
 }
 
+# After every package install and every postinstall script, so that no later
+# step puts a temporary file's type back on a file it renamed. The call does
+# nothing unless both the management node and the image carry an SELinux policy.
+imgutils::relabel_rootimg($rootimg_dir);
+
 # Default to the first kernel found in the install image if nothing specified explicitly.
 # A more accurate guess than whatever the image build server happens to be running
 # If specified, that takes precedence.
@@ -2326,6 +2331,12 @@ sub mount_chroot {
     system("cd /dev;find .|cpio -H newc -o >$rootimage_dir/dev/dev.archive;cd -");
     system("cd $rootimage_dir/dev;cpio -idum<./dev.archive;rm -f ./dev.archive;cd -");
 
+    # The copy carries the device nodes but not their SELinux types, so the new
+    # /dev/null takes the type of the rootimg tree. A maintainer script that
+    # redirects to it is then denied against that type instead of
+    # null_device_t, which the base policy allows for every domain.
+    my $devnull = imgutils::chroot_devnull_command($rootimage_dir);
+    system($devnull) if ($devnull);
 
     if ($pkgdir) {
         if (-d $pkgdir) {

@@ -105,6 +105,71 @@ sub otherpkgs_repository_urls {
     return @repos;
 }
 
+sub selinux_policy_type {
+    my ($config_file) = @_;
+    $config_file = "/etc/selinux/config" unless defined($config_file);
+
+    my $fh;
+    return unless open($fh, "<", $config_file);
+    my $policy_type;
+    while (my $line = <$fh>) {
+        if ($line =~ /^\s*SELINUXTYPE\s*=\s*(\S+)/) {
+            $policy_type = $1;
+        }
+    }
+    close($fh);
+
+    return unless defined($policy_type) && $policy_type =~ /^[\w.-]+$/;
+    return $policy_type;
+}
+
+sub chroot_devnull_command {
+    my ($rootimg_dir, $selinux_enabled) = @_;
+    return if !defined($rootimg_dir) || !length($rootimg_dir) || $rootimg_dir eq "/";
+    $selinux_enabled = (-x "/usr/sbin/selinuxenabled" && system("/usr/sbin/selinuxenabled") == 0)
+      unless defined($selinux_enabled);
+
+    my $null = "$rootimg_dir/dev/null";
+
+    # An rpm scriptlet that redirects to /dev/null creates a regular file when
+    # the chroot has none, so the output lands on the disk of the management
+    # node. The base SELinux policy allows every domain to write
+    # null_device_t:chr_file and nothing else here, so the node needs both the
+    # device and the type: a node that keeps the type of the rootimg tree moves
+    # the denial to that type instead of ending it.
+    my @steps = ("[ -c $null ] || { rm -f $null; mknod -m 666 $null c 1 3; }");
+    push(@steps, "chcon -t null_device_t $null") if ($selinux_enabled);
+
+    # A bind-mounted /dev belongs to the management node. Leave it alone.
+    return "findmnt $rootimg_dir/dev >/dev/null 2>&1 || { " . join("; ", @steps) . "; }";
+}
+
+sub chroot_relabel_command {
+    my ($rootimg_dir, $policy_type) = @_;
+    return if !defined($rootimg_dir) || !length($rootimg_dir) || $rootimg_dir eq "/";
+    return if !defined($policy_type) || !length($policy_type);
+
+    # rpm labels an installroot from the file contexts of the management node
+    # with the root prefix stripped, so the rootimg already carries host-derived
+    # types. setfiles -r repairs the entries rpm did not create, and the entries
+    # a scriptlet left with the type of the temporary file it renamed.
+    my $contexts = "/etc/selinux/$policy_type/contexts/files/file_contexts";
+    return "setfiles -r $rootimg_dir -e $rootimg_dir/dev -e $rootimg_dir/proc"
+      . " -e $rootimg_dir/sys $contexts $rootimg_dir";
+}
+
+sub relabel_rootimg {
+    my ($rootimg_dir) = @_;
+
+    # Relabel only an image that carries a policy of its own. A rootimg without
+    # /etc/selinux/config never loads one, and its labels are never read.
+    return unless -e "$rootimg_dir/etc/selinux/config";
+    my $command = chroot_relabel_command($rootimg_dir, selinux_policy_type());
+    return unless $command;
+    system("$command >/dev/null 2>&1");
+    return;
+}
+
 sub disable_vendor_repositories {
     my ($rootimg_dir) = @_;
     my @internet_repo_file_list = ("oracle-linux-ol8.repo", "oracle-linux-ol9.repo", "oracle-linux-ol10.repo", "uek-ol8.repo", "uek-ol9.repo", "uek-ol10.repo", "Rocky-AppStream.repo", "Rocky-BaseOS.repo", "Rocky-Extras.repo", "rocky.repo", "rocky-extras.repo", "CentOS-Base.repo", "centos.repo", "centos-addons.repo", "almalinux-ha.repo", "almalinux-nfv.repo", "almalinux-plus.repo", "almalinux-powertools.repo", "almalinux.repo", "almalinux-resilientstorage.repo", "almalinux-rt.repo", "openEuler.repo");

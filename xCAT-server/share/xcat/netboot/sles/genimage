@@ -259,6 +259,14 @@ unless ($onlyinitrd) {
     unless (-e "$rootimg_dir/dev/null") {
         system "mknod -m 0666 $rootimg_dir/dev/null c 1 3"; #that's neccessary for SLES11+
     }
+
+        # mknod does not set an SELinux type, so the new node takes the type of
+        # the rootimg tree. A scriptlet that redirects to it is then denied
+        # against that type instead of null_device_t, which the base policy
+        # allows for every domain. The command also replaces a regular file an
+        # earlier run left here, which -e above accepts and a chroot cannot use.
+    my $devnull = imgutils::chroot_devnull_command($rootimg_dir);
+    system($devnull) if ($devnull);
     unless (-e "$rootimg_dir/dev/random") {
         system "mknod -m 0666 $rootimg_dir/dev/random c 1 8"; #that's neccessary for SLES11+
     }
@@ -801,6 +809,10 @@ EOS_UNAME
     system("mv $rootimg_dir/bin/orig_uname $rootimg_dir/bin/uname");
 
 }
+
+# After every package install and every postinstall script, so that no later
+# step puts a temporary file's type back on a file it renamed.
+imgutils::relabel_rootimg($rootimg_dir);
 
 system("rm -rf $rootimg_dir/etc/zypp/repos.d/*");
 

@@ -14,7 +14,7 @@ use XCAT::Test::File qw(repo_path);
 my $root = tempdir(CLEANUP => 1);
 local $ENV{XCATROOT} = repo_path('xCAT-server');
 local $ENV{XCATCFG} = "$root/cfg";
-make_path($ENV{XCATCFG}, "$root/xcat/sbin", "$root/xcat/lib/perl/xCAT_plugin", "$root/import");
+make_path($ENV{XCATCFG}, "$root/xcat/sbin", "$root/xcat/lib/perl/xCAT_plugin", "$root/import", "$root/install");
 require(repo_path('xCAT-server/lib/xcat/plugins/imgport.pm'));
 local $::XCATROOT = "$root/xcat";
 write_binary("$root/xcat/sbin/restartxcatd", "#!/bin/sh\nprintf 'restart' >> '$root/calls'\n" .
@@ -25,17 +25,20 @@ write_binary("$root/calls", '');
 {
     no warnings 'redefine';
     local *xCAT::TableUtils::getInstallDir = sub { "$root/install" };
+
+    # The import lock lives in /var/lock/xcat.
+    local *xCAT::Utils::acquire_lock = sub { return {} };
     for my $case ([first => 0], [second => 1], [third => 0]) {
         my ($kit, $has_plugin) = @$case;
         make_path("$root/import/$kit/plugins");
         write_binary("$root/import/$kit/plugins/example.pm", "plugin fixture\n") if $has_plugin;
         my $data = {
-            osimage => {osvers => 'test', osarch => 'x86_64', profile => 'compute', provmethod => 'install'},
+            osimage => {imagename => "restart-$kit", osvers => 'test', osarch => 'x86_64', profile => 'compute', provmethod => 'install'},
             linuximage => {}, kit => {$kit => {kitdir => "$root/kits/$kit"}},
         };
         my @messages;
         my ($out, $err, $result) = capture {
-            xCAT_plugin::imgport::make_files($data, "$root/import", sub { push @messages, $_[0] });
+            xCAT_plugin::imgport::place_image($data, "$root/import", sub { push @messages, $_[0] });
         };
         is($result, 1, "import succeeds (plugin=$has_plugin)") or diag "$out$err";
         ok(!grep({ $_->{error} } @messages), 'import reports no errors');

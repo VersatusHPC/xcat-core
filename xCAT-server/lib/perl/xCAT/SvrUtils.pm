@@ -2854,7 +2854,8 @@ sub _write_published_file {
 #        $target:        the published path
 #        $remove_others: true to remove the other rootimg.* files of the image directory
 #        $options:       a hash with expected, to publish only while the published rootimage has this
-#                        rootimg_identity, and keep, a directory for a copy of the files that this replaces
+#                        rootimg_identity, keep, a directory for a copy of the files that this replaces, and
+#                        keep_mode, to publish the staged files with their own mode
 #return:
 #        on success: nothing
 #        on fail:    the error message
@@ -2870,7 +2871,7 @@ sub publish_rootimg {
         return "Cannot publish $target: $refused";
     }
     my %state = (staged => $staged, target => $target, previous => dirname($staged) . '/previous',
-        sums => _read_published_file("$target.sha256"));
+        keep_mode => ($options || {})->{keep_mode}, sums => _read_published_file("$target.sha256"));
     my $error = _replace_rootimg(\%state);
     if (defined($error)) {
         my $restore_error = _restore_rootimg(\%state);
@@ -2960,7 +2961,7 @@ sub _replace_rootimg {
     return "$!" if -e $target && !_keep_copy($target, $previous);
 
     # A staged symlink, as one that imgimport kept, resolves where it is published, and keeps its mode.
-    my @plain = grep { !-l $_ } @files;
+    my @plain = $state->{keep_mode} ? () : grep { !-l $_ } @files;
     return "$!" if !-s _staged_file($staged, $target) || chmod(0644, @plain) != @plain;
     my $error = _replace_sums($state);
     return $error if $error;

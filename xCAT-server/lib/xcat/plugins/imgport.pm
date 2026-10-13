@@ -2605,7 +2605,8 @@ sub txn_republish {
         next if link("$dir/$file", "$stage/$file");
         system('cp', '-a', "$dir/$file", "$stage/$file") == 0 or return "Cannot stage $dir/$file for its publication";
     }
-    return xCAT::SvrUtils->publish_rootimg("$stage/$name", $fn, undef, { expected => $published });
+    # The staged files are links of the kept files, which keep their mode.
+    return xCAT::SvrUtils->publish_rootimg("$stage/$name", $fn, undef, { expected => $published, keep_mode => 1 });
 }
 
 # Returns a directory where publish_rootimg keeps the published root image at $fn with its checksum and

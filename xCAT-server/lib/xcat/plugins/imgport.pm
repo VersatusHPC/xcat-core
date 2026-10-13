@@ -1832,6 +1832,7 @@ my $TXN_CONFLICT = 'another change replaced it';
 
 # What the import reports for a database call without an answer, as when the DB worker of xcatd cannot reconnect.
 my $TXN_NO_ANSWER = 'the database did not answer';
+my $TXN_NO_COMMIT = 'the database did not answer the commit';
 
 # What SQLite, MySQL, PostgreSQL and DB2 report when an insert finds its key taken.
 my @TXN_DUPLICATE_KEY = ('UNIQUE constraint failed', 'Duplicate entry', 'duplicate key value', 'SQL0803N');
@@ -2389,34 +2390,33 @@ sub txn_guarded_write {
 # reports an error, can have changed the row too.
 sub txn_recorded_write {
     my ($txn, $table, $snapshot, $keys, $values) = @_;
-    txn_record_row($txn, $snapshot, $keys, $values);
+    my $record = txn_record_row($txn, $snapshot, $keys, $values);
     my ($refused, $unwritten) = txn_guarded_write($table, $snapshot, $keys, $values);
 
-    # A statement can apply although it reports an error, as with a trigger that fails after the change. The record
-    # goes when the error proves that nothing was written, or when the row does not hold what the import wrote.
-    pop @{ $txn->{undo} } if $refused && $refused ne $TXN_NO_ANSWER && ($unwritten || !txn_row_holds($table, $keys, $values));
+    # Only an error that proves that nothing was written drops the record. After another error or no answer,
+    # another request can hold the same values, and nothing tells its row from the one of the import.
+    if ($unwritten) {
+        pop @{ $txn->{undo} };
+    } elsif ($refused) {
+        $record->{unconfirmed} = 1;
+    }
     return $refused;
 }
 
-# Returns whether the row of $table that $keys select holds $values, or can hold them because it cannot be read.
-sub txn_row_holds {
-    my ($table, $keys, $values) = @_;
-    my ($row, $error) = txn_row($table, $keys);
-    return 1 if $error;
-    return $row && !grep { ($row->{$_} // '') ne ($values->{$_} // '') } keys %$values;
-}
-
 # Records that the import wrote $values to the row that $keys select, which held what $snapshot read, so that a
-# rollback puts the row back or removes it.
+# rollback puts the row back or removes it. Returns the record, which a write that the database does not confirm
+# marks as unconfirmed.
 sub txn_record_row {
     my ($txn, $snapshot, $keys, $values) = @_;
     my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
+    my $record = {};
+    push @{ $txn->{records} }, $record if $txn->{records};
     push @{ $txn->{undo} }, sub {
-        my $error = txn_restore_row($snapshot->{table}, $keys, $values, $row, $snapshot->{cols});
+        my $error = txn_restore_row($snapshot->{table}, $keys, $values, $row, $snapshot->{cols}, $record->{unconfirmed});
         push @{ $txn->{rows} }, $error if $error;
         return;
     };
-    return;
+    return $record;
 }
 
 # Writes the postscripts $values of the nodes @$good, and records their rows for a rollback. Returns 1 on success.
@@ -2424,7 +2424,7 @@ sub txn_record_row {
 sub txn_set_postscripts {
     my ($txn, $ptab, $good, $values, $callback) = @_;
     my ($snapshot, $error) = txn_snapshot('postscripts', [ map { { node => $_ } } @$good ]);
-    $error ||= txn_write($ptab, sub {
+    $error ||= txn_write($txn, $ptab, sub {
         foreach my $node (@$good) {
             my $refused = txn_recorded_write($txn, $ptab, $snapshot, { node => $node }, $values);
             return "$node: $refused" if $refused;
@@ -2441,25 +2441,31 @@ sub txn_set_postscripts {
 sub txn_set_row {
     my ($txn, $table, $tabname, $keys, $values) = @_;
     my ($snapshot, $error) = txn_snapshot($tabname, [$keys]);
-    $error ||= txn_write($table, sub { txn_recorded_write($txn, $table, $snapshot, $keys, $values) });
+    $error ||= txn_write($txn, $table, sub { txn_recorded_write($txn, $table, $snapshot, $keys, $values) });
     return $error ? "Cannot write the $tabname row " . join(',', map { "$_=$keys->{$_}" } sort keys %$keys) . ": $error" : undef;
 }
 
 # Runs the write $write to $table and commits it, also after a write that failed. Returns why it fails.
 sub txn_write {
-    my ($table, $write) = @_;
+    my ($txn, $table, $write) = @_;
     my $error;
+    local $txn->{records} = [];
     eval { $error = $write->(); 1 } or chomp($error = $@);
-    return txn_end_write($table, $error);
+    return txn_end_write($table, $error, $txn->{records});
 }
 
 # Commits the writes to $table after an $error or none, and returns the error. A failed statement changes nothing.
 # On SQLite, the writes of other requests join this transaction, so a rollback would undo them too, and the
 # rollback of the import undoes the rows that it recorded instead.
 sub txn_end_write {
-    my ($table, $error) = @_;
+    my ($table, $error, $records) = @_;
     my $refused = txn_commit_table($table);
     return $error if !$refused;
+
+    # A commit without an answer can have applied, so the database confirms none of the rows that it recorded.
+    if ($records && $refused eq $TXN_NO_COMMIT) {
+        $_->{unconfirmed} = 1 foreach @$records;
+    }
     return $error ? "$error; the database refuses the commit: $refused" : "the database refuses the commit: $refused";
 }
 
@@ -2468,7 +2474,7 @@ sub txn_commit_table {
     my ($table) = @_;
     my ($committed, $error);
     eval { ($committed, $error) = $table->commit; 1 } or chomp($error = $@);
-    return $committed ? undef : ($error || 'the database did not answer the commit');
+    return $committed ? undef : ($error || $TXN_NO_COMMIT);
 }
 
 # Returns the row of table $tab that $keys select, also a disabled one, which getAttribs hides, or (undef, error).
@@ -2515,16 +2521,32 @@ sub txn_condition {
     return [ "$delimited = ?", $value ];
 }
 
-# Puts back the row $old of table $tabname, and returns why it cannot, with the previous values.
+# Puts back the row $old of table $tabname, and returns why it cannot, with the previous values. After a write that
+# the database did not confirm, $unconfirmed is set, and the row stays.
 sub txn_restore_row {
-    my ($tabname, $keys, $values, $old, $cols) = @_;
+    my ($tabname, $keys, $values, $old, $cols, $unconfirmed) = @_;
     my $what = "the $tabname row " . join(',', map { "$_=$keys->{$_}" } sort keys %$keys);
     my $previous = $old ? join(',', map { "$_=$old->{$_}" } grep { defined($old->{$_}) } @$cols) : 'none';
     my $error;
 
     # The database can throw, and the rollback must still put back the files.
-    eval { $error = txn_write_row($tabname, $keys, $values, $old, $cols); 1 } or chomp($error = $@);
+    eval {
+        $error = $unconfirmed ? txn_unconfirmed_row($tabname, $keys, $values, $old) : txn_write_row($tabname, $keys, $values, $old, $cols);
+        1;
+    } or chomp($error = $@);
     return $error ? "Cannot put back $what, which was $previous: $error" : undef;
+}
+
+# Returns why the rollback leaves the row of table $tabname that $keys select after an unconfirmed write. Only a row
+# that still holds $old in the columns of $values, or no row when there was none, shows that the write did not apply.
+sub txn_unconfirmed_row {
+    my ($tabname, $keys, $values, $old) = @_;
+    my $table = xCAT::Table->new($tabname, -create => 1) or return "unable to open table '$tabname'";
+    my ($row, $error) = txn_row($table, $keys);
+    return $error if $error;
+    my @written = grep { !exists $keys->{$_} } keys %$values;
+    return if $old ? $row && !grep { ($row->{$_} // '') ne ($old->{$_} // '') } @written : !$row;
+    return 'the database did not confirm the write of the import, so the row can hold the change of another request';
 }
 
 # Puts back the row $old of table $tabname in one database transaction. Another writer can change a shared

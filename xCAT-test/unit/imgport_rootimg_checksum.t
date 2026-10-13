@@ -1027,6 +1027,69 @@ SKIP: {
     rmtree($kept) if $kept;
 }
 
+for my $change (qw(mode group acl)) {
+    # The import gives an existing extra directory the attributes of the bundle, and the administrator then changes
+    # them before a later step fails.
+    my ($egid, @groups) = split(' ', $));
+    my ($other) = grep { $_ != $egid } @groups;
+    $other //= 65534 if $> == 0;
+    my %apply = (
+        mode  => sub { chmod(0700, $_[0]) },
+        group => sub { defined($other) && chown(-1, $other, $_[0]) },
+        acl   => sub { system('setfacl', '-m', 'u:nobody:---', $_[0]) == 0 },
+    );
+    my ($changed, $state);
+    my $attributes = sub { join('|', (stat($_[0]))[ 2, 5 ], scalar(`getfacl -cp '$_[0]' 2>/dev/null`)) };
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        my $shared = "$data->{extra}{dest}/shared";
+        $changed = $apply{$change}->($shared);
+        $state   = $attributes->($shared);
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra/conf/shared", "$dest/extra/shared");
+        write_text("$bundle/extra/conf/shared/new.conf", "file of the bundle\n");
+        chmod(0750, "$bundle/extra/conf/shared") or die $!;
+        chmod(0755, "$dest/extra/shared") or die $!;
+    }, extra => 'conf', nodes => 'n1');
+  SKIP: {
+        skip "the test cannot change the $change of a directory here", 3 if !$changed;
+        ok(!$placed, "$change: an import fails after the administrator changed an extra directory that it merged into");
+        like($errors, qr/Cannot put back the attributes of \Q$dest\E\/extra\/shared: another change replaced them/,
+            "$change: the rollback reports the change of the administrator");
+        is($attributes->("$dest/extra/shared"), $state, "$change: the directory keeps the change of the administrator");
+    }
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
+    # The extraction gives an existing directory of a statelite tree the mode of the archive, and the administrator
+    # then changes it before a later step fails.
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        chmod(0700, dirname($data->{rootimgtree}) . '/etc') or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$dest/rootimg/etc", "$bundle/tree/etc");
+        chmod(0755, "$dest/rootimg/etc") or die $!;
+        chmod(0750, "$bundle/tree/etc") or die $!;
+        system("cd '$bundle/tree' && find . | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz', nodes => 'n1');
+    ok(!$placed, 'an import fails after the administrator changed a directory of the statelite tree');
+    like($errors, qr/Cannot put back the mode and owner of \Q$dest\E\/rootimg\/etc: another change replaced them/,
+        'the rollback reports the change of the administrator to the directory of the tree');
+    is((stat("$dest/rootimg/etc"))[2] & 07777, 0700, 'the directory of the tree keeps the mode that the administrator gave it');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 {
     # Another writer changes a file that the import installed in place, with the same size and time.
     no warnings 'redefine';

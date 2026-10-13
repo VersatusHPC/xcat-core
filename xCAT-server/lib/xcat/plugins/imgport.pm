@@ -2374,11 +2374,14 @@ sub txn_snapshot {
     my $tab = xCAT::Table->new($tabname, -create => 1) or return (undef, "Unable to open table '$tabname'");
     my @cols = grep { !exists $keylist->[0]{$_} } @{ xCAT::Table->getTableSchema($tabname)->{cols} };
 
-    # A read that fails must not look like a missing row, which a rollback would remove.
-    my ($all, $failed) = $tab->getEntriesWhere(@$keylist == 1 ? txn_where(txn_key_conditions($keylist->[0])) : ());
-    return (undef, "Cannot read the $tabname table: " . ($failed || 'the database did not answer')) if !$all;
+    # The database decides which row a key selects, also when its collation ignores case. A read that fails must not
+    # look like a missing row, which a rollback would remove.
     my %rows;
-    $rows{ txn_key_string($_, $keylist->[0]) } //= $_ foreach @$all;
+    foreach my $keys (@$keylist) {
+        my ($found, $failed) = $tab->getEntriesWhere(txn_where(txn_key_conditions($keys)));
+        return (undef, "Cannot read the $tabname table: " . ($failed || 'the database did not answer')) if !$found;
+        $rows{ txn_key_string($keys, $keys) } = $found->[0] if @$found;
+    }
     return ({ table => $tabname, cols => \@cols, rows => \%rows });
 }
 
@@ -2582,7 +2585,9 @@ sub txn_unconfirmed_row {
 sub txn_write_row {
     my ($tabname, $keys, $values, $old, $cols) = @_;
     my $table = xCAT::Table->new($tabname, -create => 1, -autocommit => 0) or return "unable to open table '$tabname'";
-    my @written = grep { !exists $keys->{$_} } keys %$values;
+
+    # A key that the database matches without regard to case can change its spelling, which comes back too.
+    my @written = grep { !exists $keys->{$_} || ($old && ($old->{$_} // '') ne ($values->{$_} // '')) } keys %$values;
     my @where = (txn_key_conditions($keys), map { txn_value_condition($_, $values->{$_}) } sort @written);
     my $error;
     eval {

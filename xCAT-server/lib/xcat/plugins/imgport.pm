@@ -2591,11 +2591,13 @@ sub place_image {
         return 0;
     }
 
-    # genimage, packimage, liteimg and rmimage hold this lock while they change the image. It needs the image
-    # directory, which a rollback removes when the import created it.
+    # genimage, packimage, liteimg and rmimage hold this lock while they change the image, also a statelite one,
+    # whose bundle has a rootimgtree instead of a rootimg. It needs the image directory, which a rollback removes
+    # when the import created it.
+    my ($imagefile) = grep { $_ } map { (split(',', $data->{$_} // ''))[0] } qw(rootimg rootimgtree kernel ramdisk);
     my $lock;
-    if ($data->{rootimg}) {
-        my $rootimgdir = dirname((split(',', $data->{rootimg}))[0]);
+    if ($imagefile) {
+        my $rootimgdir = dirname($imagefile);
         $error = txn_mkpath($txn, $rootimgdir);
         (my $retcode, $lock) = $error ? (1, $error) : xCAT::Utils->acquire_lock_imageop("$rootimgdir/rootimg");
         if ($retcode) {

@@ -2360,14 +2360,14 @@ sub txn_key_string {
 
 # Writes $values to the row that $keys select only while it holds what $snapshot read, or inserts the row when
 # $snapshot read none. Another request can change the row in between, and its change must stay. Returns the error,
-# and whether it proves that nothing was written.
+# and whether nothing was written, which an error or a write without values can prove.
 sub txn_guarded_write {
     my ($table, $snapshot, $keys, $values) = @_;
     my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
     if (!$row) {
 
         # As setAttribs, a row is written when one of $values is set, also the value of a key.
-        return if !grep { defined($values->{$_}) && $values->{$_} ne '' } keys %$values;
+        return (undef, 1) if !grep { defined($values->{$_}) && $values->{$_} ne '' } keys %$values;
         my ($inserted, $error) = $table->insertEntry({ %$keys, %$values });
         return if $inserted;
 
@@ -2376,6 +2376,7 @@ sub txn_guarded_write {
         return ('another request created the row during the import', 1) if grep { index($error, $_) >= 0 } @TXN_DUPLICATE_KEY;
         return $error;
     }
+    return (undef, 1) if !%$values;
     my @held = map { defined($row->{$_}) ? txn_value_condition($_, $row->{$_}) : txn_empty_condition($_) } @{ $snapshot->{cols} };
     my ($clause, @bind) = txn_where(txn_key_conditions($keys), @held);
     my ($updated, $error) = $table->setAttribsWhere($clause, $values, @bind);
@@ -2391,7 +2392,7 @@ sub txn_recorded_write {
     my $record = txn_record_row($txn, $snapshot, $keys, $values);
     my ($refused, $unwritten) = txn_guarded_write($table, $snapshot, $keys, $values);
 
-    # Only an error that proves that nothing was written drops the record. After another error, no answer or an
+    # Only a result that proves that nothing was written drops the record. After another error, no answer or an
     # exception, another request can hold the same values, and nothing tells its row from the one of the import.
     pop @{ $txn->{undo} } if $unwritten;
     delete $record->{unconfirmed} if !$refused;

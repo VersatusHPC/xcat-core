@@ -768,6 +768,51 @@ for my $kind (qw(symlink file)) {
     is((stat("$dest/rootimg/run/target"))[2] & 07777, 0750, 'the rollback leaves the target of the symlink as it was');
 }
 
+for my $writer (0, 1) {
+    # The archive turns a file of the tree into a directory with an entry, and the import then fails. Another
+    # writer can add a file to that directory first.
+    my $foreign;
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        write_text($foreign, "file of another writer\n") if $writer;
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        $foreign = "$dest/rootimg/etc/motd/another";
+        make_path("$dest/rootimg/etc", "$bundle/tree/etc/motd");
+        write_text("$dest/rootimg/etc/motd", "file of the image\n");
+        write_text("$bundle/tree/etc/motd/entry", "entry of the bundle\n");
+        system("cd '$bundle/tree' && find . | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz', nodes => 'n1');
+    my $motd = "$dest/rootimg/etc/motd";
+    ok(!$placed, 'a statelite import that turns a file into a directory fails on a later step');
+    ok(!-e "$motd/entry", 'the rollback removes the entry of the bundle');
+    if (!$writer) {
+        unlike($errors, qr/cannot put back/i, 'the rollback puts back the file that became a directory');
+        is(-f $motd ? read_binary($motd) : undef, "file of the image\n", 'the file comes back in place of the directory');
+        next;
+    }
+    like($errors, qr{Cannot put back \Q$motd\E: }, 'the rollback reports the directory that has a file of another writer');
+    is(-e $foreign ? read_binary($foreign) : undef, "file of another writer\n", 'the file of the other writer stays');
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    ok($files && grep({ -f $_ && read_binary($_) eq "file of the image\n" } glob("$files/*")), 'the replaced file stays kept');
+    rmtree($files) if $files;
+}
+
+{
+    # The archive lists the entries of a new directory before the directory, as find -depth does.
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$dest/rootimg", "$bundle/tree/opt/new/sub");
+        write_text("$bundle/tree/opt/new/sub/file", "entry of the bundle\n");
+        system("cd '$bundle/tree' && find . -depth | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz', nodes => 'undefined-node');
+    ok(!$placed, 'a statelite import of a tree that lists entries before their directory fails on a later step');
+    unlike($errors, qr/cannot (?:put back|remove)/i, 'the rollback removes the entries before their directory');
+    ok(!-e "$dest/rootimg/opt", 'the rollback removes the directories that the import made');
+}
+
 {
     # A bundle with a kit takes the lock of the kit commands, which write the same kit files and postscripts.
     import_image('rootimg.cpio.gz', undef, kit => 'lockkit');

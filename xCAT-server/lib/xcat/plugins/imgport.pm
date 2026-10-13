@@ -1998,6 +1998,8 @@ sub txn_mkpath {
     return if -d $dir;
     my @created = ($dir);
     unshift @created, dirname($created[0]) while !-d dirname($created[0]);
+    my ($file) = grep { -e $_ || -l $_ } @created;
+    return "Cannot create $dir: $file is not a directory" if $file;
     txn_keep($txn, $_) foreach @created;
     mkpath($dir, { verbose => 1, mode => 0755, error => \my $errors });
     return -d $dir ? undef : "Cannot create $dir";
@@ -3079,6 +3081,10 @@ sub moveExtra {
         #print "This is a file\n";
         # this extra file is a file and we can just copy to the destination.
         $callback->({ data => ["$dest/$f"] });
+        if (my $error = txn_mkpath($txn, $dest)) {
+            $callback->({ error => ["Failed to copy $imgdir/extra/$f to $dest: $error"], errorcode => 1 });
+            return 0;
+        }
         if (-r "$dest/$f") {
             $callback->({ data => ["  Moving old $dest/$f to $dest/$f.ORIG."] });
             if (txn_move($txn, "$dest/$f", "$dest/$f.ORIG")) {
@@ -3086,9 +3092,7 @@ sub moveExtra {
                 return 0;
             }
         }
-
-        # cp copies into $dest when it is a directory, and over $dest otherwise.
-        if (my $error = txn_copy($txn, "$imgdir/extra/$f", -d $dest ? "$dest/$f" : $dest)) {
+        if (my $error = txn_copy($txn, "$imgdir/extra/$f", "$dest/$f")) {
             $callback->({ error => ["Failed to copy $imgdir/extra/$f to $dest: $error"], errorcode => 1 });
             return 0;
         }

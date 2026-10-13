@@ -500,6 +500,8 @@ sub handle_dbc_request {
         return $opentables{$tablename}->{$autocommit}->setAttribs(@args);
     } elsif ($functionname eq 'setAttribsWhere') {
         return $opentables{$tablename}->{$autocommit}->setAttribsWhere(@args);
+    } elsif ($functionname eq 'insertEntry') {
+        return $opentables{$tablename}->{$autocommit}->insertEntry(@args);
     } elsif ($functionname eq 'delEntries') {
         return $opentables{$tablename}->{$autocommit}->delEntries(@args);
     } elsif ($functionname eq 'delEntriesWhere') {
@@ -3800,6 +3802,62 @@ sub delEntries
         @pieces = splice(@all_keyparis, 0, $record_num);
     }
     $self->trace_db(END_TYPE);
+}
+
+#--------------------------------------------------------------------------
+
+=head3 insertEntry
+
+    Description:
+       Insert a row in one statement. Unlike setAttribs, it never changes a row that exists: the database
+       refuses a row whose keys another row holds, so a caller can create a row only while it is missing.
+
+    Arguments:
+         Hash reference of the column values of the row, keys included
+    Returns:
+         1, or (undef, error message)
+    Example:
+       my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+       my ($inserted, $error) = $tab->insertEntry({ kitname => 'mykit', description => 'my kit' });
+       $tab->commit;
+
+=cut
+
+#--------------------------------------------------------------------------------
+sub insertEntry
+{
+    my ($self, $row) = @_;
+    if ($dbworkerpid > 0) {
+        return dbc_call($self, 'insertEntry', $row);
+    }
+    $self->trace_db(START_TYPE);
+    if (not $self->{intransaction} and not $self->{autocommit} and $self->{realautocommit}) {
+
+        #search this code for the other if statement just like it for an explanation of why I do this
+        $self->{intransaction} = 1;
+        $self->{dbh}->{AutoCommit} = 0;
+    }
+    my @cols = sort keys %$row;
+    my $cmd = "INSERT INTO " . $self->{tabname} . " (" . join(',', map { &delimitcol($_) } @cols) . ") VALUES ("
+      . join(',', ('?') x @cols) . ")";
+    $self->trace_db(START_SQL_TYPE, $cmd);
+    my $sth = $self->{dbh}->prepare($cmd);
+    my $inserted = $sth ? $sth->execute(map { $row->{$_} } @cols) : undef;
+    $self->trace_db(END_SQL_TYPE);
+    if (not defined($inserted))
+    {
+        my $error = $sth ? $sth->errstr : $self->{dbh}->errstr;
+        $self->trace_db(END_TYPE, "LINE " . __LINE__ . ": " . $error);
+        return (undef, $error);
+    }
+    $sth->finish;
+    $self->_refresh_cache();    #cache is invalid, refresh
+    if (xCAT::NotifHandler->needToNotify($self->{tabname}, 'a') == 1)
+    {
+        xCAT::NotifHandler->notify("a", $self->{tabname}, [], {%$row});
+    }
+    $self->trace_db(END_TYPE);
+    return 1;
 }
 
 #--------------------------------------------------------------------------

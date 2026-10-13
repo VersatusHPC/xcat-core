@@ -1996,7 +1996,7 @@ sub txn_keep {
     return txn_created($txn, $path) if !-e $path && !-l $path;
     my $recorded = $txn->{installed}{$path};
     my $saved    = txn_kept_dir($txn, $path) . '/' . ++$txn->{count};
-    my $kept = $remove ? rename($path, $saved) : (!-d $path && link($path, $saved));
+    my $kept = $remove ? rename($path, $saved) : ((!-d $path || -l $path) && link($path, $saved));
     if (!$kept) {
         system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in " . dirname($saved);
         rmtree($path) if $remove;
@@ -2223,7 +2223,7 @@ sub txn_copy_tree {
     find({ no_chdir => 1, wanted => sub {
         return if $_ eq $to;
         txn_created($txn, $_);
-        txn_installed($txn, $_) if !-d $_;
+        txn_installed($txn, $_) if !-d $_ || -l $_;
     } }, $to) if -d $to;
     return $copied ? $linked : "Cannot copy $from to $to";
 }

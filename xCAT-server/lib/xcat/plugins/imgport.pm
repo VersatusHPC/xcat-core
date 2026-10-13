@@ -1830,6 +1830,9 @@ sub verify_manifest {
 # What a rollback reports for a row that another writer changed.
 my $TXN_CONFLICT = 'another change replaced it';
 
+# The record of an entry that does not hold what the import wrote, which no identity matches.
+my $TXN_FOREIGN = 'written by another writer';
+
 # What the import reports for a database call without an answer, as when the DB worker of xcatd cannot reconnect.
 my $TXN_NO_ANSWER = 'the database did not answer';
 
@@ -1951,6 +1954,72 @@ sub txn_attributes {
     }
     $_ = Digest::MD5::md5_hex($_) foreach values %attributes;
     return \%attributes;
+}
+
+# Describes the data of the entry $path: the digest of a file, or the target of a symlink.
+sub txn_data {
+    my ($path) = @_;
+    return 'symlink:' . (readlink($path) // '') if -l $path;
+    return 'missing' if !-e _;
+    return 'other'   if !-f _;
+    open(my $file, '<:raw', $path) or return 'unreadable';
+    my $digest = Digest::MD5->new;
+    my $read = eval { $digest->addfile($file); 1 };
+    close($file);
+    return $read ? $digest->hexdigest : 'unreadable';
+}
+
+# Another writer can replace $path after the import wrote it, and before its record. Unless $path holds the data
+# $expected that the import wrote, its record makes a rollback report it and keep it.
+sub txn_expect {
+    my ($txn, $path, $expected) = @_;
+    $txn->{installed}{$path} = $TXN_FOREIGN if defined($expected) && txn_data($path) ne $expected;
+    return;
+}
+
+# Returns the data of each file and symlink in the gzip cpio archive $archive, keyed by member, as txn_data
+# describes it, or undef when it cannot read the archive. In the newc format, the last link of a file holds its
+# data.
+sub txn_archive_data {
+    my ($archive) = @_;
+    open(my $in, '-|', 'zcat', $archive) or return;
+    binmode($in);
+    my (%data, %links);
+    while (read($in, my $header, 110) == 110) {
+        my ($magic, @field) = unpack('a6 (a8)13', $header);
+        last if $magic !~ /\A07070[12]\z/x;
+        my ($inode, $mode, $nlink, $size, $major, $minor, $namesize) = map { hex($_) } @field[ 0, 1, 4, 6, 7, 8, 11 ];
+        read($in, my $name, $namesize + (-(110 + $namesize) % 4)) or return;
+        $name = substr($name, 0, $namesize - 1);
+        last if $name eq 'TRAILER!!!';
+        $name =~ s{\A\./}{}x;
+        my ($digest, $target, $left) = (Digest::MD5->new, '', $size);
+        while ($left > 0) {
+            my $got = read($in, my $chunk, $left > 65536 ? 65536 : $left) or return;
+            $left -= $got;
+            if (Fcntl::S_ISLNK($mode)) {
+                $target .= $chunk;
+            } else {
+                $digest->add($chunk);
+            }
+        }
+        read($in, my $padding, -$size % 4) if $size % 4;
+        if (Fcntl::S_ISLNK($mode)) {
+            $data{$name} = "symlink:$target";
+        } elsif (Fcntl::S_ISREG($mode)) {
+            my $key = "$major:$minor:$inode";
+            push @{ $links{$key} }, $name;
+            next if $nlink > 1 && !$size;
+            my $hex = $digest->hexdigest;
+            $data{$_} = $hex foreach @{ delete $links{$key} };
+        }
+    }
+    close($in) or return;
+
+    # Hard links of an empty file hold no data.
+    my $empty = Digest::MD5::md5_hex('');
+    $data{$_} = $empty foreach map { @$_ } values %links;
+    return \%data;
 }
 
 # Records what the import put at $path, with its attributes from txn_attributes when they are at hand.
@@ -2081,6 +2150,11 @@ sub txn_move {
     my $error = txn_keep($txn, $to, 1);
     return $error if $error;
     my $recorded = $txn->{installed}{$to};
+
+    # A rename keeps the inode, and a move to another file system copies the data.
+    my @source = lstat($from);
+    my $across = @source && ((stat(dirname($to)))[0] // -1) != $source[0];
+    my $data = $across ? txn_data($from) : undef;
     if (!move($from, $to)) {
         $error = "Cannot move $from to $to: $!";
 
@@ -2099,6 +2173,12 @@ sub txn_move {
         return;
     };
     txn_installed($txn, $to);
+    my @moved = lstat($to);
+    if ($across) {
+        txn_expect($txn, $to, $data);
+    } elsif (!@moved || "$moved[0]:$moved[1]" ne "$source[0]:$source[1]") {
+        $txn->{installed}{$to} = $TXN_FOREIGN;
+    }
     return;
 }
 
@@ -2137,6 +2217,7 @@ sub txn_copy {
     # A copy can fail after it wrote part of $to, which a rollback puts back too.
     $error = txn_copy_file($txn, $from, $to, $option);
     txn_installed($txn, $to);
+    txn_expect($txn, $to, txn_data($from)) if !$error;
     return $error;
 }
 
@@ -2223,7 +2304,9 @@ sub txn_copy_tree {
     find({ no_chdir => 1, wanted => sub {
         return if $_ eq $to;
         txn_created($txn, $_);
-        txn_installed($txn, $_) if !-d $_ || -l $_;
+        return if -d $_ && !-l $_;
+        txn_installed($txn, $_);
+        txn_expect($txn, $_, txn_data($from . substr($_, length($to)))) if $copied;
     } }, $to) if -d $to;
     return $copied ? $linked : "Cannot copy $from to $to";
 }
@@ -2430,10 +2513,12 @@ sub txn_extract {
     # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
     # identity, also after an extraction that failed partway.
     my $attributes = txn_attributes(0, grep { !-d $_ || -l $_ } map { "$dir/$_" } grep { $_ ne '.' } @members);
+    my $expected = $extracted ? txn_archive_data($archive) : undef;
     foreach my $member (grep { $_ ne '.' } @members) {
         my $path = "$dir/$member";
         if (!-d $path || -l $path) {
             txn_installed($txn, $path, $attributes);
+            txn_expect($txn, $path, $expected->{$member}) if $expected;
         } elsif (!$existing{$member}) {
             txn_record($txn, $path, undef);
         }
@@ -3208,8 +3293,16 @@ sub place_rootimg {
         $callback->({ data => ["  Keeping old $fn as $fn.ORIG."] });
         $error = txn_keep($txn, "$fn.ORIG", 1);
         return $error if $error;
-        link($fn, "$fn.ORIG") or copy($fn, "$fn.ORIG");
+        my @previous = lstat($fn);
+        my $linked = link($fn, "$fn.ORIG");
+        copy($fn, "$fn.ORIG") if !$linked;
         txn_installed($txn, "$fn.ORIG");
+        my @kept = lstat("$fn.ORIG");
+        if (!$linked) {
+            txn_expect($txn, "$fn.ORIG", txn_data($fn));
+        } elsif (!@kept || "$kept[0]:$kept[1]" ne "$previous[0]:$previous[1]") {
+            $txn->{installed}{"$fn.ORIG"} = $TXN_FOREIGN;
+        }
     }
 
     # The rename keeps the inode, so the staged image identifies what this import publishes.

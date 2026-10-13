@@ -774,6 +774,20 @@ for my $held (0, 1) {
 }
 
 {
+    # The published files have modes that keep them from other users, and the import then fails.
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {
+        my ($dest) = @_;
+        chmod(0640, "$dest/rootimg.cpio.gz") or die $!;
+        chmod(0600, "$dest/rootimg.cpio.gz.sha256", "$dest/rootimg.cpio.gz.metainfo") or die $!;
+    }, nodes => 'undefined-node');
+    ok(!$placed, 'an import over published files with restrictive modes fails on a later step');
+    is(read_binary($archive), $published, 'the rollback publishes the previous archive again');
+    is((stat($archive))[2] & 07777, 0640, 'the previous archive keeps its own mode');
+    is((stat("$archive.sha256"))[2] & 07777, 0600, 'the previous checksum file keeps its own mode');
+    is((stat("$archive.metainfo"))[2] & 07777, 0600, 'the previous metainfo keeps its own mode');
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

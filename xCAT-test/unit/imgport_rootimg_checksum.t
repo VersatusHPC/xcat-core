@@ -1969,6 +1969,35 @@ for my $nodes (undef, 'undefined-node') {
 }
 
 {
+    # Another writer adds a file to the kit right after the import installed and recorded it, and the import then
+    # fails.
+    my $added;
+    no warnings 'redefine';
+    my $installed = \&xCAT_plugin::imgport::txn_installed;
+    local *xCAT_plugin::imgport::txn_installed = sub {
+        my (undef, $path) = @_;
+        my @result = $installed->(@_);
+        if (!$added && $path =~ m{/kits/scriptkit\z}x) {
+            $added = "$path/added-by-the-administrator";
+            write_text($added, "file of another writer\n");
+        }
+        return @result;
+    };
+    make_path("$fixture/install/postscripts");
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/scriptkit/other_files");
+        write_text("$bundle/scriptkit/other_files/kit-script", "postscript of the kit\n");
+    }, kit => 'scriptkit', kitdir => 'DEST/kits/scriptkit', nodes => 'undefined-node');
+    ok($added, 'another writer adds a file to the kit right after the import recorded it');
+    ok(!$placed, 'an import fails after another writer changed the kit that it installed');
+    like($errors, qr/Cannot put back \Q$dest\E\/kits\/scriptkit: another change replaced it/, 'the rollback reports the changed kit');
+    is(-e $added ? read_binary($added) : undef, "file of another writer\n", 'the file of the other writer stays in the kit');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
     # The bundled kit has a postscript that is not executable, and the import fails after it installed the kit.
     make_path("$fixture/install/postscripts");
     my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {

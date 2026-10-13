@@ -2874,7 +2874,7 @@ sub make_files {
         }
 
         #get current litefile table entries
-        my @entries = $lftab->getAllAttribsWhere("\"image\" = 'ALL'", 'file', 'options');
+        my @entries = $lftab->getAllAttribsWhere(xCAT::Table::delimitcol('image') . " = 'ALL'", 'file', 'options');
 
         #get the entries for image
         unless (open(FILE, "$fn")) {

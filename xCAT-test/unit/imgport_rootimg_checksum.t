@@ -869,6 +869,44 @@ for my $existing (0, 1) {
     rmtree($files) if $files;
 }
 
+for my $previous (1, 0) {
+    # The administrator gives the image that the import published an ACL entry that keeps its mode, before a later
+    # step fails. The rollback publishes the previous image again, or removes the first image of the directory.
+    my ($acl, $fn);
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        $fn  = $data->{rootimg};
+        $acl = CORE::system('setfacl', '-m', 'u:nobody:---', $fn) == 0 ? `getfacl -cp '$fn'` : undef;
+        return 0;
+    };
+    my @errors;
+    if ($previous) {
+        my ($placed, $errors) = import_image('rootimg.cpio.gz', undef, nodes => 'n1');
+        push @errors, $errors;
+    } else {
+        my $bundle = "$fixture/bundle-aclfirst";
+        make_path($bundle);
+        write_text("$bundle/rootimg.cpio.gz", $imported);
+        my $data = {
+            rootimg => "$fixture/install/netboot/aclfirst/x86_64/compute/rootimg.cpio.gz",
+            osimage => { imagename => 'aclfirst', osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+        };
+        xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, 'n1');
+    }
+    my $errors = join("\n", @errors);
+    my $label  = $previous ? 'over a published image' : 'of a first image';
+  SKIP: {
+        skip 'setfacl cannot set an ACL here', 3 if !defined $acl;
+        my $refusal = $previous ? 'Cannot publish' : 'Cannot remove';
+        like($errors, qr/\Q$refusal $fn\E: another change replaced its mode, owner or attributes/, "$label, the rollback reports the ACL change");
+        is(`getfacl -cp '$fn'`, $acl, "$label, the published image keeps the ACL that the administrator gave it");
+        is(-e $fn ? read_binary($fn) : undef, $imported, "$label, the image that the import published stays");
+    }
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    rmtree($files) if $files;
+}
+
 {
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';

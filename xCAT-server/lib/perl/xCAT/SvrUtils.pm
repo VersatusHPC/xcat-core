@@ -2914,7 +2914,8 @@ sub rootimg_identity {
 #arguments:
 #        $target:   the published path
 #        $expected: remove only while the published rootimage has this rootimg_identity
-#        $check:    code that tells under the publication lock why not to remove it, or nothing
+#        $check:    code that tells under the publication lock why not to remove the archive at the path that it
+#                   gets, or nothing
 #        $kept:     a directory where publish_rootimg kept a checksum and metainfo without an archive, which come
 #                   back, or nothing
 #return:
@@ -2925,19 +2926,39 @@ sub withdraw_rootimg {
     my ($class, $target, $expected, $check, $kept) = @_;
     my ($lock, $error) = _acquire_publish_lock(dirname($target));
     return $error unless $lock;
+    # The archive moves away under its own name before its check, so that no other writer changes it in between.
+    my $away  = eval { File::Temp::tempdir('.rootimg-withdraw-XXXXXXXX', DIR => dirname($target)) };
+    my $taken = $away ? "$away/" . basename($target) : undef;
     if ($class->rootimg_identity($target) ne $expected) {
         $error = "Cannot remove $target: another publication replaced it";
-    } elsif (my $refused = $check ? $check->() : undef) {
+    } elsif (!$taken || !rename($target, $taken)) {
+        $error = "Cannot remove $target: " . ($taken ? $! : $@);
+    } elsif ($class->rootimg_identity($taken) ne $expected) {
+        $error = "Cannot remove $target: another publication replaced it";
+    } elsif (my $refused = $check ? $check->($taken) : undef) {
         $error = "Cannot remove $target: $refused";
+    } elsif (!unlink($taken)) {
+        $error = "Cannot remove $target: $!";
+    } elsif (-e $target || -l $target) {
+        $error = "Cannot remove $target: another change put an archive there";
     } else {
         # The checksum and metainfo go only after the archive, so that nodes can still check an archive that stays.
-        my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } $target;
-        @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ("$target.sha256", "$target.metainfo") if !@remaining;
+        my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ("$target.sha256", "$target.metainfo");
         $error = "Cannot remove @remaining: $!" if @remaining;
         my $name = $kept ? "$kept/" . basename($target) : undef;
         my @back = $error || !$name ? () : grep { (-e "$name.$_" || -l "$name.$_") && !rename("$name.$_", "$target.$_") } qw(sha256 metainfo);
         $error = "Cannot put back " . join(' and ', map { "$target.$_" } @back) . ": $!" if @back;
     }
+
+    # An archive that stays goes back, but never over another one.
+    if ($taken && (-e $taken || -l $taken)) {
+        if (!link($taken, $target)) {
+            $error .= ". It stays in $taken";
+        } elsif (!unlink($taken)) {
+            $error .= ". A link of it stays in $taken";
+        }
+    }
+    rmdir($away) if $away;
     _release_publish_lock($lock);
     return $error;
 }

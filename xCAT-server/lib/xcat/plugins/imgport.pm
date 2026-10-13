@@ -3011,8 +3011,10 @@ sub txn_keep_rootimg {
 
         # The mode, owner, ACLs and attributes that an administrator gives the published image meanwhile stay.
         my $check = sub {
-            return 'another change replaced its mode, owner or attributes' if txn_published_identity($fn) ne $txn->{published_attributes}{$fn};
-            my $sum = eval { Digest::SHA->new(256)->addfile($fn)->hexdigest } // '';
+            my ($image) = @_;
+            $image //= $fn;
+            return 'another change replaced its mode, owner or attributes' if txn_published_identity($image) ne $txn->{published_attributes}{$fn};
+            my $sum = eval { Digest::SHA->new(256)->addfile($image)->hexdigest } // '';
             return $sum eq $txn->{published_content}{$fn} ? undef : 'another change replaced its content';
         };
         if (defined($published)) {

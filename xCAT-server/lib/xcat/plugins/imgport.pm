@@ -3408,9 +3408,15 @@ sub place_rootimg {
         copy($fn, "$fn.ORIG") if !$linked;
         txn_installed($txn, "$fn.ORIG");
         my @kept = lstat("$fn.ORIG");
-        if (!$linked) {
-            txn_expect($txn, "$fn.ORIG", txn_data($fn));
-        } elsif (!@kept || "$kept[0]:$kept[1]" ne "$previous[0]:$previous[1]") {
+        if (!@kept) {
+
+            # Neither the link nor the copy made a file, so a rollback leaves what another writer puts there.
+            $txn->{installed}{"$fn.ORIG"} = '';
+        } elsif (!$linked) {
+
+            # A copy that fails leaves the start of the image.
+            $txn->{installed}{"$fn.ORIG"} = $TXN_FOREIGN if !txn_starts("$fn.ORIG", $fn);
+        } elsif ("$kept[0]:$kept[1]" ne "$previous[0]:$previous[1]") {
             $txn->{installed}{"$fn.ORIG"} = $TXN_FOREIGN;
         }
     }

@@ -500,6 +500,8 @@ sub handle_dbc_request {
         return $opentables{$tablename}->{$autocommit}->setAttribsWhere(@args);
     } elsif ($functionname eq 'delEntries') {
         return $opentables{$tablename}->{$autocommit}->delEntries(@args);
+    } elsif ($functionname eq 'delEntriesWhere') {
+        return $opentables{$tablename}->{$autocommit}->delEntriesWhere(@args);
     } elsif ($functionname eq 'commit') {
         return $opentables{$tablename}->{$autocommit}->commit(@args);
     } elsif ($functionname eq 'rollback') {
@@ -3736,6 +3738,76 @@ sub delEntries
         @pieces = splice(@all_keyparis, 0, $record_num);
     }
     $self->trace_db(END_TYPE);
+}
+
+#--------------------------------------------------------------------------
+
+=head3 delEntriesWhere
+
+    Description:
+       Delete the rows that the where clause selects, in one statement. Unlike delEntries, the where clause
+       can test for NULL, so a caller can delete a row only while it holds what the caller expects.
+
+    Arguments:
+         Where clause, with a ? for each value. Quote the column names with delimitcol, because the
+         databases quote them differently.
+         The values for the ? of the where clause
+    Returns:
+         The number of deleted rows, or (undef, error message)
+    Example:
+       my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+       my ($deleted, $error) = $tab->delEntriesWhere(xCAT::Table::delimitcol('kitname') . ' = ?', 'mykit');
+       $tab->commit;
+
+=cut
+
+#--------------------------------------------------------------------------------
+sub delEntriesWhere
+{
+    my ($self, $where_clause, @bind) = @_;
+    if ($dbworkerpid > 0) {
+        return dbc_call($self, 'delEntriesWhere', $where_clause, @bind);
+    }
+    $self->trace_db(START_TYPE);
+    if (not $self->{intransaction} and not $self->{autocommit} and $self->{realautocommit}) {
+
+        #search this code for the other if statement just like it for an explanation of why I do this
+        $self->{intransaction} = 1;
+        $self->{dbh}->{AutoCommit} = 0;
+    }
+    my @notif_data;
+    my $notif = xCAT::NotifHandler->needToNotify($self->{tabname}, 'd');
+    if ($notif == 1)
+    {
+        my $qstring = "SELECT * FROM " . $self->{tabname} . " WHERE " . $where_clause;
+        $self->trace_db(START_SQL_TYPE, $qstring);
+        my $query = $self->{dbh}->prepare($qstring);
+        if ($query and $query->execute(@bind)) {
+            push(@notif_data, $query->{NAME});
+            push(@notif_data, @{ $query->fetchall_arrayref() });
+            $query->finish();
+        }
+        $self->trace_db(END_SQL_TYPE);
+    }
+    my $cmd = "DELETE FROM " . $self->{tabname} . " WHERE " . $where_clause;
+    $self->trace_db(START_SQL_TYPE, $cmd);
+    my $sth = $self->{dbh}->prepare($cmd);
+    my $deleted = $sth ? $sth->execute(@bind) : undef;
+    $self->trace_db(END_SQL_TYPE);
+    if (not defined($deleted))
+    {
+        my $error = $sth ? $sth->errstr : $self->{dbh}->errstr;
+        $self->trace_db(END_TYPE, "LINE " . __LINE__ . ": " . $error);
+        return (undef, $error);
+    }
+    $sth->finish;
+    $self->_refresh_cache();    #cache is invalid, refresh
+    if ($notif == 1 and $deleted > 0)
+    {
+        xCAT::NotifHandler->notify("d", $self->{tabname}, \@notif_data, {});
+    }
+    $self->trace_db(END_TYPE);
+    return $deleted + 0;
 }
 
 #--------------------------------------------------------------------------

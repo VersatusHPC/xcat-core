@@ -733,6 +733,7 @@ for my $case ([ setAttribsWhere => 'osimage' ], [ insertEntry => 'linuximage' ],
     ok($row, 'the rollback leaves the row of an insert that the database did not confirm');
     like($errors, qr/Cannot put back the linuximage row imagename=\Q$name\E, which was none: the database did not confirm/,
         'the rollback reports the row that it cannot tell from the row of another request');
+    unlike($errors, qr/kept in/, 'the error names no kept files, which the rollback put back');
     is(definition($dest), 'rhels9.5', 'the image definition comes back after a lost answer');
 }
 

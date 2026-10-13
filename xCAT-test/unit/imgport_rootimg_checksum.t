@@ -946,6 +946,31 @@ for my $nodes (undef, 'undefined-node') {
     rmtree($kept) if $kept;
 }
 
+SKIP: {
+    # The administrator gives a file that the import installed in place another group, and the import then fails.
+    my ($egid, @groups) = split(' ', $));
+    my ($other) = grep { $_ != $egid } @groups;
+    $other //= 65534 if $> == 0;
+    skip 'the test user belongs to no second group', 3 if !defined $other;
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        chown(-1, $other, "$data->{extra}{dest}/shared.conf") or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra", "$dest/extra");
+        write_text("$bundle/extra/shared.conf", "file of this import\n");
+        write_text("$dest/extra/shared.conf", "file before the import\n");
+    }, extra => 'shared.conf', nodes => 'n1');
+    ok(!$placed, 'an import fails after the administrator gave a file that it installed another group');
+    is((stat("$dest/extra/shared.conf"))[5], $other, 'the group that the administrator gave stays');
+    like($errors, qr/Cannot put back \Q$dest\E\/extra\/shared\.conf: another change replaced it/, 'the change of the group is reported');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 {
     # Another writer changes a file that the import installed in place, with the same size and time.
     no warnings 'redefine';

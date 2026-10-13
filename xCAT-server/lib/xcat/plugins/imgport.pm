@@ -2203,13 +2203,17 @@ sub txn_merge {
     # cp -a gives an existing directory the attributes of $from after its entries. A rollback puts back its own
     # after its entries, so this record goes first.
     my $attributes = $preserve && !$top;
-    my $error = $attributes ? txn_keep_attributes($txn, $to) : undef;
+    my $kept = {};
+    my $error = $attributes ? txn_keep_attributes($txn, $to, $kept) : undef;
     return $error if $error;
     foreach my $entry (@entries) {
         $error = txn_copy($txn, "$from/$entry", "$to/$entry", $preserve);
         return $error if $error;
     }
-    return $attributes ? txn_copy_attributes($txn, $from, $to) : undef;
+    return if !$attributes;
+    $error = txn_copy_attributes($txn, $from, $to);
+    $kept->{applied} = txn_dir_attributes($to);
+    return $error;
 }
 
 # Tells why cp refuses to copy $from over what is at $to.
@@ -2234,15 +2238,36 @@ sub txn_copy_attributes {
     return;
 }
 
-# Keeps the mode, owner, times, ACLs and other attributes of the directory $dir, and puts them back on a rollback.
+# Keeps the mode, owner, times, ACLs and other attributes of the directory $dir. A rollback puts them back only
+# while $dir holds the attributes in $kept, which the import updates after it changes them.
 sub txn_keep_attributes {
-    my ($txn, $dir) = @_;
+    my ($txn, $dir, $kept) = @_;
     my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
     txn_tar_dir($dir, $archive) or return "Cannot keep the attributes of $dir";
+    $kept->{applied} = txn_dir_attributes($dir);
     push @{ $txn->{undo} }, sub {
+        return "Cannot put back the attributes of $dir: another change replaced them" if txn_dir_attributes($dir) ne $kept->{applied};
         return txn_untar_dir($archive, dirname($dir)) ? undef : "Cannot put back the attributes of $dir";
     };
     return;
+}
+
+# Identifies the mode, owner, group, ACLs and other attributes of the directory $dir, but not its times, which
+# change with its entries.
+sub txn_dir_attributes {
+    my ($dir) = @_;
+    open(my $tar, '-|', 'tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--mtime=@0',
+        '--pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime', '-cf', '-', '-C', dirname($dir), './' . basename($dir))
+      or return 'unreadable';
+    binmode($tar);
+    my $digest = Digest::MD5->new->addfile($tar)->hexdigest;
+    return close($tar) ? $digest : 'unreadable';
+}
+
+# Identifies the mode, owner and group of $path.
+sub txn_owner_mode {
+    my ($path) = @_;
+    return join(':', (lstat($path))[ 2, 4, 5 ]);
 }
 
 # Archives the directory $dir without its entries.
@@ -2260,7 +2285,7 @@ sub txn_untar_dir {
 
 # Archives the existing directories @dirs of $dir without their entries, and keeps the metadata of each one.
 sub txn_keep_dirs {
-    my ($txn, $dir, @dirs) = @_;
+    my ($txn, $dir, $kept, @dirs) = @_;
     return if !@dirs;
     my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
     open(my $names, '>', "$archive.names") or return "Cannot write $archive.names: $!";
@@ -2269,19 +2294,21 @@ sub txn_keep_dirs {
     system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '-cf', $archive, '-C', $dir, '--null', '-T', "$archive.names") == 0
       or return "Cannot keep the attributes of the directories in $dir";
     foreach my $member (@dirs) {
-        my $error = txn_keep_metadata($txn, $dir, $member, $archive);
+        my $error = txn_keep_metadata($txn, $dir, $member, $archive, $kept->{$member} = {});
         return $error if $error;
     }
     return;
 }
 
 # Puts back the mode, owner and times that the directory $dir/$member has now, on a rollback. A directory that
-# cpio replaced comes back from $archive, with its ACLs and other attributes.
+# cpio replaced comes back from $archive, with its ACLs and other attributes. Otherwise the rollback puts them back
+# only while the directory holds the mode and owner in $kept, which the import updates after the extraction.
 sub txn_keep_metadata {
-    my ($txn, $dir, $member, $archive) = @_;
+    my ($txn, $dir, $member, $archive, $kept) = @_;
     my $path = "$dir/$member";
     my @old = stat($path) or return "Cannot read $path: $!";
     my $recorded = $txn->{installed}{$path};
+    $kept->{applied} = txn_owner_mode($path);
     push @{ $txn->{undo} }, sub {
         if (!-d $path || -l $path) {
 
@@ -2291,6 +2318,8 @@ sub txn_keep_metadata {
             unlink($path) if -e $path || -l $path;
             txn_untar_dir($archive, $dir, "./$member") or return "Cannot put back the directory $path";
             txn_record($txn, $path, $recorded);
+        } elsif (txn_owner_mode($path) ne $kept->{applied}) {
+            return "Cannot put back the mode and owner of $path: another change replaced them";
         }
         chown($old[4], $old[5], $path);
         utime($old[8], $old[9], $path);
@@ -2313,7 +2342,8 @@ sub txn_extract {
 
     # cpio gives an existing directory the mode, owner and times of the archive. A rollback puts back its own
     # after its entries, so these undo steps go first.
-    my $error = txn_keep_dirs($txn, $dir, @dirs);
+    my %kept;
+    my $error = txn_keep_dirs($txn, $dir, \%kept, @dirs);
     return $error if $error;
     my %existing = map { ($_ => 1) } @dirs;
 
@@ -2323,6 +2353,7 @@ sub txn_extract {
         return $error if $error;
     }
     my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;
+    $kept{$_}{applied} = txn_owner_mode("$dir/$_") foreach keys %kept;
 
     # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
     # identity, also after an extraction that failed partway.

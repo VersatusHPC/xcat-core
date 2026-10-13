@@ -1959,6 +1959,7 @@ sub setAttribs
          keys from the site table,  then you will have to code them in backticks
          for MySQL  and not in backticks for Postgresql.
 	 Hash reference of column-value pairs to set
+         Optional values for the ? of the where clause. A bound value needs no quoting.
     Returns:
          None
     Globals:
@@ -2000,7 +2001,7 @@ sub setAttribsWhere
         $self->{dbh}->{AutoCommit} = 0;
     }
     my $qstring = "SELECT * FROM " . $self->{tabname} . " WHERE " . $where_clause;
-    my @qargs = ();
+    my @qargs = @_;
     $self->trace_db(START_SQL_TYPE, $qstring);
     my $query = $self->{dbh}->prepare($qstring);
     $query->execute(@qargs);
@@ -2044,7 +2045,7 @@ sub setAttribsWhere
     my $cmd = "UPDATE " . $self->{tabname} . " set $cols where " . $where_clause;
     $self->trace_db(START_SQL_TYPE, $qstring);
     my $sth = $self->{dbh}->prepare($cmd);
-    my $err = $sth->execute(@bind);
+    my $err = $sth->execute(@bind, @qargs);
     $self->trace_db(END_SQL_TYPE);
     if (not defined($err))
     {

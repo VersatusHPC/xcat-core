@@ -2100,8 +2100,9 @@ sub txn_keep {
         } elsif (-e $path || -l $path) {
             rmtree($path);
         }
-        my $renamed = rename($saved, $path);
-        return "Cannot put back $path from $saved" if !$renamed && system('cp', '-a', $saved, $path) != 0;
+        my $renamed = txn_rename_free($saved, $path);
+        return "Cannot put back $path: $TXN_CONFLICT" if !$renamed && $! == Errno::EEXIST();
+        return "Cannot put back $path from $saved" if !$renamed && (-e $path || -l $path || system('cp', '-a', $saved, $path) != 0);
         txn_record($txn, $path, $renamed ? $recorded : txn_copied_identity($path, $recorded));
         return;
     };
@@ -2192,7 +2193,10 @@ sub txn_move {
         return if !-e $to && !-l $to;
         my $changed = txn_changed($txn, $to);
         return $changed if $changed;
-        move($to, $from) or return "Cannot move $to back to $from: $!";
+        if (!txn_rename_free($to, $from)) {
+            return "Cannot put back $from: $TXN_CONFLICT" if $! == Errno::EEXIST();
+            return "Cannot move $to back to $from: $!" if $! != Errno::EXDEV() || -e $from || -l $from || !move($to, $from);
+        }
         txn_record($txn, $to, $recorded);
         return;
     };
@@ -2203,6 +2207,25 @@ sub txn_move {
         $txn->{installed}{$to} = $TXN_FOREIGN;
     }
     return;
+}
+
+# Renames $from to $to only while nothing is at $to, as a rollback puts an entry back where another writer can put
+# another one. A link refuses a taken path in one step, and a directory gets a check first. Fails with EEXIST when
+# $to is taken, and with EXDEV between file systems.
+sub txn_rename_free {
+    my ($from, $to) = @_;
+    if (!-d $from || -l $from) {
+        if (link($from, $to)) {
+            unlink($from);
+            return 1;
+        }
+        return 0 if $! == Errno::EEXIST() || $! == Errno::EXDEV();
+    }
+    if (-e $to || -l $to) {
+        $! = Errno::EEXIST();
+        return 0;
+    }
+    return rename($from, $to);
 }
 
 # Renames $from to $to, or moves it to another file system through a private stage, which a rename puts in place.

@@ -1963,7 +1963,8 @@ sub setAttribs
 	 Hash reference of column-value pairs to set
          Optional values for the ? of the where clause. A bound value needs no quoting.
     Returns:
-         None
+         0, or (0, "no rows selected.") when no row matches, also when another writer changes the rows
+         between the select and the update, or (undef, error message)
     Globals:
     Error:
     Example:
@@ -2053,6 +2054,14 @@ sub setAttribsWhere
     {
         $self->trace_db(END_TYPE, "LINE ".__LINE__.": ".$sth->errstr);
         return (undef, $sth->errstr);
+    }
+
+    # Another writer can change the rows between the select and the update, which then matches none.
+    if ($err == 0)
+    {
+        $sth->finish;
+        $self->trace_db(END_TYPE);
+        return (0, "no rows selected.");
     }
 
     #notify the interested parties

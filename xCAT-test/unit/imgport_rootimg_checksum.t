@@ -18,8 +18,9 @@ use Sys::Hostname qw(hostname);
 use Test::More;
 use XCAT::Test::File qw(repo_path);
 
-# The first rename into a path of %FAIL fails, as when the file system refuses it.
-our %FAIL;
+# The first rename into a path of %FAIL fails, as when the file system refuses it. With $NO_SETFATTR, setfattr
+# fails, as when it cannot remove an attribute.
+our (%FAIL, $NO_SETFATTR);
 BEGIN {
     *CORE::GLOBAL::rename = sub {
         my ($from, $to) = @_;
@@ -29,6 +30,10 @@ BEGIN {
             return 0;
         }
         return CORE::rename($from, $to);
+    };
+    *CORE::GLOBAL::system = sub {
+        return 256 if $NO_SETFATTR && $_[0] =~ m{/setfattr$}x;
+        return CORE::system(@_);
     };
 }
 
@@ -995,6 +1000,39 @@ for my $nodes (undef, 'undefined-node') {
         ok(!$placed, 'an import of hard-linked extra files fails on a later step');
         unlike($errors, qr/cannot put back/i, 'the rollback removes the hard-linked extra files');
         is_deeply([ grep { -e "$dest/extra/$_" } qw(one two sub) ], [], 'no hard-linked extra file stays');
+    }
+}
+
+for my $removal ('removes', 'cannot remove') {
+    # The bundled extra directory and file have an extended attribute that the existing ones lack, and the import
+    # then fails. The rollback $removal it.
+    local $NO_SETFATTR = $removal eq 'cannot remove';
+    my ($set, @names);
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra/conf/shared", "$dest/extra/shared");
+        write_text("$bundle/extra/conf/shared/admin.conf", "file of the bundle\n");
+        write_text("$dest/extra/shared/admin.conf", "file of the administrator\n");
+        @names = grep { CORE::system("setfattr -n $_ -v bundle '$bundle/extra/conf/shared' '$bundle/extra/conf/shared/admin.conf' 2>/dev/null") == 0 }
+          qw(user.xcat trusted.xcat);
+        $set = grep { $_ eq 'user.xcat' } @names;
+    }, extra => 'conf', nodes => 'undefined-node');
+  SKIP: {
+        skip 'setfattr cannot set an extended attribute here', 3 if !$set;
+        ok(!$placed, "an import that adds an extended attribute fails on a later step, and the rollback $removal it");
+        my @left;
+        foreach my $name (@names) {
+            push @left, grep { CORE::system("getfattr -n $name '$_' >/dev/null 2>&1") == 0 } ("$dest/extra/shared", "$dest/extra/shared/admin.conf");
+        }
+        if ($removal eq 'removes') {
+            unlike($errors, qr/Cannot (?:put back|remove|list)/, 'the rollback puts back everything');
+            is_deeply(\@left, [], 'the extra directory and file lose the extended attribute that the import gave them');
+        } else {
+            my @reported = grep { $errors =~ /Cannot remove the extended attributes \Q@{[ sort @names ]}\E that the import gave \Q$_\E(?:;|\.(?:\s|$))/ }
+              ("$dest/extra/shared", "$dest/extra/shared/admin.conf");
+            is(scalar(@reported), 2, 'the rollback reports the extended attributes that it cannot remove');
+            is(scalar(@left), 2 * @names, 'the extended attributes that the rollback cannot remove stay');
+        }
     }
 }
 

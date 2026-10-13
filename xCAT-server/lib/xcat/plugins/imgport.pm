@@ -2784,7 +2784,9 @@ sub place_image {
     }
     unless ($placed) {
         if ($error = txn_rollback($txn)) {
-            $callback->({ error => ["The failed import cannot put back everything that it changed: $error. The replaced files are kept in " . join(' and ', txn_kept_dirs($txn)) . '.' ], errorcode => [1] });
+            my @kept = txn_kept_dirs($txn);
+            my $kept = @kept ? ' The replaced files are kept in ' . join(' and ', @kept) . '.' : '';
+            $callback->({ error => ["The failed import cannot put back everything that it changed: $error.$kept"], errorcode => [1] });
         }
         $hasplugin = 0;
         return 0;

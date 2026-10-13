@@ -1900,22 +1900,22 @@ sub txn_identity {
     return join(':', @stat[ 0, 1 ], $content->hexdigest);
 }
 
-# Describes the entry $path by its mode, size, time and content, or by the target of a symlink. A writer can
-# change a file in place without a change of size or time, so the content counts.
+# Describes the entry $path by its owner, group, mode, size, time and content, or by the target of a symlink. A
+# writer can change a file in place without a change of size or time, so the content counts.
 sub txn_content {
     my ($path) = @_;
     my @stat = lstat($path);
     return 'missing' if !@stat;
-    return 'symlink:' . (readlink($path) // '') if -l _;
-    return "directory:$stat[2]" if -d _;
+    return join(':', 'symlink', @stat[ 4, 5 ], readlink($path) // '') if -l _;
+    return join(':', 'directory', @stat[ 2, 4, 5 ]) if -d _;
 
     # Reading a device never ends, and opening a FIFO can wait, so only a regular file is read.
-    return join(':', 'special', @stat[ 2, 6 ]) if !-f _;
+    return join(':', 'special', @stat[ 2, 4, 5, 6 ]) if !-f _;
     my $digest = Digest::MD5->new;
-    open(my $file, '<:raw', $path) or return join(':', @stat[ 2, 7, 9 ], 'unreadable');
+    open(my $file, '<:raw', $path) or return join(':', @stat[ 2, 4, 5, 7, 9 ], 'unreadable');
     my $read = eval { $digest->addfile($file); 1 };
     close($file);
-    return join(':', @stat[ 2, 7, 9 ], $read ? $digest->hexdigest : 'unreadable');
+    return join(':', @stat[ 2, 4, 5, 7, 9 ], $read ? $digest->hexdigest : 'unreadable');
 }
 
 # Records what the import put at $path.

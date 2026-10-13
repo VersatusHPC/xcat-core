@@ -1839,6 +1839,9 @@ my @TXN_DUPLICATE_KEY = ('UNIQUE constraint failed', 'Duplicate entry', 'duplica
 # The tar options that keep the ACLs, extended attributes and SELinux context of a directory too.
 my @TXN_TAR_ATTRIBUTES = qw(--acls --xattrs --selinux);
 
+# tar extracts only the user.* attributes unless told otherwise, and --selinux puts back the SELinux context.
+my @TXN_UNTAR_ATTRIBUTES = (@TXN_TAR_ATTRIBUTES, '--xattrs-include=*', '--xattrs-exclude=security.selinux');
+
 #-------------------------------------------------------
 
 =head3   txn_begin
@@ -2252,7 +2255,7 @@ sub txn_tar_dir {
 # its entries.
 sub txn_untar_dir {
     my ($archive, $parent, @members) = @_;
-    return system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--no-wildcards', '-xpf', $archive, '-C', $parent, @members) == 0;
+    return system('tar', @TXN_UNTAR_ATTRIBUTES, '--no-recursion', '--no-wildcards', '-xpf', $archive, '-C', $parent, @members) == 0;
 }
 
 # Archives the existing directories @dirs of $dir without their entries, and keeps the metadata of each one.

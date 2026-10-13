@@ -936,6 +936,44 @@ for my $previous (1, 0) {
     rmtree($files) if $files;
 }
 
+for my $previous (1, 0) {
+    # Another writer changes the content of the image that the import published in place, which keeps its size,
+    # inode and attributes, before a later step fails.
+    my $fn;
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        $fn = $data->{rootimg};
+        my @stat = stat($fn);
+        open(my $file, '+<', $fn) or die $!;
+        print {$file} 'X';
+        close($file) or die $!;
+        utime($stat[8], $stat[9], $fn) or die $!;
+        return 0;
+    };
+    my @errors;
+    if ($previous) {
+        my (undef, $errors) = import_image('rootimg.cpio.gz', undef, nodes => 'n1');
+        push @errors, $errors;
+    } else {
+        my $bundle = "$fixture/bundle-contentfirst";
+        make_path($bundle);
+        write_text("$bundle/rootimg.cpio.gz", $imported);
+        my $data = {
+            rootimg => "$fixture/install/netboot/contentfirst/x86_64/compute/rootimg.cpio.gz",
+            osimage => { imagename => 'contentfirst', osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+        };
+        xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, 'n1');
+    }
+    my $errors = join("\n", @errors);
+    my $label  = $previous ? 'over a published image' : 'of a first image';
+    my $refusal = $previous ? 'Cannot publish' : 'Cannot remove';
+    like($errors, qr/\Q$refusal $fn\E: another change replaced its content/, "$label, the rollback reports the change of the content");
+    is(-e $fn ? read_binary($fn) : undef, 'X' . substr($imported, 1), "$label, the published image keeps the change of the other writer");
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    rmtree($files) if $files;
+}
+
 {
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';

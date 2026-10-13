@@ -57,4 +57,25 @@ xCAT::Table::handle_dbc_request({ %request, function => 'commit', args => [] });
 is($deleted, 1, 'the DB worker deletes the rows that a where clause selects');
 is(kits(), 'one', 'the DB worker leaves the other rows');
 
+{
+    my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+    $tab->setAttribs({ kitname => $_->[0] }, { description => $_->[1], version => $_->[2], disable => $_->[3] })
+      for ([ 'five', 'fifth', undef, undef ], [ 'six', 'sixth', '6', '1' ]);
+    $tab->commit;
+    my ($rows, $error) = $tab->getEntriesWhere(column('version') . ' IS NULL');
+    is_deeply([ map { $_->{kitname} } @{ $rows || [] } ], ['five'], 'getEntriesWhere returns the rows that a where clause selects, also with a NULL test');
+    is($error, undef, 'a read that succeeds reports no error');
+    ($rows) = $tab->getEntriesWhere(column('kitname') . ' = ?', 'six');
+    is($rows && $rows->[0]{version}, '6', 'getEntriesWhere binds the values of its where clause');
+    ($rows) = $tab->getEntriesWhere(column('kitname') . " = 'six'");
+    is($rows && $rows->[0]{disable}, '1', 'getEntriesWhere returns a disabled row too');
+    ($rows) = $tab->getEntriesWhere();
+    is(join(',', sort map { $_->{kitname} } @{ $rows || [] }), 'five,one,six', 'getEntriesWhere without a where clause returns all rows');
+    ($rows, $error) = $tab->getEntriesWhere(column('nosuchcolumn') . " = 'x'");
+    ok(!defined($rows), 'a read that fails returns no rows, not an empty list');
+    like($error // '', qr/nosuchcolumn/, 'a read that fails returns the error of the database');
+    ($rows) = xCAT::Table::handle_dbc_request({ %request, function => 'getEntriesWhere', args => [ column('kitname') . " = 'five'" ] });
+    is($rows && $rows->[0]{kitname}, 'five', 'the DB worker runs getEntriesWhere');
+}
+
 done_testing();

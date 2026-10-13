@@ -2260,10 +2260,10 @@ sub txn_copy {
     }
 
     # cp writes a private stage, which a rename puts in place, so a copy that fails leaves nothing at $to.
-    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) } or return "Cannot copy $from to $to: $@";
-    $error = txn_copy_file($txn, $from, "$stage/file", $option, $to);
+    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) };
+    $error = $stage ? txn_copy_file($txn, $from, "$stage/file", $option, $to) : "Cannot copy $from to $to: $@";
     $error ||= rename("$stage/file", $to) ? undef : "Cannot copy $from to $to: $!";
-    rmtree($stage);
+    rmtree($stage) if $stage;
     if ($error) {
 
         # Nothing of the copy is at $to, so a rollback leaves what another writer puts there.
@@ -2365,10 +2365,15 @@ sub txn_copy_tree {
 
     # cp writes a private stage, which a rename puts in place, so another writer can add nothing to the tree during
     # the copy, and a copy that fails leaves nothing at $to.
-    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) } or return "Cannot copy $from to $to: $@";
-    my $copied = system('cp', $option, $from, "$stage/tree") == 0 && rename("$stage/tree", $to);
-    rmtree($stage);
-    return "Cannot copy $from to $to" if !$copied;
+    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) };
+    my $copied = $stage && system('cp', $option, $from, "$stage/tree") == 0 && rename("$stage/tree", $to);
+    rmtree($stage) if $stage;
+    if (!$copied) {
+
+        # Nothing of the copy is at $to, so a rollback leaves what another writer puts there.
+        $txn->{installed}{$to} = '';
+        return "Cannot copy $from to $to";
+    }
 
     # The links come before the record of the entries, which identifies each entry by its inode.
     my $linked = $option eq '-a' ? txn_link_tree($txn, $from, $to) : undef;

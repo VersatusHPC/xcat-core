@@ -1966,7 +1966,13 @@ sub txn_keep {
     push @{ $txn->{undo} }, sub {
         my $changed = txn_changed($txn, $path);
         return $changed if $changed;
-        rmtree($path) if -e $path || -l $path;
+
+        # A directory without a record is one that the extraction made, and other writers can add files to it.
+        if (-d $path && !-l $path && !exists($txn->{installed}{$path})) {
+            rmdir($path) or return "Cannot put back $path: $!";
+        } elsif (-e $path || -l $path) {
+            rmtree($path);
+        }
         my $renamed = rename($saved, $path);
         return "Cannot put back $path from $saved" if !$renamed && system('cp', '-a', $saved, $path) != 0;
         txn_record($txn, $path, $renamed ? $recorded : txn_copied_identity($path, $recorded));
@@ -2289,15 +2295,24 @@ sub txn_extract {
         return $error if $error;
     }
     my %existing = map { ($_ => 1) } @dirs;
-    foreach my $member (grep { $_ ne '.' && !$existing{$_} } @members) {
+
+    # A directory sorts before its entries, so a rollback removes the entries first.
+    foreach my $member (sort grep { $_ ne '.' && !$existing{$_} } @members) {
         my $error = txn_keep($txn, "$dir/$member");
         return $error if $error;
     }
     my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;
 
-    # A directory that the extraction created goes away with rmdir, so only the other entries need an identity,
-    # also after an extraction that failed partway.
-    txn_installed($txn, "$dir/$_") foreach grep { $_ ne '.' && (!-d "$dir/$_" || -l "$dir/$_") } @members;
+    # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
+    # identity, also after an extraction that failed partway.
+    foreach my $member (grep { $_ ne '.' } @members) {
+        my $path = "$dir/$member";
+        if (!-d $path || -l $path) {
+            txn_installed($txn, $path);
+        } elsif (!$existing{$member}) {
+            txn_record($txn, $path, undef);
+        }
+    }
     return $extracted ? undef : "Cannot extract $archive in $dir";
 }
 

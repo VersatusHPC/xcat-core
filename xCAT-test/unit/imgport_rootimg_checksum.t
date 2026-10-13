@@ -1699,6 +1699,27 @@ for my $kind (qw(directory file symlink)) {
     }
 }
 
+{
+    # mkpath cannot create the extra destination, and another writer then puts a file there.
+    my $dest;
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::mkpath = sub {
+        write_text($_[0], "file of another writer\n") if $_[0] eq "$dest/newdir";
+        return;
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$bundle/extra");
+        write_text("$bundle/extra/plain.conf", "file of the bundle\n");
+    }, extra => 'plain.conf', extradest => 'DEST/newdir');
+    ok(!$placed, 'an import fails when mkpath cannot create the extra destination');
+    like($errors, qr/Cannot put back \Q$dest\E\/newdir: another change replaced it/, 'the rollback reports the file of the other writer');
+    is(-f "$dest/newdir" ? read_binary("$dest/newdir") : undef, "file of another writer\n", 'the file of the other writer stays');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 for my $existing (0, 1) {
     # cp cannot read an extra file, and another writer then writes the destination, which existed or not. Without
     # the other writer, a copy that wrote nothing needs nothing back.

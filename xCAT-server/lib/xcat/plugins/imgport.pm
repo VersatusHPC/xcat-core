@@ -3209,6 +3209,7 @@ sub place_rootimg {
         $error = txn_keep($txn, "$fn.ORIG", 1);
         return $error if $error;
         link($fn, "$fn.ORIG") or copy($fn, "$fn.ORIG");
+        txn_installed($txn, "$fn.ORIG");
     }
 
     # The rename keeps the inode, so the staged image identifies what this import publishes.

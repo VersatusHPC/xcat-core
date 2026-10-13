@@ -47,6 +47,19 @@ write_binary("$root/calls", '');
             is(read_binary("$root/calls"), "restart\n", 'plugin import requests a fast restart');
         }
     }
+
+    # A plugin import fails on a later step, so the plugin goes away and xcatd keeps running.
+    make_path("$root/import/fourth/plugins");
+    write_binary("$root/import/fourth/plugins/failed.pm", "plugin fixture\n");
+    my $data = {
+        osimage => {imagename => 'restart-fourth', osvers => 'test', osarch => 'x86_64', profile => 'compute', provmethod => 'install'},
+        linuximage => {}, kit => {fourth => {kitdir => "$root/kits/fourth"}},
+    };
+    my ($out, $err, $result) = capture {
+        xCAT_plugin::imgport::place_image($data, "$root/import", sub { }, 'undefined-node');
+    };
+    is($result, 0, 'a plugin import fails on a later step') or diag "$out$err";
+    ok(!-e "$root/xcat/lib/perl/xCAT_plugin/failed.pm", 'the plugin of the failed import goes away');
 }
-is(read_binary("$root/calls"), "restart\n", 'imports without plugins do not request another restart');
+is(read_binary("$root/calls"), "restart\n", 'imports without plugins and a failed import do not request another restart');
 done_testing();

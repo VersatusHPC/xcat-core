@@ -3089,7 +3089,9 @@ sub make_files {
                 $callback->({ data => ["  Moving old $fn to $fn.ORIG."] });
             }
 
-            # The kit copies its postscripts to the postscripts directory and its plugins to xCAT_plugin.
+            # The kit copies its postscripts to the postscripts directory and its plugins to xCAT_plugin. Its postscripts
+            # become executable in the bundle, so that the record of the installed kit holds them so.
+            chmod(0755, map { "$imgdir/$kit/other_files/$_" } kit_postscripts("$imgdir/$kit"));
             my $error = txn_install($txn, "$imgdir/$kit", "$dirname/$kit")
               || copyPostscripts($dirname, $kit, $installroot, $callback, $txn)
               || movePlugin($dirname, $kit, $callback, $txn);
@@ -3315,24 +3317,24 @@ sub place_rootimg {
     return $error;
 }
 
+# Lists the postscripts in the other_files directory of the kit directory $kitdir.
+sub kit_postscripts {
+    my ($kitdir) = @_;
+    opendir(my $dir, "$kitdir/other_files/") or return;
+    my @scripts = grep { !/^\./x && !/\.exlist$/ix && !/\.env$/ix } readdir($dir);
+    closedir($dir);
+    return @scripts;
+}
+
 sub copyPostscripts {
     my $dirname    = shift;
     my $kit        = shift;
     my $installdir = shift;
     my $callback   = shift;
     my $txn        = shift;
-    my $fenv       = '\.env$';
-    my $fexlist    = '\.exlist$';
 
     if (-d "$dirname/$kit/other_files/") {
-        opendir(DIRP, "$dirname/$kit/other_files/");
-        my @scripts = grep { !(($_ =~ m/^\./) || ($_ =~ /$fexlist/i) || ($_ =~ m/$fenv/i)) } readdir(DIRP);
-        closedir(DIRP);
-
-        # The import makes the postscripts of its kit executable, so the record of the kit includes that change.
-        chmod(0755, "$dirname/$kit/other_files/$_") foreach @scripts;
-        txn_installed($txn, "$dirname/$kit");
-        foreach my $f (@scripts) {
+        foreach my $f (kit_postscripts("$dirname/$kit")) {
             print "$f\n";
             my $error = txn_copy($txn, "$dirname/$kit/other_files/$f", "$installdir/postscripts/$f");
             return $error if $error;

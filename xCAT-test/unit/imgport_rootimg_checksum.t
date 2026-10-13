@@ -787,6 +787,30 @@ for my $held (0, 1) {
     is((stat("$archive.metainfo"))[2] & 07777, 0600, 'the previous metainfo keeps its own mode');
 }
 
+for my $nodes (undef, 'undefined-node') {
+    # The bundle has a linuximage row that holds only the image name, as the exporter writes for a s390x image.
+    my $name   = 'keyonly-' . (defined $nodes ? 'failed' : 'placed');
+    my $bundle = "$fixture/bundle-$name";
+    make_path($bundle);
+    write_text("$bundle/rootimg.cpio.gz", $imported);
+    my $data = {
+        rootimg    => "$fixture/install/netboot/$name/x86_64/compute/rootimg.cpio.gz",
+        osimage    => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+        linuximage => { imagename => $name },
+    };
+    my @errors;
+    my $placed = xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, $nodes);
+    my ($row) = xCAT::Table->new('linuximage', -create => 1)->getAttribs({ imagename => $name }, 'imagename');
+    if (!defined $nodes) {
+        ok($placed, 'an import of a linuximage row with only the image name succeeds');
+        ok($row, 'the import writes the linuximage row with only the image name');
+    } else {
+        ok(!$placed, 'an import of a linuximage row with only the image name fails on a later step');
+        is(join("\n", grep { /cannot put back/i } @errors), '', 'the rollback puts back everything');
+        ok(!$row, 'the rollback removes the linuximage row with only the image name');
+    }
+}
+
 {
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';

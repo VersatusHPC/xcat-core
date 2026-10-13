@@ -2161,6 +2161,10 @@ sub txn_mkpath {
     return "Cannot create $dir: $file is not a directory" if $file;
     txn_keep($txn, $_) foreach @created;
     mkpath($dir, { verbose => 1, mode => 0755, error => \my $errors });
+
+    # A directory that mkpath made goes away with rmdir. Where it made none, a rollback leaves what another writer
+    # puts there.
+    $txn->{installed}{$_} = '' foreach grep { !-d $_ || -l $_ } @created;
     return -d $dir ? undef : "Cannot create $dir";
 }
 

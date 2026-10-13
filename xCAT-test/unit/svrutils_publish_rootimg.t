@@ -268,6 +268,22 @@ for my $failed (qw(rootimg.cpio.gz rootimg.cpio.gz.metainfo)) {
     ok(!-e $path, 'the removal of abandoned stages removes staging that holds no previous file');
 }
 
+{
+    # imgimport stages a published checksum and metainfo that are relative symlinks, which resolve only where they
+    # are published.
+    my $dir = "$fixture/symlinks";
+    make_path("$dir/releases", "$dir/.stage");
+    write_text("$dir/rootimg.cpio.gz",        "published archive\n");
+    write_text("$dir/releases/v1.sha256",     "checksum of v1\n");
+    write_text("$dir/releases/v1.metainfo",   "metainfo of v1\n");
+    write_text("$dir/.stage/rootimg.cpio.gz", "archive of v1\n");
+    symlink("releases/v1.$_", "$dir/.stage/rootimg.cpio.gz.$_") or die $! for qw(sha256 metainfo);
+    is(xCAT::SvrUtils->publish_rootimg("$dir/.stage/rootimg.cpio.gz", "$dir/rootimg.cpio.gz"), undef, 'staged symlinks are published');
+    is(readlink("$dir/rootimg.cpio.gz.sha256"),  'releases/v1.sha256',   'the checksum symlink is published');
+    is(read_binary("$dir/rootimg.cpio.gz.sha256"), "checksum of v1\n",   'the published checksum symlink resolves');
+    is(readlink("$dir/rootimg.cpio.gz.metainfo"), 'releases/v1.metainfo', 'the metainfo symlink is published');
+}
+
 for my $failed ('rootimg.cpio.gz', 'rootimg.cpio.gz.metainfo') {
     # The published checksum is a relative symlink, and the publication fails after it wrote the checksum list.
     my $dir = "$fixture/symlink-rollback-" . ($failed =~ s/\W/-/gr);

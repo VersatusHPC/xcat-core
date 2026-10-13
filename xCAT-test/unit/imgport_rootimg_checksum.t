@@ -1439,4 +1439,20 @@ for my $nodes (undef, 'undefined-node') {
         'PostgreSQL compares a value exactly already');
 }
 
+{
+    # The published checksum is a relative symlink, which a failed import puts back.
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$dest/releases");
+        rename("$dest/rootimg.cpio.gz.sha256", "$dest/releases/v1.sha256") or die $!;
+        symlink('releases/v1.sha256', "$dest/rootimg.cpio.gz.sha256") or die $!;
+    }, nodes => 'undefined-node');
+    ok(!$placed, 'an import over a checksum symlink fails on a later step');
+    unlike($errors, qr/cannot put back/i, 'the rollback puts back the image with its checksum symlink');
+    is(read_binary($archive), $published, 'the published archive comes back');
+    is(readlink("$archive.sha256") // 'not a symlink', 'releases/v1.sha256', 'the checksum symlink comes back');
+    is(-e "$archive.sha256" ? read_binary("$archive.sha256") : 'missing', sha256_hex($published) . "  rootimg.cpio.gz\n",
+        'the checksum symlink lists the published archive');
+}
+
 done_testing();

@@ -19,8 +19,9 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 # The first rename into a path of %FAIL fails, as when the file system refuses it. With $NO_SETFATTR, setfattr
-# fails, as when it cannot remove an attribute. $AFTER_CP runs after each cp, as another writer can.
-our (%FAIL, $NO_SETFATTR, $AFTER_CP);
+# fails, as when it cannot remove an attribute. $AFTER_CP runs after each cp, and $AFTER_EXTRACT after the
+# extraction of a statelite tree, as another writer can.
+our (%FAIL, $NO_SETFATTR, $AFTER_CP, $AFTER_EXTRACT);
 BEGIN {
     *CORE::GLOBAL::rename = sub {
         my ($from, $to) = @_;
@@ -37,6 +38,10 @@ BEGIN {
         if ($AFTER_CP && $_[0] eq 'cp') {
             local $?;
             $AFTER_CP->(@_);
+        }
+        if ($AFTER_EXTRACT && grep { $_ eq 'extract' } @_) {
+            local $?;
+            $AFTER_EXTRACT->(@_);
         }
         return $status;
     };
@@ -990,6 +995,44 @@ for my $kind (qw(symlink file)) {
             "the directory that became a $kind gets its own trusted attribute back");
     }
     is((stat("$dest/rootimg/run/target"))[2] & 07777, 0750, 'the rollback leaves the target of the symlink as it was');
+}
+
+for my $writer (0, 1) {
+    # cpio writes only the start of a file, as on a full disk, and fails. Another writer can then replace a file that
+    # cpio wrote.
+    my ($cpio) = grep { -x $_ } map { "$_/cpio" } split(/:/x, $ENV{PATH});
+    my $bin = "$fixture/partial-cpio";
+    make_path($bin);
+    write_text("$bin/cpio", qq{#!/bin/sh\n$cpio "\$@" || exit \$?\ncase " \$* " in *" -idum "*)\n}
+          . qq{  head -c 4 etc/zzz > etc/zzz.part && mv etc/zzz.part etc/zzz && exit 1 ;;\nesac\n});
+    chmod(0755, "$bin/cpio") or die $!;
+    local $ENV{PATH} = "$bin:$ENV{PATH}";
+    my $dest;
+    local $AFTER_EXTRACT = sub {
+        return if !$writer;
+        write_text("$dest/rootimg/etc/aaa.other", "file of another writer\n");
+        rename("$dest/rootimg/etc/aaa.other", "$dest/rootimg/etc/aaa") or die $!;
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$dest/rootimg", "$bundle/tree/etc");
+        write_text("$bundle/tree/etc/aaa", "aaa of the bundle\n");
+        write_text("$bundle/tree/etc/zzz", "zzz of the bundle\n");
+        system("cd '$bundle/tree' && find . | sort | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz');
+    ok(!$placed, 'an import fails when cpio writes only the start of a file' . ($writer ? ', and another writer replaces another one' : ''));
+    if (!$writer) {
+        unlike($errors, qr/Cannot (?:put back|remove)/, 'the rollback removes the file that cpio wrote only in part');
+        ok(!-e "$dest/rootimg/etc", 'the rollback removes what the failed extraction wrote');
+    } else {
+        like($errors, qr/Cannot put back \Q$dest\E\/rootimg\/etc\/aaa: another change replaced it/,
+            'the rollback reports the file that another writer put in the tree after the failed extraction');
+        is(-e "$dest/rootimg/etc/aaa" ? read_binary("$dest/rootimg/etc/aaa") : undef, "file of another writer\n",
+            'the file of the other writer stays');
+    }
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
 }
 
 for my $writer (0, 1) {

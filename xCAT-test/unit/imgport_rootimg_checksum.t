@@ -1009,6 +1009,21 @@ for my $left ('nothing', 'the start of the image') {
 }
 
 {
+    # The image directory has a checksum and a metainfo but no archive, and the import then fails.
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {
+        my ($dest) = @_;
+        unlink("$dest/rootimg.cpio.gz") or die $!;
+    }, nodes => 'undefined-node');
+    ok(!$placed, 'an import into a directory with a checksum but no archive fails on a later step');
+    unlike($errors, qr/Cannot (?:put back|remove)/, 'the rollback puts back everything');
+    ok(!-e $archive, 'the rollback removes the archive that the import published');
+    is(-e "$archive.sha256" ? read_binary("$archive.sha256") : undef, sha256_hex($published) . "  rootimg.cpio.gz\n",
+        'the checksum that stood without the archive comes back');
+    is(-e "$archive.metainfo" ? read_binary("$archive.metainfo") : undef, "metainfo of the published image\n",
+        'the metainfo that stood without the archive comes back');
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

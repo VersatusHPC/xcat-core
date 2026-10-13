@@ -1024,6 +1024,41 @@ for my $left ('nothing', 'the start of the image') {
 }
 
 {
+    # The import publishes the first image of a directory, and another writer replaces it right after the rollback
+    # checked it, before it removes it.
+    my ($fn, $replaced);
+    no warnings 'redefine';
+    my $withdraw = \&xCAT::SvrUtils::withdraw_rootimg;
+    local *xCAT::SvrUtils::withdraw_rootimg = sub {
+        my ($class, $target, $expected, $check, @rest) = @_;
+        my $replace = sub {
+            my $refused = $check->(@_);
+            if (!$replaced) {
+                $replaced = 1;
+                write_text("$target.other", "image of another writer\n");
+                rename("$target.other", $target) or die $!;
+            }
+            return $refused;
+        };
+        return $withdraw->($class, $target, $expected, $replace, @rest);
+    };
+    local *xCAT_plugin::imgport::set_postscripts = sub { $fn = $_[0]{rootimg}; return 0 };
+    my $bundle = "$fixture/bundle-withdrawrace";
+    make_path($bundle);
+    write_text("$bundle/rootimg.cpio.gz", $imported);
+    my $data = {
+        rootimg => "$fixture/install/netboot/withdrawrace/x86_64/compute/rootimg.cpio.gz",
+        osimage => { imagename => 'withdrawrace', osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+    };
+    my @errors;
+    xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, 'n1');
+    my $errors = join("\n", @errors);
+    ok($replaced, 'another writer replaces the first image right after the rollback checked it');
+    like($errors, qr/Cannot remove \Q$fn\E: another change put an archive there/, 'the rollback reports the image of the other writer');
+    is(-e $fn ? read_binary($fn) : undef, "image of another writer\n", 'the image of the other writer stays');
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

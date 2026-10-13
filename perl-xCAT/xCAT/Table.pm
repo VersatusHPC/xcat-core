@@ -484,6 +484,8 @@ sub handle_dbc_request {
         return $opentables{$tablename}->{$autocommit}->getAllNodeAttribs(@args);
     } elsif ($functionname eq 'getAllEntries') {
         return $opentables{$tablename}->{$autocommit}->getAllEntries(@args);
+    } elsif ($functionname eq 'getEntriesWhere') {
+        return $opentables{$tablename}->{$autocommit}->getEntriesWhere(@args);
     } elsif ($functionname eq 'getMAXMINEntries') {
         return $opentables{$tablename}->{$autocommit}->getMAXMINEntries(@args);
     } elsif ($functionname eq 'writeAllEntries') {
@@ -3243,6 +3245,62 @@ sub getAllEntries
 }
 
 #--------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------
+
+=head3 getEntriesWhere
+
+    Description:
+       Get the rows that the where clause selects, also the disabled ones. Unlike getAllEntries, it reports
+       a read that fails, so a caller does not take a failed read for a missing row.
+
+    Arguments:
+         Where clause, with a ? for each value, or undef for all rows. Quote the column names with
+         delimitcol, because the databases quote them differently.
+         The values for the ? of the where clause
+    Returns:
+         A reference to the list of rows, or (undef, error message). Each row is a hash of the column values,
+         where an empty value is undef, as with getAllEntries.
+    Example:
+       my $tab = xCAT::Table->new('kit');
+       my ($rows, $error) = $tab->getEntriesWhere(xCAT::Table::delimitcol('kitname') . ' = ?', 'mykit');
+
+=cut
+
+#--------------------------------------------------------------------------------
+sub getEntriesWhere
+{
+    my ($self, $where_clause, @bind) = @_;
+    if ($dbworkerpid > 0) {
+        return dbc_call($self, 'getEntriesWhere', $where_clause, @bind);
+    }
+    $self->trace_db(START_TYPE);
+    my $qstring = 'SELECT * FROM ' . $self->{tabname};
+    $qstring .= ' WHERE ' . $where_clause if defined($where_clause);
+    $self->trace_db(START_SQL_TYPE, $qstring);
+    my $query = $self->{dbh} ? $self->{dbh}->prepare($qstring) : undef;
+    my $executed = $query ? $query->execute(@bind) : undef;
+    $self->trace_db(END_SQL_TYPE);
+    if (not defined($executed))
+    {
+        my $error = $query ? $query->errstr : $self->{dbh} ? $self->{dbh}->errstr : 'no database handle';
+        $self->trace_db(END_TYPE, "LINE " . __LINE__ . ": " . $error);
+        return (undef, $error);
+    }
+    my @rows;
+    while (my $data = $query->fetchrow_hashref())
+    {
+        $data->{$_} = undef foreach grep { defined($data->{$_}) && $data->{$_} eq '' } keys %$data;
+        push @rows, $data;
+    }
+
+    # A fetch that fails ends the loop like the last row.
+    my $error = $query->err ? $query->errstr : undef;
+    $query->finish();
+    $self->trace_db(END_TYPE);
+    return $error ? (undef, $error) : \@rows;
+}
+
 
 =head3 getAllAttribsWhere
 

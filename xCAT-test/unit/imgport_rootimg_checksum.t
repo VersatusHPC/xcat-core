@@ -749,10 +749,14 @@ for my $held (0, 1) {
 
 for my $kind (qw(symlink file)) {
     # The archive turns an empty directory of the tree into a $kind, and the import then fails.
+    my ($acl, $xattr);
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
         my ($dest, $bundle) = @_;
         make_path("$dest/rootimg/var/lock", "$dest/rootimg/run/target", "$bundle/tree/var");
+        my $set = system('setfacl', '-m', 'u:nobody:r-x', "$dest/rootimg/var/lock") == 0;
+        $xattr = system("setfattr -n user.xcat -v kept '$dest/rootimg/var/lock' 2>/dev/null") == 0;
         chmod(0700, "$dest/rootimg/var/lock") or die $!;
+        $acl = `getfacl -cp '$dest/rootimg/var/lock'` if $set;
         chmod(0750, "$dest/rootimg/run/target") or die $!;
         if ($kind eq 'symlink') {
             symlink('../run/target', "$bundle/tree/var/lock") or die $!;
@@ -765,6 +769,15 @@ for my $kind (qw(symlink file)) {
     unlike($errors, qr/cannot put back/i, "the rollback puts back the directory that became a $kind");
     ok(-d "$dest/rootimg/var/lock" && !-l "$dest/rootimg/var/lock", "the $kind goes, and the directory comes back");
     is((stat("$dest/rootimg/var/lock"))[2] & 07777, 0700, "the directory that became a $kind gets its own mode back");
+  SKIP: {
+        skip 'setfacl cannot set an ACL here', 1 if !defined $acl;
+        is(`getfacl -cp '$dest/rootimg/var/lock'`, $acl, "the directory that became a $kind gets its own ACL back");
+    }
+  SKIP: {
+        skip 'setfattr cannot set an extended attribute here', 1 if !$xattr;
+        is(`getfattr --only-values -n user.xcat '$dest/rootimg/var/lock' 2>/dev/null`, 'kept',
+            "the directory that became a $kind gets its own extended attribute back");
+    }
     is((stat("$dest/rootimg/run/target"))[2] & 07777, 0750, 'the rollback leaves the target of the symlink as it was');
 }
 

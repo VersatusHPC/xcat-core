@@ -123,4 +123,22 @@ is(kits(), 'one', 'the DB worker leaves the other rows');
     is($rows && $rows->[0]{version}, '13', 'the DB worker passes the bound values of setAttribsWhere');
 }
 
+{
+    my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+    my ($inserted, $error) = $tab->insertEntry({ kitname => q{new \' kit}, description => 'inserted' });
+    $tab->commit;
+    is($inserted, 1, 'insertEntry inserts a missing row');
+    my ($rows) = $tab->getEntriesWhere(column('kitname') . ' = ?', q{new \' kit});
+    is($rows && $rows->[0]{description}, 'inserted', 'the inserted row holds its values');
+    ($inserted, $error) = $tab->insertEntry({ kitname => 'one', description => 'replaced' });
+    $tab->rollback;
+    ok(!$inserted, 'insertEntry refuses a row whose keys another row holds');
+    ok($error, 'insertEntry returns the error of the database for a row that exists');
+    ($rows) = $tab->getEntriesWhere(column('kitname') . " = 'one'");
+    is($rows && $rows->[0]{description}, 'first', 'the row that exists stays as it was');
+    ($inserted) = xCAT::Table::handle_dbc_request({ %request, function => 'insertEntry', args => [ { kitname => 'worker' } ] });
+    xCAT::Table::handle_dbc_request({ %request, function => 'commit', args => [] });
+    is($inserted, 1, 'the DB worker runs insertEntry');
+}
+
 done_testing();

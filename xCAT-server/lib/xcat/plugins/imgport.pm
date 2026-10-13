@@ -2213,12 +2213,45 @@ sub txn_copy {
     my $into  = txn_writes_into($txn, $from, $to, $option);
     my $error = $into ? txn_keep_copy($txn, $to) : txn_keep($txn, $to, 1);
     return $error if $error;
+    if ($into) {
 
-    # A copy can fail after it wrote part of $to, which a rollback puts back too.
-    $error = txn_copy_file($txn, $from, $to, $option);
+        # cp truncates the file and writes the source from its start, so a copy that fails leaves the file as it was,
+        # or a part of the source.
+        my $old = txn_data($to);
+        $error = txn_copy_file($txn, $from, $to, $option);
+        txn_installed($txn, $to);
+        txn_expect($txn, $to, txn_data($from)) if !$error;
+        $txn->{installed}{$to} = $TXN_FOREIGN if $error && txn_data($to) ne $old && !txn_starts($to, $from);
+        return $error;
+    }
+
+    # cp writes a private stage, which a rename puts in place, so a copy that fails leaves nothing at $to.
+    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) } or return "Cannot copy $from to $to: $@";
+    $error = txn_copy_file($txn, $from, "$stage/file", $option, $to);
+    $error ||= rename("$stage/file", $to) ? undef : "Cannot copy $from to $to: $!";
+    rmtree($stage);
+    if ($error) {
+
+        # Nothing of the copy is at $to, so a rollback leaves what another writer puts there.
+        $txn->{installed}{$to} = '';
+        return $error;
+    }
     txn_installed($txn, $to);
-    txn_expect($txn, $to, txn_data($from)) if !$error;
-    return $error;
+    txn_expect($txn, $to, txn_data($from));
+    return;
+}
+
+# Tells whether the file $path holds the start of the file $from.
+sub txn_starts {
+    my ($path, $from) = @_;
+    return 0 if -l $path || !-f _ || -l $from || !-f _;
+    open(my $part,  '<:raw', $path) or return 0;
+    open(my $whole, '<:raw', $from) or return 0;
+    while ((my $got = read($part, my $chunk, 65536)) > 0) {
+        my $start;
+        return 0 if (read($whole, $start, $got) // 0) != $got || $start ne $chunk;
+    }
+    return 1;
 }
 
 # Returns whether cp $option writes the file $from into the existing file $to, which keeps its inode and ACLs.
@@ -2261,15 +2294,16 @@ sub txn_link_of {
 }
 
 # Copies the file $from to $to with cp $option. cp -a keeps the hard links between the files that one run copies, so
-# a file that has a hard link to a file that the import copied before becomes another link of that copy.
+# a file that has a hard link to a file that the import copied before becomes another link of that copy. $name is
+# the path that the copy gets when $to is a stage.
 sub txn_copy_file {
-    my ($txn, $from, $to, $option) = @_;
+    my ($txn, $from, $to, $option, $name) = @_;
     my $first = txn_link_of($txn, $from, $option);
     return link($first, $to) ? undef : "Cannot link $to to $first: $!" if $first;
     my @source = lstat($from);
     my $key = ($option eq '-a' && -f _ && $source[3] > 1) ? "$source[0]:$source[1]" : undef;
     system('cp', $option, '-f', $from, $to) == 0 or return "Cannot copy $from to $to";
-    $txn->{links}{$key} = $to if $key;
+    $txn->{links}{$key} = $name // $to if $key;
     return;
 }
 

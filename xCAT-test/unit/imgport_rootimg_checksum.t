@@ -1466,4 +1466,50 @@ for my $nodes (undef, 'undefined-node') {
     ok(-d "$fixture/install/netboot/custom/keep", 'the directory that the first word of the image directory names stays');
 }
 
+for my $case ([ osimage => 'UPDATE', "NEW.osvers = 'rhels9.6'" ], [ linuximage => 'INSERT', '1' ]) {
+    # The database applies a write of the import and then reports an error, as a trigger that fails after the change.
+    my ($tabname, $statement, $condition) = @$case;
+    my $name = 'import-' . ($sequence + 1);
+    my $dbh  = xCAT::Table->new($tabname, -create => 1)->{dbh};
+    $dbh->do("CREATE TRIGGER fail_after_$tabname AFTER $statement ON $tabname WHEN NEW.imagename = '$name' AND $condition "
+          . "BEGIN SELECT RAISE(FAIL, 'disk I/O error'); END") or die $dbh->errstr;
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, rootimgchecksum => 'no');
+    $dbh->do("DROP TRIGGER fail_after_$tabname") or die $dbh->errstr;
+    ok(!$placed, "$tabname: an import fails when the database reports an error after it applied the write");
+    like($errors, qr/disk I\/O error/, "$tabname: the error of the database is reported");
+    is(definition($dest), 'rhels9.5', "$tabname: the rollback puts back the image definition");
+    my ($row) = xCAT::Table->new('linuximage')->getAttribs({ imagename => $name }, 'rootimgchecksum');
+    ok(!$row, "$tabname: the rollback removes the linuximage row that the import created");
+}
+
+for my $tabname (qw(osimage kit)) {
+    # Another request writes the values of the import right after the import read the row. The update of the import
+    # then selects no row, or its insert finds the key taken, and the row of the other request must stay.
+    my ($armed, $raced);
+    no warnings 'redefine';
+    my $read = \&xCAT::Table::getEntriesWhere;
+    local *xCAT::Table::getEntriesWhere = sub {
+        my @result = $read->(@_);
+        if ($armed && !$raced && $_[0]->{tabname} eq $tabname) {
+            $raced = 1;
+            xCAT::Table->new($tabname, -create => 1)->setAttribs($tabname eq 'osimage'
+                ? ({ imagename => $_[2] }, { osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' })
+                : ({ kitname => 'samekit' }, { description => 'kit of this import' }));
+        }
+        return @result;
+    };
+    my $make_files = \&xCAT_plugin::imgport::make_files;
+    local *xCAT_plugin::imgport::make_files = sub { my $made = $make_files->(@_); $armed = 1; return $made };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, kit => 'samekit', nodes => 'undefined-node');
+    ok($raced, "$tabname: another request writes the values of the import between the read and the write");
+    ok(!$placed, "$tabname: the import fails");
+    if ($tabname eq 'osimage') {
+        is(definition($dest), 'rhels9.6', 'osimage: the image definition that the other request wrote stays');
+    } else {
+        my ($row) = xCAT::Table->new('kit')->getAttribs({ kitname => 'samekit' }, 'description');
+        is($row && $row->{description}, 'kit of this import', 'kit: the kit row that the other request created stays');
+        xCAT::Table->new('kit')->delEntries({ kitname => 'samekit' });
+    }
+}
+
 done_testing();

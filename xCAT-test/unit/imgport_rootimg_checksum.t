@@ -282,7 +282,7 @@ for my $case ([ 'an extra file that cannot be copied', extra => 'missing.file' ]
 for my $nodes (undef, 'undefined-node') {
     # An existing extra directory takes the attributes of the bundle as cp -a gives them on this host, ACLs too.
     my $reference = "$fixture/reference-" . ($sequence + 1);
-    my ($acl, @before);
+    my ($acl, $trusted, @before);
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
         my ($dest, $bundle) = @_;
         for my $pair ([ "$bundle/extra/conf", "$dest/extra" ], [ "$reference/bundle", "$reference/dest" ]) {
@@ -293,6 +293,8 @@ for my $nodes (undef, 'undefined-node') {
             chmod(0750, "$from/shared") or die $!;
             chmod(0755, "$to/shared")   or die $!;
             $acl = system('setfacl', '-m', 'u:nobody:r-x,d:u:nobody:r-x', "$to/shared") == 0;
+            $trusted = system("setfattr -n trusted.xcat -v bundle '$from/shared' 2>/dev/null") == 0
+              && system("setfattr -n trusted.xcat -v kept '$to/shared' 2>/dev/null") == 0;
             utime(1000000000, 1000000000, "$to/shared") or die $!;
         }
         @before = (scalar(`getfacl -cp '$dest/extra/shared' 2>/dev/null`), (stat("$dest/extra/shared"))[ 2, 9 ]);
@@ -307,6 +309,11 @@ for my $nodes (undef, 'undefined-node') {
             is(`getfacl -cp '$shared'`, `getfacl -cp '$reference/dest/shared'`,
                 'the existing extra directory gets the ACL that cp -a gives it on this host');
         }
+      SKIP: {
+            skip 'only a privileged user can set a trusted attribute', 1 if !$trusted;
+            is(`getfattr --only-values -n trusted.xcat '$shared'`, `getfattr --only-values -n trusted.xcat '$reference/dest/shared'`,
+                'the existing extra directory gets the trusted attribute that cp -a gives it on this host');
+        }
     } else {
         ok(!$placed, 'an import over an existing extra directory with an ACL fails on a later step');
         ok(!-e "$shared/new.conf", 'the rollback removes the file of the bundle from the existing extra directory');
@@ -314,6 +321,10 @@ for my $nodes (undef, 'undefined-node') {
       SKIP: {
             skip 'setfacl cannot set an ACL here', 1 if !$acl;
             is(`getfacl -cp '$shared'`, $before[0], 'the existing extra directory gets its own ACL back');
+        }
+      SKIP: {
+            skip 'only a privileged user can set a trusted attribute', 1 if !$trusted;
+            is(`getfattr --only-values -n trusted.xcat '$shared'`, 'kept', 'the existing extra directory gets its own trusted attribute back');
         }
     }
     is(read_binary("$shared/admin.conf"), "file of the administrator\n", 'the file of the administrator stays');
@@ -749,12 +760,13 @@ for my $held (0, 1) {
 
 for my $kind (qw(symlink file)) {
     # The archive turns an empty directory of the tree into a $kind, and the import then fails.
-    my ($acl, $xattr);
+    my ($acl, $xattr, $trusted);
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
         my ($dest, $bundle) = @_;
         make_path("$dest/rootimg/var/lock", "$dest/rootimg/run/target", "$bundle/tree/var");
         my $set = system('setfacl', '-m', 'u:nobody:r-x', "$dest/rootimg/var/lock") == 0;
         $xattr = system("setfattr -n user.xcat -v kept '$dest/rootimg/var/lock' 2>/dev/null") == 0;
+        $trusted = system("setfattr -n trusted.xcat -v kept '$dest/rootimg/var/lock' 2>/dev/null") == 0;
         chmod(0700, "$dest/rootimg/var/lock") or die $!;
         $acl = `getfacl -cp '$dest/rootimg/var/lock'` if $set;
         chmod(0750, "$dest/rootimg/run/target") or die $!;
@@ -777,6 +789,11 @@ for my $kind (qw(symlink file)) {
         skip 'setfattr cannot set an extended attribute here', 1 if !$xattr;
         is(`getfattr --only-values -n user.xcat '$dest/rootimg/var/lock' 2>/dev/null`, 'kept',
             "the directory that became a $kind gets its own extended attribute back");
+    }
+  SKIP: {
+        skip 'only a privileged user can set a trusted attribute', 1 if !$trusted;
+        is(`getfattr --only-values -n trusted.xcat '$dest/rootimg/var/lock' 2>/dev/null`, 'kept',
+            "the directory that became a $kind gets its own trusted attribute back");
     }
     is((stat("$dest/rootimg/run/target"))[2] & 07777, 0750, 'the rollback leaves the target of the symlink as it was');
 }

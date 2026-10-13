@@ -2073,9 +2073,43 @@ sub txn_copied_identity {
 
 # Tells why a rollback must not touch $path: another writer changed what the import put there.
 sub txn_changed {
-    my ($txn, $path) = @_;
-    return if !exists($txn->{installed}{$path}) || txn_identity($path) eq $txn->{installed}{$path};
+    my ($txn, $path, $taken) = @_;
+    return if !exists($txn->{installed}{$path});
+    return if (defined($taken) ? txn_identity($taken) : '') eq $txn->{installed}{$path};
     return "Cannot put back $path: another change replaced it";
+}
+
+# Takes the entry at $path away into a private directory next to it, under its own name, so that no other writer
+# changes it, or puts another entry at $path unseen, while a rollback checks and changes it. $check gets the taken
+# entry, or undef when $path holds none, and tells why it must stay. $act then gets it with the private directory,
+# and returns why it cannot change it. When either fails, or $act dies, the entry comes back to $path, or stays in
+# the private directory when another entry took its place.
+sub txn_with_taken {
+    my ($path, $check, $act) = @_;
+    my $dir = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($path)) } or return "Cannot take $path away: $@";
+    my $taken = "$dir/" . basename($path);
+    if ((-e $path || -l $path) && !rename($path, $taken)) {
+        my $error = "Cannot take $path away: $!";
+        rmdir($dir);
+        return $error;
+    }
+    my $held = -e $taken || -l $taken;
+    my $error = $check->($held ? $taken : undef);
+    if (!$error) {
+        eval { $error = $act->($held ? $taken : undef, $dir); 1 } or chomp($error = "The rollback failed: $@");
+    }
+    if ($error && (-e $taken || -l $taken) && !txn_rename_free($taken, $path)) {
+        return "$error. It stays in $taken";
+    }
+    rmtree($dir);
+    return $error;
+}
+
+# Puts the entry $taken back at $path, and returns why it cannot.
+sub txn_give_back {
+    my ($taken, $path) = @_;
+    return if txn_rename_free($taken, $path);
+    return $! == Errno::EEXIST() ? "Cannot put back $path: $TXN_CONFLICT" : "Cannot put back $path: $!";
 }
 
 # Keeps what is at $path, so that a rollback puts it back, or removes $path on a rollback when nothing is there.
@@ -2091,15 +2125,16 @@ sub txn_keep {
         rmtree($path) if $remove;
     }
     push @{ $txn->{undo} }, sub {
-        my $changed = txn_changed($txn, $path);
-        return $changed if $changed;
+        my $error = txn_with_taken($path, sub { txn_changed($txn, $path, $_[0]) }, sub {
+            my ($taken) = @_;
+            return if !defined($taken);
 
-        # A directory without a record is one that the extraction made, and other writers can add files to it.
-        if (-d $path && !-l $path && !exists($txn->{installed}{$path})) {
-            rmdir($path) or return "Cannot put back $path: $!";
-        } elsif (-e $path || -l $path) {
-            rmtree($path);
-        }
+            # A directory without a record is one that the extraction made, and other writers can add files to it.
+            return rmdir($taken) ? undef : "Cannot put back $path: $!" if -d $taken && !-l $taken && !exists($txn->{installed}{$path});
+            rmtree($taken);
+            return;
+        });
+        return $error if $error;
         my $renamed = txn_rename_free($saved, $path);
         return "Cannot put back $path: $TXN_CONFLICT" if !$renamed && $! == Errno::EEXIST();
         return "Cannot put back $path from $saved" if !$renamed && (-e $path || -l $path || system('cp', '-a', $saved, $path) != 0);
@@ -2140,14 +2175,15 @@ sub txn_created {
     my ($txn, $path) = @_;
     my $recorded = $txn->{installed}{$path};
     push @{ $txn->{undo} }, sub {
-        my $changed = txn_changed($txn, $path);
-        return $changed if $changed;
-        txn_record($txn, $path, $recorded);
-        return if !-e $path && !-l $path;
+        return txn_with_taken($path, sub { txn_changed($txn, $path, $_[0]) }, sub {
+            my ($taken) = @_;
+            txn_record($txn, $path, $recorded);
+            return if !defined($taken);
 
-        # A directory that the import created goes away only when empty, so the files of other writers stay.
-        return if -d $path && !-l $path ? rmdir($path) : unlink($path);
-        return "Cannot remove $path: $!";
+            # A directory that the import created goes away only when empty, so the files of other writers stay.
+            return if -d $taken && !-l $taken ? rmdir($taken) : unlink($taken);
+            return "Cannot remove $path: $!";
+        });
     };
     return;
 }
@@ -2190,15 +2226,16 @@ sub txn_move {
 
     # The move back is recorded first, because the undo of txn_keep would remove what moved to $to.
     push @{ $txn->{undo} }, sub {
-        return if !-e $to && !-l $to;
-        my $changed = txn_changed($txn, $to);
-        return $changed if $changed;
-        if (!txn_rename_free($to, $from)) {
-            return "Cannot put back $from: $TXN_CONFLICT" if $! == Errno::EEXIST();
-            return "Cannot move $to back to $from: $!" if $! != Errno::EXDEV() || -e $from || -l $from || !move($to, $from);
-        }
-        txn_record($txn, $to, $recorded);
-        return;
+        return txn_with_taken($to, sub { defined($_[0]) ? txn_changed($txn, $to, $_[0]) : undef }, sub {
+            my ($taken) = @_;
+            return if !defined($taken);
+            if (!txn_rename_free($taken, $from)) {
+                return "Cannot put back $from: $TXN_CONFLICT" if $! == Errno::EEXIST();
+                return "Cannot move $to back to $from: $!" if $! != Errno::EXDEV() || -e $from || -l $from || !move($taken, $from);
+            }
+            txn_record($txn, $to, $recorded);
+            return;
+        });
     };
     txn_installed($txn, $to);
     if ($moved eq 'copied') {
@@ -2333,15 +2370,19 @@ sub txn_keep_copy {
     my $before   = txn_identity($path);
     system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in $txn->{kept}";
     push @{ $txn->{undo} }, sub {
-        my $changed = txn_changed($txn, $path);
-        return $changed if $changed;
+        return txn_with_taken($path, sub { txn_changed($txn, $path, $_[0]) }, sub {
+            my ($taken) = @_;
+            return "Cannot put back $path: $TXN_CONFLICT" if !defined($taken);
 
-        # A file that cp could not write for the import needs nothing back.
-        my $copied = system('cp', '-a', '--no-preserve=links', $saved, $path) == 0;
-        return "Cannot put back $path from $saved" if !$copied && txn_identity($path) ne $before;
-        txn_drop_xattrs($txn, $path, txn_xattr_names($saved)) if $copied;
-        txn_record($txn, $path, $recorded);
-        return;
+            # A file that cp could not write for the import needs nothing back.
+            my $copied = system('cp', '-a', '--no-preserve=links', $saved, $taken) == 0;
+            return "Cannot put back $path from $saved" if !$copied && txn_identity($taken) ne $before;
+            txn_drop_xattrs($txn, $taken, txn_xattr_names($saved), $path) if $copied;
+            my $error = txn_give_back($taken, $path);
+            return $error if $error;
+            txn_record($txn, $path, $recorded);
+            return;
+        });
     };
     return;
 }
@@ -2476,9 +2517,16 @@ sub txn_keep_attributes {
     txn_tar_dir($dir, $archive) or return "Cannot keep the attributes of $dir";
     $kept->{applied} = txn_tar_attributes($dir);
     push @{ $txn->{undo} }, sub {
-        return "Cannot put back the attributes of $dir: another change replaced them" if txn_tar_attributes($dir) ne $kept->{applied};
-        txn_drop_xattrs($txn, $dir, txn_xattr_names(undef, $archive));
-        return txn_untar_dir($archive, dirname($dir)) ? undef : "Cannot put back the attributes of $dir";
+        return txn_with_taken($dir, sub {
+            my ($taken) = @_;
+            return if defined($taken) && txn_tar_attributes($taken) eq $kept->{applied};
+            return "Cannot put back the attributes of $dir: another change replaced them";
+        }, sub {
+            my ($taken) = @_;
+            txn_drop_xattrs($txn, $taken, txn_xattr_names(undef, $archive), $dir);
+            txn_untar_dir($archive, dirname($taken)) or return "Cannot put back the attributes of $dir";
+            return txn_give_back($taken, $dir);
+        });
     };
     return;
 }
@@ -2508,19 +2556,21 @@ sub txn_xattr_names {
 }
 
 # Removes from $path the extended attributes that the import added, which $kept, the names of its kept attributes,
-# does not hold. Putting back the kept attributes leaves the others. The rollback goes on, and reports what stays.
+# does not hold. Putting back the kept attributes leaves the others. The rollback goes on, and reports what stays
+# under the name $name, where the entry belongs.
 sub txn_drop_xattrs {
-    my ($txn, $path, $kept) = @_;
+    my ($txn, $path, $kept, $name) = @_;
+    $name //= $path;
     my $now = txn_xattr_names($path);
     if (!$kept || !$now) {
-        push @{ $txn->{rows} }, "Cannot list the extended attributes of $path";
+        push @{ $txn->{rows} }, "Cannot list the extended attributes of $name";
         return;
     }
     my @added = sort grep { !$kept->{$_} } keys %$now;
     return if !@added;
     my ($setfattr) = grep { -x $_ } map { "$_/setfattr" } split(/:/x, $ENV{PATH} // '');
     my @left = $setfattr ? grep { system($setfattr, '-h', '-x', $_, $path) != 0 } @added : @added;
-    push @{ $txn->{rows} }, "Cannot remove the extended attributes @left that the import gave $path" if @left;
+    push @{ $txn->{rows} }, "Cannot remove the extended attributes @left that the import gave $name" if @left;
     return;
 }
 
@@ -2582,25 +2632,31 @@ sub txn_keep_dirs {
 # only while the directory holds the mode and owner in $kept, which the import updates after the extraction.
 sub txn_keep_metadata {
     my ($txn, $dir, $member, $archive, $kept) = @_;
-    my $path = "$dir/$member";
+    my $path = $member eq '.' ? $dir : "$dir/$member";
     my @old = stat($path) or return "Cannot read $path: $!";
     my $recorded = $txn->{installed}{$path};
     $kept->{applied} = txn_owner_mode($path);
     push @{ $txn->{undo} }, sub {
-        if (!-d $path || -l $path) {
-
-            # cpio replaces an empty directory with an entry of another type, which goes away again.
-            my $changed = txn_changed($txn, $path);
-            return $changed if $changed;
-            unlink($path) if -e $path || -l $path;
-            txn_untar_dir($archive, $dir, "./$member") or return "Cannot put back the directory $path";
-            txn_record($txn, $path, $recorded);
-        } elsif (txn_owner_mode($path) ne $kept->{applied}) {
+        return txn_with_taken($path, sub {
+            my ($taken) = @_;
+            return txn_changed($txn, $path, $taken) if !defined($taken) || !-d $taken || -l $taken;
+            return if txn_owner_mode($taken) eq $kept->{applied};
             return "Cannot put back the mode and owner of $path: another change replaced them";
-        }
-        chown($old[4], $old[5], $path);
-        utime($old[8], $old[9], $path);
-        return chmod(Fcntl::S_IMODE($old[2]), $path) ? undef : "Cannot put back the mode of $path: $!";
+        }, sub {
+            my ($taken, $private) = @_;
+            if (!defined($taken) || !-d $taken || -l $taken) {
+
+                # cpio replaces an empty directory with an entry of another type, which goes away again.
+                unlink($taken) if defined($taken);
+                $taken = "$private/$member";
+                txn_untar_dir($archive, $private, "./$member") or return "Cannot put back the directory $path";
+                txn_record($txn, $path, $recorded);
+            }
+            chown($old[4], $old[5], $taken);
+            utime($old[8], $old[9], $taken);
+            chmod(Fcntl::S_IMODE($old[2]), $taken) or return "Cannot put back the mode of $path: $!";
+            return txn_give_back($taken, $path);
+        });
     };
     return;
 }

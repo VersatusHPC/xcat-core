@@ -2877,7 +2877,7 @@ sub publish_rootimg {
         $error .= ", and $restore_error" if $restore_error;
     } else {
         # A checksum file that keeps the previous line still matches the new archive, so this rename may fail.
-        rename("$staged.sha256", "$target.sha256") if -e "$staged.sha256";
+        rename("$staged.sha256", "$target.sha256") if -e "$staged.sha256" || -l "$staged.sha256";
         if ($remove_others) {
             # A node that already downloads another format checks it after the download, so the checksums stay.
             my %kept = map { ($_ => 1) } ($target, "$target.metainfo");
@@ -2961,7 +2961,7 @@ sub _replace_rootimg {
 
     # A staged symlink, as one that imgimport kept, resolves where it is published, and keeps its mode.
     my @plain = grep { !-l $_ } @files;
-    return "$!" if !-s _staged_archive($staged, $target) || chmod(0644, @plain) != @plain;
+    return "$!" if !-s _staged_file($staged, $target) || chmod(0644, @plain) != @plain;
     my $error = _replace_sums($state);
     return $error if $error;
 
@@ -2970,7 +2970,7 @@ sub _replace_rootimg {
         $state->{metainfo_moved} = rename("$target.metainfo", "$previous.metainfo") or return "$!";
     }
     $state->{replaced} = rename($staged, $target) or return "$!";
-    return "$!" if -e "$staged.metainfo" && !rename("$staged.metainfo", "$target.metainfo");
+    return "$!" if (-e "$staged.metainfo" || -l "$staged.metainfo") && !rename("$staged.metainfo", "$target.metainfo");
     return;
 }
 
@@ -2979,19 +2979,20 @@ sub _replace_rootimg {
 sub _replace_sums {
     my ($state) = @_;
     my ($staged, $target, $previous) = @$state{qw(staged target previous)};
+    my $sums = _staged_file("$staged.sha256", "$target.sha256");
 
     # A rollback renames the previous checksum entry back, so a symlink stays a symlink.
     $state->{sums_entry} = (-e "$target.sha256" || -l "$target.sha256") && link("$target.sha256", "$previous.sha256");
 
     # Until the archive is replaced, the checksum file lists the new and the previous archive, so the published
     # archive matches a line of it, also when the publisher is killed.
-    if (-e "$staged.sha256") {
+    if (-e $sums) {
         # An archive packed without a checksum stays published until the rename, so the list needs its line too.
         my ($previous_line, $error) = ($state->{sums});
         ($previous_line, $error) = _rootimg_checksum_line($target) if !defined($previous_line) && -e $target;
         return $error if $error;
         $state->{sums_changed} = 1;
-        return _write_published_file("$target.sha256", _read_published_file("$staged.sha256") . ($previous_line // ''));
+        return _write_published_file("$target.sha256", _read_published_file($sums) . ($previous_line // ''));
     }
     if (defined($state->{sums})) {
         $state->{sums_changed} = 1;
@@ -3000,9 +3001,9 @@ sub _replace_sums {
     return;
 }
 
-# Returns the file that the staged archive $staged is once it is published at $target. A relative symlink
+# Returns the file that the staged file $staged is once it is published at $target. A relative symlink
 # resolves from the directory of $target.
-sub _staged_archive {
+sub _staged_file {
     my ($staged, $target) = @_;
     return $staged if !-l $staged;
     my $link = readlink($staged) // '';

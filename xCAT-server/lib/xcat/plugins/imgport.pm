@@ -32,6 +32,7 @@ use File::Path qw/rmtree/;
 use File::Basename;
 use File::Find qw(find);
 use Digest::MD5;
+use Digest::SHA ();
 use Fcntl ();
 use xCAT::NodeRange;
 use xCAT::Schema;
@@ -2476,6 +2477,17 @@ sub txn_drop_xattrs {
     return;
 }
 
+# Returns the SHA-256 digest of the staged image $staged, which its checksum file holds.
+sub txn_published_sum {
+    my ($staged) = @_;
+    if (open(my $sums, '<', "$staged.sha256")) {
+        my ($sum) = (scalar(<$sums>) // '') =~ /\A([0-9a-f]{64})\s/x;
+        close($sums);
+        return $sum if $sum;
+    }
+    return eval { Digest::SHA->new(256)->addfile($staged)->hexdigest } // '';
+}
+
 # Identifies the mode, owner, group, ACLs and other attributes of the published image $fn.
 sub txn_published_identity {
     my ($fn) = @_;
@@ -2896,8 +2908,9 @@ sub txn_keep_rootimg {
 
         # The mode, owner, ACLs and attributes that an administrator gives the published image meanwhile stay.
         my $check = sub {
-            return if txn_published_identity($fn) eq $txn->{published_attributes}{$fn};
-            return 'another change replaced its mode, owner or attributes';
+            return 'another change replaced its mode, owner or attributes' if txn_published_identity($fn) ne $txn->{published_attributes}{$fn};
+            my $sum = eval { Digest::SHA->new(256)->addfile($fn)->hexdigest } // '';
+            return $sum eq $txn->{published_content}{$fn} ? undef : 'another change replaced its content';
         };
         if (defined($published)) {
             eval {
@@ -3378,12 +3391,15 @@ sub place_rootimg {
         }
     }
 
-    # The rename keeps the inode, so the staged image identifies what this import publishes.
+    # The rename keeps the inode, so the staged image identifies what this import publishes, and its checksum
+    # identifies the content.
     my $identity = xCAT::SvrUtils->rootimg_identity($staged);
+    my $content  = txn_published_sum($staged);
     $error = xCAT::SvrUtils->publish_rootimg($staged, $fn, undef, { keep => $kept });
     if (!$error) {
         $txn->{published}{$fn} = $identity;
         $txn->{published_attributes}{$fn} = txn_published_identity($fn);
+        $txn->{published_content}{$fn}    = $content;
     }
     return $error;
 }

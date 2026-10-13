@@ -1118,10 +1118,14 @@ for my $removal ('removes', 'cannot remove') {
     rmtree($kept) if $kept;
 }
 
-for my $step (qw(copy move extraction link)) {
-    # Another writer replaces what the import wrote right before the import records it, and the import then fails.
-    my %target = (copy => 'extra/shared.conf', move => 'kernel', extraction => 'rootimg/etc/motd', link => 'rootimg.cpio.gz.ORIG');
-    my %written = (copy => "file of this import\n", move => "kernel from the bundle\n", extraction => "motd of the bundle\n", link => $published);
+for my $step (qw(copy move extraction link edit)) {
+    # Another writer replaces what the import wrote right before the import records it, or edits the moved kernel in
+    # place, and the import then fails.
+    my %target = (copy => 'extra/shared.conf', move => 'kernel', extraction => 'rootimg/etc/motd', link => 'rootimg.cpio.gz.ORIG',
+        edit => 'kernel');
+    my %written = (copy => "file of this import\n", move => "kernel from the bundle\n", extraction => "motd of the bundle\n", link => $published,
+        edit => "kernel from the bundle\n");
+    my $other = $step eq 'edit' ? "Kernel from the bundle\n" : "file of another writer\n";
     my ($dest, $replaced);
     no warnings 'redefine';
     my $installed = \&xCAT_plugin::imgport::txn_installed;
@@ -1129,8 +1133,14 @@ for my $step (qw(copy move extraction link)) {
         my (undef, $path) = @_;
         if (!$replaced && $path eq "$dest/$target{$step}" && -f $path && read_binary($path) eq $written{$step}) {
             $replaced = 1;
-            write_text("$path.other", "file of another writer\n");
-            rename("$path.other", $path) or die $!;
+            if ($step eq 'edit') {
+                open(my $file, '+<', $path) or die $!;
+                print {$file} 'K';
+                close($file) or die $!;
+            } else {
+                write_text("$path.other", $other);
+                rename("$path.other", $path) or die $!;
+            }
         }
         return $installed->(@_);
     };
@@ -1146,7 +1156,7 @@ for my $step (qw(copy move extraction link)) {
     ok($replaced, "$step: another writer replaces what the import wrote before the import records it");
     ok(!$placed, "$step: the import fails on a later step");
     like($errors, qr/Cannot put back \Q$file\E: another change replaced it/, "$step: the rollback reports the replaced file");
-    is(-f $file ? read_binary($file) : undef, "file of another writer\n", "$step: the file of the other writer stays");
+    is(-f $file ? read_binary($file) : undef, $other, "$step: the file of the other writer stays");
     my ($kept) = $errors =~ /kept in (\S+)\./;
     rmtree($kept) if $kept;
 }

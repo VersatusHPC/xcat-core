@@ -2659,7 +2659,13 @@ sub txn_keep_rootimg {
         # A kept symlink can point to a relative path, which resolves only where publish_rootimg puts it back.
         my $kept = (-e "$dir/$name" || -l "$dir/$name");
         my $error;
-        if (defined($published)) {
+
+        # The mode or owner that an administrator gives the published image meanwhile stays.
+        if (defined($published) && xCAT::SvrUtils->rootimg_identity($fn) eq $published
+            && txn_owner_mode($fn) ne $txn->{published_mode}{$fn})
+        {
+            $error = "Cannot put back $fn: another change replaced its mode or owner";
+        } elsif (defined($published)) {
             eval {
                 $error = $kept ? txn_republish($dir, $name, $fn, $published) : xCAT::SvrUtils->withdraw_rootimg($fn, $published);
                 1;
@@ -3128,7 +3134,10 @@ sub place_rootimg {
     # The rename keeps the inode, so the staged image identifies what this import publishes.
     my $identity = xCAT::SvrUtils->rootimg_identity($staged);
     $error = xCAT::SvrUtils->publish_rootimg($staged, $fn, undef, { keep => $kept });
-    $txn->{published}{$fn} = $identity if !$error;
+    if (!$error) {
+        $txn->{published}{$fn} = $identity;
+        $txn->{published_mode}{$fn} = txn_owner_mode($fn);
+    }
     return $error;
 }
 

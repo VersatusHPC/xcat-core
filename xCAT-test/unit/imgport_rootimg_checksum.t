@@ -1118,6 +1118,39 @@ for my $removal ('removes', 'cannot remove') {
     rmtree($kept) if $kept;
 }
 
+for my $step (qw(copy move extraction link)) {
+    # Another writer replaces what the import wrote right before the import records it, and the import then fails.
+    my %target = (copy => 'extra/shared.conf', move => 'kernel', extraction => 'rootimg/etc/motd', link => 'rootimg.cpio.gz.ORIG');
+    my %written = (copy => "file of this import\n", move => "kernel from the bundle\n", extraction => "motd of the bundle\n", link => $published);
+    my ($dest, $replaced);
+    no warnings 'redefine';
+    my $installed = \&xCAT_plugin::imgport::txn_installed;
+    local *xCAT_plugin::imgport::txn_installed = sub {
+        my (undef, $path) = @_;
+        if (!$replaced && $path eq "$dest/$target{$step}" && -f $path && read_binary($path) eq $written{$step}) {
+            $replaced = 1;
+            write_text("$path.other", "file of another writer\n");
+            rename("$path.other", $path) or die $!;
+        }
+        return $installed->(@_);
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$bundle/extra", "$dest/extra", "$bundle/tree/etc", "$dest/rootimg");
+        write_text("$bundle/extra/shared.conf", $written{copy});
+        write_text("$bundle/tree/etc/motd", $written{extraction});
+        system("cd '$bundle/tree' && find . | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, extra => 'shared.conf', rootimgtree => 'DEST/rootimg/rootimgtree.gz', nodes => 'undefined-node');
+    my $file = "$dest/$target{$step}";
+    ok($replaced, "$step: another writer replaces what the import wrote before the import records it");
+    ok(!$placed, "$step: the import fails on a later step");
+    like($errors, qr/Cannot put back \Q$file\E: another change replaced it/, "$step: the rollback reports the replaced file");
+    is(-f $file ? read_binary($file) : undef, "file of another writer\n", "$step: the file of the other writer stays");
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 {
     # Another writer replaces a file that the import installed, so the rollback must leave it and stop.
     no warnings 'redefine';

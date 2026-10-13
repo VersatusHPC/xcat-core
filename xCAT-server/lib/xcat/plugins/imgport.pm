@@ -2366,10 +2366,9 @@ sub txn_guarded_write {
     my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
     if (!$row) {
 
-        # As setAttribs, nothing is written for a row without values.
-        my %new = (%$keys, %$values);
-        return if !grep { defined($new{$_}) && !exists $keys->{$_} } keys %new;
-        my ($inserted, $error) = $table->insertEntry(\%new);
+        # As setAttribs, a row is written when one of $values is set, also the value of a key.
+        return if !grep { defined($values->{$_}) && $values->{$_} ne '' } keys %$values;
+        my ($inserted, $error) = $table->insertEntry({ %$keys, %$values });
         return if $inserted;
 
         # Without an answer, the insert can have applied, and a row that exists now can be the one of the import.

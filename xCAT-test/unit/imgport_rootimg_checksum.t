@@ -844,6 +844,26 @@ for my $existing (0, 1) {
 }
 
 {
+    # The administrator gives the image that the import published another mode before a later step fails.
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        chmod(0600, $data->{rootimg}) or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', undef, nodes => 'n1');
+    ok(!$placed, 'an import fails after the administrator changed the mode of the image that it published');
+    like($errors, qr/\Q$archive\E: another change replaced its mode\b.*The previous image is kept in (\S+?)\.?(?:\s|$)/s,
+        'the rollback reports the change of the administrator, and keeps the previous image');
+    is(read_binary($archive), $imported, 'the image that the import published stays');
+    is((stat($archive))[2] & 07777, 0600, 'the published image keeps the mode that the administrator gave it');
+    my ($kept) = $errors =~ /The previous image is kept in (\S+?)\.?(?:\s|$)/;
+    is($kept && read_binary("$kept/rootimg.cpio.gz"), $published, 'the kept directory holds the previous image');
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    rmtree($files) if $files;
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

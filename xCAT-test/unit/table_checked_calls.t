@@ -163,4 +163,18 @@ is(kits(), 'one', 'the DB worker leaves the other rows');
     is($rows && $rows->[0]{description}, 'first', 'the row keeps the change of the other writer only');
 }
 
+{
+    # A reader builds the cache of the table, and a conditional update then changes a row.
+    xCAT::Table->new('nodelist', -create => 1)->setAttribs({ node => 'cachenode' }, { groups => 'compute' });
+    my $tab = xCAT::Table->new('postscripts', -create => 1, -autocommit => 0);
+    $tab->setAttribs({ node => 'cachenode' }, { postscripts => 'script before the update' });
+    $tab->commit;
+    my ($entry) = $tab->getNodeAttribs('cachenode', ['postscripts'], prefetchcache => 1);
+    is($entry && $entry->{postscripts}, 'script before the update', 'the cached reader sees the row');
+    $tab->setAttribsWhere(column('node') . ' = ?', { postscripts => 'script after the update' }, 'cachenode');
+    $tab->commit;
+    ($entry) = $tab->getNodeAttribs('cachenode', ['postscripts'], prefetchcache => 1);
+    is($entry && $entry->{postscripts}, 'script after the update', 'the cached reader sees the conditional update at once');
+}
+
 done_testing();

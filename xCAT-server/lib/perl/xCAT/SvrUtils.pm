@@ -2854,8 +2854,9 @@ sub _write_published_file {
 #        $target:        the published path
 #        $remove_others: true to remove the other rootimg.* files of the image directory
 #        $options:       a hash with expected, to publish only while the published rootimage has this
-#                        rootimg_identity, keep, a directory for a copy of the files that this replaces, and
-#                        keep_mode, to publish the staged files with their own mode
+#                        rootimg_identity, check, code that tells under the publication lock why to refuse,
+#                        keep, a directory for a copy of the files that this replaces, and keep_mode, to publish
+#                        the staged files with their own mode
 #return:
 #        on success: nothing
 #        on fail:    the error message
@@ -2913,16 +2914,19 @@ sub rootimg_identity {
 #arguments:
 #        $target:   the published path
 #        $expected: remove only while the published rootimage has this rootimg_identity
+#        $check:    code that tells under the publication lock why not to remove it, or nothing
 #return:
 #        on success: nothing
 #        on fail:    the error message
 #--------------------------------------------------------------------------------------------------------
 sub withdraw_rootimg {
-    my ($class, $target, $expected) = @_;
+    my ($class, $target, $expected, $check) = @_;
     my ($lock, $error) = _acquire_publish_lock(dirname($target));
     return $error unless $lock;
     if ($class->rootimg_identity($target) ne $expected) {
         $error = "Cannot remove $target: another publication replaced it";
+    } elsif (my $refused = $check ? $check->() : undef) {
+        $error = "Cannot remove $target: $refused";
     } else {
         my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ($target, "$target.sha256", "$target.metainfo");
         $error = "Cannot remove @remaining: $!" if @remaining;
@@ -2936,6 +2940,8 @@ sub _refuse_rootimg_publication {
     my ($target, $options) = @_;
     return 'another publication replaced it'
       if defined($options->{expected}) && __PACKAGE__->rootimg_identity($target) ne $options->{expected};
+    my $refused = $options->{check} ? $options->{check}->() : undef;
+    return $refused if $refused;
     return if !$options->{keep} || !-e $target;
     my $kept = "$options->{keep}/" . basename($target);
     my $copied = _keep_copy($target, $kept) && !grep { -e "$target.$_" && !_keep_copy("$target.$_", "$kept.$_") } qw(sha256 metainfo);

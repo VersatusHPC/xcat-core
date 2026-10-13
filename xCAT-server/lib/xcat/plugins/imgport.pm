@@ -2330,6 +2330,12 @@ sub txn_drop_xattrs {
     return;
 }
 
+# Identifies the mode, owner, group, ACLs and other attributes of the published image $fn.
+sub txn_published_identity {
+    my ($fn) = @_;
+    return join(':', txn_owner_mode($fn), txn_attributes(0, $fn)->{$fn} // '');
+}
+
 # Identifies the mode, owner and group of $path.
 sub txn_owner_mode {
     my ($path) = @_;
@@ -2700,7 +2706,7 @@ sub txn_remove_row {
 # Publishes again the image $name that $dir keeps for $fn, while $fn holds what the import published. publish_rootimg
 # moves the files that it publishes, so it gets links, and the kept files stay until the rollback succeeds.
 sub txn_republish {
-    my ($dir, $name, $fn, $published) = @_;
+    my ($dir, $name, $fn, $published, $check) = @_;
     my $stage = "$dir/stage";
     rmtree($stage);
     mkdir($stage) or return "Cannot create $stage: $!";
@@ -2709,7 +2715,7 @@ sub txn_republish {
         system('cp', '-a', "$dir/$file", "$stage/$file") == 0 or return "Cannot stage $dir/$file for its publication";
     }
     # The staged files are links of the kept files, which keep their mode.
-    return xCAT::SvrUtils->publish_rootimg("$stage/$name", $fn, undef, { expected => $published, keep_mode => 1 });
+    return xCAT::SvrUtils->publish_rootimg("$stage/$name", $fn, undef, { expected => $published, check => $check, keep_mode => 1 });
 }
 
 # Returns a directory where publish_rootimg keeps the published root image at $fn with its checksum and
@@ -2732,14 +2738,14 @@ sub txn_keep_rootimg {
         my $kept = (-e "$dir/$name" || -l "$dir/$name");
         my $error;
 
-        # The mode or owner that an administrator gives the published image meanwhile stays.
-        if (defined($published) && xCAT::SvrUtils->rootimg_identity($fn) eq $published
-            && txn_owner_mode($fn) ne $txn->{published_mode}{$fn})
-        {
-            $error = "Cannot put back $fn: another change replaced its mode or owner";
-        } elsif (defined($published)) {
+        # The mode, owner, ACLs and attributes that an administrator gives the published image meanwhile stay.
+        my $check = sub {
+            return if txn_published_identity($fn) eq $txn->{published_attributes}{$fn};
+            return 'another change replaced its mode, owner or attributes';
+        };
+        if (defined($published)) {
             eval {
-                $error = $kept ? txn_republish($dir, $name, $fn, $published) : xCAT::SvrUtils->withdraw_rootimg($fn, $published);
+                $error = $kept ? txn_republish($dir, $name, $fn, $published, $check) : xCAT::SvrUtils->withdraw_rootimg($fn, $published, $check);
                 1;
             } or chomp($error = "Cannot put back $fn: $@");
         }
@@ -3210,7 +3216,7 @@ sub place_rootimg {
     $error = xCAT::SvrUtils->publish_rootimg($staged, $fn, undef, { keep => $kept });
     if (!$error) {
         $txn->{published}{$fn} = $identity;
-        $txn->{published_mode}{$fn} = txn_owner_mode($fn);
+        $txn->{published_attributes}{$fn} = txn_published_identity($fn);
     }
     return $error;
 }

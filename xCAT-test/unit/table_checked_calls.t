@@ -78,4 +78,29 @@ is(kits(), 'one', 'the DB worker leaves the other rows');
     is($rows && $rows->[0]{kitname}, 'five', 'the DB worker runs getEntriesWhere');
 }
 
+{
+    my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+    $tab->setAttribs({ kitname => 'seven' }, { version => '7' });
+    is_deeply([ $tab->commit ], [1], 'a commit that the database accepts returns 1');
+    $tab->setAttribs({ kitname => 'eight' }, { version => '8' });
+
+    # On SQLite, the write of another request joins the open transaction, and the database then refuses the commit,
+    # as when its disk is full for a moment.
+    xCAT::Table->new('kit')->setAttribs({ kitname => 'unrelated' }, { version => 'written by another request' });
+    my $callbacks = $tab->{dbh}{Callbacks};
+    $tab->{dbh}{Callbacks} = { commit => sub { $_[0]->set_err(1, 'database or disk is full'); undef $_; return 0 } };
+    my ($committed, $error) = $tab->commit;
+    $tab->{dbh}{Callbacks} = $callbacks;
+    ok(!$committed, 'a commit that the database refuses returns no success');
+    is($error, 'database or disk is full', 'a commit that the database refuses returns the error of the database');
+    my ($rows) = xCAT::Table->new('kit')->getEntriesWhere(column('kitname') . " = 'unrelated'");
+    is($rows && $rows->[0]{version}, 'written by another request', 'a refused commit leaves the write of another request that joined the transaction');
+    $tab->setAttribs({ kitname => 'nine' }, { version => '9' });
+    $tab->commit;
+    ($rows) = xCAT::Table->new('kit')->getEntriesWhere(column('kitname') . " = 'nine'");
+    is($rows && @$rows, 1, 'the table commits again after a refused commit');
+    is_deeply([ xCAT::Table::handle_dbc_request({ %request, function => 'commit', args => [] }) ], [1],
+        'the DB worker returns the status of a commit');
+}
+
 done_testing();

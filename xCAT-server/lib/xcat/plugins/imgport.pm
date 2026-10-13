@@ -1957,10 +1957,10 @@ sub txn_keep {
     my ($txn, $path, $remove) = @_;
     return txn_created($txn, $path) if !-e $path && !-l $path;
     my $recorded = $txn->{installed}{$path};
-    my $saved    = "$txn->{kept}/" . ++$txn->{count};
+    my $saved    = txn_kept_dir($txn, $path) . '/' . ++$txn->{count};
     my $kept = $remove ? rename($path, $saved) : (!-d $path && link($path, $saved));
     if (!$kept) {
-        system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in $txn->{kept}";
+        system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in " . dirname($saved);
         rmtree($path) if $remove;
     }
     push @{ $txn->{undo} }, sub {
@@ -1976,6 +1976,29 @@ sub txn_keep {
     # A later step at $path finds the record of what this one left there.
     txn_installed($txn, $path) if $remove;
     return;
+}
+
+# Returns the directory that keeps what the import replaces at $path. It is on the file system of $path, so that a
+# rename keeps the inode of the replaced file, with its hard links.
+sub txn_kept_dir {
+    my ($txn, $path) = @_;
+    my $parent = dirname($path);
+    my $device = (stat($parent))[0];
+    return $txn->{kept} if !defined($device) || $device == (stat($txn->{kept}))[0];
+    return $txn->{local}{$device} if $txn->{local}{$device};
+    my $dir = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => $parent) } or return $txn->{kept};
+    $txn->{local}{$device} = $dir;
+
+    # The undo steps of what the directory keeps come later, so they run first and leave it empty for this one.
+    push @{ $txn->{undo} }, sub { rmdir($dir); return };
+    push @{ $txn->{done} }, sub { rmtree($dir) };
+    return $dir;
+}
+
+# Returns the directories that keep what the import replaced.
+sub txn_kept_dirs {
+    my ($txn) = @_;
+    return grep { -d $_ } ($txn->{kept}, values %{ $txn->{local} || {} });
 }
 
 # Removes $path, which the import creates, on a rollback.
@@ -2633,7 +2656,7 @@ sub place_image {
     }
     unless ($placed) {
         if ($error = txn_rollback($txn)) {
-            $callback->({ error => ["The failed import cannot put back everything that it changed: $error. The replaced files are kept in $txn->{kept}."], errorcode => [1] });
+            $callback->({ error => ["The failed import cannot put back everything that it changed: $error. The replaced files are kept in " . join(' and ', txn_kept_dirs($txn)) . '.' ], errorcode => [1] });
         }
         $hasplugin = 0;
         return 0;

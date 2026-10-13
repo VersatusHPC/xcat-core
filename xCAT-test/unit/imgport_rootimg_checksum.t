@@ -1071,10 +1071,46 @@ for my $case ([ setAttribsWhere => 'returns an error', 'osimage' ], [ setAttribs
     my $refusal = $how eq 'does not answer' ? 'the database did not answer' : 'database or disk is full';
     ok(!$placed, "$label: the import fails");
     like($errors, qr/Cannot write the $tabname row imagename=import-\d+: .*\Q$refusal\E/, "$label: the refused write is reported");
-    unlike($errors, qr/Cannot put back/, "$label: the rollback puts back everything");
-    is(definition($dest), 'rhels9.5', "$label: the image definition stays as it was");
+    if ($method eq 'commit') {
+
+        # The write stays in the transaction that the commit did not end, and the import cannot tell it from the
+        # write of another request.
+        like($errors, qr/Cannot put back the osimage row imagename=import-\d+, which was [^:]*: the database did not confirm/,
+            "$label: the rollback reports the row whose commit failed");
+        is(definition($dest), 'rhels9.6', "$label: the image definition whose commit failed stays");
+    } else {
+        unlike($errors, qr/Cannot put back/, "$label: the rollback puts back everything");
+        is(definition($dest), 'rhels9.5', "$label: the image definition stays as it was");
+    }
     is(read_binary($archive), $published, "$label: the published image comes back");
     is(read_binary("$dest/kernel"), "published kernel\n", "$label: the published kernel comes back");
+}
+
+for my $how ('returns an error', 'dies') {
+    # The commit of the linuximage row fails and drops the insert, and another request then inserts the same row.
+    my ($armed, $replaced, $name);
+    no warnings 'redefine';
+    my $commit = \&xCAT::Table::commit;
+    local *xCAT::Table::commit = sub {
+        my ($table) = @_;
+        return $commit->(@_) if !$armed || $replaced || $table->{tabname} ne 'linuximage';
+        $replaced = 1;
+        my $row = $table->{dbh}->selectrow_hashref('SELECT * FROM linuximage WHERE imagename = ?', undef, $name);
+        $table->rollback;
+        xCAT::Table->new('linuximage', -create => 1)->setAttribs({ imagename => $name }, { %$row, imagename => $name });
+        die "lost the database connection\n" if $how eq 'dies';
+        return (undef, 'lost the database connection');
+    };
+    my $make_files = \&xCAT_plugin::imgport::make_files;
+    local *xCAT_plugin::imgport::make_files = sub { my $made = $make_files->(@_); $armed = 1; return $made };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub { ($name) = $_[0] =~ m{/(import-\d+)$} }, rootimgchecksum => 'no');
+    ok($replaced, "a commit that $how drops the insert, and another request inserts the same row");
+    ok(!$placed, "an import fails when its commit $how");
+    like($errors, qr/Cannot put back the linuximage row imagename=\Q$name\E, which was none: the database did not confirm/,
+        "the rollback reports the row that it cannot tell from the row of another request after a commit that $how");
+    my ($row) = xCAT::Table->new('linuximage', -create => 1)->getAttribs({ imagename => $name }, 'rootimgchecksum');
+    is($row && $row->{rootimgchecksum}, 'no', "the row of the other request stays after a commit that $how");
+    is(definition($dest), 'rhels9.5', "the image definition comes back after a commit that $how");
 }
 
 {

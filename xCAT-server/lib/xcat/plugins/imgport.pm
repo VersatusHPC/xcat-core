@@ -2248,30 +2248,50 @@ sub txn_tar_dir {
     return system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '-cf', $archive, '-C', dirname($dir), './' . basename($dir)) == 0;
 }
 
-# Extracts the directory in $archive in $parent, also over an existing directory, which keeps its entries.
+# Extracts the directories in $archive, or only @members, in $parent, also over an existing directory, which keeps
+# its entries.
 sub txn_untar_dir {
-    my ($archive, $parent) = @_;
-    return system('tar', @TXN_TAR_ATTRIBUTES, '-xpf', $archive, '-C', $parent) == 0;
+    my ($archive, $parent, @members) = @_;
+    return system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--no-wildcards', '-xpf', $archive, '-C', $parent, @members) == 0;
 }
 
-# Puts back the mode, owner and times that the directory $dir has now, on a rollback.
+# Archives the existing directories @dirs of $dir without their entries, and keeps the metadata of each one.
+sub txn_keep_dirs {
+    my ($txn, $dir, @dirs) = @_;
+    return if !@dirs;
+    my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
+    open(my $names, '>', "$archive.names") or return "Cannot write $archive.names: $!";
+    print {$names} map { "./$_\0" } @dirs;
+    close($names) or return "Cannot write $archive.names: $!";
+    system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '-cf', $archive, '-C', $dir, '--null', '-T', "$archive.names") == 0
+      or return "Cannot keep the attributes of the directories in $dir";
+    foreach my $member (@dirs) {
+        my $error = txn_keep_metadata($txn, $dir, $member, $archive);
+        return $error if $error;
+    }
+    return;
+}
+
+# Puts back the mode, owner and times that the directory $dir/$member has now, on a rollback. A directory that
+# cpio replaced comes back from $archive, with its ACLs and other attributes.
 sub txn_keep_metadata {
-    my ($txn, $dir) = @_;
-    my @old = stat($dir) or return "Cannot read $dir: $!";
-    my $recorded = $txn->{installed}{$dir};
+    my ($txn, $dir, $member, $archive) = @_;
+    my $path = "$dir/$member";
+    my @old = stat($path) or return "Cannot read $path: $!";
+    my $recorded = $txn->{installed}{$path};
     push @{ $txn->{undo} }, sub {
-        if (!-d $dir || -l $dir) {
+        if (!-d $path || -l $path) {
 
             # cpio replaces an empty directory with an entry of another type, which goes away again.
-            my $changed = txn_changed($txn, $dir);
+            my $changed = txn_changed($txn, $path);
             return $changed if $changed;
-            unlink($dir) if -e $dir || -l $dir;
-            mkdir($dir) or return "Cannot put back the directory $dir: $!";
-            txn_record($txn, $dir, $recorded);
+            unlink($path) if -e $path || -l $path;
+            txn_untar_dir($archive, $dir, "./$member") or return "Cannot put back the directory $path";
+            txn_record($txn, $path, $recorded);
         }
-        chown($old[4], $old[5], $dir);
-        utime($old[8], $old[9], $dir);
-        return chmod(Fcntl::S_IMODE($old[2]), $dir) ? undef : "Cannot put back the mode of $dir: $!";
+        chown($old[4], $old[5], $path);
+        utime($old[8], $old[9], $path);
+        return chmod(Fcntl::S_IMODE($old[2]), $path) ? undef : "Cannot put back the mode of $path: $!";
     };
     return;
 }
@@ -2290,15 +2310,13 @@ sub txn_extract {
 
     # cpio gives an existing directory the mode, owner and times of the archive. A rollback puts back its own
     # after its entries, so these undo steps go first.
-    foreach my $member (@dirs) {
-        my $error = txn_keep_metadata($txn, "$dir/$member");
-        return $error if $error;
-    }
+    my $error = txn_keep_dirs($txn, $dir, @dirs);
+    return $error if $error;
     my %existing = map { ($_ => 1) } @dirs;
 
     # A directory sorts before its entries, so a rollback removes the entries first.
     foreach my $member (sort grep { $_ ne '.' && !$existing{$_} } @members) {
-        my $error = txn_keep($txn, "$dir/$member");
+        $error = txn_keep($txn, "$dir/$member");
         return $error if $error;
     }
     my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;

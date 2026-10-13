@@ -2915,12 +2915,14 @@ sub rootimg_identity {
 #        $target:   the published path
 #        $expected: remove only while the published rootimage has this rootimg_identity
 #        $check:    code that tells under the publication lock why not to remove it, or nothing
+#        $kept:     a directory where publish_rootimg kept a checksum and metainfo without an archive, which come
+#                   back, or nothing
 #return:
 #        on success: nothing
 #        on fail:    the error message
 #--------------------------------------------------------------------------------------------------------
 sub withdraw_rootimg {
-    my ($class, $target, $expected, $check) = @_;
+    my ($class, $target, $expected, $check, $kept) = @_;
     my ($lock, $error) = _acquire_publish_lock(dirname($target));
     return $error unless $lock;
     if ($class->rootimg_identity($target) ne $expected) {
@@ -2930,6 +2932,9 @@ sub withdraw_rootimg {
     } else {
         my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ($target, "$target.sha256", "$target.metainfo");
         $error = "Cannot remove @remaining: $!" if @remaining;
+        my $name = $kept ? "$kept/" . basename($target) : undef;
+        my @back = $error || !$name ? () : grep { (-e "$name.$_" || -l "$name.$_") && !rename("$name.$_", "$target.$_") } qw(sha256 metainfo);
+        $error = "Cannot put back " . join(' and ', map { "$target.$_" } @back) . ": $!" if @back;
     }
     _release_publish_lock($lock);
     return $error;
@@ -2942,9 +2947,11 @@ sub _refuse_rootimg_publication {
       if defined($options->{expected}) && __PACKAGE__->rootimg_identity($target) ne $options->{expected};
     my $refused = $options->{check} ? $options->{check}->() : undef;
     return $refused if $refused;
-    return if !$options->{keep} || !-e $target;
+    return if !$options->{keep};
+
+    # A checksum or metainfo can stand without the archive, as publish_rootimg keeps the checksums of other formats.
     my $kept = "$options->{keep}/" . basename($target);
-    my $copied = _keep_copy($target, $kept) && !grep { -e "$target.$_" && !_keep_copy("$target.$_", "$kept.$_") } qw(sha256 metainfo);
+    my $copied = (!-e $target || _keep_copy($target, $kept)) && !grep { -e "$target.$_" && !_keep_copy("$target.$_", "$kept.$_") } qw(sha256 metainfo);
     return $copied ? undef : "cannot keep the published files in $options->{keep}: $!";
 }
 

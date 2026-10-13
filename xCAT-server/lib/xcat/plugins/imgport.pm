@@ -2961,7 +2961,7 @@ sub txn_keep_rootimg {
         };
         if (defined($published)) {
             eval {
-                $error = $kept ? txn_republish($dir, $name, $fn, $published, $check) : xCAT::SvrUtils->withdraw_rootimg($fn, $published, $check);
+                $error = $kept ? txn_republish($dir, $name, $fn, $published, $check) : xCAT::SvrUtils->withdraw_rootimg($fn, $published, $check, $dir);
                 1;
             } or chomp($error = "Cannot put back $fn: $@");
         }

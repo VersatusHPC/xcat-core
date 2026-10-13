@@ -141,4 +141,26 @@ is(kits(), 'one', 'the DB worker leaves the other rows');
     is($inserted, 1, 'the DB worker runs insertEntry');
 }
 
+{
+    # Another writer changes the row between the select and the update of setAttribsWhere.
+    my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+    my $raced;
+    my $callbacks = $tab->{dbh}{Callbacks};
+    $tab->{dbh}{Callbacks} = { prepare => sub {
+        my ($dbh, $statement) = @_;
+        if (!$raced && $statement =~ /^UPDATE kit /) {
+            $raced = 1;
+            $dbh->do("UPDATE kit SET version = 'changed by another writer' WHERE kitname = 'one'");
+        }
+        return;
+    } };
+    my (undef, $error) = $tab->setAttribsWhere(column('kitname') . ' = ? AND ' . column('version') . ' = ?', { description => 'updated' }, 'one', '1');
+    $tab->{dbh}{Callbacks} = $callbacks;
+    $tab->commit;
+    ok($raced, 'another writer changes the row between the select and the update');
+    is($error, 'no rows selected.', 'setAttribsWhere reports an update that matches no row');
+    my ($rows) = $tab->getEntriesWhere(column('kitname') . " = 'one'");
+    is($rows && $rows->[0]{description}, 'first', 'the row keeps the change of the other writer only');
+}
+
 done_testing();

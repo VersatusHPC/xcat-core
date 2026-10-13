@@ -1979,9 +1979,10 @@ sub txn_expect {
 
 # Returns the data of each file and symlink in the gzip cpio archive $archive, keyed by member, as txn_data
 # describes it, or undef when it cannot read the archive. In the newc format, the last link of a file holds its
-# data.
+# data. For each member in %$sizes, start:<member> is the digest of the first bytes of its data, as many as the size
+# says. A truncated archive gives the members that it holds.
 sub txn_archive_data {
-    my ($archive) = @_;
+    my ($archive, $sizes) = @_;
     open(my $in, '-|', 'zcat', $archive) or return;
     binmode($in);
     my (%data, %links);
@@ -1989,13 +1990,17 @@ sub txn_archive_data {
         my ($magic, @field) = unpack('a6 (a8)13', $header);
         last if $magic !~ /\A07070[12]\z/x;
         my ($inode, $mode, $nlink, $size, $major, $minor, $namesize) = map { hex($_) } @field[ 0, 1, 4, 6, 7, 8, 11 ];
-        read($in, my $name, $namesize + (-(110 + $namesize) % 4)) or return;
+        read($in, my $name, $namesize + (-(110 + $namesize) % 4)) or last;
         $name = substr($name, 0, $namesize - 1);
         last if $name eq 'TRAILER!!!';
         $name =~ s{\A\./}{}x;
-        my ($digest, $target, $left) = (Digest::MD5->new, '', $size);
+        my $want = $sizes && Fcntl::S_ISREG($mode) ? $sizes->{$name} : undef;
+        my ($digest, $start, $target, $left) = (Digest::MD5->new, Digest::MD5->new, '', $size);
         while ($left > 0) {
-            my $got = read($in, my $chunk, $left > 65536 ? 65536 : $left) or return;
+            my $got = read($in, my $chunk, $left > 65536 ? 65536 : $left) or last;
+            if (defined($want) && $want > $size - $left) {
+                $start->add(substr($chunk, 0, $want - ($size - $left)));
+            }
             $left -= $got;
             if (Fcntl::S_ISLNK($mode)) {
                 $target .= $chunk;
@@ -2003,6 +2008,8 @@ sub txn_archive_data {
                 $digest->add($chunk);
             }
         }
+        $data{"start:$name"} = $start->hexdigest if defined($want) && $want <= $size - $left;
+        last if $left;
         read($in, my $padding, -$size % 4) if $size % 4;
         if (Fcntl::S_ISLNK($mode)) {
             $data{$name} = "symlink:$target";
@@ -2014,12 +2021,23 @@ sub txn_archive_data {
             $data{$_} = $hex foreach @{ delete $links{$key} };
         }
     }
-    close($in) or return;
+    close($in);
 
     # Hard links of an empty file hold no data.
     my $empty = Digest::MD5::md5_hex('');
     $data{$_} = $empty foreach map { @$_ } values %links;
     return \%data;
+}
+
+# Tells whether the member $member of an extraction that failed is at $path as cpio left it: nothing, the entry with
+# the inode $before that was there, or the data of the member in $expected, or the start of it.
+sub txn_extracted {
+    my ($path, $member, $expected, $before) = @_;
+    return 1 if !-e $path && !-l $path;
+    return 1 if join(':', (lstat($path))[ 0, 1 ]) eq ($before // '');
+    return 0 if !$expected;
+    my $data = txn_data($path);
+    return $data eq ($expected->{$member} // '') || $data eq ($expected->{"start:$member"} // '');
 }
 
 # Records what the import put at $path, with its attributes from txn_attributes when they are at hand.
@@ -2547,6 +2565,9 @@ sub txn_extract {
     return $error if $error;
     my %existing = map { ($_ => 1) } @dirs;
 
+    # The inode of each entry tells after a failed extraction whether cpio left it as it was.
+    my %before = map { ($_ => join(':', (lstat("$dir/$_"))[ 0, 1 ])) } grep { $_ ne '.' && !$existing{$_} } @members;
+
     # A directory sorts before its entries, so a rollback removes the entries first.
     foreach my $member (sort grep { $_ ne '.' && !$existing{$_} } @members) {
         $error = txn_keep($txn, "$dir/$member");
@@ -2558,12 +2579,17 @@ sub txn_extract {
     # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
     # identity, also after an extraction that failed partway.
     my $attributes = txn_attributes(0, grep { !-d $_ || -l $_ } map { "$dir/$_" } grep { $_ ne '.' } @members);
-    my $expected = $extracted ? txn_archive_data($archive) : undef;
+    my %sizes = $extracted ? () : map { ($_ => (lstat("$dir/$_"))[7]) } grep { -f "$dir/$_" && !-l "$dir/$_" } @members;
+    my $expected = txn_archive_data($archive, $extracted ? undef : \%sizes);
     foreach my $member (grep { $_ ne '.' } @members) {
         my $path = "$dir/$member";
         if (!-d $path || -l $path) {
             txn_installed($txn, $path, $attributes);
-            txn_expect($txn, $path, $expected->{$member}) if $expected;
+            if ($extracted) {
+                txn_expect($txn, $path, $expected->{$member}) if $expected;
+            } elsif (!txn_extracted($path, $member, $expected, $before{$member})) {
+                $txn->{installed}{$path} = $TXN_FOREIGN;
+            }
         } elsif (!$existing{$member}) {
             txn_record($txn, $path, undef);
         }

@@ -2151,10 +2151,11 @@ sub txn_move {
     return $error if $error;
     my $recorded = $txn->{installed}{$to};
 
-    # A rename keeps the inode, and a move to another file system copies the data.
+    # A rename keeps the identity, and a move to another file system copies the data.
     my @source = lstat($from);
     my $across = @source && ((stat(dirname($to)))[0] // -1) != $source[0];
-    my $data = $across ? txn_data($from) : undef;
+    my $data   = $across ? txn_data($from) : undef;
+    my $before = $across ? undef : txn_identity($from);
     if (!move($from, $to)) {
         $error = "Cannot move $from to $to: $!";
 
@@ -2173,10 +2174,9 @@ sub txn_move {
         return;
     };
     txn_installed($txn, $to);
-    my @moved = lstat($to);
     if ($across) {
         txn_expect($txn, $to, $data);
-    } elsif (!@moved || "$moved[0]:$moved[1]" ne "$source[0]:$source[1]") {
+    } elsif ($txn->{installed}{$to} ne $before) {
         $txn->{installed}{$to} = $TXN_FOREIGN;
     }
     return;
@@ -2373,11 +2373,11 @@ sub txn_keep_attributes {
 }
 
 # Identifies the mode, owner, group, ACLs and other attributes of the entry $path, and the content of a file, but
-# not its times, which change with the entries of a directory.
+# not its times, which change with the entries of a directory, nor its name, which a move changes.
 sub txn_tar_attributes {
     my ($path) = @_;
-    open(my $tar, '-|', 'tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--mtime=@0',
-        '--pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime', '-cf', '-', '-C', dirname($path), './' . basename($path))
+    open(my $tar, '-|', 'tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--mtime=@0', '--transform=s,.*,entry,r',
+        '--pax-option=exthdr.name=PaxHeaders/entry,delete=atime,delete=ctime', '-cf', '-', '-C', dirname($path), './' . basename($path))
       or return 'unreadable';
     binmode($tar);
     my $digest = Digest::MD5->new->addfile($tar)->hexdigest;

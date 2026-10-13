@@ -103,4 +103,24 @@ is(kits(), 'one', 'the DB worker leaves the other rows');
         'the DB worker returns the status of a commit');
 }
 
+{
+    my $tab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
+    my $odd = q{back\slash 'quote};
+    $tab->setAttribs({ kitname => $odd }, { version => '10' });
+    $tab->commit;
+    my (undef, $error) = $tab->setAttribsWhere(column('kitname') . ' = ? AND ' . column('version') . ' = ?', { version => '11' }, $odd, '10');
+    $tab->commit;
+    is($error, undef, 'setAttribsWhere with bound values reports no error');
+    my ($rows) = $tab->getEntriesWhere(column('kitname') . ' = ?', $odd);
+    is($rows && $rows->[0]{version}, '11', 'setAttribsWhere updates the row that its bound values select');
+    ($rows) = $tab->getEntriesWhere(column('kitname') . " = 'one'");
+    is($rows && $rows->[0]{version}, '1', 'setAttribsWhere leaves the other rows');
+    (undef, $error) = $tab->setAttribsWhere(column('kitname') . ' = ?', { version => '12' }, 'nosuchkit');
+    is($error, 'no rows selected.', 'setAttribsWhere reports bound values that select nothing');
+    xCAT::Table::handle_dbc_request({ %request, function => 'setAttribsWhere', args => [ column('kitname') . ' = ?', { version => '13' }, $odd ] });
+    xCAT::Table::handle_dbc_request({ %request, function => 'commit', args => [] });
+    ($rows) = $tab->getEntriesWhere(column('kitname') . ' = ?', $odd);
+    is($rows && $rows->[0]{version}, '13', 'the DB worker passes the bound values of setAttribsWhere');
+}
+
 done_testing();

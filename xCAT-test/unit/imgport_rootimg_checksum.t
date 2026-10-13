@@ -1150,6 +1150,53 @@ for my $change (qw(mode group acl)) {
 }
 
 {
+    # A PATH without getfattr, where tar identifies each entry.
+    my $nogetfattr = "$fixture/nogetfattr";
+    make_path($nogetfattr);
+    foreach my $dir (qw(/usr/bin /usr/sbin /bin /sbin)) {
+        opendir(my $list, $dir) or next;
+        foreach my $name (grep { !/^\.\.?$/x && $_ ne 'getfattr' && !-e "$nogetfattr/$_" } readdir($list)) {
+            symlink("$dir/$name", "$nogetfattr/$name") or die $!;
+        }
+        closedir($list);
+    }
+    my ($getfattr) = grep { -x $_ } map { "$_/getfattr" } split(/:/x, $ENV{PATH});
+    my ($setfattr) = grep { -x $_ } map { "$_/setfattr" } split(/:/x, $ENV{PATH});
+    for my $case ([ acl => 'getfattr' ], [ xattr => 'getfattr' ], [ acl => 'tar' ], [ xattr => 'tar' ]) {
+        # The administrator changes an ACL entry of a file that the import wrote in place, which keeps its mode, or
+        # gives it an extended attribute, before a later step fails.
+        my ($change, $tool) = @$case;
+        local $ENV{PATH} = $tool eq 'tar' ? $nogetfattr : $ENV{PATH};
+        my $look = sub { join('|', (stat($_[0]))[2], scalar(`getfacl -cp '$_[0]' 2>/dev/null`), scalar(`$getfattr -d '$_[0]' 2>/dev/null`)) };
+        my ($changed, $state);
+        no warnings 'redefine';
+        local *xCAT_plugin::imgport::set_postscripts = sub {
+            my ($data) = @_;
+            my $shared = "$data->{extra}{dest}/shared.conf";
+            $changed = $change eq 'acl' ? CORE::system('setfacl', '-m', 'u:nobody:---', $shared) == 0
+              : CORE::system($setfattr, '-n', 'user.admin', '-v', 'set', $shared) == 0;
+            $state = $look->($shared);
+            return 0;
+        };
+        my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+            my ($dest, $bundle) = @_;
+            make_path("$bundle/extra", "$dest/extra");
+            write_text("$bundle/extra/shared.conf", "file of this import\n");
+            write_text("$dest/extra/shared.conf", "file before the import\n");
+            chmod(0644, "$dest/extra/shared.conf") or die $!;
+        }, extra => 'shared.conf', nodes => 'n1');
+      SKIP: {
+            skip "the test cannot change the $change of a file here", 3 if !$changed || !$getfattr;
+            ok(!$placed, "$change, $tool: an import fails after the administrator changed a file that it installed in place");
+            like($errors, qr/Cannot put back \Q$dest\E\/extra\/shared\.conf: another change replaced it/, "$change, $tool: the change is reported");
+            is($look->("$dest/extra/shared.conf"), $state, "$change, $tool: the file keeps the change of the administrator");
+        }
+        my ($kept) = $errors =~ /kept in (\S+)\./;
+        rmtree($kept) if $kept;
+    }
+}
+
+{
     # Another writer changes a file that the import installed in place, with the same size and time.
     no warnings 'redefine';
     local *xCAT_plugin::imgport::set_postscripts = sub {

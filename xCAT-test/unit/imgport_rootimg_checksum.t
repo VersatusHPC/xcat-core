@@ -811,6 +811,38 @@ for my $nodes (undef, 'undefined-node') {
     }
 }
 
+for my $existing (0, 1) {
+    # The bundle has no linuximage values, so the import writes no linuximage row. Without a row, another request
+    # then creates it before a later step fails. With a row, the import leaves it as it was.
+    my $name   = 'novalues-' . ($existing ? 'existing' : 'new');
+    my $bundle = "$fixture/bundle-$name";
+    make_path($bundle);
+    write_text("$bundle/rootimg.cpio.gz", $imported);
+    my $linuxtab = xCAT::Table->new('linuximage', -create => 1);
+    $linuxtab->setAttribs({ imagename => $name }, { rootimgdir => '/install/custom' }) if $existing;
+    my $data = {
+        rootimg    => "$fixture/install/netboot/$name/x86_64/compute/rootimg.cpio.gz",
+        osimage    => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+        linuximage => {},
+    };
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        xCAT::Table->new('linuximage', -create => 1)->setAttribs({ imagename => $name }, { imagename => $name });
+        return 0;
+    };
+    my @errors;
+    my $placed = xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, $existing ? undef : 'n1');
+    my ($row) = $linuxtab->getAttribs({ imagename => $name }, 'imagename', 'rootimgdir');
+    if ($existing) {
+        ok($placed, 'an import without linuximage values over an existing linuximage row succeeds');
+        is($row && $row->{rootimgdir}, '/install/custom', 'the existing linuximage row stays as it was');
+    } else {
+        ok(!$placed, 'an import without linuximage values fails on a later step');
+        ok($row, 'the linuximage row that another request created stays');
+        is(join("\n", grep { /cannot put back/i } @errors), '', 'the rollback has no linuximage row to put back');
+    }
+}
+
 {
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';

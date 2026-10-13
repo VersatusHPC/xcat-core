@@ -1646,7 +1646,7 @@ sub rollback
     Arguments:
         Database Handle
     Returns:
-       none
+       1, or (undef, error message) when the database refuses the commit
     Globals:
 
     Error:
@@ -1667,8 +1667,10 @@ sub commit
     if ($dbworkerpid > 0) {
         return dbc_call($self, 'commit', @_);
     }
+    my ($committed, $error) = (1, undef);
     unless ($self->{dbh}->{AutoCommit}) { #caller can now hammer commit function with impunity, even when it makes no sense
-        $self->{dbh}->commit;
+        $committed = $self->{dbh}->commit;
+        $error = $self->{dbh}->errstr unless $committed;
     }
     if ($self->{intransaction} and not $self->{autocommit} and $self->{realautocommit}) {
 
@@ -1677,6 +1679,7 @@ sub commit
         $self->{intransaction} = 0;
         $self->{dbh}->{AutoCommit} = 1;
     }
+    return $committed ? 1 : (undef, $error || 'the database refused the commit');
 }
 
 #--------------------------------------------------------------------------

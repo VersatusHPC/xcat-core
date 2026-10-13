@@ -2393,23 +2393,20 @@ sub txn_recorded_write {
     my $record = txn_record_row($txn, $snapshot, $keys, $values);
     my ($refused, $unwritten) = txn_guarded_write($table, $snapshot, $keys, $values);
 
-    # Only an error that proves that nothing was written drops the record. After another error or no answer,
-    # another request can hold the same values, and nothing tells its row from the one of the import.
-    if ($unwritten) {
-        pop @{ $txn->{undo} };
-    } elsif ($refused) {
-        $record->{unconfirmed} = 1;
-    }
+    # Only an error that proves that nothing was written drops the record. After another error, no answer or an
+    # exception, another request can hold the same values, and nothing tells its row from the one of the import.
+    pop @{ $txn->{undo} } if $unwritten;
+    delete $record->{unconfirmed} if !$refused;
     return $refused;
 }
 
 # Records that the import wrote $values to the row that $keys select, which held what $snapshot read, so that a
-# rollback puts the row back or removes it. Returns the record, which a write that the database does not confirm
-# marks as unconfirmed.
+# rollback puts the row back or removes it. Returns the record, which stays unconfirmed until the database confirms
+# the write.
 sub txn_record_row {
     my ($txn, $snapshot, $keys, $values) = @_;
     my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
-    my $record = {};
+    my $record = { unconfirmed => 1 };
     push @{ $txn->{records} }, $record if $txn->{records};
     push @{ $txn->{undo} }, sub {
         my $error = txn_restore_row($snapshot->{table}, $keys, $values, $row, $snapshot->{cols}, $record->{unconfirmed});

@@ -19,11 +19,11 @@ use Test::More;
 our ($TARGET, @SEEN, %FAIL, %FAIL_FROM, %FAIL_AFTER, $NO_LINK, %FAIL_UNLINK);
 BEGIN {
 
-    # The removal of a path of %FAIL_UNLINK fails, as when the file system refuses it.
+    # The removal of a path of %FAIL_UNLINK, or of a path with a name of it, fails, as when the file system refuses it.
     *CORE::GLOBAL::unlink = sub {
         my $removed = 0;
         foreach my $path (@_ ? @_ : $_) {
-            if ($FAIL_UNLINK{$path}) {
+            if ($FAIL_UNLINK{$path} || $FAIL_UNLINK{ (split m{/}x, $path)[-1] }) {
                 $! = EIO;
                 next;
             }
@@ -196,7 +196,7 @@ for my $failed (qw(rootimg.cpio.gz rootimg.cpio.gz.metainfo)) {
     write_text("$dir/rootimg.cpio.gz", "published archive\n");
     write_text("$dir/rootimg.cpio.gz.sha256", "checksum of the published archive\n");
     my $identity = xCAT::SvrUtils->rootimg_identity("$dir/rootimg.cpio.gz");
-    local %FAIL_UNLINK = ("$dir/rootimg.cpio.gz" => 1);
+    local %FAIL_UNLINK = ('rootimg.cpio.gz' => 1);
     my $error = xCAT::SvrUtils->withdraw_rootimg("$dir/rootimg.cpio.gz", $identity);
     like($error // '', qr/^Cannot remove \Q$dir\E\/rootimg\.cpio\.gz: /, 'a removal that the file system refuses is reported');
     ok(-e "$dir/rootimg.cpio.gz", 'the archive that cannot be removed stays');

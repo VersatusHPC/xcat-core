@@ -18,15 +18,17 @@ use Sys::Hostname qw(hostname);
 use Test::More;
 use XCAT::Test::File qw(repo_path);
 
-# The first rename into a path of %FAIL fails, as when the file system refuses it. With $NO_SETFATTR, setfattr
+# The first rename into a path of %FAIL fails, as when the file system refuses it, and then runs $ON_FAIL with the
+# path, as another writer can. With $NO_SETFATTR, setfattr
 # fails, as when it cannot remove an attribute. $AFTER_CP runs after each cp, and $AFTER_EXTRACT after the
 # extraction of a statelite tree, as another writer can.
-our (%FAIL, $NO_SETFATTR, $AFTER_CP, $AFTER_EXTRACT);
+our (%FAIL, $NO_SETFATTR, $AFTER_CP, $AFTER_EXTRACT, $ON_FAIL);
 BEGIN {
     *CORE::GLOBAL::rename = sub {
         my ($from, $to) = @_;
         if ($FAIL{$to}) {
             delete $FAIL{$to};
+            $ON_FAIL->($to) if $ON_FAIL;
             $! = EIO;
             return 0;
         }
@@ -1722,6 +1724,20 @@ for my $existing (0, 1) {
             rmtree($kept) if $kept;
         }
     }
+}
+
+{
+    # The move of the kernel fails, and another writer then puts a kernel in its place.
+    local $ON_FAIL = sub { write_text($_[0], "kernel of another writer\n") };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest) = @_;
+        $FAIL{"$dest/kernel"} = 1;
+    });
+    ok(!$placed, 'an import fails when the move of the kernel fails');
+    like($errors, qr/Cannot put back \Q$dest\E\/kernel: another change replaced it/, 'the rollback reports the kernel of the other writer');
+    is(-e "$dest/kernel" ? read_binary("$dest/kernel") : undef, "kernel of another writer\n", 'the kernel of the other writer stays');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
 }
 
 for my $nodes (undef, 'undefined-node') {

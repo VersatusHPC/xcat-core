@@ -1833,6 +1833,9 @@ my $TXN_CONFLICT = 'another change replaced it';
 # What the import reports for a database call without an answer, as when the DB worker of xcatd cannot reconnect.
 my $TXN_NO_ANSWER = 'the database did not answer';
 
+# What SQLite, MySQL, PostgreSQL and DB2 report when an insert finds its key taken.
+my @TXN_DUPLICATE_KEY = ('UNIQUE constraint failed', 'Duplicate entry', 'duplicate key value', 'SQL0803N');
+
 # The tar options that keep the ACLs, extended attributes and SELinux context of a directory too.
 my @TXN_TAR_ATTRIBUTES = qw(--acls --xattrs --selinux);
 
@@ -2297,7 +2300,8 @@ sub txn_key_string {
 }
 
 # Writes $values to the row that $keys select only while it holds what $snapshot read, or inserts the row when
-# $snapshot read none. Another request can change the row in between, and its change must stay.
+# $snapshot read none. Another request can change the row in between, and its change must stay. Returns the error,
+# and whether it proves that nothing was written.
 sub txn_guarded_write {
     my ($table, $snapshot, $keys, $values) = @_;
     my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
@@ -2311,25 +2315,36 @@ sub txn_guarded_write {
 
         # Without an answer, the insert can have applied, and a row that exists now can be the one of the import.
         return $TXN_NO_ANSWER if !$error;
-        my ($now) = txn_row($table, $keys);
-        return $now ? 'another request created the row during the import' : $error;
+        return ('another request created the row during the import', 1) if grep { index($error, $_) >= 0 } @TXN_DUPLICATE_KEY;
+        return $error;
     }
     my @held = map { defined($row->{$_}) ? txn_value_condition($_, $row->{$_}) : txn_empty_condition($_) } @{ $snapshot->{cols} };
     my ($clause, @bind) = txn_where(txn_key_conditions($keys), @held);
     my ($updated, $error) = $table->setAttribsWhere($clause, $values, @bind);
-    return 'another request changed the row during the import' if ($error // '') eq 'no rows selected.';
+    return ('another request changed the row during the import', 1) if ($error // '') eq 'no rows selected.';
     return $error || (defined($updated) ? undef : $TXN_NO_ANSWER);
 }
 
 # Records the write of $values to the row that $keys select, then runs it with txn_guarded_write. A write can apply
-# and then die, as in a notification handler, so the record comes first. A write that the database refused changed
-# nothing and needs no record, but one without an answer can have changed the row.
+# and then die, as in a notification handler, so the record comes first. A write without an answer, or one that
+# reports an error, can have changed the row too.
 sub txn_recorded_write {
     my ($txn, $table, $snapshot, $keys, $values) = @_;
     txn_record_row($txn, $snapshot, $keys, $values);
-    my $refused = txn_guarded_write($table, $snapshot, $keys, $values);
-    pop @{ $txn->{undo} } if $refused && $refused ne $TXN_NO_ANSWER;
+    my ($refused, $unwritten) = txn_guarded_write($table, $snapshot, $keys, $values);
+
+    # A statement can apply although it reports an error, as with a trigger that fails after the change. The record
+    # goes when the error proves that nothing was written, or when the row does not hold what the import wrote.
+    pop @{ $txn->{undo} } if $refused && $refused ne $TXN_NO_ANSWER && ($unwritten || !txn_row_holds($table, $keys, $values));
     return $refused;
+}
+
+# Returns whether the row of $table that $keys select holds $values, or can hold them because it cannot be read.
+sub txn_row_holds {
+    my ($table, $keys, $values) = @_;
+    my ($row, $error) = txn_row($table, $keys);
+    return 1 if $error;
+    return $row && !grep { ($row->{$_} // '') ne ($values->{$_} // '') } keys %$values;
 }
 
 # Records that the import wrote $values to the row that $keys select, which held what $snapshot read, so that a

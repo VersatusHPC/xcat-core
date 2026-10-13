@@ -19,8 +19,8 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 # The first rename into a path of %FAIL fails, as when the file system refuses it. With $NO_SETFATTR, setfattr
-# fails, as when it cannot remove an attribute.
-our (%FAIL, $NO_SETFATTR);
+# fails, as when it cannot remove an attribute. $AFTER_CP runs after each cp, as another writer can.
+our (%FAIL, $NO_SETFATTR, $AFTER_CP);
 BEGIN {
     *CORE::GLOBAL::rename = sub {
         my ($from, $to) = @_;
@@ -33,7 +33,12 @@ BEGIN {
     };
     *CORE::GLOBAL::system = sub {
         return 256 if $NO_SETFATTR && $_[0] =~ m{/setfattr$}x;
-        return CORE::system(@_);
+        my $status = CORE::system(@_);
+        if ($AFTER_CP && $_[0] eq 'cp') {
+            local $?;
+            $AFTER_CP->(@_);
+        }
+        return $status;
     };
 }
 
@@ -1575,6 +1580,30 @@ SKIP: {
     is(read_binary($archive), $published, 'the published image comes back after a partial copy');
     is(read_binary("$dest/kernel"), "published kernel\n", 'the published kernel comes back after a partial copy');
     is(definition($dest), 'rhels9.5', 'the image definition stays after a partial copy');
+}
+
+SKIP: {
+    # cp stops at a file that it cannot read, and another writer then creates a file where the extra tree goes.
+    skip 'root reads a file without read permission', 3 if $> == 0;
+    my ($dest, $foreign);
+    local $AFTER_CP = sub {
+        return if $foreign || $_[-2] !~ m{/extra/conf/tree\z}x;
+        $foreign = "$dest/extra/tree/foreign";
+        make_path("$dest/extra/tree");
+        write_text($foreign, "file of another writer\n");
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$bundle/extra/conf/tree", "$dest/extra");
+        write_text("$bundle/extra/conf/tree/$_", "$_\n") for qw(a b unreadable);
+        chmod(0, "$bundle/extra/conf/tree/unreadable") or die $!;
+    }, extra => 'conf');
+    ok(!$placed, 'an import fails when cp stops in an extra tree, after another writer created a file there');
+    like($errors, qr/Cannot (?:remove|put back) \Q$dest\E\/extra\/tree/, 'the rollback reports the tree with the file of the other writer');
+    is($foreign && -e $foreign ? read_binary($foreign) : undef, "file of another writer\n", 'the file of the other writer stays');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
 }
 
 for my $nodes (undef, 'undefined-node') {

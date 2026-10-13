@@ -1832,7 +1832,6 @@ my $TXN_CONFLICT = 'another change replaced it';
 
 # What the import reports for a database call without an answer, as when the DB worker of xcatd cannot reconnect.
 my $TXN_NO_ANSWER = 'the database did not answer';
-my $TXN_NO_COMMIT = 'the database did not answer the commit';
 
 # What SQLite, MySQL, PostgreSQL and DB2 report when an insert finds its key taken.
 my @TXN_DUPLICATE_KEY = ('UNIQUE constraint failed', 'Duplicate entry', 'duplicate key value', 'SQL0803N');
@@ -2459,8 +2458,9 @@ sub txn_end_write {
     my $refused = txn_commit_table($table);
     return $error if !$refused;
 
-    # A commit without an answer can have applied, so the database confirms none of the rows that it recorded.
-    if ($records && $refused eq $TXN_NO_COMMIT) {
+    # A commit that fails can have applied, or can have dropped the writes, which another request can then repeat.
+    # So the database confirms none of the rows that it recorded.
+    if ($records) {
         $_->{unconfirmed} = 1 foreach @$records;
     }
     return $error ? "$error; the database refuses the commit: $refused" : "the database refuses the commit: $refused";
@@ -2471,7 +2471,7 @@ sub txn_commit_table {
     my ($table) = @_;
     my ($committed, $error);
     eval { ($committed, $error) = $table->commit; 1 } or chomp($error = $@);
-    return $committed ? undef : ($error || $TXN_NO_COMMIT);
+    return $committed ? undef : ($error || 'the database did not answer the commit');
 }
 
 # Returns the row of table $tab that $keys select, also a disabled one, which getAttribs hides, or (undef, error).

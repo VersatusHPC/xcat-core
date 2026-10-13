@@ -715,8 +715,34 @@ for my $case ([ setAttribsWhere => 'osimage' ], [ insertEntry => 'linuximage' ],
     ok(!$placed, 'an import fails when the answer of an insert is lost');
     like($errors, qr/Cannot write the linuximage row imagename=import-\d+: the database did not answer/, 'the lost answer is reported');
     my ($row) = xCAT::Table->new('linuximage', -create => 1)->getAttribs({ imagename => $name }, 'rootimgchecksum');
-    ok(!$row, 'the rollback removes the row that the insert applied');
+    ok($row, 'the rollback leaves the row of an insert that the database did not confirm');
+    like($errors, qr/Cannot put back the linuximage row imagename=\Q$name\E, which was none: the database did not confirm/,
+        'the rollback reports the row that it cannot tell from the row of another request');
     is(definition($dest), 'rhels9.5', 'the image definition comes back after a lost answer');
+}
+
+{
+    # The database applies the write of the image definition and its commit, and the answer to the commit is lost.
+    my ($armed, $lost);
+    no warnings 'redefine';
+    my $commit = \&xCAT::Table::commit;
+    local *xCAT::Table::commit = sub {
+        my @result = $commit->(@_);
+        return @result if !$armed || $lost || $_[0]->{tabname} ne 'osimage';
+        $lost = 1;
+        return;
+    };
+    my $make_files = \&xCAT_plugin::imgport::make_files;
+    local *xCAT_plugin::imgport::make_files = sub { my $made = $make_files->(@_); $armed = 1; return $made };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, rootimgchecksum => 'no');
+    my ($name) = $dest =~ m{/(import-\d+)$};
+    ok($lost, 'the answer to an applied commit is lost');
+    ok(!$placed, 'an import fails when the answer to a commit is lost');
+    like($errors, qr/Cannot write the osimage row imagename=\Q$name\E: the database refuses the commit: the database did not answer/,
+        'the lost answer to the commit is reported');
+    like($errors, qr/Cannot put back the osimage row imagename=\Q$name\E, which was [^:]*: the database did not confirm/,
+        'the rollback reports the row whose commit the database did not confirm');
+    is(definition($dest), 'rhels9.6', 'the rollback leaves the image definition whose commit the database did not confirm');
 }
 
 for my $held (0, 1) {
@@ -1553,9 +1579,16 @@ for my $case ([ osimage => 'UPDATE', "NEW.osvers = 'rhels9.6'" ], [ linuximage =
     $dbh->do("DROP TRIGGER fail_after_$tabname") or die $dbh->errstr;
     ok(!$placed, "$tabname: an import fails when the database reports an error after it applied the write");
     like($errors, qr/disk I\/O error/, "$tabname: the error of the database is reported");
-    is(definition($dest), 'rhels9.5', "$tabname: the rollback puts back the image definition");
+    like($errors, qr/Cannot put back the $tabname row imagename=\Q$name\E, which was [^:]*: the database did not confirm/,
+        "$tabname: the rollback reports the row that it cannot tell from the row of another request");
     my ($row) = xCAT::Table->new('linuximage')->getAttribs({ imagename => $name }, 'rootimgchecksum');
-    ok(!$row, "$tabname: the rollback removes the linuximage row that the import created");
+    if ($tabname eq 'osimage') {
+        is(definition($dest), 'rhels9.6', 'osimage: the rollback leaves the image definition that the database did not confirm');
+        ok(!$row, 'osimage: the import writes no linuximage row after the refused image definition');
+    } else {
+        is(definition($dest), 'rhels9.5', 'linuximage: the rollback puts back the image definition');
+        ok($row, 'linuximage: the rollback leaves the linuximage row that the database did not confirm');
+    }
 }
 
 for my $tabname (qw(osimage kit)) {
@@ -1585,6 +1618,49 @@ for my $tabname (qw(osimage kit)) {
         my ($row) = xCAT::Table->new('kit')->getAttribs({ kitname => 'samekit' }, 'description');
         is($row && $row->{description}, 'kit of this import', 'kit: the kit row that the other request created stays');
         xCAT::Table->new('kit')->delEntries({ kitname => 'samekit' });
+    }
+}
+
+for my $tabname (qw(osimage kit)) {
+    # Another request writes the values of the import right after the import read the row, and the answer to the
+    # write of the import is lost. The rollback cannot tell the row of the other request from one that it wrote.
+    my ($armed, $raced, $lost);
+    no warnings 'redefine';
+    no strict 'refs';
+    my $read = \&xCAT::Table::getEntriesWhere;
+    local *xCAT::Table::getEntriesWhere = sub {
+        my @result = $read->(@_);
+        if ($armed && !$raced && $_[0]->{tabname} eq $tabname) {
+            $raced = 1;
+            xCAT::Table->new($tabname, -create => 1)->setAttribs($tabname eq 'osimage'
+                ? ({ imagename => $_[2] }, { osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' })
+                : ({ kitname => 'lostkit' }, { description => 'kit of this import' }));
+        }
+        return @result;
+    };
+    my $method = $tabname eq 'osimage' ? 'setAttribsWhere' : 'insertEntry';
+    my $write = \&{"xCAT::Table::$method"};
+    local *{"xCAT::Table::$method"} = sub {
+        my @result = $write->(@_);
+        return @result if !$raced || $lost || $_[0]->{tabname} ne $tabname;
+        $lost = 1;
+        return;
+    };
+    my $make_files = \&xCAT_plugin::imgport::make_files;
+    local *xCAT_plugin::imgport::make_files = sub { my $made = $make_files->(@_); $armed = 1; return $made };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, kit => 'lostkit');
+    my ($name) = $dest =~ m{/(import-\d+)$};
+    my $key = $tabname eq 'osimage' ? "imagename=$name" : 'kitname=lostkit';
+    ok($lost, "$tabname: the answer to the write of the import is lost after another request wrote the same values");
+    ok(!$placed, "$tabname: the import fails when the answer to its write is lost");
+    like($errors, qr/Cannot put back the $tabname row \Q$key\E, which was [^:]*: the database did not confirm/,
+        "$tabname: the rollback reports the row that it cannot tell from the row of the other request");
+    if ($tabname eq 'osimage') {
+        is(definition($dest), 'rhels9.6', 'osimage: the image definition that the other request wrote stays');
+    } else {
+        my ($row) = xCAT::Table->new('kit')->getAttribs({ kitname => 'lostkit' }, 'description');
+        is($row && $row->{description}, 'kit of this import', 'kit: the kit row that the other request created stays');
+        xCAT::Table->new('kit')->delEntries({ kitname => 'lostkit' });
     }
 }
 

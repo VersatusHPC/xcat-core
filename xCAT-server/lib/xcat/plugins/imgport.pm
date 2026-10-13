@@ -1839,7 +1839,7 @@ my @TXN_DUPLICATE_KEY = ('UNIQUE constraint failed', 'Duplicate entry', 'duplica
 # The tar options that keep the ACLs, extended attributes and SELinux context of a directory too.
 my @TXN_TAR_ATTRIBUTES = qw(--acls --xattrs --selinux);
 
-# tar extracts only the user.* attributes unless told otherwise, and --selinux puts back the SELinux context.
+# tar extracts and lists only the user.* attributes unless told otherwise, and --selinux puts back the SELinux context.
 my @TXN_UNTAR_ATTRIBUTES = (@TXN_TAR_ATTRIBUTES, '--xattrs-include=*', '--xattrs-exclude=security.selinux');
 
 #-------------------------------------------------------
@@ -2128,6 +2128,7 @@ sub txn_keep_copy {
         # A file that cp could not write for the import needs nothing back.
         my $copied = system('cp', '-a', '--no-preserve=links', $saved, $path) == 0;
         return "Cannot put back $path from $saved" if !$copied && txn_identity($path) ne $before;
+        txn_drop_xattrs($txn, $path, txn_xattr_names($saved)) if $copied;
         txn_record($txn, $path, $recorded);
         return;
     };
@@ -2246,6 +2247,7 @@ sub txn_keep_attributes {
     $kept->{applied} = txn_dir_attributes($dir);
     push @{ $txn->{undo} }, sub {
         return "Cannot put back the attributes of $dir: another change replaced them" if txn_dir_attributes($dir) ne $kept->{applied};
+        txn_drop_xattrs($txn, $dir, txn_xattr_names(undef, $archive));
         return txn_untar_dir($archive, dirname($dir)) ? undef : "Cannot put back the attributes of $dir";
     };
     return;
@@ -2261,6 +2263,35 @@ sub txn_dir_attributes {
     binmode($tar);
     my $digest = Digest::MD5->new->addfile($tar)->hexdigest;
     return close($tar) ? $digest : 'unreadable';
+}
+
+# Returns the names of the extended attributes of the entry $path, or of the entries of the tar archive $archive,
+# without the ACLs and the SELinux context, which tar lists apart. Returns undef when tar cannot list them.
+sub txn_xattr_names {
+    my ($path, $archive) = @_;
+    my @list = defined($archive) ? ('tar', @TXN_UNTAR_ATTRIBUTES, '-tvvf', $archive)
+      : ('bash', '-o', 'pipefail', '-c', 'tar "${@:3}" --no-recursion -cf - -C "$1" "./$2" | tar "${@:3}" -tvvf -', 'xattrs',
+        dirname($path), basename($path), @TXN_UNTAR_ATTRIBUTES);
+    open(my $list, '-|', @list) or return;
+    my %names = map { /^\s+x:\s+\d+\s+(.+)$/x ? ($1 => 1) : () } <$list>;
+    return close($list) ? \%names : undef;
+}
+
+# Removes from $path the extended attributes that the import added, which $kept, the names of its kept attributes,
+# does not hold. Putting back the kept attributes leaves the others. The rollback goes on, and reports what stays.
+sub txn_drop_xattrs {
+    my ($txn, $path, $kept) = @_;
+    my $now = txn_xattr_names($path);
+    if (!$kept || !$now) {
+        push @{ $txn->{rows} }, "Cannot list the extended attributes of $path";
+        return;
+    }
+    my @added = sort grep { !$kept->{$_} } keys %$now;
+    return if !@added;
+    my ($setfattr) = grep { -x $_ } map { "$_/setfattr" } split(/:/x, $ENV{PATH} // '');
+    my @left = $setfattr ? grep { system($setfattr, '-h', '-x', $_, $path) != 0 } @added : @added;
+    push @{ $txn->{rows} }, "Cannot remove the extended attributes @left that the import gave $path" if @left;
+    return;
 }
 
 # Identifies the mode, owner and group of $path.

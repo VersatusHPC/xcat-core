@@ -2294,21 +2294,32 @@ sub txn_copy_tree {
     my ($txn, $from, $to, $option) = @_;
     my $error = txn_keep($txn, $to, 1);
     return $error if $error;
-    my $copied = system('cp', $option, $from, $to) == 0;
+
+    # cp writes a private stage, which a rename puts in place, so another writer can add nothing to the tree during
+    # the copy, and a copy that fails leaves nothing at $to.
+    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) } or return "Cannot copy $from to $to: $@";
+    my $copied = system('cp', $option, $from, "$stage/tree") == 0 && rename("$stage/tree", $to);
+    rmtree($stage);
+    return "Cannot copy $from to $to" if !$copied;
 
     # The links come before the record of the entries, which identifies each entry by its inode.
-    my $linked = ($copied && $option eq '-a') ? txn_link_tree($txn, $from, $to) : undef;
+    my $linked = $option eq '-a' ? txn_link_tree($txn, $from, $to) : undef;
 
-    # Each entry of the new tree is the import's, also after a copy that failed partway, and a rollback removes
-    # them one by one, children first.
+    # A rollback removes the entries of the new tree one by one, children first. An entry that the source lacks
+    # belongs to another writer, which can add it before the record.
     find({ no_chdir => 1, wanted => sub {
         return if $_ eq $to;
+        my $source = $from . substr($_, length($to));
+        if (!-e $source && !-l $source) {
+            $File::Find::prune = 1;
+            return;
+        }
         txn_created($txn, $_);
         return if -d $_ && !-l $_;
         txn_installed($txn, $_);
-        txn_expect($txn, $_, txn_data($from . substr($_, length($to)))) if $copied;
-    } }, $to) if -d $to;
-    return $copied ? $linked : "Cannot copy $from to $to";
+        txn_expect($txn, $_, txn_data($source));
+    } }, $to);
+    return $linked;
 }
 
 # Copies the entries of the directory $from into the directory $to. With $preserve, $to then takes the mode, owner

@@ -1100,8 +1100,9 @@ for my $nodes (undef, 'undefined-node') {
     }
 }
 
-{
+SKIP: {
     # cp stops at a file that it cannot read, after it copied others, so the rollback removes what it copied.
+    skip 'root reads a file without read permission', 6 if $> == 0;
     my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {
         my ($dest, $bundle) = @_;
         make_path("$bundle/extra/conf/tree", "$dest/extra");

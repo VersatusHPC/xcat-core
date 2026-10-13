@@ -1727,12 +1727,10 @@ for my $second ('DEST/second', $other) {
 for my $foreign (0, 1) {
     # Two extra directories write the same file, and cp fails the second copy after it wrote part of the file.
     my $target = "$fixture/install/netboot/import-" . ($sequence + 1) . '/merged/conf';
-    my $count  = "$fixture/cp-count-" . ($sequence + 1);
     my ($cp) = grep { -x $_ } map { "$_/cp" } split(/:/, $ENV{PATH});
     make_path("$fixture/partial-bin");
-    write_text("$fixture/partial-bin/cp", qq{#!/bin/sh\nfor last; do :; done\nif [ "\$last" = "$target" ]; then\n}
-          . qq{  n=\$((\$(cat '$count' 2>/dev/null || echo 0) + 1)); echo \$n > '$count'\n}
-          . qq{  [ \$n -eq 2 ] && { printf partial > "\$last"; exit 1; }\nfi\nexec $cp "\$@"\n});
+    write_text("$fixture/partial-bin/cp", qq{#!/bin/sh\nfor arg; do from=\$last; last=\$arg; done\n}
+          . qq{case "\$from" in */extra/b/conf) head -c 4 "\$from" > "\$last"; exit 1;; esac\nexec $cp "\$@"\n});
     chmod(0755, "$fixture/partial-bin/cp") or die $!;
     local $ENV{PATH} = "$fixture/partial-bin:$ENV{PATH}";
 

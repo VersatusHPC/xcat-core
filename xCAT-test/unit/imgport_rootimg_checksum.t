@@ -1455,4 +1455,15 @@ for my $nodes (undef, 'undefined-node') {
         'the checksum symlink lists the published archive');
 }
 
+{
+    # The image directory has a space, and the first word of its path names another directory, which stays.
+    my $spaced = "$fixture/install/netboot/custom images/node";
+    make_path("$fixture/install/netboot/custom/keep");
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', undef, rootimg => "$spaced/rootimg.cpio.gz");
+    is($errors, '', 'an import into an image directory with a space reports no error');
+    is(-e "$spaced/rootimg.cpio.gz" ? read_binary("$spaced/rootimg.cpio.gz") : 'missing', $imported,
+        'the import publishes the archive in the image directory with a space');
+    ok(-d "$fixture/install/netboot/custom/keep", 'the directory that the first word of the image directory names stays');
+}
+
 done_testing();

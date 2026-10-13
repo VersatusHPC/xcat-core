@@ -30,6 +30,9 @@ use File::Copy;
 use File::Path qw/mkpath/;
 use File::Path qw/rmtree/;
 use File::Basename;
+use File::Find qw(find);
+use Digest::MD5;
+use Fcntl ();
 use xCAT::NodeRange;
 use xCAT::Schema;
 use xCAT::SvrUtils;
@@ -1273,18 +1276,10 @@ sub extract_bundle {
             $data = change_profile($data, $callback, $new_profile, $imgdir);
         }
 
-        # import manifest.xml into xCAT database, then place the files in appropriate directories
-        unless (place_image($data, $imgdir, $callback)) {
+        # place the files in appropriate directories, then import manifest.xml into xCAT database
+        unless (place_image($data, $imgdir, $callback, $nodes)) {
             $error++;
             next;
-        }
-
-        # put postscripts in the postsctipts table
-        if ($nodes) {
-            unless (set_postscripts($data, $callback, $nodes)) {
-                $error++;
-                next;
-            }
         }
 
         my $osimage = $data->{osimage}->{imagename};
@@ -1442,6 +1437,7 @@ sub set_postscripts {
     my $data     = shift;
     my $callback = shift;
     my $nodes    = shift;
+    my $txn      = shift;
 
     $callback->({ data => ["Adding postscripts."] });
 
@@ -1509,8 +1505,7 @@ sub set_postscripts {
     if ($postscripts || $postbootscripts) {
         $keyhash{postscripts}     = $postscripts;
         $keyhash{postbootscripts} = $postbootscripts;
-        $ptab->setNodesAttribs(\@good_nodes, \%keyhash);
-        $ptab->commit;
+        return txn_set_postscripts($txn, $ptab, \@good_nodes, \%keyhash, $callback);
     }
 
     return 1;
@@ -1577,6 +1572,7 @@ sub create_symlink {
 sub set_config {
     my $data     = shift;
     my $callback = shift;
+    my $txn      = shift;
     my $ostab    = xCAT::Table->new('osimage', -create => 1, -autocommit => 0);
     my $linuxtab = xCAT::Table->new('linuximage', -create => 1, -autocommit => 0);
     my $kittab = xCAT::Table->new('kit', -create => 1, -autocommit => 0);
@@ -1617,8 +1613,10 @@ sub set_config {
     foreach my $key (keys %$hash_tmp) {
         $keyhash{$key} = $hash_tmp->{$key};
     }
-    $ostab->setAttribs({ imagename => $osimage }, \%keyhash);
-    $ostab->commit;
+    if (my $error = txn_set_row($txn, $ostab, 'osimage', { imagename => $osimage }, {%keyhash})) {
+        $callback->({ error => [$error], errorcode => [1] });
+        return 0;
+    }
 
     %keyhash = ();
     my $hash_tmp1 = $data->{linuximage};
@@ -1626,8 +1624,10 @@ sub set_config {
         $keyhash{$key} = $hash_tmp1->{$key};
     }
 
-    $linuxtab->setAttribs({ imagename => $osimage }, \%keyhash);
-    $linuxtab->commit;
+    if (my $error = txn_set_row($txn, $linuxtab, 'linuximage', { imagename => $osimage }, {%keyhash})) {
+        $callback->({ error => [$error], errorcode => [1] });
+        return 0;
+    }
 
     my $kit = $data->{kit};
     foreach my $k (keys %$kit) {
@@ -1636,8 +1636,10 @@ sub set_config {
         foreach my $key (keys %$kithash) {
             $keyhash{$key} = $kithash->{$key};
         }
-        $kittab->setAttribs({ kitname => $k }, \%keyhash);
-        $kittab->commit;
+        if (my $error = txn_set_row($txn, $kittab, 'kit', { kitname => $k }, {%keyhash})) {
+            $callback->({ error => [$error], errorcode => [1] });
+            return 0;
+        }
     }
 
     my $kitrepo = $data->{kitrepo};
@@ -1647,8 +1649,10 @@ sub set_config {
         foreach my $key (keys %$kitrepohash) {
             $keyhash{$key} = $kitrepohash->{$key};
         }
-        $kitrepotab->setAttribs({ kitreponame => $k }, \%keyhash);
-        $kitrepotab->commit;
+        if (my $error = txn_set_row($txn, $kitrepotab, 'kitrepo', { kitreponame => $k }, {%keyhash})) {
+            $callback->({ error => [$error], errorcode => [1] });
+            return 0;
+        }
     }
 
     my $kitcomp = $data->{kitcomp};
@@ -1658,8 +1662,10 @@ sub set_config {
         foreach my $key (keys %$kitcomphash) {
             $keyhash{$key} = $kitcomphash->{$key};
         }
-        $kitcomptab->setAttribs({ kitcompname => $k }, \%keyhash);
-        $kitcomptab->commit;
+        if (my $error = txn_set_row($txn, $kitcomptab, 'kitcomponent', { kitcompname => $k }, {%keyhash})) {
+            $callback->({ error => [$error], errorcode => [1] });
+            return 0;
+        }
     }
 
     return 1;
@@ -1821,15 +1827,735 @@ sub verify_manifest {
     return 1;
 }
 
+# What a rollback reports for a row that another writer changed.
+my $TXN_CONFLICT = 'another change replaced it';
+
+# What the import reports for a database call without an answer, as when the DB worker of xcatd cannot reconnect.
+my $TXN_NO_ANSWER = 'the database did not answer';
+
+# The tar options that keep the ACLs, extended attributes and SELinux context of a directory too.
+my @TXN_TAR_ATTRIBUTES = qw(--acls --xattrs --selinux);
+
+#-------------------------------------------------------
+
+=head3   txn_begin
+
+    Start the record of the changes that an import makes, so that a failed import can put back what was there.
+    Arguments:
+        installroot -- the install directory, which keeps the replaced files until the import ends
+    Returns:
+        the record, or undef and the error message
+
+=cut
+
+#-------------------------------------------------------
+sub txn_begin {
+    my ($installroot) = @_;
+    my $kept = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => $installroot) };
+    return (undef, "Cannot create a directory in $installroot for the files that the import replaces: $@") unless $kept;
+    return ({ kept => $kept, count => 0, undo => [], done => [], rows => [] });
+}
+
+# Puts back what the import changed, the newest change first. A file that cannot be put back stops the
+# rollback, because an older change can depend on it, and the kept files stay for a manual recovery. A table
+# row that cannot be put back is reported, and the rollback goes on.
+sub txn_rollback {
+    my ($txn) = @_;
+    foreach my $undo (reverse @{ $txn->{undo} }) {
+        my $error;
+        eval { $error = $undo->(); 1 } or chomp($error = "The rollback failed: $@");
+        return join('; ', @{ $txn->{rows} }, $error) if $error;
+    }
+    rmtree($txn->{kept});
+    return join('; ', @{ $txn->{rows} }) if @{ $txn->{rows} };
+    return;
+}
+
+# Ends an import that succeeded.
+sub txn_commit {
+    my ($txn) = @_;
+    $_->() foreach @{ $txn->{done} };
+    rmtree($txn->{kept});
+    return;
+}
+
+# Identifies what is at $path, to tell later whether another writer changed it. A file is identified by its
+# inode and txn_content, and a directory by its inode and the txn_content of each entry.
+sub txn_identity {
+    my ($path) = @_;
+    my @stat = lstat($path);
+    return '' if !@stat;
+    return join(':', @stat[ 0, 1 ], txn_content($path)) if !-d _;
+    my $content = Digest::MD5->new;
+    find({ no_chdir => 1, wanted => sub {
+        return if $_ eq $path;
+        $content->add(substr($_, length($path)), ':', txn_content($_), "\n");
+    } }, $path);
+    return join(':', @stat[ 0, 1 ], $content->hexdigest);
+}
+
+# Describes the entry $path by its mode, size, time and content, or by the target of a symlink. A writer can
+# change a file in place without a change of size or time, so the content counts.
+sub txn_content {
+    my ($path) = @_;
+    my @stat = lstat($path);
+    return 'missing' if !@stat;
+    return 'symlink:' . (readlink($path) // '') if -l _;
+    return "directory:$stat[2]" if -d _;
+
+    # Reading a device never ends, and opening a FIFO can wait, so only a regular file is read.
+    return join(':', 'special', @stat[ 2, 6 ]) if !-f _;
+    my $digest = Digest::MD5->new;
+    open(my $file, '<:raw', $path) or return join(':', @stat[ 2, 7, 9 ], 'unreadable');
+    my $read = eval { $digest->addfile($file); 1 };
+    close($file);
+    return join(':', @stat[ 2, 7, 9 ], $read ? $digest->hexdigest : 'unreadable');
+}
+
+# Records what the import put at $path.
+sub txn_installed {
+    my ($txn, $path) = @_;
+    $txn->{installed}{$path} = txn_identity($path);
+    return;
+}
+
+# Puts back the record of $path that the step before an undone one left, so that the undo of that step checks
+# against it.
+sub txn_record {
+    my ($txn, $path, $recorded) = @_;
+    if (defined($recorded)) {
+        $txn->{installed}{$path} = $recorded;
+    } else {
+        delete $txn->{installed}{$path};
+    }
+    return;
+}
+
+# Returns the identity of $path when it holds what $recorded identifies, as a copy between file systems puts back
+# in a new file, or $recorded.
+sub txn_copied_identity {
+    my ($path, $recorded) = @_;
+    return $recorded if !defined($recorded);
+    my $identity = txn_identity($path);
+    my ($content, $expected) = map { (split(/:/x, $_, 3))[2] // '' } ($identity, $recorded);
+    return $content eq $expected ? $identity : $recorded;
+}
+
+# Tells why a rollback must not touch $path: another writer changed what the import put there.
+sub txn_changed {
+    my ($txn, $path) = @_;
+    return if !exists($txn->{installed}{$path}) || txn_identity($path) eq $txn->{installed}{$path};
+    return "Cannot put back $path: another change replaced it";
+}
+
+# Keeps what is at $path, so that a rollback puts it back, or removes $path on a rollback when nothing is there.
+# With $remove, $path moves away. Otherwise it stays for a command that replaces it.
+sub txn_keep {
+    my ($txn, $path, $remove) = @_;
+    return txn_created($txn, $path) if !-e $path && !-l $path;
+    my $recorded = $txn->{installed}{$path};
+    my $saved    = "$txn->{kept}/" . ++$txn->{count};
+    my $kept = $remove ? rename($path, $saved) : (!-d $path && link($path, $saved));
+    if (!$kept) {
+        system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in $txn->{kept}";
+        rmtree($path) if $remove;
+    }
+    push @{ $txn->{undo} }, sub {
+        my $changed = txn_changed($txn, $path);
+        return $changed if $changed;
+        rmtree($path) if -e $path || -l $path;
+        my $renamed = rename($saved, $path);
+        return "Cannot put back $path from $saved" if !$renamed && system('cp', '-a', $saved, $path) != 0;
+        txn_record($txn, $path, $renamed ? $recorded : txn_copied_identity($path, $recorded));
+        return;
+    };
+
+    # A later step at $path finds the record of what this one left there.
+    txn_installed($txn, $path) if $remove;
+    return;
+}
+
+# Removes $path, which the import creates, on a rollback.
+sub txn_created {
+    my ($txn, $path) = @_;
+    my $recorded = $txn->{installed}{$path};
+    push @{ $txn->{undo} }, sub {
+        my $changed = txn_changed($txn, $path);
+        return $changed if $changed;
+        txn_record($txn, $path, $recorded);
+        return if !-e $path && !-l $path;
+
+        # A directory that the import created goes away only when empty, so the files of other writers stay.
+        return if -d $path && !-l $path ? rmdir($path) : unlink($path);
+        return "Cannot remove $path: $!";
+    };
+    return;
+}
+
+# Creates $dir, and removes the directories that it created on a rollback.
+sub txn_mkpath {
+    my ($txn, $dir) = @_;
+    return if -d $dir;
+    my @created = ($dir);
+    unshift @created, dirname($created[0]) while !-d dirname($created[0]);
+    txn_keep($txn, $_) foreach @created;
+    mkpath($dir, { verbose => 1, mode => 0755, error => \my $errors });
+    return -d $dir ? undef : "Cannot create $dir";
+}
+
+# Moves $from to $to. A rollback moves it back, and puts back what was at $to.
+sub txn_move {
+    my ($txn, $from, $to) = @_;
+    my $error = txn_keep($txn, $to, 1);
+    return $error if $error;
+    my $recorded = $txn->{installed}{$to};
+    if (!move($from, $to)) {
+        $error = "Cannot move $from to $to: $!";
+
+        # A move between file systems copies, and can fail after it wrote part of $to.
+        txn_installed($txn, $to);
+        return $error;
+    }
+
+    # The move back is recorded first, because the undo of txn_keep would remove what moved to $to.
+    push @{ $txn->{undo} }, sub {
+        return if !-e $to && !-l $to;
+        my $changed = txn_changed($txn, $to);
+        return $changed if $changed;
+        move($to, $from) or return "Cannot move $to back to $from: $!";
+        txn_record($txn, $to, $recorded);
+        return;
+    };
+    txn_installed($txn, $to);
+    return;
+}
+
+# Installs $from at $to, and keeps what was at $to as $to.ORIG, as imgimport always did.
+sub txn_install {
+    my ($txn, $from, $to) = @_;
+    if (-e $to) {
+        my $error = txn_move($txn, $to, "$to.ORIG");
+        return $error if $error;
+    }
+    return txn_move($txn, $from, $to);
+}
+
+# Copies $from to $to as cp -R does, or as cp -a does with $preserve. With $top, $to is the target directory of
+# cp $from/* $to, which cp follows also when it is a symlink.
+sub txn_copy {
+    my ($txn, $from, $to, $preserve, $top) = @_;
+    my $option = $preserve ? '-a' : '-R';
+
+    # Each extra directory had its own cp -a run, which keeps hard links only between the files that it copies.
+    local $txn->{links} = $top ? {} : $txn->{links};
+    if (-d $from && !-l $from) {
+        return txn_merge($txn, $from, $to, $preserve, $top) if $top || (-d $to && !-l $to);
+        return txn_refused($from, $to) || txn_copy_tree($txn, $from, $to, $option);
+    }
+    my $refused = txn_refused($from, $to);
+    return $refused if $refused;
+
+    # cp writes a file through a symlink to a file.
+    $to = Cwd::realpath($to) if -l $to && !-l $from;
+
+    my $into  = txn_writes_into($txn, $from, $to, $option);
+    my $error = $into ? txn_keep_copy($txn, $to) : txn_keep($txn, $to, 1);
+    return $error if $error;
+
+    # A copy can fail after it wrote part of $to, which a rollback puts back too.
+    $error = txn_copy_file($txn, $from, $to, $option);
+    txn_installed($txn, $to);
+    return $error;
+}
+
+# Returns whether cp $option writes the file $from into the existing file $to, which keeps its inode and ACLs.
+# cp -a replaces a file that has other hard links, or links it to an earlier copy, instead.
+sub txn_writes_into {
+    my ($txn, $from, $to, $option) = @_;
+    return 0 if !-f $from || -l $from;
+    my @dest = lstat($to) or return 0;
+    return 0 if !-f _;
+    return $option ne '-a' || ($dest[3] == 1 && !txn_link_of($txn, $from, $option));
+}
+
+# Keeps a copy of the file $path, and writes it back into the same file on a rollback.
+sub txn_keep_copy {
+    my ($txn, $path) = @_;
+    my $recorded = $txn->{installed}{$path};
+    my $saved    = "$txn->{kept}/" . ++$txn->{count};
+    my $before   = txn_identity($path);
+    system('cp', '-a', $path, $saved) == 0 or return "Cannot keep $path in $txn->{kept}";
+    push @{ $txn->{undo} }, sub {
+        my $changed = txn_changed($txn, $path);
+        return $changed if $changed;
+
+        # A file that cp could not write for the import needs nothing back.
+        my $copied = system('cp', '-a', '--no-preserve=links', $saved, $path) == 0;
+        return "Cannot put back $path from $saved" if !$copied && txn_identity($path) ne $before;
+        txn_record($txn, $path, $recorded);
+        return;
+    };
+    return;
+}
+
+# Returns the copy of another hard link of $from, which cp -a links its copy to.
+sub txn_link_of {
+    my ($txn, $from, $option) = @_;
+    my @source = lstat($from);
+    return if $option ne '-a' || !-f _ || $source[3] < 2;
+    return $txn->{links}{"$source[0]:$source[1]"};
+}
+
+# Copies the file $from to $to with cp $option. cp -a keeps the hard links between the files that one run copies, so
+# a file that has a hard link to a file that the import copied before becomes another link of that copy.
+sub txn_copy_file {
+    my ($txn, $from, $to, $option) = @_;
+    my $first = txn_link_of($txn, $from, $option);
+    return link($first, $to) ? undef : "Cannot link $to to $first: $!" if $first;
+    my @source = lstat($from);
+    my $key = ($option eq '-a' && -f _ && $source[3] > 1) ? "$source[0]:$source[1]" : undef;
+    system('cp', $option, '-f', $from, $to) == 0 or return "Cannot copy $from to $to";
+    $txn->{links}{$key} = $to if $key;
+    return;
+}
+
+# Links the files of the new tree $to, which cp -a copied from $from, to the copies of their hard links that the
+# import made before, as txn_copy_file does for a file. Returns why it cannot.
+sub txn_link_tree {
+    my ($txn, $from, $to) = @_;
+    my $error;
+    find({ no_chdir => 1, wanted => sub {
+        my @source = lstat($_);
+        return if $error || !-f _ || $source[3] < 2;
+        my $copy = $to . substr($_, length($from));
+        my $first = $txn->{links}{"$source[0]:$source[1]"} //= $copy;
+        return if $first eq $copy;
+        $error = "Cannot link $copy to $first: $!" if !unlink($copy) || !link($first, $copy);
+    } }, $from);
+    return $error;
+}
+
+# Copies the directory $from to $to, where nothing is.
+sub txn_copy_tree {
+    my ($txn, $from, $to, $option) = @_;
+    my $error = txn_keep($txn, $to, 1);
+    return $error if $error;
+    my $copied = system('cp', $option, $from, $to) == 0;
+
+    # The links come before the record of the entries, which identifies each entry by its inode.
+    my $linked = ($copied && $option eq '-a') ? txn_link_tree($txn, $from, $to) : undef;
+
+    # Each entry of the new tree is the import's, also after a copy that failed partway, and a rollback removes
+    # them one by one, children first.
+    find({ no_chdir => 1, wanted => sub {
+        return if $_ eq $to;
+        txn_created($txn, $_);
+        txn_installed($txn, $_) if !-d $_;
+    } }, $to) if -d $to;
+    return $copied ? $linked : "Cannot copy $from to $to";
+}
+
+# Copies the entries of the directory $from into the directory $to. With $preserve, $to then takes the mode, owner
+# and times of $from, unless $top keeps them, as for the target of cp -a $from/* $to.
+sub txn_merge {
+    my ($txn, $from, $to, $preserve, $top) = @_;
+    opendir(my $dir, $from) or return "Cannot read $from: $!";
+    my @entries = grep { $_ ne '.' && $_ ne '..' } readdir($dir);
+    closedir($dir);
+
+    # cp -a gives an existing directory the attributes of $from after its entries. A rollback puts back its own
+    # after its entries, so this record goes first.
+    my $attributes = $preserve && !$top;
+    my $error = $attributes ? txn_keep_attributes($txn, $to) : undef;
+    return $error if $error;
+    foreach my $entry (@entries) {
+        $error = txn_copy($txn, "$from/$entry", "$to/$entry", $preserve);
+        return $error if $error;
+    }
+    return $attributes ? txn_copy_attributes($txn, $from, $to) : undef;
+}
+
+# Tells why cp refuses to copy $from over what is at $to.
+sub txn_refused {
+    my ($from, $to) = @_;
+    return if !-e $to && !-l $to;
+    return "Cannot overwrite non-directory $to with directory $from" if -d $from && !-l $from;
+    return "Cannot overwrite directory $to with non-directory $from" if -d $to && (!-l $to || !-l $from);
+    return "Cannot write through dangling symlink $to" if -l $to && !-e $to && !-l $from;
+    return;
+}
+
+# Gives the existing directory $to the attributes of $from with cp -a. cp -a copies only the attributes of a
+# directory without entries, so it copies a copy of $from without them.
+sub txn_copy_attributes {
+    my ($txn, $from, $to) = @_;
+    my $copy = "$txn->{kept}/" . ++$txn->{count};
+    if (!mkdir($copy) || !txn_tar_dir($from, "$copy.tar") || !txn_untar_dir("$copy.tar", $copy)) {
+        return "Cannot copy the attributes of $from";
+    }
+    system('cp', '-a', '-f', '-T', "$copy/" . basename($from), $to) == 0 or return "Cannot copy the attributes of $from to $to";
+    return;
+}
+
+# Keeps the mode, owner, times, ACLs and other attributes of the directory $dir, and puts them back on a rollback.
+sub txn_keep_attributes {
+    my ($txn, $dir) = @_;
+    my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
+    txn_tar_dir($dir, $archive) or return "Cannot keep the attributes of $dir";
+    push @{ $txn->{undo} }, sub {
+        return txn_untar_dir($archive, dirname($dir)) ? undef : "Cannot put back the attributes of $dir";
+    };
+    return;
+}
+
+# Archives the directory $dir without its entries.
+sub txn_tar_dir {
+    my ($dir, $archive) = @_;
+    return system('tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '-cf', $archive, '-C', dirname($dir), './' . basename($dir)) == 0;
+}
+
+# Extracts the directory in $archive in $parent, also over an existing directory, which keeps its entries.
+sub txn_untar_dir {
+    my ($archive, $parent) = @_;
+    return system('tar', @TXN_TAR_ATTRIBUTES, '-xpf', $archive, '-C', $parent) == 0;
+}
+
+# Puts back the mode, owner and times that the directory $dir has now, on a rollback.
+sub txn_keep_metadata {
+    my ($txn, $dir) = @_;
+    my @old = stat($dir) or return "Cannot read $dir: $!";
+    my $recorded = $txn->{installed}{$dir};
+    push @{ $txn->{undo} }, sub {
+        if (!-d $dir || -l $dir) {
+
+            # cpio replaces an empty directory with an entry of another type, which goes away again.
+            my $changed = txn_changed($txn, $dir);
+            return $changed if $changed;
+            unlink($dir) if -e $dir || -l $dir;
+            mkdir($dir) or return "Cannot put back the directory $dir: $!";
+            txn_record($txn, $dir, $recorded);
+        }
+        chown($old[4], $old[5], $dir);
+        utime($old[8], $old[9], $dir);
+        return chmod(Fcntl::S_IMODE($old[2]), $dir) ? undef : "Cannot put back the mode of $dir: $!";
+    };
+    return;
+}
+
+# Extracts the gzip cpio archive $archive in $dir like cpio -idum, keeping each file that it replaces.
+sub txn_extract {
+    my ($txn, $archive, $dir) = @_;
+    open(my $list, '-|', 'bash', '-o', 'pipefail', '-c', 'zcat "$1" | cpio -it 2>/dev/null', 'list', $archive)
+      or return "Cannot list $archive: $!";
+    my @members = <$list>;
+    close($list) or return "Cannot list $archive";
+    chomp(@members);
+    s{^\./}{}x foreach @members;
+    @members = grep { $_ ne '' } @members;
+    my @dirs = grep { -d "$dir/$_" && !-l "$dir/$_" } @members;
+
+    # cpio gives an existing directory the mode, owner and times of the archive. A rollback puts back its own
+    # after its entries, so these undo steps go first.
+    foreach my $member (@dirs) {
+        my $error = txn_keep_metadata($txn, "$dir/$member");
+        return $error if $error;
+    }
+    my %existing = map { ($_ => 1) } @dirs;
+    foreach my $member (grep { $_ ne '.' && !$existing{$_} } @members) {
+        my $error = txn_keep($txn, "$dir/$member");
+        return $error if $error;
+    }
+    my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;
+
+    # A directory that the extraction created goes away with rmdir, so only the other entries need an identity,
+    # also after an extraction that failed partway.
+    txn_installed($txn, "$dir/$_") foreach grep { $_ ne '.' && (!-d "$dir/$_" || -l "$dir/$_") } @members;
+    return $extracted ? undef : "Cannot extract $archive in $dir";
+}
+
+# Reads the rows of table $tabname that the hashes of @$keylist select, which have the same columns, with one read
+# of the table. Returns the snapshot, or (undef, error).
+sub txn_snapshot {
+    my ($tabname, $keylist) = @_;
+    my $tab = xCAT::Table->new($tabname, -create => 1) or return (undef, "Unable to open table '$tabname'");
+    my @cols = grep { !exists $keylist->[0]{$_} } @{ xCAT::Table->getTableSchema($tabname)->{cols} };
+
+    # A read that fails must not look like a missing row, which a rollback would remove.
+    my ($all, $failed) = $tab->getEntriesWhere(@$keylist == 1 ? txn_where(txn_key_conditions($keylist->[0])) : ());
+    return (undef, "Cannot read the $tabname table: " . ($failed || 'the database did not answer')) if !$all;
+    my %rows;
+    $rows{ txn_key_string($_, $keylist->[0]) } //= $_ foreach @$all;
+    return ({ table => $tabname, cols => \@cols, rows => \%rows });
+}
+
+# Returns the key values of $row, for the key columns of $keys, as one string.
+sub txn_key_string {
+    my ($row, $keys) = @_;
+    return join("\0", map { $row->{$_} // '' } sort keys %$keys);
+}
+
+# Writes $values to the row that $keys select only while it holds what $snapshot read, or inserts the row when
+# $snapshot read none. Another request can change the row in between, and its change must stay.
+sub txn_guarded_write {
+    my ($table, $snapshot, $keys, $values) = @_;
+    my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
+    if (!$row) {
+
+        # As setAttribs, nothing is written for a row without values.
+        my %new = (%$keys, %$values);
+        return if !grep { defined($new{$_}) && !exists $keys->{$_} } keys %new;
+        my ($inserted, $error) = $table->insertEntry(\%new);
+        return if $inserted;
+
+        # Without an answer, the insert can have applied, and a row that exists now can be the one of the import.
+        return $TXN_NO_ANSWER if !$error;
+        my ($now) = txn_row($table, $keys);
+        return $now ? 'another request created the row during the import' : $error;
+    }
+    my @held = map { defined($row->{$_}) ? txn_value_condition($_, $row->{$_}) : txn_empty_condition($_) } @{ $snapshot->{cols} };
+    my ($clause, @bind) = txn_where(txn_key_conditions($keys), @held);
+    my ($updated, $error) = $table->setAttribsWhere($clause, $values, @bind);
+    return 'another request changed the row during the import' if ($error // '') eq 'no rows selected.';
+    return $error || (defined($updated) ? undef : $TXN_NO_ANSWER);
+}
+
+# Records the write of $values to the row that $keys select, then runs it with txn_guarded_write. A write can apply
+# and then die, as in a notification handler, so the record comes first. A write that the database refused changed
+# nothing and needs no record, but one without an answer can have changed the row.
+sub txn_recorded_write {
+    my ($txn, $table, $snapshot, $keys, $values) = @_;
+    txn_record_row($txn, $snapshot, $keys, $values);
+    my $refused = txn_guarded_write($table, $snapshot, $keys, $values);
+    pop @{ $txn->{undo} } if $refused && $refused ne $TXN_NO_ANSWER;
+    return $refused;
+}
+
+# Records that the import wrote $values to the row that $keys select, which held what $snapshot read, so that a
+# rollback puts the row back or removes it.
+sub txn_record_row {
+    my ($txn, $snapshot, $keys, $values) = @_;
+    my $row = $snapshot->{rows}{ txn_key_string($keys, $keys) };
+    push @{ $txn->{undo} }, sub {
+        my $error = txn_restore_row($snapshot->{table}, $keys, $values, $row, $snapshot->{cols});
+        push @{ $txn->{rows} }, $error if $error;
+        return;
+    };
+    return;
+}
+
+# Writes the postscripts $values of the nodes @$good, and records their rows for a rollback. Returns 1 on success.
+# setNodesAttribs reports no failed statement, so each node gets its own write.
+sub txn_set_postscripts {
+    my ($txn, $ptab, $good, $values, $callback) = @_;
+    my ($snapshot, $error) = txn_snapshot('postscripts', [ map { { node => $_ } } @$good ]);
+    $error ||= txn_write($ptab, sub {
+        foreach my $node (@$good) {
+            my $refused = txn_recorded_write($txn, $ptab, $snapshot, { node => $node }, $values);
+            return "$node: $refused" if $refused;
+        }
+        return;
+    });
+    return 1 if !$error;
+    $callback->({ error => [ "Cannot write the postscripts of " . join(',', @$good) . ": $error" ], errorcode => [1] });
+    return 0;
+}
+
+# Writes $values to the row of table $tabname that $keys select, through the handle $table, and records the row for
+# a rollback before the commit, which can fail after the write. Returns why it cannot.
+sub txn_set_row {
+    my ($txn, $table, $tabname, $keys, $values) = @_;
+    my ($snapshot, $error) = txn_snapshot($tabname, [$keys]);
+    $error ||= txn_write($table, sub { txn_recorded_write($txn, $table, $snapshot, $keys, $values) });
+    return $error ? "Cannot write the $tabname row " . join(',', map { "$_=$keys->{$_}" } sort keys %$keys) . ": $error" : undef;
+}
+
+# Runs the write $write to $table and commits it, also after a write that failed. Returns why it fails.
+sub txn_write {
+    my ($table, $write) = @_;
+    my $error;
+    eval { $error = $write->(); 1 } or chomp($error = $@);
+    return txn_end_write($table, $error);
+}
+
+# Commits the writes to $table after an $error or none, and returns the error. A failed statement changes nothing.
+# On SQLite, the writes of other requests join this transaction, so a rollback would undo them too, and the
+# rollback of the import undoes the rows that it recorded instead.
+sub txn_end_write {
+    my ($table, $error) = @_;
+    my $refused = txn_commit_table($table);
+    return $error if !$refused;
+    return $error ? "$error; the database refuses the commit: $refused" : "the database refuses the commit: $refused";
+}
+
+# Commits the changes of $table, and returns why the database refuses them.
+sub txn_commit_table {
+    my ($table) = @_;
+    my ($committed, $error);
+    eval { ($committed, $error) = $table->commit; 1 } or chomp($error = $@);
+    return $committed ? undef : ($error || 'the database did not answer the commit');
+}
+
+# Returns the row of table $tab that $keys select, also a disabled one, which getAttribs hides, or (undef, error).
+sub txn_row {
+    my ($tab, $keys) = @_;
+    my ($rows, $error) = $tab->getEntriesWhere(txn_where(txn_key_conditions($keys)));
+    return (undef, 'cannot read the row: ' . ($error || 'the database did not answer')) if !$rows;
+    return ($rows->[0]);
+}
+
+# Returns the conditions that select the row with the key values $keys.
+sub txn_key_conditions {
+    my ($keys) = @_;
+    return map { txn_condition($_, $keys->{$_}) } sort keys %$keys;
+}
+
+# Returns the condition that column $column holds exactly $value. MySQL compares by the collation of the column,
+# which can ignore case and trailing spaces, so there the value compares as bytes.
+sub txn_value_condition {
+    my ($column, $value) = @_;
+    return txn_condition($column, $value) if !defined($value) || xCAT::Table::get_xcatcfg() !~ /^mysql:/x;
+    return [ 'CAST(' . xCAT::Table::delimitcol($column) . ' AS BINARY) = ?', $value ];
+}
+
+# Returns the condition that column $column is empty.
+sub txn_empty_condition {
+    my ($column) = @_;
+    my $delimited = xCAT::Table::delimitcol($column);
+    return ["($delimited IS NULL OR $delimited = '')"];
+}
+
+# Joins the conditions @conditions into one where clause, and returns it with the values to bind to it.
+sub txn_where {
+    my @conditions = @_;
+    return (join(' AND ', map { $_->[0] } @conditions), map { @$_[ 1 .. $#$_ ] } @conditions);
+}
+
+# Returns the condition that column $column holds $value: the SQL, with the column quoting of the database, and
+# the value to bind to it. MySQL takes a backslash in a literal as an escape, so values are never literals.
+sub txn_condition {
+    my ($column, $value) = @_;
+    my $delimited = xCAT::Table::delimitcol($column);
+    return ["$delimited IS NULL"] if !defined($value);
+    return [ "$delimited = ?", $value ];
+}
+
+# Puts back the row $old of table $tabname, and returns why it cannot, with the previous values.
+sub txn_restore_row {
+    my ($tabname, $keys, $values, $old, $cols) = @_;
+    my $what = "the $tabname row " . join(',', map { "$_=$keys->{$_}" } sort keys %$keys);
+    my $previous = $old ? join(',', map { "$_=$old->{$_}" } grep { defined($old->{$_}) } @$cols) : 'none';
+    my $error;
+
+    # The database can throw, and the rollback must still put back the files.
+    eval { $error = txn_write_row($tabname, $keys, $values, $old, $cols); 1 } or chomp($error = $@);
+    return $error ? "Cannot put back $what, which was $previous: $error" : undef;
+}
+
+# Puts back the row $old of table $tabname in one database transaction. Another writer can change a shared
+# row meanwhile, so the fields go back only while they still hold $values, and a row that the import created
+# goes away only while nobody added to it.
+sub txn_write_row {
+    my ($tabname, $keys, $values, $old, $cols) = @_;
+    my $table = xCAT::Table->new($tabname, -create => 1, -autocommit => 0) or return "unable to open table '$tabname'";
+    my @written = grep { !exists $keys->{$_} } keys %$values;
+    my @where = (txn_key_conditions($keys), map { txn_value_condition($_, $values->{$_}) } sort @written);
+    my $error;
+    eval {
+        $error = $old ? txn_update_row($table, $keys, $old, \@written, \@where) : txn_remove_row($table, $keys, $values, $cols, \@where);
+        1;
+    } or chomp($error = $@);
+    return txn_end_write($table, $error);
+}
+
+# Puts back the fields @$written of an existing row while the row holds what the import wrote. The update
+# matches nothing when another writer changed the row, so the result is read back.
+sub txn_update_row {
+    my ($table, $keys, $old, $written, $where) = @_;
+    return if !@$written;
+    my ($clause, @bind) = txn_where(@$where);
+    my ($updated, $error) = $table->setAttribsWhere($clause, { map { ($_ => $old->{$_} // 'NULL') } @$written }, @bind);
+    return $error if $error && $error ne 'no rows selected.';
+    return $TXN_NO_ANSWER if !defined($updated);
+
+    # The update matches nothing also when the write of the import failed, and the row then holds $old.
+    (my $row, $error) = txn_row($table, $keys);
+    return $error if $error;
+    return $TXN_CONFLICT if !$row || grep { ($row->{$_} // '') ne ($old->{$_} // '') } @$written;
+    return;
+}
+
+# Removes a row that the import created while it holds only what the import wrote. One conditional delete
+# tests the fields, so it cannot remove a row that another writer changed.
+sub txn_remove_row {
+    my ($table, $keys, $values, $cols, $where) = @_;
+    my @free = grep { !exists $values->{$_} } @$cols;
+    my @owned = (@$where, map { txn_empty_condition($_) } @free);
+    my ($deleted, $error) = $table->delEntriesWhere(txn_where(@owned));
+    return $error || $TXN_NO_ANSWER if !defined($deleted);
+    return if $deleted;
+
+    # Nothing matches when another writer changed the row, or when the import had nothing to write and created none.
+    (my $row, $error) = txn_row($table, $keys);
+    return $error || ($row ? $TXN_CONFLICT : undef);
+}
+
+# Publishes again the image $name that $dir keeps for $fn, while $fn holds what the import published. publish_rootimg
+# moves the files that it publishes, so it gets links, and the kept files stay until the rollback succeeds.
+sub txn_republish {
+    my ($dir, $name, $fn, $published) = @_;
+    my $stage = "$dir/stage";
+    rmtree($stage);
+    mkdir($stage) or return "Cannot create $stage: $!";
+    foreach my $file (grep { -e "$dir/$_" || -l "$dir/$_" } ($name, "$name.sha256", "$name.metainfo")) {
+        next if link("$dir/$file", "$stage/$file");
+        system('cp', '-a', "$dir/$file", "$stage/$file") == 0 or return "Cannot stage $dir/$file for its publication";
+    }
+    return xCAT::SvrUtils->publish_rootimg("$stage/$name", $fn, undef, { expected => $published });
+}
+
+# Returns a directory where publish_rootimg keeps the published root image at $fn with its checksum and
+# metainfo, under the publication lock, so that a rollback publishes them again. place_rootimg records in
+# $txn->{published} what the import published.
+sub txn_keep_rootimg {
+    my ($txn, $fn) = @_;
+    my $name = basename($fn);
+
+    # rmimage removes this directory with the image, if the import cannot.
+    my $dir = eval { File::Temp::tempdir('.rootimg-previous-XXXXXXXX', DIR => dirname($fn)) }
+      or return (undef, "Cannot keep $fn: $@");
+    push @{ $txn->{done} }, sub { rmtree($dir) };
+    push @{ $txn->{undo} }, sub {
+
+        # Another host can publish the image meanwhile, so only the image that this import published goes back.
+        my $published = $txn->{published}{$fn};
+
+        # A kept symlink can point to a relative path, which resolves only where publish_rootimg puts it back.
+        my $kept = (-e "$dir/$name" || -l "$dir/$name");
+        my $error;
+        if (defined($published)) {
+            eval {
+                $error = $kept ? txn_republish($dir, $name, $fn, $published) : xCAT::SvrUtils->withdraw_rootimg($fn, $published);
+                1;
+            } or chomp($error = "Cannot put back $fn: $@");
+        }
+        return $kept ? "$error. The previous image is kept in $dir" : $error if $error;
+        rmtree($dir);
+        return;
+    };
+    return ($dir);
+}
+
 #-------------------------------------------------------
 
 =head3   place_image
 
-    Import the image definition of an extracted bundle, then place its files, under the image lock.
+    Place the files of an extracted bundle, its image definition and the postscripts of its nodes. A failed
+    import puts back what was there.
     Arguments:
         data     -- the manifest of the bundle
         imgdir   -- the extracted bundle
         callback -- the request callback
+        nodes    -- the nodes that get the postscripts of the image, or undef
     Returns:
         1 on success, 0 on failure
 
@@ -1837,26 +2563,77 @@ sub verify_manifest {
 
 #-------------------------------------------------------
 sub place_image {
-    my ($data, $imgdir, $callback) = @_;
+    my ($data, $imgdir, $callback, $nodes) = @_;
 
-    # genimage, packimage, liteimg and rmimage hold this lock while they change the image.
+    # Imports of different images can change the same kit files, postscripts and table rows, so one at a time.
+    my $import_lock = xCAT::Utils->acquire_lock('imgimport', 0);
+    unless ($import_lock) {
+        $callback->({ error => ["Cannot take the imgimport lock in /var/lock/xcat: $!"], errorcode => [1] });
+        return 0;
+    }
+
+    # addkit and the other kit commands hold this lock while they write the same kit files and postscripts.
+    my $kit_lock;
+    if ($data->{kit} && %{ $data->{kit} }) {
+        $kit_lock = xCAT::Utils->acquire_lock('kit', 0);
+        unless ($kit_lock) {
+            $callback->({ error => ["Cannot take the kit lock in /var/lock/xcat: $!"], errorcode => [1] });
+            return 0;
+        }
+    }
+
+    my $installroot = xCAT::TableUtils->getInstallDir() || '/install';
+    my ($txn, $error) = txn_begin($installroot);
+    unless ($txn) {
+        $callback->({ error => [$error], errorcode => [1] });
+        return 0;
+    }
+
+    # genimage, packimage, liteimg and rmimage hold this lock while they change the image. It needs the image
+    # directory, which a rollback removes when the import created it.
     my $lock;
     if ($data->{rootimg}) {
         my $rootimgdir = dirname((split(',', $data->{rootimg}))[0]);
-        mkpath($rootimgdir) unless -d $rootimgdir;
-        (my $retcode, $lock) = xCAT::Utils->acquire_lock_imageop("$rootimgdir/rootimg");
+        $error = txn_mkpath($txn, $rootimgdir);
+        (my $retcode, $lock) = $error ? (1, $error) : xCAT::Utils->acquire_lock_imageop("$rootimgdir/rootimg");
         if ($retcode) {
+            txn_rollback($txn);
             $callback->({ error => [$lock], errorcode => [1] });
             return 0;
         }
     }
-    return set_config($data, $callback) && make_files($data, $imgdir, $callback);
+    my $placed;
+    my $finished = eval {
+        $placed = make_files($data, $imgdir, $callback, $txn) && set_config($data, $callback, $txn)
+          && (!$nodes || set_postscripts($data, $callback, $nodes, $txn));
+        1;
+    };
+    if (!$finished) {
+        $callback->({ error => ["The import failed: $@"], errorcode => [1] });
+        $placed = 0;
+    }
+    unless ($placed) {
+        if ($error = txn_rollback($txn)) {
+            $callback->({ error => ["The failed import cannot put back everything that it changed: $error. The replaced files are kept in $txn->{kept}."], errorcode => [1] });
+        }
+        $hasplugin = 0;
+        return 0;
+    }
+    txn_commit($txn);
+    if ($hasplugin) {
+
+        # Fast restart xcatd to load the new plugins without dropping this request
+        system("$::XCATROOT/sbin/restartxcatd");
+        $hasplugin = 0;
+    }
+    return 1;
 }
 
 sub make_files {
     my $data        = shift;
     my $imgdir      = shift;
     my $callback    = shift;
+    my $txn         = shift;
     my $os          = $data->{osimage}->{osvers};
     my $arch        = $data->{osimage}->{osarch};
     my $profile     = $data->{osimage}->{profile};
@@ -1957,11 +2734,9 @@ sub make_files {
                 $callback->({ data => ["$fn"] });
                 my $basename = basename($fn);
                 my $dirname  = dirname($fn);
-                if (!-r $dirname) {
-                    mkpath("$dirname", { verbose => 1, mode => 0755 });
-                }
+                txn_mkpath($txn, $dirname);
                 if ($a eq 'rootimg') {
-                    if (my $error = place_rootimg("$imgdir/$basename", $fn, $callback)) {
+                    if (my $error = place_rootimg("$imgdir/$basename", $fn, $callback, $txn)) {
                         $callback->({ error => [$error], errorcode => [1] });
                         return 0;
                     }
@@ -1969,9 +2744,11 @@ sub make_files {
                 }
                 if (-r $fn) {
                     $callback->({ data => ["  Moving old $fn to $fn.ORIG."] });
-                    move("$fn", "$fn.ORIG");
                 }
-                move("$imgdir/$basename", $fn);
+                if (my $error = txn_install($txn, "$imgdir/$basename", $fn)) {
+                    $callback->({ error => [$error], errorcode => [1] });
+                    return 0;
+                }
             }
         }
     }
@@ -1989,14 +2766,14 @@ sub make_files {
                 $callback->({ data => ["$fn"] });
                 my $basename = basename($fn);
                 my $dirname  = dirname($fn);
-                if (!-r $dirname) {
-                    mkpath("$dirname", { verbose => 1, mode => 0755 });
-                }
+                txn_mkpath($txn, $dirname);
                 if (-r $fn) {
                     $callback->({ data => ["  Moving old $fn to $fn.ORIG."] });
-                    move("$fn", "$fn.ORIG");
                 }
-                move("$imgdir/$basename", $fn);
+                if (my $error = txn_install($txn, "$imgdir/$basename", $fn)) {
+                    $callback->({ error => [$error], errorcode => [1] });
+                    return 0;
+                }
             }
         }
     }
@@ -2007,29 +2784,20 @@ sub make_files {
         my $fn = $k->{$kit}->{kitdir};
         if ($fn) {
             my $dirname = dirname($fn);
-            if (!-r $dirname) {
-                mkpath("$dirname", { verbose => 1, mode => 0755 });
-            }
-
+            txn_mkpath($txn, $dirname);
             if (-r "$dirname/$kit") {
                 $callback->({ data => ["  Moving old $fn to $fn.ORIG."] });
-                move("$dirname/$kit", "$dirname/$kit.ORIG");
-
             }
-            move("$imgdir/$kit", "$dirname/$kit");
 
-            #copy postscripts from kit dir to postscripts dir;
-            copyPostscripts($dirname, $kit, $installroot, $callback);
-
-            #copy plugin from kit to xCAT_plugin
-            movePlugin($dirname, $kit, $callback);
+            # The kit copies its postscripts to the postscripts directory and its plugins to xCAT_plugin.
+            my $error = txn_install($txn, "$imgdir/$kit", "$dirname/$kit")
+              || copyPostscripts($dirname, $kit, $installroot, $callback, $txn)
+              || movePlugin($dirname, $kit, $callback, $txn);
+            if ($error) {
+                $callback->({ error => [$error], errorcode => [1] });
+                return 0;
+            }
         }
-    }
-    if ($hasplugin) {
-
-        # Fast restart xcatd to load the new plugins without dropping this request
-        system("$::XCATROOT/sbin/restartxcatd");
-        $hasplugin = 0;
     }
 
 
@@ -2042,7 +2810,13 @@ sub make_files {
 
             #print "dirname=$dirname, basename=$basename\n";
             $callback->({ data => ["Extracting rootimgtree.gz. It will take a while."] });
-            system("mkdir -p $dirname; cd $dirname; zcat $basename |cpio -idum; rm $basename");
+            if (my $error = txn_mkpath($txn, $dirname) || txn_extract($txn, $fn, $dirname)) {
+                $callback->({ error => [$error], errorcode => [1] });
+                return 0;
+            }
+
+            # A rollback moves the archive back to the bundle, so it goes away only when the import succeeds.
+            push @{ $txn->{done} }, sub { unlink($fn) };
         }
     }
 
@@ -2058,7 +2832,7 @@ sub make_files {
             #my $f = basename($ex->{src});
             my $ff   = $ex->{src};
             my $dest = $ex->{dest};
-            unless (moveExtra($callback, $ff, $dest, $imgdir)) {
+            unless (moveExtra($callback, $ff, $dest, $imgdir, $txn)) {
                 return 0;
             }
 
@@ -2069,7 +2843,7 @@ sub make_files {
                 #my $f = basename($_->{src});
                 my $ff   = $_->{src};
                 my $dest = $_->{dest};
-                unless (moveExtra($callback, $ff, $dest, $imgdir)) {
+                unless (moveExtra($callback, $ff, $dest, $imgdir, $txn)) {
                     return 0;
                 }
             }
@@ -2083,10 +2857,10 @@ sub make_files {
         my $fn = $data->{litefile};
         if (!$fn) {
             $callback->({ error => ["Could not find litefile.csv."], errorcode => [1] });
-            return 1;
+            return 0;
         } elsif (!-r $fn) {
             $callback->({ error => ["Could not find $fn."], errorcode => [1] });
-            return 1;
+            return 0;
         }
 
         my $lftab = xCAT::Table->new("litefile", -create => 1);
@@ -2099,7 +2873,10 @@ sub make_files {
         my @entries = $lftab->getAllAttribsWhere("\"image\" = 'ALL'", 'file', 'options');
 
         #get the entries for image
-        open(FILE, "$fn") or die "Could not open $fn.";
+        unless (open(FILE, "$fn")) {
+            $callback->({ error => ["Could not open $fn."], errorcode => [1] });
+            return 0;
+        }
         foreach my $line (<FILE>) {
             chomp($line);
             print "$line\n";
@@ -2123,7 +2900,11 @@ sub make_files {
                 $keyhash{image}   = $data->{osimage}->{imagename};
                 $keyhash{file}    = $filename;
                 $updates{options} = $options;
-                $lftab->setAttribs(\%keyhash, \%updates);
+                if (my $error = txn_set_row($txn, $lftab, 'litefile', {%keyhash}, {%updates})) {
+                    close(FILE);
+                    $callback->({ error => [$error], errorcode => [1] });
+                    return 0;
+                }
             }
         }
         close(FILE);
@@ -2135,7 +2916,7 @@ sub make_files {
     # For s390x copy all image files from the root bundle directory to the repository location
     if (($data->{osimage}->{osarch} =~ /s390x/) && ($data->{osimage}->{provmethod} =~ /raw|netboot|sysclone/)) {
         my $reposImgDir = "$installroot/$data->{osimage}->{provmethod}/$data->{osimage}->{osvers}/$data->{osimage}->{osarch}/$data->{osimage}->{profile}";
-        mkpath($reposImgDir);
+        txn_mkpath($txn, $reposImgDir);
 
         if ($data->{rawimagefiles}) {
             $callback->({ data => ["Copying image files to $reposImgDir"] });
@@ -2153,7 +2934,7 @@ sub make_files {
                     }
 
                     $callback->({ data => ["Moving $old_file to $reposImgDir as $old_file$suffix"] });
-                    my $rc = move("$imgdir/$old_file", "$reposImgDir/$old_file$suffix");
+                    my $rc = !txn_move($txn, "$imgdir/$old_file", "$reposImgDir/$old_file$suffix");
                     if ($rc == 0) {
                         $callback->({ error => ["Could not move $old_file to $reposImgDir: $!\n"], errorcode => [1] });
                         return 0;
@@ -2169,7 +2950,7 @@ sub make_files {
                 }
 
                 $callback->({ data => ["Moving $old_file to $reposImgDir as $old_file$suffix"] });
-                my $rc = move("$imgdir/$old_file", "$reposImgDir/$old_file$suffix");
+                my $rc = !txn_move($txn, "$imgdir/$old_file", "$reposImgDir/$old_file$suffix");
                 if ($rc == 0) {
                     $callback->({ error => ["Could not move $old_file to $reposImgDir: $!\n"], errorcode => [1] });
                     return 0;
@@ -2191,6 +2972,7 @@ sub make_files {
         bundled  -- the root image in the extracted bundle
         fn       -- the published path
         callback -- the request callback
+        txn      -- the record of the import, which puts back the published image when the import fails
     Returns:
         an error message, or nothing on success
 
@@ -2198,19 +2980,27 @@ sub make_files {
 
 #-------------------------------------------------------
 sub place_rootimg {
-    my ($bundled, $fn, $callback) = @_;
+    my ($bundled, $fn, $callback, $txn) = @_;
     my ($stage, $error) = xCAT::SvrUtils->rootimg_stage(dirname($fn));
     return $error unless $stage;
     my $staged = "$stage/" . basename($fn);
     move($bundled, $staged) or return "Cannot move $bundled to $staged: $!";
     $error = xCAT::SvrUtils->write_rootimg_checksum($staged);
     return $error if $error;
+    (my $kept, $error) = txn_keep_rootimg($txn, $fn);
+    return $error if $error;
     if (-r $fn) {
         $callback->({ data => ["  Keeping old $fn as $fn.ORIG."] });
-        unlink("$fn.ORIG");
+        $error = txn_keep($txn, "$fn.ORIG", 1);
+        return $error if $error;
         link($fn, "$fn.ORIG") or copy($fn, "$fn.ORIG");
     }
-    return xCAT::SvrUtils->publish_rootimg($staged, $fn);
+
+    # The rename keeps the inode, so the staged image identifies what this import publishes.
+    my $identity = xCAT::SvrUtils->rootimg_identity($staged);
+    $error = xCAT::SvrUtils->publish_rootimg($staged, $fn, undef, { keep => $kept });
+    $txn->{published}{$fn} = $identity if !$error;
+    return $error;
 }
 
 sub copyPostscripts {
@@ -2218,23 +3008,25 @@ sub copyPostscripts {
     my $kit        = shift;
     my $installdir = shift;
     my $callback   = shift;
+    my $txn        = shift;
     my $fenv       = '\.env$';
     my $fexlist    = '\.exlist$';
 
     if (-d "$dirname/$kit/other_files/") {
         opendir(DIRP, "$dirname/$kit/other_files/");
-        foreach my $f (readdir(DIRP)) {
-            if (($f =~ m/^\./) || ($f =~ /$fexlist/i) || ($f =~ m/$fenv/i)) {
-                next;
-            } else {
-                print "$f\n";
-                chmod(0755, "$dirname/$kit/other_files/$f");
-                system("cp -rfv $dirname/$kit/other_files/$f $installdir/postscripts/");
-            }
-        }
-
+        my @scripts = grep { !(($_ =~ m/^\./) || ($_ =~ /$fexlist/i) || ($_ =~ m/$fenv/i)) } readdir(DIRP);
         closedir(DIRP);
+
+        # The import makes the postscripts of its kit executable, so the record of the kit includes that change.
+        chmod(0755, "$dirname/$kit/other_files/$_") foreach @scripts;
+        txn_installed($txn, "$dirname/$kit");
+        foreach my $f (@scripts) {
+            print "$f\n";
+            my $error = txn_copy($txn, "$dirname/$kit/other_files/$f", "$installdir/postscripts/$f");
+            return $error if $error;
+        }
     }
+    return;
 }
 
 sub movePlugin {
@@ -2242,17 +3034,20 @@ sub movePlugin {
     my $dirname  = shift;
     my $kit      = shift;
     my $callback = shift;
+    my $txn      = shift;
 
     if (-d "$dirname/$kit/plugins/") {
         chmod(644, "$dirname/$kit/plugins/*");
         opendir(DIR, "$dirname/$kit/plugins/");
-        if (grep { ($_ ne '.') && ($_ ne '..') } readdir(DIR)) {
-            system("cp -rfv $dirname/$kit/plugins/* $::XCATROOT/lib/perl/xCAT_plugin/");
+        my @plugins = grep { ($_ ne '.') && ($_ ne '..') } readdir(DIR);
+        closedir(DIR);
+        foreach my $plugin (@plugins) {
+            my $error = txn_copy($txn, "$dirname/$kit/plugins/$plugin", "$::XCATROOT/lib/perl/xCAT_plugin/$plugin");
+            return $error if $error;
             $hasplugin = 1;
         }
-        closedir(DIR);
     }
-
+    return;
 }
 
 sub moveExtra {
@@ -2260,6 +3055,7 @@ sub moveExtra {
     my $ff       = shift;
     my $dest     = shift;
     my $imgdir   = shift;
+    my $txn      = shift;
     my $f        = basename($ff);
 
     if (-d "$imgdir/extra/$ff") {
@@ -2267,18 +3063,15 @@ sub moveExtra {
         #print "This is a directory\n";
         # this extra file is a directory, so we are moving the directory over.
         $callback->({ data => ["$dest"] });
-        unless (-d $dest) {
-            unless (mkpath($dest)) {
-                $callback->({ error => ["Failed to create $dest"], errorcode => 1 });
-                return 0;
-            }
+        if (txn_mkpath($txn, $dest)) {
+            $callback->({ error => ["Failed to create $dest"], errorcode => 1 });
+            return 0;
         }
 
         # this could cause some problems.  This is one of the reasons we may not want to
         # allow copying of directories.
-        `cp -a -f $imgdir/extra/$ff/* $dest`;
-        if ($?) {
-            $callback->({ error => ["Failed to cp -a $imgdir/extra/$ff/* to $dest"], errorcode => 1 });
+        if (my $error = txn_copy($txn, "$imgdir/extra/$ff", $dest, 1, 1)) {
+            $callback->({ error => ["Failed to cp -a $imgdir/extra/$ff/* to $dest: $error"], errorcode => 1 });
             return 0;
         }
     } else {
@@ -2288,11 +3081,15 @@ sub moveExtra {
         $callback->({ data => ["$dest/$f"] });
         if (-r "$dest/$f") {
             $callback->({ data => ["  Moving old $dest/$f to $dest/$f.ORIG."] });
-            move("$dest/$f", "$dest/$f.ORIG");
+            if (txn_move($txn, "$dest/$f", "$dest/$f.ORIG")) {
+                $callback->({ error => ["Failed to move $dest/$f to $dest/$f.ORIG"], errorcode => 1 });
+                return 0;
+            }
         }
-        `cp $imgdir/extra/$f $dest`;
-        if ($?) {
-            $callback->({ error => ["Failed to copy $imgdir/extra/$f to $dest"], errorcode => 1 });
+
+        # cp copies into $dest when it is a directory, and over $dest otherwise.
+        if (my $error = txn_copy($txn, "$imgdir/extra/$f", -d $dest ? "$dest/$f" : $dest)) {
+            $callback->({ error => ["Failed to copy $imgdir/extra/$f to $dest: $error"], errorcode => 1 });
             return 0;
         }
     }

@@ -16,6 +16,7 @@ use Digest::SHA ();
 use Errno qw(EEXIST);
 use File::Basename;
 use File::Copy ();
+use Fcntl ();
 use File::Path;
 use File::Temp;
 use Scalar::Util ();
@@ -2852,15 +2853,22 @@ sub _write_published_file {
 #        $staged:        the staged compressed rootimage, with <staged>.sha256 and <staged>.metainfo when they exist
 #        $target:        the published path
 #        $remove_others: true to remove the other rootimg.* files of the image directory
+#        $options:       a hash with expected, to publish only while the published rootimage has this
+#                        rootimg_identity, and keep, a directory for a copy of the files that this replaces
 #return:
 #        on success: nothing
 #        on fail:    the error message
 #--------------------------------------------------------------------------------------------------------
 sub publish_rootimg {
-    my ($class, $staged, $target, $remove_others) = @_;
+    my ($class, $staged, $target, $remove_others, $options) = @_;
     my $dir = dirname($target);
     my ($lock, $lock_error) = _acquire_publish_lock($dir);
     return $lock_error unless $lock;
+    my $refused = _refuse_rootimg_publication($target, $options || {});
+    if ($refused) {
+        _release_publish_lock($lock);
+        return "Cannot publish $target: $refused";
+    }
     my %state = (staged => $staged, target => $target, previous => dirname($staged) . '/previous',
         sums => _read_published_file("$target.sha256"));
     my $error = _replace_rootimg(\%state);
@@ -2884,6 +2892,55 @@ sub publish_rootimg {
     return "Cannot publish $target: $error";
 }
 
+#--------------------------------------------------------------------------------------------------------
+#rootimg_identity:
+#description: identify a published compressed rootimage, to tell later whether another publication replaced it
+#argument:
+#        $target: the published path
+#return:
+#        the device and inode of the file, or an empty string when there is none
+#--------------------------------------------------------------------------------------------------------
+sub rootimg_identity {
+    my (undef, $target) = @_;
+    my @stat = stat($target);
+    return @stat ? "$stat[0]:$stat[1]" : '';
+}
+
+#--------------------------------------------------------------------------------------------------------
+#withdraw_rootimg:
+#description: remove a published compressed rootimage, its checksum and its metainfo, under the publication lock
+#arguments:
+#        $target:   the published path
+#        $expected: remove only while the published rootimage has this rootimg_identity
+#return:
+#        on success: nothing
+#        on fail:    the error message
+#--------------------------------------------------------------------------------------------------------
+sub withdraw_rootimg {
+    my ($class, $target, $expected) = @_;
+    my ($lock, $error) = _acquire_publish_lock(dirname($target));
+    return $error unless $lock;
+    if ($class->rootimg_identity($target) ne $expected) {
+        $error = "Cannot remove $target: another publication replaced it";
+    } else {
+        my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ($target, "$target.sha256", "$target.metainfo");
+        $error = "Cannot remove @remaining: $!" if @remaining;
+    }
+    _release_publish_lock($lock);
+    return $error;
+}
+
+# Checks the expected rootimg_identity and keeps a copy of the published files, under the publication lock.
+sub _refuse_rootimg_publication {
+    my ($target, $options) = @_;
+    return 'another publication replaced it'
+      if defined($options->{expected}) && __PACKAGE__->rootimg_identity($target) ne $options->{expected};
+    return if !$options->{keep} || !-e $target;
+    my $kept = "$options->{keep}/" . basename($target);
+    my $copied = _keep_copy($target, $kept) && !grep { -e "$target.$_" && !_keep_copy("$target.$_", "$kept.$_") } qw(sha256 metainfo);
+    return $copied ? undef : "cannot keep the published files in $options->{keep}: $!";
+}
+
 # Keeps $from at $to through a hard link, or through a copy with the mode of $from, which nodes need to read it.
 sub _keep_copy {
     my ($from, $to) = @_;
@@ -2901,7 +2958,10 @@ sub _replace_rootimg {
 
     # A failed publication puts the previous archive back from a link, or from a copy without hard links.
     return "$!" if -e $target && !_keep_copy($target, $previous);
-    return "$!" if !-s $staged || chmod(0644, @files) != @files;
+
+    # A staged symlink, as one that imgimport kept, resolves where it is published, and keeps its mode.
+    my @plain = grep { !-l $_ } @files;
+    return "$!" if !-s _staged_archive($staged, $target) || chmod(0644, @plain) != @plain;
     my $error = _replace_sums($state);
     return $error if $error;
 
@@ -2938,6 +2998,15 @@ sub _replace_sums {
         unlink("$target.sha256") or return "$!";
     }
     return;
+}
+
+# Returns the file that the staged archive $staged is once it is published at $target. A relative symlink
+# resolves from the directory of $target.
+sub _staged_archive {
+    my ($staged, $target) = @_;
+    return $staged if !-l $staged;
+    my $link = readlink($staged) // '';
+    return $link =~ m{^/}x ? $link : dirname($target) . "/$link";
 }
 
 # Moves the previous files that staging holds, the previous archive with each of @suffixes, to a new directory

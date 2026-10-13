@@ -2930,7 +2930,9 @@ sub withdraw_rootimg {
     } elsif (my $refused = $check ? $check->() : undef) {
         $error = "Cannot remove $target: $refused";
     } else {
-        my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ($target, "$target.sha256", "$target.metainfo");
+        # The checksum and metainfo go only after the archive, so that nodes can still check an archive that stays.
+        my @remaining = grep { (-e $_ || -l $_) && !unlink($_) } $target;
+        @remaining = grep { (-e $_ || -l $_) && !unlink($_) } ("$target.sha256", "$target.metainfo") if !@remaining;
         $error = "Cannot remove @remaining: $!" if @remaining;
         my $name = $kept ? "$kept/" . basename($target) : undef;
         my @back = $error || !$name ? () : grep { (-e "$name.$_" || -l "$name.$_") && !rename("$name.$_", "$target.$_") } qw(sha256 metainfo);

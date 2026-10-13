@@ -84,19 +84,18 @@ sub process_request
 
     my $lock;
     my $locked = xCAT::Utils->is_locked("kit", 1);
-    if (!locked) {
+    if (!$locked) {
         $lock = xCAT::Utils->acquire_lock("kit", 1);
         unless ($lock) {
             $callback->({ error => ["Can not acquire lock."], errorcode => [1] });
             return 1;
         }
-    } else {
-        if ($::PID and $::PID != $$) {
-            $callback->({ error => ["Can not acquire lock, another process is running."], errorcode => [1] });
-            return 1;
-        }
 
+        # A kit command that this one runs in the same process finds the lock taken.
         $::PID = $$;
+    } elsif (!$::PID || $::PID != $$) {
+        $callback->({ error => ["Can not acquire lock, another process is running."], errorcode => [1] });
+        return 1;
     }
 
     my ($sysos, $sysver) = split /,/, $tempstring;

@@ -82,12 +82,13 @@ sub import_image {
     $prepare->($dest, $bundle) if $prepare;
     @LOCKED = ();
     my @errors;
-    my $checksum = delete $manifest{rootimgchecksum};
-    my $extra    = delete $manifest{extra};
-    my $kit      = delete $manifest{kit};
-    my $kitdir   = delete $manifest{kitdir};
+    my $checksum  = delete $manifest{rootimgchecksum};
+    my $extra     = delete $manifest{extra};
+    my $extradest = delete $manifest{extradest} // 'DEST/extra';
+    my $kit       = delete $manifest{kit};
+    my $kitdir    = delete $manifest{kitdir};
     my $kitdescription = delete $manifest{kitdescription} // 'kit of this import';
-    my $nodes    = delete $manifest{nodes};
+    my $nodes     = delete $manifest{nodes};
     my $name = "import-$sequence";
     xCAT::Table->new('osimage', -create => 1)->setAttribs({ imagename => $name }, { osvers => 'rhels9.5', provmethod => 'netboot' });
     my $data = {
@@ -97,7 +98,7 @@ sub import_image {
         (map { ($_ => $manifest{$_} =~ s/DEST/$dest/r) } keys %manifest),
         (defined $checksum ? (linuximage => { rootimgchecksum => $checksum }) : ()),
         (defined $extra ? (extra => ref($extra) ? [ map { { src => $_->[0], dest => $_->[1] =~ s/DEST/$dest/r } } @$extra ]
-            : { src => $extra, dest => "$dest/extra" }) : ()),
+            : { src => $extra, dest => $extradest =~ s/DEST/$dest/r }) : ()),
         (defined $kit ? (kit => { $kit => { kitname => $kit, description => $kitdescription,
             (defined $kitdir ? (kitdir => $kitdir =~ s/DEST/$dest/r) : ()) } }) : ()),
         osimage => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
@@ -1291,6 +1292,40 @@ for my $nodes (undef, 'undefined-node') {
     unlike($errors, qr/Cannot put back/, 'the rollback needs nothing back from the postscript that cp could not write');
     is(read_binary($script), "postscript before the import\n", 'the postscript that cp could not write keeps its content');
     is(read_binary($archive), $published, 'the rollback goes on and puts back the published image');
+}
+
+for my $case ([ 'DEST/extra', undef ], [ 'DEST/extra/etc/conf.d', undef ], [ 'DEST/extra/etc/conf.d', 'undefined-node' ]) {
+    # The destination directory of an extra file is missing, and the file goes into it.
+    my ($extradest, $nodes) = @$case;
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra");
+        write_text("$bundle/extra/plain.conf", "imported\n");
+    }, extra => 'plain.conf', extradest => $extradest, (defined $nodes ? (nodes => $nodes) : ()));
+    (my $dir = $extradest) =~ s/DEST/$dest/;
+    my $label = $extradest =~ s/DEST/<image>/r;
+    if (!defined $nodes) {
+        is($errors, '', "$label: an import into a missing directory reports no error");
+        ok(-d $dir, "$label: the missing destination directory is created");
+        is(read_binary("$dir/plain.conf"), "imported\n", "$label: the extra file goes into the directory");
+    } else {
+        ok(!$placed, "$label: an import into a missing directory fails on a later step");
+        ok(!-e "$dest/extra", "$label: the rollback removes the directories that the import created");
+    }
+}
+
+for my $extradest (qw(DEST/extra DEST/extra/sub)) {
+    # A file is where the destination directory of an extra file goes.
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra");
+        write_text("$bundle/extra/plain.conf", "imported\n");
+        write_text("$dest/extra", "a file where a directory goes\n");
+    }, extra => 'plain.conf', extradest => $extradest);
+    my $label = $extradest =~ s/DEST/<image>/r;
+    ok(!$placed, "$label: an import fails when a file is where the destination directory goes");
+    like($errors, qr/\Q$dest\E\/extra is not a directory/, "$label: the path that is not a directory is reported");
+    is(read_binary("$dest/extra"), "a file where a directory goes\n", "$label: the file at that path stays");
 }
 
 # Runs $code in a child process, and returns whether it finished within $seconds and its exit code.

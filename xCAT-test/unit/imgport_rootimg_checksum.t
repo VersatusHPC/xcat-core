@@ -1665,28 +1665,38 @@ SKIP: {
     is(definition($dest), 'rhels9.5', 'the image definition stays after a partial copy');
 }
 
-SKIP: {
-    # cp stops at a file that it cannot read, and another writer then creates a file where the extra tree goes.
-    skip 'root reads a file without read permission', 3 if $> == 0;
-    my ($dest, $foreign);
-    local $AFTER_CP = sub {
-        return if $foreign || $_[-2] !~ m{/extra/conf/tree\z}x;
-        $foreign = "$dest/extra/tree/foreign";
-        make_path("$dest/extra/tree");
-        write_text($foreign, "file of another writer\n");
-    };
-    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
-        my ($bundle);
-        ($dest, $bundle) = @_;
-        make_path("$bundle/extra/conf/tree", "$dest/extra");
-        write_text("$bundle/extra/conf/tree/$_", "$_\n") for qw(a b unreadable);
-        chmod(0, "$bundle/extra/conf/tree/unreadable") or die $!;
-    }, extra => 'conf');
-    ok(!$placed, 'an import fails when cp stops in an extra tree, after another writer created a file there');
-    like($errors, qr/Cannot (?:remove|put back) \Q$dest\E\/extra\/tree/, 'the rollback reports the tree with the file of the other writer');
-    is($foreign && -e $foreign ? read_binary($foreign) : undef, "file of another writer\n", 'the file of the other writer stays');
-    my ($kept) = $errors =~ /kept in (\S+)\./;
-    rmtree($kept) if $kept;
+for my $kind (qw(directory file symlink)) {
+    # cp stops at a file that it cannot read, and another writer then puts a $kind where the extra tree goes.
+  SKIP: {
+        skip 'root reads a file without read permission', 3 if $> == 0;
+        my ($dest, $foreign);
+        local $AFTER_CP = sub {
+            return if $foreign || $_[-2] !~ m{/extra/conf/tree\z}x;
+            $foreign = "$dest/extra/tree";
+            if ($kind eq 'directory') {
+                make_path($foreign);
+                write_text("$foreign/foreign", "file of another writer\n");
+            } elsif ($kind eq 'file') {
+                write_text($foreign, "file of another writer\n");
+            } else {
+                symlink('elsewhere', $foreign) or die $!;
+            }
+        };
+        my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+            my ($bundle);
+            ($dest, $bundle) = @_;
+            make_path("$bundle/extra/conf/tree", "$dest/extra");
+            write_text("$bundle/extra/conf/tree/$_", "$_\n") for qw(a b unreadable);
+            chmod(0, "$bundle/extra/conf/tree/unreadable") or die $!;
+        }, extra => 'conf');
+        ok(!$placed, "an import fails when cp stops in an extra tree, after another writer put a $kind there");
+        like($errors, qr/Cannot (?:remove|put back) \Q$dest\E\/extra\/tree/, "the rollback reports the $kind of the other writer");
+        my $left = $kind eq 'symlink' ? readlink("$dest/extra/tree") : -d "$dest/extra/tree" ? read_binary("$dest/extra/tree/foreign")
+          : -e "$dest/extra/tree" ? read_binary("$dest/extra/tree") : undef;
+        is($left, $kind eq 'symlink' ? 'elsewhere' : "file of another writer\n", "the $kind of the other writer stays");
+        my ($kept) = $errors =~ /kept in (\S+)\./;
+        rmtree($kept) if $kept;
+    }
 }
 
 for my $existing (0, 1) {

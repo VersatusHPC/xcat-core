@@ -90,6 +90,7 @@ sub import_image {
     my $kitdescription = delete $manifest{kitdescription} // 'kit of this import';
     my $nodes     = delete $manifest{nodes};
     my $omit      = delete $manifest{omit} || [];
+    my $provmethod = delete $manifest{provmethod} // 'netboot';
     my $name = "import-$sequence";
     xCAT::Table->new('osimage', -create => 1)->setAttribs({ imagename => $name }, { osvers => 'rhels9.5', provmethod => 'netboot' });
     my $data = {
@@ -102,7 +103,7 @@ sub import_image {
             : { src => $extra, dest => $extradest =~ s/DEST/$dest/r }) : ()),
         (defined $kit ? (kit => { $kit => { kitname => $kit, description => $kitdescription,
             (defined $kitdir ? (kitdir => $kitdir =~ s/DEST/$dest/r) : ()) } }) : ()),
-        osimage => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
+        osimage => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => $provmethod },
     };
     delete @{$data}{@$omit};
     my $placed = xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, $nodes);
@@ -1344,6 +1345,25 @@ for my $extradest (qw(DEST/extra DEST/extra/sub)) {
     like($errors, qr/failed to acquire lock/, 'the held image lock is reported');
     is_deeply([ grep { m{/rootimg\z} } @LOCKED ], ["$dest/rootimg"], 'a statelite import asks for the lock of its image directory');
     is(read_binary("$dest/rootimg/etc/hostname"), "old\n", 'the tree stays as it was while the lock is held');
+}
+
+{
+    # The litefile lookup of an import quotes its column the way the database needs it, here as for MySQL.
+    my @where;
+    no warnings 'redefine';
+    my $lookup = \&xCAT::Table::getAllAttribsWhere;
+    local *xCAT::Table::getAllAttribsWhere = sub {
+        my ($table, $where) = @_;
+        push @where, $where if $table->{tabname} eq 'litefile';
+        return $lookup->(@_);
+    };
+    local *xCAT::Table::delimitcol = sub { return "`$_[0]`" };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        write_text("$bundle/litefile.csv", qq{"img","/etc/hosts","tmpfs",,\n});
+    }, litefile => 'DEST/litefile.csv', provmethod => 'statelite');
+    is($errors, '', 'a statelite import with a litefile reports no error');
+    is_deeply(\@where, ["`image` = 'ALL'"], 'the litefile lookup quotes the image column like the database');
 }
 
 # Runs $code in a child process, and returns whether it finished within $seconds and its exit code.

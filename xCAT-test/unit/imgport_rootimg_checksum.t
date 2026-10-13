@@ -908,6 +908,25 @@ for my $previous (1, 0) {
 }
 
 {
+    # The import keeps the previous image as rootimg.cpio.gz.ORIG, and another writer replaces that file before a
+    # later step fails.
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        my $orig = "$data->{rootimg}.ORIG";
+        write_text("$orig.other", "file of another writer\n");
+        rename("$orig.other", $orig) or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', undef, nodes => 'n1');
+    ok(!$placed, 'an import fails after another writer replaced the .ORIG file of the previous image');
+    like($errors, qr/Cannot put back \Q$archive\E\.ORIG: another change replaced it/, 'the rollback reports the replaced .ORIG file');
+    is(-e "$archive.ORIG" ? read_binary("$archive.ORIG") : undef, "file of another writer\n", 'the file of the other writer stays');
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    rmtree($files) if $files;
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

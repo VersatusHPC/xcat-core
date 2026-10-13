@@ -89,6 +89,7 @@ sub import_image {
     my $kitdir    = delete $manifest{kitdir};
     my $kitdescription = delete $manifest{kitdescription} // 'kit of this import';
     my $nodes     = delete $manifest{nodes};
+    my $omit      = delete $manifest{omit} || [];
     my $name = "import-$sequence";
     xCAT::Table->new('osimage', -create => 1)->setAttribs({ imagename => $name }, { osvers => 'rhels9.5', provmethod => 'netboot' });
     my $data = {
@@ -103,6 +104,7 @@ sub import_image {
             (defined $kitdir ? (kitdir => $kitdir =~ s/DEST/$dest/r) : ()) } }) : ()),
         osimage => { imagename => $name, osvers => 'rhels9.6', osarch => 'x86_64', profile => 'compute', provmethod => 'netboot' },
     };
+    delete @{$data}{@$omit};
     my $placed = xCAT_plugin::imgport::place_image($data, $bundle, sub { push @errors, @{ $_[0]{error} || [] } }, $nodes);
     return ($placed, join("\n", @errors), $dest, "$dest/$archive_name");
 }
@@ -1326,6 +1328,22 @@ for my $extradest (qw(DEST/extra DEST/extra/sub)) {
     ok(!$placed, "$label: an import fails when a file is where the destination directory goes");
     like($errors, qr/\Q$dest\E\/extra is not a directory/, "$label: the path that is not a directory is reported");
     is(read_binary("$dest/extra"), "a file where a directory goes\n", "$label: the file at that path stays");
+}
+
+{
+    # A statelite bundle has a rootimgtree and no rootimg, and its import needs the image lock too.
+    local $HELD = 1;
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$dest/rootimg/etc", "$bundle/tree/rootimg/etc");
+        write_text("$dest/rootimg/etc/hostname", "old\n");
+        write_text("$bundle/tree/rootimg/etc/hostname", "new\n");
+        system("cd '$bundle/tree' && find rootimg | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimgtree.gz', omit => [qw(rootimg kernel ramdisk)]);
+    ok(!$placed, 'a statelite import fails while another command holds the image lock');
+    like($errors, qr/failed to acquire lock/, 'the held image lock is reported');
+    is_deeply([ grep { m{/rootimg\z} } @LOCKED ], ["$dest/rootimg"], 'a statelite import asks for the lock of its image directory');
+    is(read_binary("$dest/rootimg/etc/hostname"), "old\n", 'the tree stays as it was while the lock is held');
 }
 
 # Runs $code in a child process, and returns whether it finished within $seconds and its exit code.

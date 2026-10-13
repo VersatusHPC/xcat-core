@@ -1038,6 +1038,30 @@ for my $removal ('removes', 'cannot remove') {
 }
 
 {
+    # The import copies an extra tree with a symlink to a directory, and another writer replaces the symlink with a
+    # file before a later step fails.
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        my $link = "$data->{extra}{dest}/tree/link";
+        write_text("$link.other", "file of another writer\n");
+        rename("$link.other", $link) or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/extra/conf/tree/sub", "$dest/extra");
+        write_text("$bundle/extra/conf/tree/sub/file", "file of the bundle\n");
+        symlink('sub', "$bundle/extra/conf/tree/link") or die $!;
+    }, extra => 'conf', nodes => 'n1');
+    ok(!$placed, 'an import fails after another writer replaced a symlink to a directory that it copied');
+    like($errors, qr/Cannot put back \Q$dest\E\/extra\/tree\/link: another change replaced it/, 'the rollback reports the replaced symlink');
+    is(-f "$dest/extra/tree/link" ? read_binary("$dest/extra/tree/link") : undef, "file of another writer\n", 'the file of the other writer stays');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
     # Another writer replaces a file that the import installed, so the rollback must leave it and stop.
     no warnings 'redefine';
     local *xCAT_plugin::imgport::set_postscripts = sub {

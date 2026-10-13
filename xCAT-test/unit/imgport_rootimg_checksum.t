@@ -1512,4 +1512,32 @@ for my $tabname (qw(osimage kit)) {
     }
 }
 
+for my $nodes (undef, 'undefined-node') {
+    # An extra file on another file system has another hard link, which a rollback keeps.
+    my $other = -d '/dev/shm' && -w _ ? tempdir(DIR => '/dev/shm', CLEANUP => 1) : undef;
+  SKIP: {
+        skip 'no second file system for an extra destination', 4 if !defined($other) || (stat($other))[0] == (stat($fixture))[0];
+        write_text("$other/linked.conf", "extra file before the import\n");
+        link("$other/linked.conf", "$other/linked-elsewhere") or die $!;
+        my $inode = (stat("$other/linked.conf"))[1];
+        my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+            my ($dest, $bundle) = @_;
+            make_path("$bundle/extra/conf");
+            write_text("$bundle/extra/conf/linked.conf", "imported\n");
+        }, extra => [ [ 'conf', $other ] ], (defined $nodes ? (nodes => $nodes) : ()));
+        my $label = defined $nodes ? 'after a rollback' : 'after an import';
+        is($errors =~ /Cannot put back/ ? $errors : '', '', "$label, the import puts back what it changed on another file system");
+        opendir(my $dir, $other) or die $!;
+        is_deeply([ grep { /^\.imgimport-/x } readdir($dir) ], [], "$label, no directory of the import is left on the other file system");
+        closedir($dir);
+        if (defined $nodes) {
+            is((stat("$other/linked.conf"))[1], $inode, "$label, the extra file gets its own inode back");
+            is((stat("$other/linked-elsewhere"))[3], 2, "$label, the other hard link of the extra file stays a link of it");
+        } else {
+            is(read_binary("$other/linked.conf"), "imported\n", "$label, cp -a replaces the extra file with other hard links");
+            is(read_binary("$other/linked-elsewhere"), "extra file before the import\n", "$label, the other hard link keeps its content");
+        }
+    }
+}
+
 done_testing();

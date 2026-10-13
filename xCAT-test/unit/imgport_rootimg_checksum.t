@@ -374,15 +374,18 @@ for my $nodes (undef, 'undefined-node') {
 {
     # The kernel cannot move back, so the rollback must stop before it touches the older kernel.
     no warnings 'redefine';
-    my $move = \&File::Copy::move;
-    local *xCAT_plugin::imgport::move = sub {
-        my ($from, $to) = @_;
+    my $move   = \&File::Copy::move;
+    my $rename = \&xCAT_plugin::imgport::txn_rename_free;
+    my $refuse = sub {
+        my ($code, $from, $to) = @_;
         if ($from =~ m{/kernel\.ORIG$} && $to =~ m{/kernel$}) {
             $! = EIO;
             return 0;
         }
-        return $move->(@_);
+        return $code->($from, $to);
     };
+    local *xCAT_plugin::imgport::move            = sub { $refuse->($move,   @_) };
+    local *xCAT_plugin::imgport::txn_rename_free = sub { $refuse->($rename, @_) };
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
         my ($dest) = @_;
         write_text("$dest/kernel.ORIG", "kernel before the published one\n");
@@ -492,8 +495,10 @@ for my $method (qw(new setAttribsWhere)) {
     # A step of the rollback dies, so the rollback stops and reports where the replaced files are.
     our $THROWING;
     no warnings 'redefine';
-    my $move = \&xCAT_plugin::imgport::move;
-    local *xCAT_plugin::imgport::move = sub { die "the disk is gone\n" if $THROWING; return $move->(@_) };
+    my $move   = \&xCAT_plugin::imgport::move;
+    my $rename = \&xCAT_plugin::imgport::txn_rename_free;
+    local *xCAT_plugin::imgport::move            = sub { die "the disk is gone\n" if $THROWING; return $move->(@_) };
+    local *xCAT_plugin::imgport::txn_rename_free = sub { die "the disk is gone\n" if $THROWING; return $rename->(@_) };
     local *xCAT_plugin::imgport::set_postscripts = sub { $THROWING = 1; return 0 };
     my ($placed, $errors) = import_image('rootimg.cpio.gz', undef, nodes => 'n1');
     $THROWING = 0;

@@ -1886,7 +1886,7 @@ sub txn_commit {
 }
 
 # Identifies what is at $path, to tell later whether another writer changed it. A file is identified by its
-# inode and txn_content, and a directory by its inode and the txn_content of each entry.
+# inode and txn_content, and a directory by its inode, its own txn_content and the txn_content of each entry.
 sub txn_identity {
     my ($path) = @_;
     my @stat = lstat($path);
@@ -1894,7 +1894,6 @@ sub txn_identity {
     return join(':', @stat[ 0, 1 ], txn_content($path)) if !-d _;
     my $content = Digest::MD5->new;
     find({ no_chdir => 1, wanted => sub {
-        return if $_ eq $path;
         $content->add(substr($_, length($path)), ':', txn_content($_), "\n");
     } }, $path);
     return join(':', @stat[ 0, 1 ], $content->hexdigest);

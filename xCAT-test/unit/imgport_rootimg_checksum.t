@@ -1606,6 +1606,43 @@ SKIP: {
     rmtree($kept) if $kept;
 }
 
+for my $existing (0, 1) {
+    # cp cannot read an extra file, and another writer then writes the destination, which existed or not. Without
+    # the other writer, a copy that wrote nothing needs nothing back.
+  SKIP: {
+        skip 'root reads a file without read permission', 6 if $> == 0;
+        for my $writer (0, 1) {
+            my ($dest, $foreign);
+            local $AFTER_CP = sub {
+                return if !$writer || $foreign || $_[-2] !~ m{/extra/plain\.conf\z}x;
+                $foreign = "$dest/extra/plain.conf";
+                write_text("$foreign.other", "file of another writer\n");
+                rename("$foreign.other", $foreign) or die $!;
+            };
+            my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+                my ($bundle);
+                ($dest, $bundle) = @_;
+                make_path("$bundle/extra", "$dest/extra");
+                write_text("$bundle/extra/plain.conf", "file of the bundle\n");
+                chmod(0, "$bundle/extra/plain.conf") or die $!;
+                write_text("$dest/extra/plain.conf", "file before the import\n") if $existing;
+            }, extra => 'plain.conf');
+            my $label = ($existing ? 'over an existing file' : 'to a new file') . ($writer ? ', with another writer' : '');
+            ok(!$placed, "$label: an import fails when cp cannot read an extra file");
+            my $file = "$dest/extra/plain.conf";
+            if ($writer) {
+                like($errors, qr/Cannot put back \Q$file\E: another change replaced it/, "$label: the rollback reports the file of the other writer");
+                is(-e $file ? read_binary($file) : undef, "file of another writer\n", "$label: the file of the other writer stays");
+            } else {
+                unlike($errors, qr/Cannot put back/, "$label: the rollback puts back everything");
+                is(-e $file ? read_binary($file) : undef, $existing ? "file before the import\n" : undef, "$label: the destination is as it was");
+            }
+            my ($kept) = $errors =~ /kept in (\S+)\./;
+            rmtree($kept) if $kept;
+        }
+    }
+}
+
 for my $nodes (undef, 'undefined-node') {
     # The extra destination is a symlink to a shared directory, which the import must keep.
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {

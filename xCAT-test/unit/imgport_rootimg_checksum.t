@@ -1297,6 +1297,36 @@ for my $step (qw(copy move extraction link edit)) {
 }
 
 {
+    # Another writer replaces a file that the import installed while the rollback reads it for its check.
+    my ($dest, $armed, $replaced);
+    no warnings 'redefine';
+    my $identity = \&xCAT_plugin::imgport::txn_identity;
+    local *xCAT_plugin::imgport::txn_identity = sub {
+        my @result = $identity->(@_);
+        if ($armed && !$replaced && $_[0] =~ m{/shared\.conf\z}x) {
+            $replaced = 1;
+            write_text("$dest/extra/shared.conf.other", "file of another writer\n");
+            rename("$dest/extra/shared.conf.other", "$dest/extra/shared.conf") or die $!;
+        }
+        return @result;
+    };
+    local *xCAT_plugin::imgport::set_postscripts = sub { $armed = 1; return 0 };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$bundle/extra", "$dest/extra");
+        write_text("$bundle/extra/shared.conf", "file of this import\n");
+        write_text("$dest/extra/shared.conf", "file before the import\n");
+    }, extra => 'shared.conf', nodes => 'n1');
+    ok($replaced, 'another writer replaces a file of the import while the rollback reads it');
+    ok(!$placed, 'an import fails on a later step');
+    like($errors, qr/Cannot put back \Q$dest\E\/extra\/shared\.conf: another change replaced it/, 'the rollback reports the replaced file');
+    is(read_binary("$dest/extra/shared.conf"), "file of another writer\n", 'the file of the other writer stays');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
     # Another writer replaces a file that the import installed, so the rollback must leave it and stop.
     no warnings 'redefine';
     local *xCAT_plugin::imgport::set_postscripts = sub {

@@ -1738,6 +1738,27 @@ for my $nodes (undef, 'undefined-node') {
 }
 
 {
+    # The administrator restricts the kit directory that the import installed before a later step fails.
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my ($data) = @_;
+        chmod(0700, $data->{kit}{permkit}{kitdir}) or die $!;
+        return 0;
+    };
+    my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {
+        my ($dest, $bundle) = @_;
+        make_path("$bundle/permkit/repos");
+        write_text("$bundle/permkit/repos/kit.repo", "repository of the kit\n");
+        chmod(0755, "$bundle/permkit") or die $!;
+    }, kit => 'permkit', kitdir => 'DEST/kits/permkit', nodes => 'n1');
+    ok(!$placed, 'an import fails after the administrator restricted the kit directory that it installed');
+    like($errors, qr/Cannot put back \Q$dest\E\/kits\/permkit: another change replaced it/, 'the rollback reports the change of the kit directory');
+    is((stat("$dest/kits/permkit"))[2] & 07777, 0700, 'the kit directory keeps the mode that the administrator gave it');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
     # The bundled kit has a postscript that is not executable, and the import fails after it installed the kit.
     make_path("$fixture/install/postscripts");
     my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', sub {

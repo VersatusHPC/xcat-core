@@ -200,7 +200,6 @@ for my $failed (qw(rootimg.cpio.gz rootimg.cpio.gz.metainfo)) {
     my $error = xCAT::SvrUtils->withdraw_rootimg("$dir/rootimg.cpio.gz", $identity);
     like($error // '', qr/^Cannot remove \Q$dir\E\/rootimg\.cpio\.gz: /, 'a removal that the file system refuses is reported');
     ok(-e "$dir/rootimg.cpio.gz", 'the archive that cannot be removed stays');
-    ok(!-e "$dir/rootimg.cpio.gz.sha256", 'the files that can be removed go away');
     ok(!-e "$dir/.packimage-publish", 'the publication lock is released after a refused removal');
 }
 

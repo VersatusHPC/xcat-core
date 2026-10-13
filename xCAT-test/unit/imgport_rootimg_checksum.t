@@ -683,17 +683,27 @@ for my $case ([ setAttribsWhere => 'osimage' ], [ insertEntry => 'linuximage' ],
     };
     my $make_files = \&xCAT_plugin::imgport::make_files;
     local *xCAT_plugin::imgport::make_files = sub { my $made = $make_files->(@_); $armed = 1; return $made };
+    my $ptab = xCAT::Table->new('postscripts', -create => 1);
+    my ($before) = $ptab->getAttribs({ node => 'psnode2' }, 'postscripts');
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, rootimgchecksum => 'no', postscripts => 'notified-script',
         ($tabname eq 'postscripts' ? (nodes => 'psnode2') : ()));
     my ($name) = $dest =~ m{/(import-\d+)$};
     ok($died, "$method of $tabname dies after the write");
     ok(!$placed, "$method of $tabname: the import fails");
-    unlike($errors, qr/Cannot put back/, "$method of $tabname: the rollback puts back the write that applied");
-    is(definition($dest), 'rhels9.5', "$method of $tabname: the image definition comes back");
+
+    # The import cannot tell whether a write that died applied, so only the rows of the other writes go back.
+    like($errors, qr/Cannot put back the $tabname row (?:imagename=\Q$name\E|node=psnode2), which was [^:]*: the database did not confirm/,
+        "$method of $tabname: the rollback reports the row of the write that died");
+    is(definition($dest), $tabname eq 'osimage' ? 'rhels9.6' : 'rhels9.5', "$method of $tabname: only an image definition that died stays");
     my ($row) = xCAT::Table->new('linuximage', -create => 1)->getAttribs({ imagename => $name }, 'rootimgchecksum');
-    ok(!$row, "$method of $tabname: the linuximage row of the import goes away");
-    ($row) = xCAT::Table->new('postscripts', -create => 1)->getAttribs({ node => 'psnode2' }, 'postscripts');
-    unlike($row ? $row->{postscripts} // '' : '', qr/notified-script/, "$method of $tabname: the postscripts of the node go back");
+    is(!!$row, $tabname eq 'linuximage', "$method of $tabname: only a linuximage row that died stays");
+    ($row) = $ptab->getAttribs({ node => 'psnode2' }, 'postscripts');
+    is(!!(($row ? $row->{postscripts} // '' : '') =~ /notified-script/), $tabname eq 'postscripts', "$method of $tabname: only postscripts that died stay");
+    if ($before) {
+        $ptab->setAttribs({ node => 'psnode2' }, $before);
+    } else {
+        $ptab->delEntries({ node => 'psnode2' });
+    }
 }
 
 {
@@ -1621,9 +1631,11 @@ for my $tabname (qw(osimage kit)) {
     }
 }
 
-for my $tabname (qw(osimage kit)) {
-    # Another request writes the values of the import right after the import read the row, and the answer to the
-    # write of the import is lost. The rollback cannot tell the row of the other request from one that it wrote.
+for my $case ([ osimage => 'loses its answer' ], [ kit => 'loses its answer' ], [ osimage => 'dies' ], [ kit => 'dies' ]) {
+    # Another request writes the values of the import right after the import read the row, and the write of the
+    # import loses its answer, or dies before it applies. The rollback cannot tell the row of the other request from
+    # one that it wrote.
+    my ($tabname, $how) = @$case;
     my ($armed, $raced, $lost);
     no warnings 'redefine';
     no strict 'refs';
@@ -1641,9 +1653,10 @@ for my $tabname (qw(osimage kit)) {
     my $method = $tabname eq 'osimage' ? 'setAttribsWhere' : 'insertEntry';
     my $write = \&{"xCAT::Table::$method"};
     local *{"xCAT::Table::$method"} = sub {
-        my @result = $write->(@_);
-        return @result if !$raced || $lost || $_[0]->{tabname} ne $tabname;
+        return $write->(@_) if !$raced || $lost || $_[0]->{tabname} ne $tabname;
         $lost = 1;
+        die "lost the database connection\n" if $how eq 'dies';
+        $write->(@_);
         return;
     };
     my $make_files = \&xCAT_plugin::imgport::make_files;
@@ -1651,15 +1664,15 @@ for my $tabname (qw(osimage kit)) {
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', undef, kit => 'lostkit');
     my ($name) = $dest =~ m{/(import-\d+)$};
     my $key = $tabname eq 'osimage' ? "imagename=$name" : 'kitname=lostkit';
-    ok($lost, "$tabname: the answer to the write of the import is lost after another request wrote the same values");
-    ok(!$placed, "$tabname: the import fails when the answer to its write is lost");
+    ok($lost, "$tabname: the write of the import $how after another request wrote the same values");
+    ok(!$placed, "$tabname: the import fails when its write $how");
     like($errors, qr/Cannot put back the $tabname row \Q$key\E, which was [^:]*: the database did not confirm/,
-        "$tabname: the rollback reports the row that it cannot tell from the row of the other request");
+        "$tabname: the rollback reports the row that it cannot tell from the row of the other request after a write that $how");
     if ($tabname eq 'osimage') {
-        is(definition($dest), 'rhels9.6', 'osimage: the image definition that the other request wrote stays');
+        is(definition($dest), 'rhels9.6', "osimage: the image definition that the other request wrote stays after a write that $how");
     } else {
         my ($row) = xCAT::Table->new('kit')->getAttribs({ kitname => 'lostkit' }, 'description');
-        is($row && $row->{description}, 'kit of this import', 'kit: the kit row that the other request created stays');
+        is($row && $row->{description}, 'kit of this import', "kit: the kit row that the other request created stays after a write that $how");
         xCAT::Table->new('kit')->delEntries({ kitname => 'lostkit' });
     }
 }

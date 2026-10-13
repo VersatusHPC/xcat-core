@@ -1775,6 +1775,32 @@ for my $nodes (undef, 'undefined-node') {
 }
 
 {
+    # The database matches kit names without regard to case, as a MySQL collation can, and holds the kit of the
+    # bundle under another spelling.
+    my $dbh  = xCAT::Table->new('kit', -create => 1)->{dbh};
+    my @cols = @{ xCAT::Table->getTableSchema('kit')->{cols} };
+    $dbh->do('ALTER TABLE kit RENAME TO kit_exact') or die $dbh->errstr;
+    $dbh->do('CREATE TABLE kit (' . join(', ', map { $_ eq 'kitname' ? 'kitname TEXT NOT NULL COLLATE NOCASE' : "$_ TEXT" } @cols)
+          . ', PRIMARY KEY (kitname))') or die $dbh->errstr;
+    for my $nodes (undef, 'undefined-node') {
+        $dbh->do('DELETE FROM kit') or die $dbh->errstr;
+        $dbh->do(q{INSERT INTO kit (kitname, description) VALUES ('CaseKit', 'kit before the import')}) or die $dbh->errstr;
+        my ($placed, $errors) = import_image('rootimg.cpio.gz', undef, kit => 'casekit', (defined $nodes ? (nodes => $nodes) : ()));
+        my $rows = $dbh->selectall_arrayref('SELECT kitname, description FROM kit');
+        if (!defined $nodes) {
+            is($errors, '', 'an import of a kit that the database holds under another spelling reports no error');
+            is_deeply($rows, [ [ 'casekit', 'kit of this import' ] ], 'the import updates the kit row of the other spelling');
+        } else {
+            ok(!$placed, 'an import of a kit that the database holds under another spelling fails on a later step');
+            unlike($errors, qr/Cannot put back/, 'the rollback puts back the kit row of the other spelling');
+            is_deeply($rows, [ [ 'CaseKit', 'kit before the import' ] ], 'the kit row gets its own spelling and values back');
+        }
+    }
+    $dbh->do('DROP TABLE kit') or die $dbh->errstr;
+    $dbh->do('ALTER TABLE kit_exact RENAME TO kit') or die $dbh->errstr;
+}
+
+{
     # The rollback quotes column names the way the database needs them, and binds the values.
     local $ENV{XCATCFG} = 'mysql:dbname=xcatdb;host=localhost';
     is_deeply(xCAT_plugin::imgport::txn_condition('imagename', "it's"), [ '`imagename` = ?', "it's" ], 'MySQL gets backticks and a bound value');

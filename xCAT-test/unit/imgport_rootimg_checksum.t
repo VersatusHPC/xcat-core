@@ -19,10 +19,10 @@ use Test::More;
 use XCAT::Test::File qw(repo_path);
 
 # The first rename into a path of %FAIL fails, as when the file system refuses it, and then runs $ON_FAIL with the
-# path, as another writer can. With $NO_SETFATTR, setfattr
+# path, as another writer can. A link to a path of %NO_LINK fails. With $NO_SETFATTR, setfattr
 # fails, as when it cannot remove an attribute. $AFTER_CP runs after each cp, and $AFTER_EXTRACT after the
 # extraction of a statelite tree, as another writer can.
-our (%FAIL, $NO_SETFATTR, $AFTER_CP, $AFTER_EXTRACT, $ON_FAIL);
+our (%FAIL, %NO_LINK, $NO_SETFATTR, $AFTER_CP, $AFTER_EXTRACT, $ON_FAIL);
 BEGIN {
     *CORE::GLOBAL::rename = sub {
         my ($from, $to) = @_;
@@ -33,6 +33,11 @@ BEGIN {
             return 0;
         }
         return CORE::rename($from, $to);
+    };
+    *CORE::GLOBAL::link = sub {
+        my ($from, $to) = @_;
+        return 0 if $NO_LINK{$to};
+        return CORE::link($from, $to);
     };
     *CORE::GLOBAL::system = sub {
         return 256 if $NO_SETFATTR && $_[0] =~ m{/setfattr$}x;
@@ -974,6 +979,28 @@ for my $previous (1, 0) {
     is(-e $fn ? read_binary($fn) : undef, 'X' . substr($imported, 1), "$label, the published image keeps the change of the other writer");
     my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
     rmtree($files) if $files;
+}
+
+for my $left ('nothing', 'the start of the image') {
+    # The link that keeps the previous image as rootimg.cpio.gz.ORIG fails, and the copy that replaces it writes
+    # $left before it fails too. The import then fails on a later step.
+    my $dest;
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::copy = sub {
+        my ($from, $to) = @_;
+        return File::Copy::copy(@_) if $to ne "$dest/rootimg.cpio.gz.ORIG";
+        write_text($to, substr(read_binary($from), 0, 4)) if $left ne 'nothing';
+        return 0;
+    };
+    my ($placed, $errors, undef, $archive) = import_image('rootimg.cpio.gz', sub {
+        ($dest) = @_;
+        $NO_LINK{"$dest/rootimg.cpio.gz.ORIG"} = 1;
+    }, nodes => 'undefined-node');
+    delete $NO_LINK{"$dest/rootimg.cpio.gz.ORIG"};
+    ok(!$placed, "an import fails on a later step after the copy of the .ORIG file wrote $left");
+    unlike($errors, qr/Cannot put back/, "the rollback puts back everything after the copy of the .ORIG file wrote $left");
+    ok(!-e "$archive.ORIG", "the rollback leaves no .ORIG file after the copy of the .ORIG file wrote $left");
+    is(read_binary($archive), $published, "the published image comes back after the copy of the .ORIG file wrote $left");
 }
 
 {

@@ -2063,6 +2063,7 @@ sub setAttribsWhere
         $self->trace_db(END_TYPE);
         return (0, "no rows selected.");
     }
+    $self->_refresh_cache();    #cache is invalid, refresh
 
     #notify the interested parties
     if ($notif == 1)

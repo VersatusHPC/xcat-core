@@ -1888,39 +1888,75 @@ sub txn_commit {
 # Identifies what is at $path, to tell later whether another writer changed it. A file is identified by its
 # inode and txn_content, and a directory by its inode, its own txn_content and the txn_content of each entry.
 sub txn_identity {
-    my ($path) = @_;
+    my ($path, $attributes) = @_;
     my @stat = lstat($path);
     return '' if !@stat;
-    return join(':', @stat[ 0, 1 ], txn_content($path)) if !-d _;
+    my $tree = -d _;
+    $attributes //= txn_attributes($tree, $path);
+    return join(':', @stat[ 0, 1 ], txn_content($path, $attributes)) if !$tree;
     my $content = Digest::MD5->new;
     find({ no_chdir => 1, wanted => sub {
-        $content->add(substr($_, length($path)), ':', txn_content($_), "\n");
+        $content->add(substr($_, length($path)), ':', txn_content($_, $attributes), "\n");
     } }, $path);
     return join(':', @stat[ 0, 1 ], $content->hexdigest);
 }
 
-# Describes the entry $path by its owner, group, mode, size, time and content, or by the target of a symlink. A
-# writer can change a file in place without a change of size or time, so the content counts.
+# Describes the entry $path by its owner, group, mode, size, time and content, or by the target of a symlink, and by
+# its attributes in $attributes. A writer can change a file in place without a change of size or time, so the
+# content counts.
 sub txn_content {
-    my ($path) = @_;
+    my ($path, $attributes) = @_;
     my @stat = lstat($path);
     return 'missing' if !@stat;
-    return join(':', 'symlink', @stat[ 4, 5 ], readlink($path) // '') if -l _;
-    return join(':', 'directory', @stat[ 2, 4, 5 ]) if -d _;
+    my $held = $attributes->{$path} // '';
+    return join(':', 'symlink', @stat[ 4, 5 ], $held, readlink($path) // '') if -l _;
+    return join(':', 'directory', @stat[ 2, 4, 5 ], $held) if -d _;
 
     # Reading a device never ends, and opening a FIFO can wait, so only a regular file is read.
-    return join(':', 'special', @stat[ 2, 4, 5, 6 ]) if !-f _;
+    return join(':', 'special', @stat[ 2, 4, 5, 6 ], $held) if !-f _;
     my $digest = Digest::MD5->new;
-    open(my $file, '<:raw', $path) or return join(':', @stat[ 2, 4, 5, 7, 9 ], 'unreadable');
+    open(my $file, '<:raw', $path) or return join(':', @stat[ 2, 4, 5, 7, 9 ], $held, 'unreadable');
     my $read = eval { $digest->addfile($file); 1 };
     close($file);
-    return join(':', @stat[ 2, 4, 5, 7, 9 ], $read ? $digest->hexdigest : 'unreadable');
+    return join(':', @stat[ 2, 4, 5, 7, 9 ], $held, $read ? $digest->hexdigest : 'unreadable');
 }
 
-# Records what the import put at $path.
+# Returns the ACLs, SELinux context and other extended attributes of each of @paths, and with $recursive of each
+# entry under them, keyed by path. getfattr lists many paths at once. Without it, tar identifies each entry.
+sub txn_attributes {
+    my ($recursive, @paths) = @_;
+    my %attributes;
+    my ($getfattr) = grep { -x $_ } map { "$_/getfattr" } split(/:/x, $ENV{PATH} // '');
+    if (!$getfattr) {
+        my @entries = @paths;
+        if ($recursive) {
+            @entries = ();
+            find({ no_chdir => 1, wanted => sub { push @entries, $_ } }, $_) foreach @paths;
+        }
+        $attributes{$_} = txn_tar_attributes($_) foreach @entries;
+        return \%attributes;
+    }
+    while (my @chunk = splice(@paths, 0, 256)) {
+        open(my $list, '-|', $getfattr, ($recursive ? '-R' : ()), qw(-h -d -m - -e hex --absolute-names --), @chunk) or next;
+        my $entry;
+        while (my $line = <$list>) {
+            chomp($line);
+            if ($line =~ /^\#\ file:\ (.*)$/x) {
+                ($entry = $1) =~ s/\\([0-7]{3})/chr(oct($1))/gex;
+            } elsif (defined($entry) && $line ne '') {
+                $attributes{$entry} .= "$line\n";
+            }
+        }
+        close($list);
+    }
+    $_ = Digest::MD5::md5_hex($_) foreach values %attributes;
+    return \%attributes;
+}
+
+# Records what the import put at $path, with its attributes from txn_attributes when they are at hand.
 sub txn_installed {
-    my ($txn, $path) = @_;
-    $txn->{installed}{$path} = txn_identity($path);
+    my ($txn, $path, $attributes) = @_;
+    $txn->{installed}{$path} = txn_identity($path, $attributes);
     return;
 }
 
@@ -2212,7 +2248,7 @@ sub txn_merge {
     }
     return if !$attributes;
     $error = txn_copy_attributes($txn, $from, $to);
-    $kept->{applied} = txn_dir_attributes($to);
+    $kept->{applied} = txn_tar_attributes($to);
     return $error;
 }
 
@@ -2244,21 +2280,21 @@ sub txn_keep_attributes {
     my ($txn, $dir, $kept) = @_;
     my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
     txn_tar_dir($dir, $archive) or return "Cannot keep the attributes of $dir";
-    $kept->{applied} = txn_dir_attributes($dir);
+    $kept->{applied} = txn_tar_attributes($dir);
     push @{ $txn->{undo} }, sub {
-        return "Cannot put back the attributes of $dir: another change replaced them" if txn_dir_attributes($dir) ne $kept->{applied};
+        return "Cannot put back the attributes of $dir: another change replaced them" if txn_tar_attributes($dir) ne $kept->{applied};
         txn_drop_xattrs($txn, $dir, txn_xattr_names(undef, $archive));
         return txn_untar_dir($archive, dirname($dir)) ? undef : "Cannot put back the attributes of $dir";
     };
     return;
 }
 
-# Identifies the mode, owner, group, ACLs and other attributes of the directory $dir, but not its times, which
-# change with its entries.
-sub txn_dir_attributes {
-    my ($dir) = @_;
+# Identifies the mode, owner, group, ACLs and other attributes of the entry $path, and the content of a file, but
+# not its times, which change with the entries of a directory.
+sub txn_tar_attributes {
+    my ($path) = @_;
     open(my $tar, '-|', 'tar', @TXN_TAR_ATTRIBUTES, '--no-recursion', '--mtime=@0',
-        '--pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime', '-cf', '-', '-C', dirname($dir), './' . basename($dir))
+        '--pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime', '-cf', '-', '-C', dirname($path), './' . basename($path))
       or return 'unreadable';
     binmode($tar);
     my $digest = Digest::MD5->new->addfile($tar)->hexdigest;
@@ -2387,10 +2423,11 @@ sub txn_extract {
 
     # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
     # identity, also after an extraction that failed partway.
+    my $attributes = txn_attributes(0, grep { !-d $_ || -l $_ } map { "$dir/$_" } grep { $_ ne '.' } @members);
     foreach my $member (grep { $_ ne '.' } @members) {
         my $path = "$dir/$member";
         if (!-d $path || -l $path) {
-            txn_installed($txn, $path);
+            txn_installed($txn, $path, $attributes);
         } elsif (!$existing{$member}) {
             txn_record($txn, $path, undef);
         }

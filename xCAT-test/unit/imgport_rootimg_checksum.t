@@ -1790,6 +1790,26 @@ for my $existing (0, 1) {
 }
 
 {
+    # The rollback moves the imported kernel back to the bundle, and another writer puts a kernel in its place
+    # before the rollback moves the previous kernel back from kernel.ORIG.
+    my $dest;
+    no warnings 'redefine';
+    my $changed = \&xCAT_plugin::imgport::txn_changed;
+    local *xCAT_plugin::imgport::txn_changed = sub {
+        my (undef, $path) = @_;
+        write_text("$dest/kernel", "kernel of another writer\n") if $dest && $path eq "$dest/kernel.ORIG" && !-e "$dest/kernel";
+        return $changed->(@_);
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub { ($dest) = @_ }, nodes => 'undefined-node');
+    ok(!$placed, 'an import fails on a later step');
+    like($errors, qr/Cannot put back \Q$dest\E\/kernel: another change replaced it/, 'the rollback reports the kernel of the other writer');
+    is(read_binary("$dest/kernel"), "kernel of another writer\n", 'the kernel of the other writer stays');
+    is(read_binary("$dest/kernel.ORIG"), "published kernel\n", 'the previous kernel stays as kernel.ORIG');
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
+{
     # The move of the kernel fails, and another writer then puts a kernel in its place.
     local $ON_FAIL = sub { write_text($_[0], "kernel of another writer\n") };
     my ($placed, $errors, $dest) = import_image('rootimg.cpio.gz', sub {

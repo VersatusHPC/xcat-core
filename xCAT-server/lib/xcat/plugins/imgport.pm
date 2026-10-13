@@ -34,6 +34,7 @@ use File::Find qw(find);
 use Digest::MD5;
 use Digest::SHA ();
 use Fcntl ();
+use Errno ();
 use xCAT::NodeRange;
 use xCAT::Schema;
 use xCAT::SvrUtils;
@@ -2171,15 +2172,14 @@ sub txn_move {
     my $recorded = $txn->{installed}{$to};
 
     # A rename keeps the identity, and a move to another file system copies the data.
-    my @source = lstat($from);
-    my $across = @source && ((stat(dirname($to)))[0] // -1) != $source[0];
-    my $data   = $across ? txn_data($from) : undef;
-    my $before = $across ? undef : txn_identity($from);
-    if (!move($from, $to)) {
+    my $before = txn_identity($from);
+    my $data   = txn_data($from);
+    my $moved  = txn_move_entry($from, $to);
+    if (!$moved) {
         $error = "Cannot move $from to $to: $!";
 
-        # A move between file systems copies, and can fail after it wrote part of $to.
-        txn_installed($txn, $to);
+        # A move that fails leaves nothing at $to, so a rollback leaves what another writer puts there.
+        $txn->{installed}{$to} = '';
         return $error;
     }
 
@@ -2193,12 +2193,27 @@ sub txn_move {
         return;
     };
     txn_installed($txn, $to);
-    if ($across) {
+    if ($moved eq 'copied') {
         txn_expect($txn, $to, $data);
     } elsif ($txn->{installed}{$to} ne $before) {
         $txn->{installed}{$to} = $TXN_FOREIGN;
     }
     return;
+}
+
+# Renames $from to $to, or moves it to another file system through a private stage, which a rename puts in place.
+# A move that fails leaves nothing at $to. Returns 'renamed', 'copied', or false.
+sub txn_move_entry {
+    my ($from, $to) = @_;
+    return 'renamed' if rename($from, $to);
+    return 0 if $! != Errno::EXDEV();
+    my $stage = eval { File::Temp::tempdir('.imgimport-XXXXXXXX', DIR => dirname($to)) } or return 0;
+    my $moved = move($from, "$stage/entry") && rename("$stage/entry", $to);
+    my $errno = $!;
+    move("$stage/entry", $from) if !$moved && (-e "$stage/entry" || -l "$stage/entry");
+    rmtree($stage);
+    $! = $errno;
+    return $moved ? 'copied' : 0;
 }
 
 # Installs $from at $to, and keeps what was at $to as $to.ORIG, as imgimport always did.

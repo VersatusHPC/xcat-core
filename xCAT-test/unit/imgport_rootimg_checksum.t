@@ -1424,6 +1424,36 @@ for my $case ([ extraction => 'file' ], [ extraction => 'symlink' ], [ copy => '
     rmtree($kept) if $kept;
 }
 
+for my $how (qw(extraction merge)) {
+    # The import gives an existing directory new attributes, and another writer replaces it with another directory
+    # of the same attributes before a later step fails.
+    my $dest;
+    my $target = $how eq 'extraction' ? 'rootimg/etc' : 'extra/shared';
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        my $dir = "$dest/$target";
+        mkdir("$dir.new") or die $!;
+        chmod((stat($dir))[2] & 07777, "$dir.new") or die $!;
+        rename($dir, "$dir.moved") or die $!;
+        rename("$dir.new", $dir) or die $!;
+        return 0;
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$dest/rootimg/etc", "$bundle/tree/etc", "$dest/extra/shared", "$bundle/extra/conf/shared");
+        chmod(0755, "$dest/rootimg/etc", "$dest/extra/shared") or die $!;
+        chmod(0750, "$bundle/tree/etc", "$bundle/extra/conf/shared") or die $!;
+        system("cd '$bundle/tree' && find . | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz', extra => 'conf', nodes => 'n1');
+    ok(!$placed, "$how: an import fails after another writer replaced a directory that it changed");
+    like($errors, qr/Cannot put back the (?:mode and owner|attributes) of \Q$dest\E\/\Q$target\E: another change replaced them/,
+        "$how: the rollback reports the directory of the other writer");
+    is((stat("$dest/$target"))[2] & 07777, 0750, "$how: the directory of the other writer keeps its mode");
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 {
     # Another writer replaces a file that the import installed, so the rollback must leave it and stop.
     no warnings 'redefine';

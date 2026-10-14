@@ -2854,7 +2854,8 @@ sub _write_published_file {
 #        $target:        the published path
 #        $remove_others: true to remove the other rootimg.* files of the image directory
 #        $options:       a hash with expected, to publish only while the published rootimage has this
-#                        rootimg_identity, check, code that tells under the publication lock why to refuse,
+#                        rootimg_identity, check, code that tells under the publication lock why to refuse the
+#                        published archive at the path that it gets, which is then taken away until it is replaced,
 #                        keep, a directory for a copy of the files that this replaces, and keep_mode, to publish
 #                        the staged files with their own mode
 #return:
@@ -2863,21 +2864,30 @@ sub _write_published_file {
 #--------------------------------------------------------------------------------------------------------
 sub publish_rootimg {
     my ($class, $staged, $target, $remove_others, $options) = @_;
+    $options ||= {};
     my $dir = dirname($target);
     my ($lock, $lock_error) = _acquire_publish_lock($dir);
     return $lock_error unless $lock;
-    my $refused = _refuse_rootimg_publication($target, $options || {});
+
+    # A check takes the published archive away first, so that no other writer changes it between the check and the
+    # replacement. The staged archive then goes in place only where nothing stands.
+    my ($away, $taken, $refused) = $options->{check} ? _take_rootimg($target) : ();
+    $refused //= _refuse_rootimg_publication($target, $options, $taken);
     if ($refused) {
+        $refused .= _give_back_rootimg($taken, $target);
+        rmdir($away) if $away;
         _release_publish_lock($lock);
         return "Cannot publish $target: $refused";
     }
     my %state = (staged => $staged, target => $target, previous => dirname($staged) . '/previous',
-        keep_mode => ($options || {})->{keep_mode}, sums => _read_published_file("$target.sha256"));
+        keep_mode => $options->{keep_mode}, free => defined($away), sums => _read_published_file("$target.sha256"));
     my $error = _replace_rootimg(\%state);
     if (defined($error)) {
         my $restore_error = _restore_rootimg(\%state);
         $error .= ", and $restore_error" if $restore_error;
+        $error .= _give_back_rootimg($taken, $target);
     } else {
+        unlink($taken) if defined($taken);
         # A checksum file that keeps the previous line still matches the new archive, so this rename may fail.
         rename("$staged.sha256", "$target.sha256") if -e "$staged.sha256" || -l "$staged.sha256";
         if ($remove_others) {
@@ -2889,9 +2899,32 @@ sub publish_rootimg {
 
     # Afterwards, only a staging directory that keeps previous files for a failed publication holds them.
     unlink(grep { -e $_ || -l $_ } map { "$state{previous}$_" } ('', '.metainfo', '.sha256')) if !$state{retained};
+    rmdir($away) if $away;
     _release_publish_lock($lock);
     return if !defined($error);
     return "Cannot publish $target: $error";
+}
+
+# Takes the published archive $target away into a private directory next to it, under its own name. Returns the
+# directory and the taken path, which is undef when no archive is published, or (undef, undef, error).
+sub _take_rootimg {
+    my ($target) = @_;
+    my $away = eval { File::Temp::tempdir('.rootimg-taken-XXXXXXXX', DIR => dirname($target)) } or return (undef, undef, "$@");
+    return ($away, undef) if !-e $target && !-l $target;
+    my $taken = "$away/" . basename($target);
+    return ($away, $taken) if rename($target, $taken);
+    my $error = "$!";
+    rmdir($away);
+    return (undef, undef, $error);
+}
+
+# Puts the taken archive $taken back at $target, where nothing must stand. Returns what an error message adds when
+# it cannot.
+sub _give_back_rootimg {
+    my ($taken, $target) = @_;
+    return '' if !defined($taken) || (!-e $taken && !-l $taken);
+    return ". It stays in $taken" if !link($taken, $target);
+    return unlink($taken) ? '' : ". A link of it stays in $taken";
 }
 
 #--------------------------------------------------------------------------------------------------------
@@ -2927,15 +2960,12 @@ sub withdraw_rootimg {
     my ($lock, $error) = _acquire_publish_lock(dirname($target));
     return $error unless $lock;
     # The archive moves away under its own name before its check, so that no other writer changes it in between.
-    my $away  = eval { File::Temp::tempdir('.rootimg-withdraw-XXXXXXXX', DIR => dirname($target)) };
-    my $taken = $away ? "$away/" . basename($target) : undef;
-    if ($class->rootimg_identity($target) ne $expected) {
+    my ($away, $taken, $refused) = _take_rootimg($target);
+    if ($refused) {
+        $error = "Cannot remove $target: $refused";
+    } elsif ($class->rootimg_identity($taken // $target) ne $expected) {
         $error = "Cannot remove $target: another publication replaced it";
-    } elsif (!$taken || !rename($target, $taken)) {
-        $error = "Cannot remove $target: " . ($taken ? $! : $@);
-    } elsif ($class->rootimg_identity($taken) ne $expected) {
-        $error = "Cannot remove $target: another publication replaced it";
-    } elsif (my $refused = $check ? $check->($taken) : undef) {
+    } elsif ($refused = $check ? $check->($taken) : undef) {
         $error = "Cannot remove $target: $refused";
     } elsif (!unlink($taken)) {
         $error = "Cannot remove $target: $!";
@@ -2951,13 +2981,7 @@ sub withdraw_rootimg {
     }
 
     # An archive that stays goes back, but never over another one.
-    if ($taken && (-e $taken || -l $taken)) {
-        if (!link($taken, $target)) {
-            $error .= ". It stays in $taken";
-        } elsif (!unlink($taken)) {
-            $error .= ". A link of it stays in $taken";
-        }
-    }
+    $error .= _give_back_rootimg($taken, $target) if $error;
     rmdir($away) if $away;
     _release_publish_lock($lock);
     return $error;
@@ -2965,10 +2989,10 @@ sub withdraw_rootimg {
 
 # Checks the expected rootimg_identity and keeps a copy of the published files, under the publication lock.
 sub _refuse_rootimg_publication {
-    my ($target, $options) = @_;
+    my ($target, $options, $taken) = @_;
     return 'another publication replaced it'
-      if defined($options->{expected}) && __PACKAGE__->rootimg_identity($target) ne $options->{expected};
-    my $refused = $options->{check} ? $options->{check}->() : undef;
+      if defined($options->{expected}) && __PACKAGE__->rootimg_identity($taken // $target) ne $options->{expected};
+    my $refused = $options->{check} ? $options->{check}->($taken // $target) : undef;
     return $refused if $refused;
     return if !$options->{keep};
 
@@ -3006,7 +3030,12 @@ sub _replace_rootimg {
     if (-e "$target.metainfo") {
         $state->{metainfo_moved} = rename("$target.metainfo", "$previous.metainfo") or return "$!";
     }
-    $state->{replaced} = rename($staged, $target) or return "$!";
+    if ($state->{free}) {
+        $state->{replaced} = link($staged, $target) or return $!{EEXIST} ? 'another change put an archive there' : "$!";
+        unlink($staged);
+    } else {
+        $state->{replaced} = rename($staged, $target) or return "$!";
+    }
     return "$!" if (-e "$staged.metainfo" || -l "$staged.metainfo") && !rename("$staged.metainfo", "$target.metainfo");
     return;
 }

@@ -1023,6 +1023,50 @@ for my $left ('nothing', 'the start of the image') {
         'the metainfo that stood without the archive comes back');
 }
 
+for my $swap (1, 0) {
+    # The rollback publishes the previous image again with a swap, or through a link where the file system cannot
+    # swap. Nodes find an archive while the rollback checks the image of the import, and another writer can replace
+    # that image right before the swap.
+    my $label = $swap ? 'with a swap' : 'without a swap';
+    for my $writer (0, 1) {
+        my ($replaced, $seen);
+        no warnings 'redefine';
+        my $exchange = \&xCAT::SvrUtils::_exchange;
+        local *xCAT::SvrUtils::_exchange = sub {
+            my ($one, $two) = @_;
+            if ($writer && !$replaced) {
+                $replaced = 1;
+                write_text("$two.other", "image of another writer\n");
+                rename("$two.other", $two) or die $!;
+            }
+            return $exchange->(@_) if $swap;
+            $! = Errno::ENOSYS();
+            return 0;
+        };
+        my $publish = \&xCAT::SvrUtils::publish_rootimg;
+        local *xCAT::SvrUtils::publish_rootimg = sub {
+            my ($class, $staged, $target, $remove, $options) = @_;
+            if ($options && $options->{check}) {
+                my $check = $options->{check};
+                $options = { %$options, check => sub { $seen = -e $target ? read_binary($target) : undef; return $check->(@_) } };
+            }
+            return $publish->($class, $staged, $target, $remove, $options);
+        };
+        my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', undef, nodes => 'undefined-node');
+        ok(!$placed, "$label: an import fails on a later step");
+        if (!$writer) {
+            ok(defined($seen), "$label: an archive stays published while the rollback checks the image of the import");
+            unlike($errors, qr/Cannot (?:publish|put back)/, "$label: the rollback publishes the previous image again");
+            is(read_binary($archive), $published, "$label: the previous image is published again");
+        } else {
+            like($errors, qr/Cannot publish \Q$archive\E: another publication replaced it/, "$label: the rollback reports the image of the other writer");
+            is(read_binary($archive), "image of another writer\n", "$label: the image of the other writer stays");
+        }
+        my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+        rmtree($files) if $files;
+    }
+}
+
 {
     # The import publishes the first image of a directory, and another writer replaces it right after the rollback
     # checked it, before it removes it.

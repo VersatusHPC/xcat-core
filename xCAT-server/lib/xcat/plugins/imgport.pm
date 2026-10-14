@@ -2074,9 +2074,19 @@ sub txn_copied_identity {
 # Tells why a rollback must not touch $path: another writer changed what the import put there.
 sub txn_changed {
     my ($txn, $path, $taken) = @_;
-    return if !exists($txn->{installed}{$path});
-    return if (defined($taken) ? txn_identity($taken) : '') eq $txn->{installed}{$path};
+    my $record = $txn->{installed}{$path};
+    return if !defined($record);
+    my $now = !defined($taken) ? '' : $record =~ /\Adir:/x ? txn_dir_record($taken) : txn_identity($taken);
+    return if $now eq $record;
     return "Cannot put back $path: another change replaced it";
+}
+
+# Records a directory that the import made at $path by its inode. A rollback removes it with rmdir, which keeps the
+# entries of other writers, so its entries do not count.
+sub txn_dir_record {
+    my ($path) = @_;
+    my @stat = lstat($path);
+    return @stat && -d _ ? join(':', 'dir', @stat[ 0, 1 ]) : 'not a directory';
 }
 
 # Takes the entry at $path away into a private directory next to it, under its own name, so that no other writer
@@ -2129,8 +2139,8 @@ sub txn_keep {
             my ($taken) = @_;
             return if !defined($taken);
 
-            # A directory without a record is one that the extraction made, and other writers can add files to it.
-            return rmdir($taken) ? undef : "Cannot put back $path: $!" if -d $taken && !-l $taken && !exists($txn->{installed}{$path});
+            # A directory that the extraction made goes away with rmdir, as other writers can add files to it.
+            return rmdir($taken) ? undef : "Cannot put back $path: $!" if ($txn->{installed}{$path} // '') =~ /\Adir:/x;
             rmtree($taken);
             return;
         });
@@ -2201,7 +2211,7 @@ sub txn_mkpath {
 
     # A directory that mkpath made goes away with rmdir. Where it made none, a rollback leaves what another writer
     # puts there.
-    $txn->{installed}{$_} = '' foreach grep { !-d $_ || -l $_ } @created;
+    $txn->{installed}{$_} = -d $_ && !-l $_ ? txn_dir_record($_) : '' foreach @created;
     return -d $dir ? undef : "Cannot create $dir";
 }
 
@@ -2443,6 +2453,8 @@ sub txn_copy_tree {
         return "Cannot copy $from to $to";
     }
 
+    $txn->{installed}{$to} = txn_dir_record($to);
+
     # The links come before the record of the entries, which identifies each entry by its inode.
     my $linked = $option eq '-a' ? txn_link_tree($txn, $from, $to) : undef;
 
@@ -2456,7 +2468,10 @@ sub txn_copy_tree {
             return;
         }
         txn_created($txn, $_);
-        return if -d $_ && !-l $_;
+        if (-d $_ && !-l $_) {
+            $txn->{installed}{$_} = txn_dir_record($_);
+            return;
+        }
         txn_installed($txn, $_);
         txn_expect($txn, $_, txn_data($source));
     } }, $to);
@@ -2691,8 +2706,8 @@ sub txn_extract {
     my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;
     $kept{$_}{applied} = txn_owner_mode("$dir/$_") foreach keys %kept;
 
-    # A directory that the extraction made goes away with rmdir, so it has no record. The other entries get their
-    # identity, also after an extraction that failed partway.
+    # A directory that the extraction made goes away with rmdir, so its record holds only its inode. The other entries
+    # get their identity, also after an extraction that failed partway.
     my $attributes = txn_attributes(0, grep { !-d $_ || -l $_ } map { "$dir/$_" } grep { $_ ne '.' } @members);
     my %sizes = $extracted ? () : map { ($_ => (lstat("$dir/$_"))[7]) } grep { -f "$dir/$_" && !-l "$dir/$_" } @members;
     my $expected = txn_archive_data($archive, $extracted ? undef : \%sizes);
@@ -2706,7 +2721,7 @@ sub txn_extract {
                 $txn->{installed}{$path} = $TXN_FOREIGN;
             }
         } elsif (!$existing{$member}) {
-            txn_record($txn, $path, undef);
+            $txn->{installed}{$path} = txn_dir_record($path);
         }
     }
     return $extracted ? undef : "Cannot extract $archive in $dir";

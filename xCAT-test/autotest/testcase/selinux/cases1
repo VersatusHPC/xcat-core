@@ -23,9 +23,15 @@ check:rc==0
 check:output=~ssh_home_t
 check:output!~default_t
 check:output!~unlabeled_t
-cmd:xdsh $$CN "restorecon -RnvF /xcatpost /opt/xcat /root /etc/ssh /var/log/xcat"
+cmd:xdsh $$CN "restorecon -RnvF /opt/xcat /root /etc/ssh /var/log/xcat"
 check:rc==0
 check:output!~Would relabel
+cmd:xdsh $$CN "ls -dZ /xcatpost"
+check:rc==0
+check:output=~root_t
+check:output!~tmpfs_t
+check:output!~unlabeled_t
+check:output!~default_t
 cmd:xdsh $$CN "ausearch --input-logs -m AVC,USER_AVC -ts boot"
 check:output=~<no matches>
 check:output!~type=AVC
@@ -71,9 +77,15 @@ check:output=~ssh_home_t
 check:output!~tmpfs_t
 check:output!~default_t
 check:output!~unlabeled_t
-cmd:xdsh $$CN "restorecon -RnvF /xcatpost /opt/xcat /root /etc/ssh /usr/sbin"
+cmd:xdsh $$CN "restorecon -RnvF /opt/xcat /root /etc/ssh /usr/sbin"
 check:rc==0
 check:output!~Would relabel
+cmd:xdsh $$CN "ls -dZ /xcatpost"
+check:rc==0
+check:output=~root_t
+check:output!~tmpfs_t
+check:output!~unlabeled_t
+check:output!~default_t
 cmd:xdsh $$CN "ausearch --input-logs -m AVC,USER_AVC -ts boot"
 check:output=~<no matches>
 check:output!~type=AVC
@@ -121,9 +133,15 @@ check:output=~bin_t
 check:output!~tmp_t
 check:output!~default_t
 check:output!~unlabeled_t
-cmd:xdsh $$CN "restorecon -RnvF /usr/bin /usr/sbin /etc/ssh /xcatpost /opt/xcat"
+cmd:xdsh $$CN "restorecon -RnvF /usr/bin /usr/sbin /etc/ssh /opt/xcat"
 check:rc==0
 check:output!~Would relabel
+cmd:xdsh $$CN "ls -dZ /xcatpost"
+check:rc==0
+check:output=~root_t
+check:output!~tmpfs_t
+check:output!~unlabeled_t
+check:output!~default_t
 cmd:xdsh $$CN "ausearch --input-logs -m AVC,USER_AVC -ts boot"
 check:output=~<no matches>
 check:output!~type=AVC

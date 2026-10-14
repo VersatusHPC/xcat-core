@@ -217,6 +217,12 @@ sub node_modes {
             } elsif (defined $provmethod && $provmethod eq 'statelite') {
                 $reasons->{$node} = "statelite does not support SELinux $mode";
                 $mode = 'disabled';
+            } elsif ($mode eq 'enforcing'
+                && defined $provmethod && $provmethod eq 'netboot'
+                && !$class->diskless_enforcing_supported($os)) {
+                $reasons->{$node} =
+                  "$os loads the SELinux policy before the pivot, so a diskless node cannot boot enforcing";
+                $mode = 'permissive';
             }
         }
 
@@ -254,6 +260,38 @@ sub netboot_supported {
     }
 
     return 0;
+}
+
+#-----------------------------------------------------------------------------
+
+=head3 diskless_enforcing_supported
+
+    Descriptions:
+        Reports whether a diskless node of this OS can boot enforcing.
+        EL10 dracut loads the policy at pre-pivot 50, while the RAM root still
+        carries no usable label, so every binary run after the load is refused
+        and the node never pivots. It leaves no AVC record: auditd starts after
+        the pivot that does not happen.
+    Arguments:
+        osver - the OS of the image, for example rhels9.6 or alma10.1
+    Returns:
+        1 when it can, 0 otherwise.
+    Example:
+        my $ok = xCAT::SELinux->diskless_enforcing_supported($osver);
+
+=cut
+
+#-----------------------------------------------------------------------------
+sub diskless_enforcing_supported {
+    my ($class, $osver) = @_;
+
+    return 0 unless defined $osver;
+    # Measured on alma10.1 and alma10.2 in three rounds. rhels9 and alma9 boot
+    # enforcing on the same xCAT version and the same boot path.
+    return 0 if $osver =~ /^(?:rhels|rhel|rhes|alma|rocky|ol|centos-stream|centos|sl)\D*(\d+)/i
+        && $1 >= 10;
+
+    return 1;
 }
 
 #-----------------------------------------------------------------------------

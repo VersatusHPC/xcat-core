@@ -52,7 +52,7 @@ check:rc==0
 check:output=~^xcat-selinux-probe-ok$
 cmd:rm -f /tftpboot/xcat/selinux_mn_labels.probe
 check:rc==0
-cmd:sh -c 'ausearch -m AVC,USER_AVC -ts $(cat /tmp/selinux_mn_labels.start)'
+cmd:sh -c 'ausearch --input-logs -m AVC,USER_AVC -ts $(cat /tmp/selinux_mn_labels.start)'
 check:rc==1
 check:output=~<no matches>
 cmd:rm -f /tmp/selinux_mn_labels.start
@@ -75,7 +75,7 @@ check:rc==0
 cmd:username=__GETTABLEVALUE(key,system,username,passwd)__;password=__GETTABLEVALUE(key,system,password,passwd)__;curl -k -s -f "https://localhost/xcatws/globalconf/attrs/master?userName=$username&userPW=$password"
 check:rc==0
 check:output=~clustersite
-cmd:sh -c 'ausearch -m AVC,USER_AVC -ts $(cat /tmp/selinux_restapi_avc.start)'
+cmd:sh -c 'ausearch --input-logs -m AVC,USER_AVC -ts $(cat /tmp/selinux_restapi_avc.start)'
 check:rc==1
 check:output=~<no matches>
 cmd:rm -f /tmp/selinux_restapi_avc.start

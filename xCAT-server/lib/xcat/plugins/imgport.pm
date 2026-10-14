@@ -2498,7 +2498,7 @@ sub txn_merge {
     }
     return if !$attributes;
     $error = txn_copy_attributes($txn, $from, $to);
-    $kept->{applied} = txn_tar_attributes($to);
+    $kept->{applied} = txn_dir_state($to, \&txn_tar_attributes);
     return $error;
 }
 
@@ -2530,11 +2530,11 @@ sub txn_keep_attributes {
     my ($txn, $dir, $kept) = @_;
     my $archive = "$txn->{kept}/" . ++$txn->{count} . '.tar';
     txn_tar_dir($dir, $archive) or return "Cannot keep the attributes of $dir";
-    $kept->{applied} = txn_tar_attributes($dir);
+    $kept->{applied} = txn_dir_state($dir, \&txn_tar_attributes);
     push @{ $txn->{undo} }, sub {
         return txn_with_taken($dir, sub {
             my ($taken) = @_;
-            return if defined($taken) && txn_tar_attributes($taken) eq $kept->{applied};
+            return if defined($taken) && txn_dir_state($taken, \&txn_tar_attributes) eq $kept->{applied};
             return "Cannot put back the attributes of $dir: another change replaced them";
         }, sub {
             my ($taken) = @_;
@@ -2606,6 +2606,13 @@ sub txn_published_identity {
     return join(':', txn_owner_mode($fn), txn_attributes(0, $fn)->{$fn} // '');
 }
 
+# Identifies the directory $path by its inode and by what the code $describe tells of it, so that a rollback puts
+# back the attributes of that directory only.
+sub txn_dir_state {
+    my ($path, $describe) = @_;
+    return join(':', (lstat($path))[ 0, 1 ], $describe->($path));
+}
+
 # Identifies the mode, owner and group of $path.
 sub txn_owner_mode {
     my ($path) = @_;
@@ -2650,12 +2657,12 @@ sub txn_keep_metadata {
     my $path = $member eq '.' ? $dir : "$dir/$member";
     my @old = stat($path) or return "Cannot read $path: $!";
     my $recorded = $txn->{installed}{$path};
-    $kept->{applied} = txn_owner_mode($path);
+    $kept->{applied} = txn_dir_state($path, \&txn_owner_mode);
     push @{ $txn->{undo} }, sub {
         return txn_with_taken($path, sub {
             my ($taken) = @_;
             return txn_changed($txn, $path, $taken) if !defined($taken) || !-d $taken || -l $taken;
-            return if txn_owner_mode($taken) eq $kept->{applied};
+            return if txn_dir_state($taken, \&txn_owner_mode) eq $kept->{applied};
             return "Cannot put back the mode and owner of $path: another change replaced them";
         }, sub {
             my ($taken, $private) = @_;
@@ -2704,7 +2711,7 @@ sub txn_extract {
         return $error if $error;
     }
     my $extracted = system('bash', '-o', 'pipefail', '-c', 'cd "$1" && zcat "$2" | cpio -idum', 'extract', $dir, $archive) == 0;
-    $kept{$_}{applied} = txn_owner_mode("$dir/$_") foreach keys %kept;
+    $kept{$_}{applied} = txn_dir_state("$dir/$_", \&txn_owner_mode) foreach keys %kept;
 
     # A directory that the extraction made goes away with rmdir, so its record holds only its inode. The other entries
     # get their identity, also after an extraction that failed partway.

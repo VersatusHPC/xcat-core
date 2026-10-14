@@ -44,6 +44,23 @@ packages, execute target-architecture binaries or prove that the generated image
 
 ## Other native tests
 
+The pull-request workflow runs these packaging cases explicitly as an ordinary
+user:
+
+```
+prove xCAT-test/native/probe_package_payload.t \
+      xCAT-test/native/release_repository.t \
+      xCAT-test/native/package_relations.t
+```
+
+They need RPM build/query tools, cpio, createrepo_c, zstd, rsync, GnuPG, Python 3
+with RPM bindings, user/mount namespaces, and the Perl modules Capture::Tiny,
+File::Slurper, Parallel::ForkManager and XML::LibXML. The probe command also
+needs `which`. The release test uses an ephemeral signing key and removes its
+agent. These checks inspect real packages and repository output; they do not
+qualify package installation on every target architecture. On EL8, install both
+`python36` and `python3-rpm` to provide the interpreter and its RPM bindings.
+
 Run the package and unprivileged namespace cases as an ordinary user:
 
 ```
@@ -53,6 +70,26 @@ prove xCAT-test/native/buildrpms_openeuler.t \
       xCAT-test/native/openeuler_genimage_bootfiles.t \
       xCAT-test/native/openeuler_package_policy.t
 ```
+
+The image caller tests need `bubblewrap`, `cpio`, `gzip`, RPM tools and the
+Perl modules used by the unit suite, including DBD::SQLite, XML::Simple and
+Net::DNS:
+
+```
+prove xCAT-test/native/genimage_network_drivers.t \
+      xCAT-test/native/el10_image_package_policy.t
+```
+
+These cases run complete callers in private filesystems with no network.
+They check driver configuration after real driver-disk loading, media-import
+records and parsed RPM installation scriptlets.
+External package downloads, service management, disk mounts and initrd creation
+use command fixtures. These cases do not boot an image or qualify hardware.
+The two Perl image caller tests fail if run as root.
+
+The default BATS suite also runs `networkmanager_postscript.bats`. It renders
+installation postscripts and checks their network configuration in isolation.
+See `xCAT-test/bats/README.md` for its prerequisites.
 
 Run the isolated system cases as root:
 
@@ -138,6 +175,10 @@ permissions and an init process that reaps orphaned children.
 evaluate machine and package policy, install local-file recipes into temporary
 directories, generate extension manifests and reject invalid extension
 metadata. It does not extract or evaluate recipe source fragments.
+The POWER patch case keeps BitBake's machine prepends and replaces only the
+upstream kernel task body with a no-op. It applies the real patch to a small
+metadata fixture, checks repeat runs and verifies that patch errors propagate.
+It does not run the complete upstream kernel configuration task.
 
 For example, from the source checkout:
 
@@ -159,6 +200,17 @@ ppc64, ppc64le, armv7hf, aarch64, riscv64 and s390x.
 `python3 xCAT-test/native/genesis_console.py` builds and installs the complete
 console with Meson, then runs the installed program. It requires a C compiler,
 Meson, Ninja, pkg-config, and development packages for Newt and systemd.
+
+`python3 xCAT-test/native/genesis_console_dialogs.py` needs the same build
+dependencies plus the `pyte` Python package. It runs the linked console in a
+pseudo-terminal and checks help and diagnostics navigation, scrolling and
+return to the main screen. It checks termination from the main screen, not
+from inside a dialog.
+
+The Genesis runtime BATS cases need Bash, Perl, OpenSSL, coreutils, diffutils
+and bubblewrap. The credential-file cases use a private `/etc` in a Linux
+namespace. The credential-file case fails if bubblewrap or user namespaces
+are unavailable; it does not skip.
 
 The unit test retains checks of the vendored release key, requested kernel
 fragments and console service configuration. The BATS tests retain runtime,

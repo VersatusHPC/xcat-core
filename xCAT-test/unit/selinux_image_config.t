@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../perl-xCAT";
 
 use File::Path qw(make_path);
-use File::Slurper qw(read_text write_text);
+use File::Slurper qw(read_lines read_text write_text);
 use File::Temp qw(tempdir);
 use Test::More;
 
@@ -47,5 +47,21 @@ write_text($config, "SELINUX=enforcing\nSELINUXTYPE=mls\n");
 write_text("$root/etc/selinux/mls/contexts/files/file_contexts", "/.* system_u:object_r:default_t:s0\n");
 is(xCAT::SELinux->image_file_contexts($root), "$root/etc/selinux/mls/contexts/files/file_contexts",
     'image_file_contexts follows SELINUXTYPE of the image');
+
+# genimage owns /etc/selinux/config of the image: it calls write_image_config
+# before it runs the postinstall script, so a postinstall that writes the file
+# overrides the mode xCAT resolved for the node. The postinstalls also used an
+# unanchored substitution, which rewrote the stock "permissive" comment line and
+# produced SELINUX=SELINUX=disabled from a permissive image. sed returned 0 for
+# both.
+my @postinstalls = glob("$FindBin::Bin/../../xCAT-server/share/xcat/netboot/*/*.postinstall");
+cmp_ok(scalar(@postinstalls), '>', 20, 'the netboot postinstall scripts are found');
+my @writers = grep {
+    my @hits = grep { m{/etc/selinux/config} && !/^\s*#/ } read_lines($_);
+    @hits ? 1 : 0;
+} @postinstalls;
+s{^.*/}{} foreach @writers;
+is_deeply([ sort @writers ], [],
+    'no netboot postinstall writes /etc/selinux/config of the image');
 
 done_testing();

@@ -1394,6 +1394,36 @@ for my $step (qw(copy move extraction link edit)) {
     rmtree($kept) if $kept;
 }
 
+for my $case ([ extraction => 'file' ], [ extraction => 'symlink' ], [ copy => 'file' ], [ copy => 'symlink' ]) {
+    # The import makes an empty directory, and another writer replaces it with a $kind before a later step fails.
+    my ($how, $kind) = @$case;
+    my $dest;
+    my $empty = $how eq 'extraction' ? 'rootimg/opt/empty' : 'extra/tree/empty';
+    no warnings 'redefine';
+    local *xCAT_plugin::imgport::set_postscripts = sub {
+        rmdir("$dest/$empty") or die $!;
+        if ($kind eq 'file') {
+            write_text("$dest/$empty", "file of another writer\n");
+        } else {
+            symlink('elsewhere', "$dest/$empty") or die $!;
+        }
+        return 0;
+    };
+    my ($placed, $errors) = import_image('rootimg.cpio.gz', sub {
+        my ($bundle);
+        ($dest, $bundle) = @_;
+        make_path("$dest/rootimg", "$dest/extra", "$bundle/tree/opt/empty", "$bundle/extra/conf/tree/empty");
+        write_text("$bundle/extra/conf/tree/file", "file of the bundle\n");
+        system("cd '$bundle/tree' && find . | cpio -H newc -o 2>/dev/null | gzip > '$bundle/rootimgtree.gz'") == 0 or die 'cannot pack the tree';
+    }, rootimgtree => 'DEST/rootimg/rootimgtree.gz', extra => 'conf', nodes => 'n1');
+    ok(!$placed, "$how, $kind: an import fails after another writer replaced a directory that it made");
+    like($errors, qr/Cannot put back \Q$dest\E\/\Q$empty\E: another change replaced it/, "$how, $kind: the rollback reports the replaced directory");
+    my $left = $kind eq 'file' ? (-f "$dest/$empty" ? read_binary("$dest/$empty") : undef) : readlink("$dest/$empty");
+    is($left, $kind eq 'file' ? "file of another writer\n" : 'elsewhere', "$how, $kind: the $kind of the other writer stays");
+    my ($kept) = $errors =~ /kept in (\S+)\./;
+    rmtree($kept) if $kept;
+}
+
 {
     # Another writer replaces a file that the import installed, so the rollback must leave it and stop.
     no warnings 'redefine';

@@ -17,6 +17,7 @@ use Errno qw(EEXIST);
 use File::Basename;
 use File::Copy ();
 use Fcntl ();
+use POSIX ();
 use File::Path;
 use File::Temp;
 use Scalar::Util ();
@@ -2855,7 +2856,8 @@ sub _write_published_file {
 #        $remove_others: true to remove the other rootimg.* files of the image directory
 #        $options:       a hash with expected, to publish only while the published rootimage has this
 #                        rootimg_identity, check, code that tells under the publication lock why to refuse the
-#                        published archive at the path that it gets, which is then taken away until it is replaced,
+#                        published archive at the path that it gets, which it checks while an archive stays
+#                        published,
 #                        keep, a directory for a copy of the files that this replaces, and keep_mode, to publish
 #                        the staged files with their own mode
 #return:
@@ -2869,25 +2871,19 @@ sub publish_rootimg {
     my ($lock, $lock_error) = _acquire_publish_lock($dir);
     return $lock_error unless $lock;
 
-    # A check takes the published archive away first, so that no other writer changes it between the check and the
-    # replacement. The staged archive then goes in place only where nothing stands.
-    my ($away, $taken, $refused) = $options->{check} ? _take_rootimg($target) : ();
-    $refused //= _refuse_rootimg_publication($target, $options, $taken);
+    my $refused = _refuse_rootimg_publication($target, $options);
     if ($refused) {
-        $refused .= _give_back_rootimg($taken, $target);
-        rmdir($away) if $away;
         _release_publish_lock($lock);
         return "Cannot publish $target: $refused";
     }
     my %state = (staged => $staged, target => $target, previous => dirname($staged) . '/previous',
-        keep_mode => $options->{keep_mode}, free => defined($away), sums => _read_published_file("$target.sha256"));
+        keep_mode => $options->{keep_mode}, expected => $options->{expected}, check => $options->{check},
+        sums => _read_published_file("$target.sha256"));
     my $error = _replace_rootimg(\%state);
     if (defined($error)) {
         my $restore_error = _restore_rootimg(\%state);
         $error .= ", and $restore_error" if $restore_error;
-        $error .= _give_back_rootimg($taken, $target);
     } else {
-        unlink($taken) if defined($taken);
         # A checksum file that keeps the previous line still matches the new archive, so this rename may fail.
         rename("$staged.sha256", "$target.sha256") if -e "$staged.sha256" || -l "$staged.sha256";
         if ($remove_others) {
@@ -2899,10 +2895,55 @@ sub publish_rootimg {
 
     # Afterwards, only a staging directory that keeps previous files for a failed publication holds them.
     unlink(grep { -e $_ || -l $_ } map { "$state{previous}$_" } ('', '.metainfo', '.sha256')) if !$state{retained};
-    rmdir($away) if $away;
     _release_publish_lock($lock);
     return if !defined($error);
     return "Cannot publish $target: $error";
+}
+
+# The renameat2 system call on each architecture, which exchanges two paths with RENAME_EXCHANGE.
+my %RENAMEAT2 = (x86_64 => 316, i686 => 353, aarch64 => 276, riscv64 => 276, ppc64 => 357, ppc64le => 357, s390x => 347);
+
+# Swaps the entries at $one and $two in one step. Returns false with $! set when the kernel or the file system
+# cannot, as NFS cannot.
+sub _exchange {
+    my ($one, $two) = @_;
+    my $number = $RENAMEAT2{ (POSIX::uname())[4] };
+    if (!defined($number)) {
+        $! = Errno::ENOSYS();
+        return 0;
+    }
+    return syscall($number, -100, $one, -100, $two, 2) == 0;
+}
+
+# Tells why the archive at $path is not the one with the rootimg_identity $expected that the code $check accepts.
+sub _refuse_rootimg {
+    my ($path, $expected, $check) = @_;
+    return 'another publication replaced it' if defined($expected) && __PACKAGE__->rootimg_identity($path) ne $expected;
+    return $check->($path);
+}
+
+# Puts the staged archive in place of the published one, which the code in $state->{check} must accept, while an
+# archive stays published. A swap exchanges the two in one step, and swaps them back when the check refuses the
+# archive that came out. Where the file system cannot swap, the check reads the published archive through its link
+# at <previous>, and the rename follows only while the published path still holds that archive.
+sub _swap_rootimg {
+    my ($state) = @_;
+    my ($staged, $target, $previous, $expected, $check) = @$state{qw(staged target previous expected check)};
+    if (_exchange($staged, $target)) {
+        my $refused = _refuse_rootimg($staged, $expected, $check);
+        if ($refused) {
+            return "$refused, and it cannot come back: $!. It stays in $staged" if !_exchange($staged, $target);
+            return $refused;
+        }
+        $state->{replaced} = 1;
+        unlink($staged);
+        return;
+    }
+    my $refused = _refuse_rootimg($previous, $expected, $check);
+    return $refused if $refused;
+    return 'another publication replaced it' if __PACKAGE__->rootimg_identity($target) ne __PACKAGE__->rootimg_identity($previous);
+    $state->{replaced} = rename($staged, $target) or return "$!";
+    return;
 }
 
 # Takes the published archive $target away into a private directory next to it, under its own name. Returns the
@@ -2989,11 +3030,9 @@ sub withdraw_rootimg {
 
 # Checks the expected rootimg_identity and keeps a copy of the published files, under the publication lock.
 sub _refuse_rootimg_publication {
-    my ($target, $options, $taken) = @_;
+    my ($target, $options) = @_;
     return 'another publication replaced it'
-      if defined($options->{expected}) && __PACKAGE__->rootimg_identity($taken // $target) ne $options->{expected};
-    my $refused = $options->{check} ? $options->{check}->($taken // $target) : undef;
-    return $refused if $refused;
+      if defined($options->{expected}) && __PACKAGE__->rootimg_identity($target) ne $options->{expected};
     return if !$options->{keep};
 
     # A checksum or metainfo can stand without the archive, as publish_rootimg keeps the checksums of other formats.
@@ -3030,9 +3069,9 @@ sub _replace_rootimg {
     if (-e "$target.metainfo") {
         $state->{metainfo_moved} = rename("$target.metainfo", "$previous.metainfo") or return "$!";
     }
-    if ($state->{free}) {
-        $state->{replaced} = link($staged, $target) or return $!{EEXIST} ? 'another change put an archive there' : "$!";
-        unlink($staged);
+    if ($state->{check}) {
+        my $refused = _swap_rootimg($state);
+        return $refused if $refused;
     } else {
         $state->{replaced} = rename($staged, $target) or return "$!";
     }

@@ -171,7 +171,7 @@ my %EL9 = (os => 'rhels9.4', provmethod => 'install');
         nodetype => {
             sles => { os => 'sles15.5',     provmethod => 'install' },
             ubu  => { os => 'ubuntu22.04',  provmethod => 'netboot' },
-            el   => { os => 'alma10.0',     provmethod => 'netboot' },
+            el   => { os => 'alma9.4',      provmethod => 'netboot' },
         },
         site => 'enforcing',
     );
@@ -235,6 +235,71 @@ my %EL9 = (os => 'rhels9.4', provmethod => 'install');
 {
     my ($modes) = modes_for(nodes => [], site => 'enforcing');
     is_deeply($modes, {}, 'no nodes give an empty answer');
+}
+
+# An EL10 diskless node cannot boot enforcing: dracut loads the policy before
+# the pivot, while the RAM root still carries no usable label. It boots
+# permissive, so the clamp stops short of disabled.
+{
+    my ($modes, $reasons) = modes_for(
+        nodes    => [qw(nb9 nb10 inst10 lite10)],
+        nodetype => {
+            nb9    => { os => 'rhels9.6',  provmethod => 'netboot' },
+            nb10   => { os => 'alma10.1',  provmethod => 'netboot' },
+            inst10 => { os => 'alma10.1',  provmethod => 'install' },
+            lite10 => { os => 'alma10.1',  provmethod => 'statelite' },
+        },
+        site => 'enforcing',
+    );
+    is($modes->{nb10}, 'permissive', 'an EL10 diskless node is clamped to permissive');
+    like($reasons->{nb10}, qr/alma10\.1/, '... and the reason names the OS');
+    like($reasons->{nb10}, qr/\bpivot\b/, '... and names the pre-pivot policy load');
+    is($modes->{nb9}, 'enforcing', 'an EL9 diskless node keeps enforcing');
+    is($modes->{inst10}, 'enforcing', 'an EL10 diskful node keeps enforcing');
+    is($modes->{lite10}, 'disabled', 'an EL10 statelite node is still disabled');
+    ok(!exists $reasons->{nb9}, 'the EL9 diskless node has no reason');
+}
+
+# The clamp lowers enforcing and does not raise disabled or permissive.
+{
+    my ($modes) = modes_for(
+        nodes    => [qw(off perm)],
+        noderes  => { off => { selinux => 'disabled' }, perm => { selinux => 'permissive' } },
+        nodetype => {
+            off  => { os => 'alma10.1', provmethod => 'netboot' },
+            perm => { os => 'alma10.1', provmethod => 'netboot' },
+        },
+        site => 'enforcing',
+    );
+    is_deeply($modes, { off => 'disabled', perm => 'permissive' },
+        'the clamp leaves a node that asked for disabled or permissive alone');
+}
+
+# The osimage row decides the platform for the clamp too.
+{
+    my ($modes) = modes_for(
+        nodes    => ['nb'],
+        nodetype => { nb => { provmethod => 'alma10.1-x86_64-netboot-compute' } },
+        osimage  => {
+            'alma10.1-x86_64-netboot-compute' =>
+              { osvers => 'alma10.1', provmethod => 'netboot' },
+        },
+        site => 'enforcing',
+    );
+    is_deeply($modes, { nb => 'permissive' },
+        'an osimage-provisioned EL10 diskless node is clamped too');
+}
+
+# diskless_enforcing_supported, on its own.
+{
+    foreach my $osver (qw(rhels8.8 rhels9.6 alma9.4 rocky9.3 ol9.4 openeuler24.03)) {
+        ok(xCAT::SELinux->diskless_enforcing_supported($osver),
+            "$osver boots a diskless image enforcing");
+    }
+    foreach my $osver (qw(rhels10.0 alma10.1 rocky10.0 ol10.0 centos-stream10)) {
+        ok(!xCAT::SELinux->diskless_enforcing_supported($osver),
+            "$osver does not boot a diskless image enforcing");
+    }
 }
 
 done_testing();

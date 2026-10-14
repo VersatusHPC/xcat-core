@@ -1059,6 +1059,39 @@ for my $left ('nothing', 'the start of the image') {
 }
 
 {
+    # The import publishes over an image, and another writer replaces the published image right after the rollback
+    # checked it, before it publishes the previous image again.
+    my $replaced;
+    no warnings 'redefine';
+    my $publish = \&xCAT::SvrUtils::publish_rootimg;
+    local *xCAT::SvrUtils::publish_rootimg = sub {
+        my ($class, $staged, $target, $remove, $options) = @_;
+        if ($options && $options->{check}) {
+            my $check = $options->{check};
+            $options = { %$options, check => sub {
+                my $refused = $check->(@_);
+                if (!$replaced) {
+                    $replaced = 1;
+                    write_text("$target.other", "image of another writer\n");
+                    rename("$target.other", $target) or die $!;
+                }
+                return $refused;
+            } };
+        }
+        return $publish->($class, $staged, $target, $remove, $options);
+    };
+    my ($placed, $errors, $dest, $archive) = import_image('rootimg.cpio.gz', undef, nodes => 'undefined-node');
+    ok($replaced, 'another writer replaces the published image right after the rollback checked it');
+    ok(!$placed, 'an import fails on a later step');
+    like($errors, qr/Cannot publish \Q$archive\E: another change put an archive there/, 'the rollback reports the image of the other writer');
+    is(read_binary($archive), "image of another writer\n", 'the image of the other writer stays');
+    my ($kept) = $errors =~ /The previous image is kept in (\S+?)\.?(?:\s|$)/;
+    is($kept && read_binary("$kept/rootimg.cpio.gz"), $published, 'the previous image stays kept');
+    my ($files) = $errors =~ /The replaced files are kept in (\S+)\./;
+    rmtree($files) if $files;
+}
+
+{
     # The file system refuses the metainfo while the rollback publishes the kept image again.
     no warnings 'redefine';
     my $fail_kept;

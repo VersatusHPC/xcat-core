@@ -18,7 +18,7 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../../build-utils/lib";
 use Test::More;
-use XCAT::BuildUtils qw(mock_chroot_extras);
+use XCAT::BuildUtils qw(mock_chroot_extras mock_config_text);
 
 my @suse_targets = qw(opensuse-leap-15.6-x86_64 opensuse-leap-42.3-x86_64 sles15-x86_64);
 my @el_targets   = qw(alma+epel-10-x86_64 alma+epel-9-ppc64le openeuler-24.03sp4-x86_64);
@@ -45,5 +45,13 @@ for my $t (@el_targets) {
     ok(!grep({ $_ eq 'perl' } mock_chroot_extras('xCAT-client', $t)),
        "xCAT-client on $t needs nothing extra");
 }
+
+# buildrpms.pl writes the chroot configuration with mock_config_text, which must carry these.
+my $base = "config_opts['root'] = 'base'\n";
+like(mock_config_text('xCAT-client', 'opensuse-leap-15.6-x86_64', $base, 1),
+     qr/^\Qconfig_opts['chroot_additional_packages'] = 'perl'\E$/m,
+     'the Leap chroot of xCAT-client installs perl');
+unlike(mock_config_text('xCAT-client', 'alma+epel-10-x86_64', $base, 1),
+       qr/chroot_additional_packages/, 'the EL chroot of xCAT-client installs nothing extra');
 
 done_testing();

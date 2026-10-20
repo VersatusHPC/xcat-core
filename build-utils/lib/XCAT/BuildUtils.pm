@@ -14,26 +14,30 @@ package XCAT::BuildUtils;
 use strict;
 use warnings;
 use Exporter 'import';
+use Cwd ();
 use File::Copy qw(copy move);
+use File::Find qw(find);
 use File::Basename qw(basename);
 use File::Path qw(make_path remove_tree);
 use File::Temp qw(tempdir tempfile);
 use File::Slurper qw(read_text write_text);
 use POSIX qw(strftime);
+use Sys::Hostname ();
 use Pod::Usage qw(pod2usage);
 use feature 'say';
 
 our @EXPORT_OK = qw(
     source_date_epoch snap_release deb_version
     stage_probe_helpers XCAT_PROBE_HELPERS stage_genesis_base_sources
-    stage_xcat_probe_sources
+    stage_xcat_probe_sources stage_xcatsn_templates
     deb_package_arches dist_arches default_dists
     orig_tarball_name upstream_version resolve_dest
     pin_control_version rewrite_changelog_header
     reprepro_distributions reprepro_options
     lock_id_for take_build_lock
     mock_chroot_extras
-    build_sources_dir prepare_build_sources_dir
+    build_sources_base build_sources_dir prepare_build_sources_dir
+    remove_build_sources_dir sweep_build_sources_dirs share_build_sources_dir
     sh_quote clean_debian_residue git_revision
     backup_file restore_file
     sh sh_or_die usage
@@ -41,6 +45,7 @@ our @EXPORT_OK = qw(
     buildinfo_text
     targetarch_from_target
     openeuler_build_target openeuler_repo_subdir
+    mock_config_text mock_build_owner prepare_mock_resultdirs
     genesis_chroot_name genesis_target_arch genesis_build_plan
     genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
     genesis_dists genesis_dist_reason
@@ -203,6 +208,7 @@ use constant XCAT_PROBE_HELPERS => qw(
     CommandUtils.pm
     GlobalDef.pm
     NetworkUtils.pm
+    PacketCapture.pm
     ServiceNodeUtils.pm
 );
 
@@ -474,6 +480,35 @@ sub stage_xcat_probe_sources {
     chmod 0644, $archive_path;
     rename $archive_path, $tarball
         or die "Unable to publish $tarball: $!\n";
+    return $tarball;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 stage_xcatsn_templates
+
+Descriptions: Write the templates archive that xCATsn.spec extracts into
+              %{prefix}/share/xcat, with members rooted at templates/.
+
+Arguments:
+  $checkout    - the xcat-core source tree
+  $sources_dir - the staging directory of the xCATsn build
+  $epoch       - SOURCE_DATE_EPOCH for the archive mtimes
+
+Returns: the path of the archive.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub stage_xcatsn_templates {
+    my ($checkout, $sources_dir, $epoch) = @_;
+    die "stage_xcatsn_templates: no staging directory\n"
+        unless defined $sources_dir && -d $sources_dir;
+
+    my $tarball = "$sources_dir/templates.tar.gz";
+    sh_or_die(qq(tar --sort=name --owner=0 --group=0 --mtime="\@$epoch" )
+            . qq(-czf "$tarball" -C "$checkout/xCAT" templates),
+        "Error creating $tarball");
     return $tarball;
 }
 
@@ -944,44 +979,66 @@ sub genesis_log_errors {
 
 #-------------------------------------------------------------------------------
 
-=head3 build_sources_dir
+=head3 build_sources_base
 
-Descriptions: The rpmbuild SOURCES directory for one package and one target.
+Descriptions: The directory that holds the per-process rpmbuild SOURCES directories.
 
 Arguments:
-  $package   - the package being built, e.g. xCAT
-  $target    - the mock target, e.g. openeuler-24.03sp4-x86_64
-  $uniqueext - the mock uniqueext, or undef
-  $home      - the home directory; defaults to $ENV{HOME}
+  $checkout - the source checkout; defaults to the working directory
+
+Returns: the absolute path of the base directory.
+
+=cut
+
+#-------------------------------------------------------------------------------
+# mock reads the sources as chrootuid, and $HOME of a root build is /root, mode 0550.
+sub build_sources_base {
+    my ($checkout) = @_;
+    $checkout = Cwd::getcwd() unless defined $checkout && length $checkout;
+    die "build_sources_base: no checkout directory\n" unless defined $checkout && length $checkout;
+    return "$checkout/dist/sources";
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 build_sources_dir
+
+Descriptions: The rpmbuild SOURCES directory of one build process.
+
+Arguments:
+  $base - the directory from build_sources_base
+  $pid  - the pid of the process that stages; defaults to $$
+  $host - the host name; defaults to this host
 
 Returns: the absolute path of the staging directory.
 
 =cut
 
 #-------------------------------------------------------------------------------
-# Keyed like the mock chroot. buildrpms.pl forks a child per package and target, and
-# mock --sources copies the whole directory, so one shared directory lets a peer's tar
-# truncate an archive mid-copy. xCAT and xCATsn both write etc.tar.gz.
+# Keyed by the process that stages. buildrpms.pl forks a child per package and target,
+# and mock --sources copies the whole directory, so a shared directory lets a peer's tar
+# truncate an archive mid-copy. A pid is unique only on one host, and the checkout can be on NFS.
 sub build_sources_dir {
-    my ($package, $target, $uniqueext, $home) = @_;
+    my ($base, $pid, $host) = @_;
+    die "build_sources_dir: no base directory\n" unless defined $base && length $base;
+    $pid  = $$ unless defined $pid;
+    die "build_sources_dir: pid '$pid' is not a number\n" unless $pid =~ /^[0-9]+$/;
+    $host = _sources_host($host);
+    return "$base/SOURCES.$host.$pid";
+}
 
-    # An empty key names the shared directory again.
-    die "build_sources_dir: package is required\n" unless defined $package && length $package;
-    die "build_sources_dir: target is required\n"  unless defined $target  && length $target;
-
-    $home = $ENV{HOME} unless defined $home && length $home;
-    die "build_sources_dir: no home directory\n" unless defined $home && length $home;
-
-    my $key = "$package-$target";
-    $key .= "-$uniqueext" if defined $uniqueext && length $uniqueext;
-    return "$home/rpmbuild/$key/SOURCES";
+sub _sources_host {
+    my ($host) = @_;
+    $host = Sys::Hostname::hostname() unless defined $host && length $host;
+    $host =~ s/[^A-Za-z0-9._-]/-/g;
+    return $host;
 }
 
 #-------------------------------------------------------------------------------
 
 =head3 prepare_build_sources_dir
 
-Descriptions: Create the staging directory for one package and target, and return it.
+Descriptions: Create the staging directory of one build process, empty, and return it.
 
 Arguments: the same as build_sources_dir.
 
@@ -992,7 +1049,9 @@ Returns: the absolute path of the staging directory.
 #-------------------------------------------------------------------------------
 sub prepare_build_sources_dir {
     my $dir = build_sources_dir(@_);
-    make_path($dir);
+    # A directory with this name belongs to a dead process that had the same pid.
+    remove_tree($dir) if -e $dir;
+    chmod 0755, make_path($dir), $dir;
     die "build_sources_dir: $dir was not created\n" unless -d $dir;
     return $dir;
 }
@@ -1031,4 +1090,221 @@ sub mock_chroot_extras {
     return @extras;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 share_build_sources_dir
+
+Descriptions: Make a staging directory and its contents readable by every user,
+              whatever the umask was when they were written.
+
+Arguments:
+  $dir - the directory from prepare_build_sources_dir
+
+Returns: nothing.
+
+=cut
+
+#-------------------------------------------------------------------------------
+# mock copies --sources into the chroot as chrootuid, not as the uid that staged them.
+sub share_build_sources_dir {
+    my ($dir) = @_;
+    find({ no_chdir => 1, wanted => sub {
+        return if -l $_;
+        my $mode = (lstat $_)[2] & 07777;
+        chmod $mode | (-d _ ? 0555 : 0444), $_;
+    } }, $dir);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 remove_build_sources_dir
+
+Descriptions: Delete the staging directory of one build process.
+
+Arguments: the same as build_sources_dir. The caller makes sure the process has exited.
+
+Returns: true when the directory is gone.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub remove_build_sources_dir {
+    my $dir = build_sources_dir(@_);
+    remove_tree($dir) if -e $dir;
+    return !-e $dir;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 sweep_build_sources_dirs
+
+Descriptions: Delete the staging directories that processes on this host left behind
+              when they were killed before their parent could delete them.
+
+Arguments:
+  $base  - the directory from build_sources_base
+  $host  - the host name; defaults to this host
+  $alive - a sub that takes a pid and returns true when that process exists;
+           defaults to kill 0
+
+Returns: the list of directories deleted.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub sweep_build_sources_dirs {
+    my ($base, $host, $alive) = @_;
+    $host  = _sources_host($host);
+    $alive //= \&_pid_alive;
+    opendir(my $dh, $base) or return ();
+    my @entries = readdir $dh;
+    closedir $dh;
+
+    my @removed;
+    for my $entry (sort @entries) {
+        # Another host's pids say nothing about this host's processes.
+        my ($pid) = $entry =~ /^SOURCES\.\Q$host\E\.([0-9]+)$/ or next;
+        next if $alive->($pid);
+        remove_tree("$base/$entry");
+        push @removed, "$base/$entry" unless -e "$base/$entry";
+    }
+    return @removed;
+}
+
+# EPERM means the process exists and belongs to another user. An unreaped zombie
+# also answers here, and its parent deletes the directory when it reaps it.
+sub _pid_alive {
+    my ($pid) = @_;
+    return 1 if kill 0, $pid;
+    return $!{EPERM} ? 1 : 0;
+}
+
 1;
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_config_text
+
+    Descriptions: Render the per-package mock configuration from a target configuration.
+
+    Arguments:
+        $pkg    - the package being built, e.g. xCAT or perl-xCAT
+        $target - the mock target, e.g. openeuler-24.03-ppc64le
+        $base   - the text of /etc/mock/<target>.cfg
+        $epoch  - SOURCE_DATE_EPOCH, passed into the chroot
+
+    Returns: the text to write to /etc/mock/<pkg>-<target>.cfg
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_config_text {
+    my ($pkg, $target, $base, $epoch) = @_;
+    my $chroot = "$pkg-$target";
+    my $text = $base;
+    $text =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
+    # rpmbuild runs with --nodeps, so a BuildRequires installs nothing. mock_chroot_extras names
+    # what a %build step needs in the chroot.
+    my @extras = mock_chroot_extras($pkg, $target);
+    $text .= "config_opts['chroot_additional_packages'] = '" . join(' ', @extras) . "'\n" if @extras;
+    $text .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$epoch'\n";
+    # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with
+    #   "Failed to determine whether the unified cgroups hierarchy is used: No medium found"
+    # (ENOMEDIUM), which drops that package from the (still-signed) core -> an incomplete build
+    # that only surfaces later as a confusing MN install failure. 'simple' isolation is a plain
+    # chroot -- reliable for these RPM builds -- and sidesteps the nspawn cgroup race entirely.
+    $text .= "config_opts['isolation'] = 'simple'\n";
+    return $text;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_build_owner
+
+    Descriptions: Report the uid and gid mock builds as, from mock's own
+                  configuration loader. The loader resolves include() and
+                  the assignments around it as a build does.
+
+    Arguments:
+        $chroot    - the name passed to mock -r
+        $configdir - the mock configuration directory; mock's default when undef
+
+    Returns: ($uid, $gid). With no chrootuid, $uid is the caller, as in mock:
+             as root, the user that SUDO_UID, USERHELPER_UID or PKEXEC_UID
+             names. $gid is undef when the loader reports none.
+
+=cut
+
+#-------------------------------------------------------------------------------
+my $MOCK_OWNER_LOADER = <<'PYTHON';
+import sys
+import os
+try:
+    from mockbuild.config import MOCKCONFDIR, load_config
+    from mockbuild.uid import setup_uid_manager
+except ImportError:
+    sys.exit('mock is not installed: cannot import mockbuild.config')
+args = (sys.argv[2] or MOCKCONFDIR, sys.argv[1])
+if os.geteuid() == 0:
+    # As mock main(): load the configuration as the user that sudo names.
+    opts = setup_uid_manager().run_in_subprocess_without_privileges(load_config, *args)
+else:
+    opts = load_config(*args)
+print(opts['chrootuid'], opts.get('chrootgid', ''))
+PYTHON
+
+sub mock_build_owner {
+    my ($chroot, $configdir) = @_;
+    open my $pipe, '-|', 'python3', '-c', $MOCK_OWNER_LOADER, $chroot, $configdir // ''
+        or die "Cannot run python3 to load the mock configuration $chroot: $!\n";
+    my $out = do { local $/; <$pipe> } // '';
+    close $pipe or die "mock cannot load the configuration $chroot\n";
+    my ($uid, $gid) = $out =~ /\A(\d+) (\d*)\n\z/
+        or die "mock gives no chrootuid for $chroot\n";
+    return ($uid, length $gid ? $gid : undef);
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 prepare_mock_resultdirs
+
+    Descriptions: Give the --resultdir directories, and the files a previous
+                  build left in them, to the uid and gid mock builds as.
+                  mock writes its logs and packages there as chrootuid. A
+                  root build that stopped part way leaves root-owned 0644
+                  files that a non-root build cannot append to or replace.
+
+    Arguments:
+        $chroot    - the name passed to mock -r
+        $configdir - the mock configuration directory; mock's default when undef
+        @dirs      - the result directories, created when missing
+
+    Returns: nothing. Dies when a chown fails. The parent directories
+             that this sub creates get mode 0755.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub prepare_mock_resultdirs {
+    my ($chroot, $configdir, @dirs) = @_;
+    my ($uid, $gid) = mock_build_owner($chroot, $configdir);
+    my %resultdir = map { $_ => 1 } @dirs;
+    # make_path applies the umask, and mock must pass through the new parents.
+    for my $parent (grep { !$resultdir{$_} } make_path(@dirs)) {
+        chmod 0755, $parent or die "Cannot make $parent traversable: $!\n";
+    }
+    return if $uid == $>;
+    $gid //= -1;
+    for my $dir (@dirs) {
+        opendir(my $dh, $dir) or die "Cannot read $dir: $!\n";
+        my @files = grep { -f $_ && !-l $_ } map { "$dir/$_" } readdir $dh;
+        closedir $dh;
+        for my $path ($dir, @files) {
+            chown($uid, $gid, $path) == 1
+                or die "FATAL: cannot give $path to uid $uid: $!\n";
+        }
+        # mock writes the packages as chrootuid:chrootgid.
+        chmod 0775, $dir;
+    }
+}
+

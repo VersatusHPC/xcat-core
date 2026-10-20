@@ -55,11 +55,12 @@ use File::Temp qw(tempdir tempfile);
 use FindBin qw($Bin);
 use lib "$Bin/build-utils/lib";
 use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildinfo_text
-    prepare_build_sources_dir stage_xcat_probe_sources
+    build_sources_base prepare_build_sources_dir remove_build_sources_dir share_build_sources_dir
+    sweep_build_sources_dirs stage_xcat_probe_sources stage_xcatsn_templates
                         stage_genesis_base_sources
                         write_script read_line targetarch_from_target
                         openeuler_build_target openeuler_repo_subdir
-                        mock_chroot_extras);
+                        mock_config_text);
 use POSIX ();                   # EEXIST, for the directory build lock (see main())
 use Getopt::Long qw(GetOptions);
 use POSIX qw(strftime);
@@ -70,8 +71,9 @@ use autodie;
 use autodie qw(cp);
 
 
-# Set per package and target in buildall, so each forked child stages alone.
+# Set in buildall to a directory named for the child's pid, so each forked child stages alone.
 my $SOURCES = '';
+my $SOURCES_BASE = build_sources_base();
 # Ensure the rpmbuild tree exists. buildrpms stages source tarballs into $SOURCES, but it only
 # runs rpmdev-setuptree in the one-time env-setup path -- so on a host where that never ran (or
 # $HOME/rpmbuild was cleaned) source staging fails with "SOURCES/...: No such file or directory",
@@ -324,22 +326,16 @@ sub createmockconfig {
     my $chroot = "$pkg-$target$ext";
     my $cfgfile = "/etc/mock/$chroot.cfg";
     return if -f $cfgfile && ! $opts{force};
-    cp "/etc/mock/$target.cfg", $cfgfile;
-    my $contents = read_text($cfgfile);
-    $contents =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
-    # rpmbuild runs with --nodeps, so a BuildRequires installs nothing. Anything a %build step
-    # calls has to be named for the chroot. mock_chroot_extras holds that decision.
-    my @extras = mock_chroot_extras($pkg, $target);
-    $contents .= "config_opts['chroot_additional_packages'] = '" . join(' ', @extras) . "'\n"
-        if @extras;
-    $contents .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$SOURCE_DATE_EPOCH'\n";
-    # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with
-    #   "Failed to determine whether the unified cgroups hierarchy is used: No medium found"
-    # (ENOMEDIUM), which drops that package from the (still-signed) core -> an incomplete build that
-    # only surfaces later as a confusing MN install failure. 'simple' isolation is a plain chroot --
-    # reliable for these RPM builds -- and sidesteps the nspawn cgroup race entirely.
-    $contents .= "config_opts['isolation'] = 'simple'\n";
-    write_text($cfgfile, $contents);
+    write_text($cfgfile,
+        mock_config_text($pkg, "$target$ext", read_text("/etc/mock/$target.cfg"), $SOURCE_DATE_EPOCH));
+}
+
+# mock writes --resultdir as chrootuid, and this script runs as root.
+sub prepare_mock_resultdirs {
+    my ($pkg, $target) = @_;
+    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
+    XCAT::BuildUtils::prepare_mock_resultdirs("$pkg-$target$ext", undef,
+        "dist/$target/rpms", "dist/$target/rpms/SRPMS");
 }
 
 sub buildsources_genesis_base($) {
@@ -380,7 +376,14 @@ sub buildsources {
     die "FATAL: buildsources ran outside buildall; the staging directory is unset\n"
         unless length $SOURCES;
 
+    if ($pkg eq 'xCAT' || $pkg eq 'xCATsn') {
+        cp 'xCAT/xcat-apache-pretrans.lua', "$SOURCES/xcat-apache-pretrans.lua"
+            or die "FATAL: unable to stage Apache configuration migration: $!\n";
+    }
+
     if ($pkg eq "xCAT") {
+        cp 'xCAT/xcat-upgrade-functions.sh', "$SOURCES/xcat-upgrade-functions.sh"
+            or die "FATAL: unable to stage upgrade functions: $!\n";
         my @files = ("bmcsetup", "getipmi");
         for my $f (@files) {
             cp "xCAT-genesis-scripts/usr/bin/$f", "$pkg/postscripts/$f";
@@ -412,8 +415,7 @@ EOF
       system('build-utils/sync-xcat-apache-configs', '--stage', $SOURCES) == 0
           or die "FATAL: unable to stage canonical Apache configurations\n";
       cp "$pkg/xCATSN", $SOURCES;
-      # xCATsn.spec consumes templates from xCAT shared templates payload.
-      sh qq(tar --sort=name --owner=0 --group=0 --mtime="\@$SOURCE_DATE_EPOCH" -czf "$SOURCES/templates.tar.gz" xCAT/templates) unless -f "$SOURCES/templates.tar.gz";
+      stage_xcatsn_templates(".", $SOURCES, $SOURCE_DATE_EPOCH);
     } elsif ($pkg eq "xCAT-probe") {
       stage_xcat_probe_sources(".", $SOURCES, $VERSION, $SOURCE_DATE_EPOCH);
     } else {
@@ -528,10 +530,12 @@ EOF
 
 sub buildall {
     my ($pkg, $target) = @_;
-    # This process is the child for one pair, so the assignment cannot reach a peer.
-    $SOURCES = prepare_build_sources_dir($pkg, $target, $opts{mock_uniqueext});
+    # The parent deletes this directory when it reaps the child.
+    $SOURCES = prepare_build_sources_dir($SOURCES_BASE, $$);
     createmockconfig($pkg, $target);
+    prepare_mock_resultdirs($pkg, $target);
     buildsources($pkg, $target);
+    share_build_sources_dir($SOURCES);
     buildspkgs($pkg, $target);
     # --source-only stops here: buildspkgs has produced the src.rpm, and the binary
     # rebuild is the only thing buildpkgs does. Everything upstream of this point --
@@ -939,7 +943,8 @@ sub abort_builds {
     warn "\n[buildrpms] caught SIG$sig: aborting -- signalling mock to self-clean...\n";
     my @chroots = values %MOCK_INFLIGHT;
     kill 'TERM', mock_pids(@chroots);               # mock unmounts + orphanKills itself
-    kill 'TERM', keys %MOCK_INFLIGHT;               # unwind the ForkManager builders too
+    my @builders = keys %MOCK_INFLIGHT;
+    kill 'TERM', @builders;                         # unwind the ForkManager builders too
     my @mock;
     for (1 .. 30) {                                 # wait for mock to finish its own cleanup
         @mock = mock_pids(@chroots);
@@ -951,6 +956,17 @@ sub abort_builds {
         kill 'KILL', @mock, keys %MOCK_INFLIGHT;
         select undef, undef, undef, 2;
         sweep_mock_mounts(@chroots);
+    }
+    # Delete the staging directory of each builder that has exited. A builder that is
+    # still alive keeps its directory, and the sweep in the next run deletes it.
+    for my $pid (@builders) {
+        my $reaped = 0;
+        for (1 .. 10) {
+            $reaped = waitpid($pid, POSIX::WNOHANG());
+            last if $reaped;
+            select undef, undef, undef, 0.5;
+        }
+        remove_build_sources_dir($SOURCES_BASE, $pid) if $reaped == $pid;
     }
     warn "[buildrpms] abort cleanup done\n";
     # The re-raise below kills this process by signal, and END blocks do not run then. Release the
@@ -1000,6 +1016,9 @@ sub main {
         }
     }
 
+    # A builder killed with SIGKILL together with this parent leaves its directory behind.
+    sweep_build_sources_dirs($SOURCES_BASE);
+
     my @rpms = product($opts{packages}, $opts{targets});
     my $pm = Parallel::ForkManager->new($opts{nproc});
 
@@ -1010,6 +1029,7 @@ sub main {
     $pm->run_on_finish(sub {
         my ($pid, $exit_code, $ident, $exit_signal, $core_dump) = @_;
         delete $MOCK_INFLIGHT{$pid};
+        remove_build_sources_dir($SOURCES_BASE, $pid);
         # A child that die()s exits non-zero; one killed by a SIGNAL (SIGKILL / OOM-killer) is reaped
         # with $exit_code==0 but $exit_signal!=0 (and maybe $core_dump). Checking $exit_code alone
         # would let an OOM-killed worker through and the parent would index+sign a partial repository

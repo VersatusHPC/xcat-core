@@ -49,10 +49,12 @@ our @STAGES;
     sub createrepo_dir { push @main::CREATEREPO, $_[0]; }
     # The four stages buildall drives. Each records that it was reached.
     sub createmockconfig { push @main::STAGES, 'createmockconfig'; }
+    sub prepare_mock_resultdirs { push @main::STAGES, 'prepare_mock_resultdirs'; }
     sub buildsources     { push @main::STAGES, 'buildsources'; }
+    sub share_build_sources_dir { push @main::STAGES, 'share_build_sources_dir'; }
     sub buildspkgs       { push @main::STAGES, 'buildspkgs'; }
     sub buildpkgs        { push @main::STAGES, 'buildpkgs'; }
-    # buildall assigns a staging directory per package and target.
+    # buildall assigns a staging directory per build process.
     sub prepare_build_sources_dir { return '/nonexistent/rpmbuild/stub/SOURCES'; }
 }
 
@@ -64,6 +66,7 @@ my $harness = join "\n",
     'use strict; use warnings;',
     'our %opts;',
     'our $SOURCES = \'\';',
+    'our $SOURCES_BASE = \'/nonexistent/rpmbuild/sources\';',
     'sub say { }',
     # write_repo_metadata_dir does real work past the guard; stop it there so the
     # test observes the guard and nothing else.
@@ -127,11 +130,11 @@ sub stages_for {
 }
 
 is_deeply( stages_for(0),
-    [qw(createmockconfig buildsources buildspkgs buildpkgs)],
+    [qw(createmockconfig prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs buildpkgs)],
     'a normal run builds the source rpm and then rebuilds it into binaries' );
 
 is_deeply( stages_for(1),
-    [qw(createmockconfig buildsources buildspkgs)],
+    [qw(createmockconfig prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs)],
     'a source-only run stops once the source rpm exists' );
 
 ok( !grep( { $_ eq 'buildpkgs' } @{ stages_for(1) } ),

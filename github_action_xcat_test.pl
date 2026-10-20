@@ -499,6 +499,32 @@ sub run_bats_tests{
 }
 
 #--------------------------------------------------------
+# Fuction name: run_source_integration_tests
+# Description:  Run source-only integration and native tests after package
+#               installation. A skip fails the phase: the runner has every
+#               prerequisite.
+# Attributes:
+# Return code:  0 all tests passed, 1 otherwise
+#--------------------------------------------------------
+sub run_source_integration_tests{
+    my $cmd = "cd $unitsrc && prove -v xCAT-test/integration/wsapi_apache_access.t xCAT-test/native/postinstall_bootstrap.t";
+    print "[run_source_integration_tests] running $cmd\n";
+    my @output = runcmd("$cmd");
+    print Dumper \@output;
+    if($::RUNCMD_RC or grep { /skipped/i } @output){
+        print RED "[run_source_integration_tests] $cmd ....[Failed]\n";
+        $check_result_str .= "> **SOURCE INTEGRATION TESTS Failed** : Please click ``Details`` label in ``Merge pull request`` box for detailed information\n";
+        print $check_result_str;
+        return 1;
+    }
+
+    print "[run_source_integration_tests] $cmd ....[Pass]\n";
+    $check_result_str .= "> **SOURCE INTEGRATION TESTS Successful**\n";
+    print $check_result_str;
+    return 0;
+}
+
+#--------------------------------------------------------
 # Fuction name: run_blackboxtest_unit_tests
 # Description:  Run the blackboxtest offline checks: its Python unit tests and
 #               `blackboxtest validate` over every shipped .conf. Both are
@@ -1016,6 +1042,14 @@ if($rst){
     exit $rst;
 }
 mark_time("run_bats_tests");
+
+print GREEN "\n------Running xCAT-test source integration tests ------\n";
+$rst = run_source_integration_tests();
+if($rst){
+    print RED "Run of xCAT-test source integration tests failed\n";
+    exit $rst;
+}
+mark_time("run_source_integration_tests");
 
 #Check the syntax of changing code
 print GREEN "\n------ Checking the syntax of changed code------\n";

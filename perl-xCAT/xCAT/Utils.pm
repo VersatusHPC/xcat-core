@@ -555,6 +555,60 @@ sub isLinux
 
 #-------------------------------------------------------------------------------
 
+=head3    isFIPS
+    returns 1 when the local Linux kernel is running in FIPS mode
+    Arguments:
+        optional path to the kernel FIPS status file
+    Returns:
+        1 - FIPS mode is enabled
+        0 - FIPS mode is disabled or cannot be determined
+    Globals:
+        none
+    Error:
+        none
+    Example:
+         if (xCAT::Utils->isFIPS()) { blah; }
+    Comments:
+        Linux exposes the active FIPS state through
+        /proc/sys/crypto/fips_enabled.
+=cut
+
+#-------------------------------------------------------------------------------
+sub isFIPS
+{
+    my $status_file = shift;
+    if (defined($status_file) && $status_file eq __PACKAGE__) {
+        $status_file = shift;
+    }
+    $status_file ||= '/proc/sys/crypto/fips_enabled';
+
+    return 0 unless -r $status_file;
+    open(my $fh, '<', $status_file) or return 0;
+    my $enabled = <$fh>;
+    close($fh);
+
+    return (defined($enabled) && $enabled =~ /^\s*1\s*$/) ? 1 : 0;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 dsaHostKeyAllowed
+
+    Arguments: platform name and kernel FIPS state.
+    Returns: 1 when legacy DSA host-key generation is permitted, otherwise 0.
+
+=cut
+
+sub dsaHostKeyAllowed {
+    my ($class, $platform, $fips_mode) = @_;
+
+    return 0 if $fips_mode;
+    return 0 if defined($platform) && $platform =~ /el(\d+)/ && $1 >= 10;
+    return 1;
+}
+
+#-------------------------------------------------------------------------------
+
 =head3   Version
     Arguments:
         Optional 'short' string to request only the version;
@@ -2543,22 +2597,37 @@ sub osver
         A reference for the lock being held.
 =cut
 
+# Returns the directory of the lock files of acquire_lock.
+sub lock_dir {
+    return "/var/lock/xcat";
+}
+
 sub acquire_lock {
     my $class         = shift;
     my $lock_name     = shift;
     my $nonblock_mode = shift;
 
     use File::Path;
-    mkpath("/var/lock/xcat/");
+    my $lock_dir = lock_dir();
+    mkpath("$lock_dir/");
     use Fcntl ":flock";
     my $tlock;
-    $tlock->{path} = "/var/lock/xcat/" . $lock_name;
-    sysopen($tlock->{fd}, $tlock->{path}, POSIX::O_CREAT | POSIX::O_WRONLY) or return undef;
-    unless ($tlock->{fd}) { return undef; }
-    if ($nonblock_mode) {
-        flock($tlock->{fd}, LOCK_EX | LOCK_NB) or return undef;
-    } else {
-        flock($tlock->{fd}, LOCK_EX) or return undef;
+    $tlock->{path} = "$lock_dir/" . $lock_name;
+    while (1) {
+        sysopen($tlock->{fd}, $tlock->{path}, POSIX::O_CREAT | POSIX::O_WRONLY) or return undef;
+        unless ($tlock->{fd}) { return undef; }
+        if ($nonblock_mode) {
+            flock($tlock->{fd}, LOCK_EX | LOCK_NB) or return undef;
+        } else {
+            flock($tlock->{fd}, LOCK_EX) or return undef;
+        }
+
+        # release_lock removes the file before it unlocks it. A process that waited then holds a file without a
+        # name, while another one can lock a new file at the path, so only the file at the path counts.
+        my @held  = stat($tlock->{fd});
+        my @named = stat($tlock->{path});
+        last if @named && $held[0] == $named[0] && $held[1] == $named[1];
+        close($tlock->{fd});
     }
 
     truncate $tlock->{fd},0;
@@ -5028,7 +5097,7 @@ sub lookupNetboot {
         $ret = "nimol";
     } elsif ($imgtype =~ /^Linux$/i) {
         if ($osarch =~ /^x86_64$/i) {
-            $ret = "xnba,pxe,grub2";
+            $ret = "ipxe,xnba,pxe,grub2";
         } elsif ($osarch =~ /^ppc64$/i) {
             if (($osv =~ /rh/i and $osn < 7) or ($osv =~ /sles/i and ($osn < 11 or ($osn == 11 and $osm < 4)))) {
                 $ret = "yaboot";
@@ -5150,7 +5219,7 @@ sub acquire_lock_imageop {
     my $lock = xCAT::Utils->acquire_lock("$mylockfile", $NON_BLOCK);
     unless ($lock){
         my $pidfd;
-        open($pidfd,"<","/var/lock/xcat/$mylockfile");
+        open($pidfd,"<",lock_dir() . "/$mylockfile");
         my $pid=<$pidfd>;
         close($pidfd);
         return (1, "failed to acquire lock, seems there is another genimage/packimage/rmimage process $pid running on root image dir \"$rootimg_dir\"");

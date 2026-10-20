@@ -1565,7 +1565,6 @@ else
 		bool_modify_flag=1
 	fi
 
-    #The restart below is what hands a changed MTU to the running NIC.
     if [ $bool_restart_flag -eq 0 ];then
         for str_mtu_wanted in "${array_nic_mtu[@]}"
         do
@@ -1739,27 +1738,8 @@ if [ $networkmanager_active -eq 1 ] && [ -n "$tmp_con_name" ]; then
         nmcli con delete $tmp_con_name
     fi
 fi
-# Persist nicextraparams that NetworkManager has no native setting for (e.g. CONNECTED_MODE).
-# Done here as the very last step: the nmcli con reload/up in the restart phase above
-# re-serializes the connection from NM's in-memory model and drops anything NM does not model,
-# so an earlier write would be lost. This covers both stores NM can use -- a keyfile holds the
-# key under [user], an ifcfg file holds it directly -- because the write at configipv4 time is
-# lost either way. We do NOT reload after, so the file keeps the key.
+# The last nmcli con up above dropped the keys NM does not model. Do not reload after this.
 if [ "$str_os_type" = "redhat" ] && [ "$networkmanager_active" = "1" ]; then
-    ep_con="xcat-${str_nic_name}"
-    ep_file=$(xcat_nm_conn_file "$ep_con")
-    if [ -n "$ep_file" ] && [ -f "$ep_file" ]; then
-        for ep in "${array_nic_params[@]}"; do
-            [ -z "$ep" ] && continue
-            [ "$ep" = "$str_default_token" ] && continue
-            parse_nic_extra_params "$ep"
-            j=0
-            while [ $j -lt ${#array_extra_param_names[@]} ]; do
-                xcat_persist_nic_extra_param "$ep_file" \
-                    "${array_extra_param_names[$j]}" "${array_extra_param_values[$j]}"
-                j=$((j+1))
-            done
-        done
-    fi
+    xcat_nm_persist_nic_extra_params "xcat-${str_nic_name}" "${array_nic_params[@]}"
 fi
 exit $error_code

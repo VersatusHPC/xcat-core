@@ -1,16 +1,7 @@
 #!/usr/bin/env bats
-#
-# nic_cfg.sh backup must succeed on a node that has no persistent network configuration yet.
-#
-# Regression: the backup arm ended in a cp over the backend's config directory, so the script
-# exited with that cp's status. A node that has just netbooted has no
-# /etc/network/interfaces.d, so the cp failed and the caller read "nothing to back up" as a
-# failure. confignetwork_static_installnic failed on its third command for that reason, while
-# the identical call seven seconds later, after confignetwork had created the directory,
-# returned 0.
-#
-# The backend and every directory come from the environment, so nothing on the host is read or
-# written.
+# nic_cfg.sh backup must succeed on a node with no persistent network configuration.
+
+bats_require_minimum_version 1.5.0
 
 load 'helpers/shell_source'
 
@@ -61,4 +52,32 @@ setup()
     printf 'x\n' >"${BATS_TEST_TMPDIR}/not-a-dir"
     NIC_CFG_BACKEND=ubuntu run "$SCRIPT" backup
     [ "$status" -ne 0 ]
+}
+
+@test "a SUSE node with no ifcfg file is backed up without an error and nothing copied" {
+    mkdir -p "$SUSEDIR"
+    printf 'default 192.0.2.1 - -\n' >"$SUSEDIR/routes"
+    NIC_CFG_BACKEND=suse run "$SCRIPT" backup
+    [ "$status" -eq 0 ]
+    [ -z "$(ls -A "$BACKUP")" ]
+}
+
+@test "a SUSE node has its ifcfg files backed up" {
+    mkdir -p "$SUSEDIR"
+    printf "BOOTPROTO='static'\n" >"$SUSEDIR/ifcfg-eth0"
+    NIC_CFG_BACKEND=suse run "$SCRIPT" backup
+    [ "$status" -eq 0 ]
+    [ -f "$BACKUP/ifcfg-eth0" ]
+}
+
+@test "a SUSE ifcfg file that cannot be copied fails the backup" {
+    mkdir -p "$SUSEDIR"
+    printf "BOOTPROTO='static'\n" >"$SUSEDIR/ifcfg-eth0"
+    # nic_cfg.sh is a bash script, so it inherits this exported function.
+    cp() { echo "cp: cannot create regular file: Read-only file system" >&2; return 1; }
+    export -f cp
+    NIC_CFG_BACKEND=suse run --separate-stderr "$SCRIPT" backup
+    unset -f cp
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"Read-only file system"* ]]
 }

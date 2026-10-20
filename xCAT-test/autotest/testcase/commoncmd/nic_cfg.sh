@@ -144,6 +144,11 @@ nm_del() {
     return 0
 }
 
+# Sourced by xCAT-test/bats/nic_cfg.bats: define the functions only.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    return 0
+fi
+
 case "$1" in
     show)
         be=$(detect_backend); dev=$2
@@ -176,13 +181,16 @@ case "$1" in
         esac
         ;;
     backup)
-        # A source directory that does not exist holds no configuration to snapshot, which is
-        # the state of a node that has just netbooted. Report success: the exit status of a cp
-        # over an absent directory made the caller read "nothing to back up" as a failure.
+        # An absent source directory is the state of a node that has just netbooted.
         be=$(detect_backend); rm -rf "$BACKUP"; mkdir -p "$BACKUP" || exit 1
         case "$be" in
             nm)     if [ -d "$NMDIR" ];   then cp -af "$NMDIR"/. "$BACKUP"/ 2>/dev/null; fi ;;
-            suse)   if [ -d "$SUSEDIR" ]; then cp -af "$SUSEDIR"/ifcfg-* "$BACKUP"/ 2>/dev/null || :; fi ;;
+            suse)
+                for f in "$SUSEDIR"/ifcfg-*; do
+                    [ -e "$f" ] || continue
+                    cp -af "$f" "$BACKUP"/ || exit 1
+                done
+                ;;
             rh)     if [ -d "$RHDIR" ];   then cp -af "$RHDIR" "$BACKUP"/ 2>/dev/null; fi ;;
             ubuntu) if [ -d "$UBUDIR" ];  then cp -af "$UBUDIR"/. "$BACKUP"/ 2>/dev/null; fi ;;
         esac

@@ -70,6 +70,7 @@ my $ignorekernelchk;
 my $noupdate;
 my $lock;
 my $envar;
+my $gpgcheck;
 my $native_bootdir;
 
 
@@ -122,7 +123,8 @@ sub mount_chroot {
     }
 
     if (-d "/run") {
-        system("mount --bind /run $rootimg_dir/run");
+        system("mkdir -p $rootimage_dir/run");
+        system("mount --bind /run $rootimage_dir/run");
     }
 }
 
@@ -202,6 +204,7 @@ GetOptions(
     'onlyinitrd'        => \$onlyinitrd,
     'ignorekernelchk'   => \$ignorekernelchk,
     'noupdate'          => \$noupdate,
+    'gpgcheck'          => \$gpgcheck,                #internal flag
     'env=s'             => \$envar,
 );
 
@@ -362,7 +365,7 @@ if($onlyinitrd){
 
     my $repnum = 0;
     my $gpgkey;
-    if (defined(imgutils::openeuler_release_version($osver))) {
+    if ($gpgcheck || defined(imgutils::openeuler_release_version($osver))) {
         my ($keyfh, $keyfile) = tempfile('genimage-rpm-keys.XXXXXX', DIR => '/tmp', UNLINK => 1);
         print $keyfh imgutils::rpm_trusted_keys() or die "Cannot write RPM signing keys: $!\n";
         close($keyfh) or die "Cannot close RPM signing keys: $!\n";
@@ -542,14 +545,8 @@ if($onlyinitrd){
                 }
 
                 if (($_ eq "PRE_REMOVE") || ($_ eq "POST_REMOVE") || ($_ eq "ENVLIST")) { next; }
-                foreach(@otherpkgdir_url){
-                    print $yumconfig imgutils::rpm_repository_config($osver, "otherpkgs$index", $_, $gpgkey);
-                    $repohash{$pass}{$index} = 1;
-                    $index++;
-                }
-
-                if (defined($srcdir_otherpkgs_local) || !defined(imgutils::openeuler_release_version($osver))) {
-                    print $yumconfig imgutils::rpm_repository_config($osver, "otherpkgs$index", "file://$srcdir_otherpkgs_local/$_", $gpgkey);
+                foreach my $url (imgutils::otherpkgs_repository_urls($_, $srcdir_otherpkgs_local, @otherpkgdir_url)) {
+                    print $yumconfig imgutils::rpm_repository_config($osver, "otherpkgs$index", $url, $gpgkey);
                     $repohash{$pass}{$index} = 1;
                     $index++;
                 }
@@ -1308,11 +1305,21 @@ sub mkinitrd_dracut {
                 "$rootimg_dir/tmp/initrd.$$.gz", $mode);
         } or xdie($@);
         print "the initial ramdisk for $mode is generated successfully.\n";
+        mark_rootimg_check($mode);
         return;
     }
     print "the initial ramdisk for $mode is generated successfully.\n";
     print("Move $rootimg_dir/tmp/initrd.$$.gz -> $destdir/initrd-$mode.gz");
-    move("$rootimg_dir/tmp/initrd.$$.gz", "$destdir/initrd-$mode.gz");
+    move("$rootimg_dir/tmp/initrd.$$.gz", "$destdir/initrd-$mode.gz") and mark_rootimg_check($mode);
+}
+
+# nodeset warns unless this marker says that the stateless initial ramdisk checks the root image checksum.
+sub mark_rootimg_check {
+    my ($mode) = @_;
+    return unless $mode eq 'stateless' && $dracutdir =~ /^dracut_(?:033|047|105)$/x;
+    require xCAT::SvrUtils;
+    my $error = xCAT::SvrUtils->write_initrd_check_marker("$destdir/initrd-$mode.gz");
+    print "Warning: $error\n" if $error;
 }
 
 sub mkinitrd {

@@ -34,7 +34,7 @@ our @EXPORT_OK = qw(
     orig_tarball_name upstream_version resolve_dest
     pin_control_version rewrite_changelog_header
     reprepro_distributions reprepro_options
-    lock_id_for take_build_lock
+    lock_id_for take_build_lock acquire_lock_dir
     build_sources_base build_sources_dir prepare_build_sources_dir
     remove_build_sources_dir sweep_build_sources_dirs share_build_sources_dir
     sh_quote clean_debian_residue git_revision
@@ -646,32 +646,175 @@ sub lock_path_for {
     return "$dir/xcatbld-" . lock_id_for($path) . ".lock";
 }
 
-# take_build_lock: take the checkout's lock, or die.
-# Returns the open handle -- the lock is held for as long as the caller keeps it.
-sub take_build_lock {
-    my ($path, $dir) = @_;
+# proc_starttime: field 22 of /proc/<pid>/stat, the process start time in clock ticks.
+#
+# Pids are recycled, so a live pid is not proof that the recorded builder is the process
+# now wearing it. The start time distinguishes them. The comm field can itself contain
+# spaces and parentheses, so the parse begins after the LAST ')'.
+sub proc_starttime {
+    my ($pid) = @_;
+    return undef unless defined $pid;
+    open(my $h, '<', "/proc/$pid/stat") or return undef;
+    my $line = <$h>;
+    close $h;
+    return undef unless defined $line;
+    my $tail = substr($line, rindex($line, ')') + 1);
+    my @f = split ' ', $tail;        # @f[0] is field 3, so field 22 is index 19
+    return $f[19];
+}
+
+# lock_owner_is_live: does the identity recorded in an owner line still name a process?
+#
+# A lock with no pid at all is stale: buildrpms.pl's own lock wrote no owner file. A pid
+# whose recorded start time does not match the process now holding that pid is a recycle,
+# and is also stale -- without that check one unlucky recycle makes the lock permanent,
+# which is the defect this whole path exists to remove.
+sub lock_owner_is_live {
+    my ($who) = @_;
     require POSIX;
-    # A directory, not an flock. A build tree can live on an NFS re-export, where the kernel
-    # refuses locks outright: every attempt answers errno 524. mkdir(2) is arbitrated by the
-    # server and needs no lock daemon.
-    my $lockdir = lock_path_for($path, $dir) . '.d';
-    unless (mkdir $lockdir) {
-        die "FATAL: cannot take $lockdir: $!\n" unless $! == POSIX::EEXIST();
-        my $who = ''; if (open(my $h, '<', "$lockdir/owner")) { local $/; $who = <$h> // ''; close $h }
-        chomp $who;
-        die "FATAL: another build of $path already holds $lockdir"
-          . ($who ? " (held by [$who])" : "") . "\n";
+    my ($pid)   = ($who // '') =~ /\bpid=(\d+)/;
+    my ($start) = ($who // '') =~ /\bstart=(\d+)/;
+    return 0 unless defined $pid;
+
+    # kill(0) answers for any uid: EPERM means the process exists and belongs to someone
+    # else, which still counts as held.
+    return 0 unless kill(0, $pid) || $! == POSIX::EPERM();
+
+    # An owner line from an older build records no start time. Then the pid is all there is.
+    return 1 unless defined $start;
+    my $now = proc_starttime($pid);
+    return 1 unless defined $now;       # unreadable /proc: treat the holder as live
+    return $now eq $start ? 1 : 0;
+}
+
+# acquire_lock_dir: take one named lock, or die.
+#
+# The lock has two parts, and they answer two different problems.
+#
+# An flock on "<lockdir>.lock" is the lock. The kernel releases an flock when the holder
+# dies, however it dies, so a build killed with SIGKILL or by the OOM-killer strands
+# nothing. That is the whole defect this replaces: the directory below cannot release
+# itself, and one left by a killed build failed every later build of the same target until
+# an operator removed it by hand.
+#
+# The lock FILE is always on local storage -- /var/lock is tmpfs on the build hosts -- even
+# when the tree it guards is on /opt/xcat-ci-shared, which refuses flock, fcntl and OFD
+# locks with errno 524 because the hypervisors re-export it. Where a caller does put the
+# lock on such a filesystem, flock_unsupported() sends this back to the directory alone.
+#
+# The directory is kept so that a peer still running the previous revision, which knows
+# only the directory, continues to exclude and be excluded during a rollout. Breaking a
+# stale directory is safe here precisely because this code holds the flock while it does
+# it: two current peers cannot both reach the break.
+#
+# $held is the text appended when a live build holds the lock. $what names what contends,
+# so the two callers keep their own wording -- a checkout for builddebs.pl, a mock target
+# for buildrpms.pl -- while the rule lives here once.
+sub acquire_lock_dir {
+    my ($lockdir, $what, $held) = @_;
+    require POSIX;
+    require Fcntl;
+    $what = $lockdir unless defined $what;
+    $held = ''       unless defined $held;
+
+    my $refuse = sub {
+        my ($who) = @_;
+        die "FATAL: another build of $what already holds $lockdir"
+          . (defined($who) && length($who) ? " (held by [$who])" : "") . "\n" . $held;
+    };
+
+    my $fh;
+    my $flocked = 0;
+    if (sysopen($fh, "$lockdir.lock", Fcntl::O_CREAT() | Fcntl::O_RDWR(), 0644)) {
+        if (flock($fh, Fcntl::LOCK_EX() | Fcntl::LOCK_NB())) {
+            $flocked = 1;
+        } elsif (flock_unsupported($! + 0)) {
+            close $fh;
+            undef $fh;                      # no flock here; the directory is the only lock
+        } else {
+            my $who = do { local $/; my $l = <$fh>; close $fh; defined $l ? $l : '' };
+            chomp $who;
+            $refuse->($who);                # a live peer holds it
+        }
     }
-    if (open(my $ow, '>', "$lockdir/owner")) { print {$ow} "pid=$$\n"; close $ow }
-    # The caller keeps the returned value; release is by pid so a fork cannot free the parent's.
-    my $owner = $$;
-    my $lock = XCAT::BuildUtils::_BuildLock->new($lockdir, $owner);
+
+    # The directory. Two attempts: the first can find one whose owner is gone and move it
+    # aside, and the second then takes it.
+    for my $attempt (1, 2) {
+        last if mkdir $lockdir;
+        my $errno = $! + 0;
+        die "FATAL: cannot take $lockdir: $!\n" unless $errno == POSIX::EEXIST();
+
+        my $who = '';
+        if (open(my $h, '<', "$lockdir/owner")) { local $/; $who = <$h> // ''; close $h }
+        chomp $who;
+
+        # Without the flock there is no mutual exclusion beyond this check, so it decides.
+        # With it, a live owner here is a peer on the previous revision.
+        $refuse->($who) if lock_owner_is_live($who);
+
+        die "FATAL: $lockdir was taken again while its stale owner was being cleared\n"
+            if $attempt == 2;
+
+        # rename(2), not unlink plus rmdir: without the flock two acquirers can both read one
+        # stale owner and both decide to break it, and whichever unlinked the owner file
+        # second would delete the winner's and then succeed at rmdir, leaving two holders.
+        # Only one rename of a given path succeeds; the loser gets ENOENT and loops, and the
+        # mkdir above then arbitrates.
+        my $aside = "$lockdir.stale." . $$ . '.' . time();
+        if (rename($lockdir, $aside)) {
+            warn "[build-lock] broke the stale lock $lockdir"
+               . (length($who) ? " (owner [$who] is gone)" : " (no owner recorded)") . "\n";
+            unlink "$aside/owner";
+            rmdir $aside or warn "[build-lock] could not remove $aside: $!\n";
+        } elsif ($! + 0 != POSIX::ENOENT()) {
+            die "FATAL: cannot clear the stale lock $lockdir: $!\n";
+        }
+    }
+
+    # The identity the staleness check reads back, for a peer that has only the directory.
+    # Recorded before the caller can fork.
+    my $id = "pid=$$";
+    my $start = proc_starttime($$);
+    $id .= " start=$start" if defined $start;
+    if (open(my $ow, '>', "$lockdir/owner")) { print {$ow} "$id\n"; close $ow }
+    if ($flocked) {
+        # syswrite, not print: the identity must reach the file without depending on
+        # IO::Handle being loaded for a flush.
+        truncate($fh, 0);
+        sysseek($fh, 0, 0);
+        syswrite($fh, "$id\n");
+    }
+
+    # The caller keeps the returned value; release is by pid so a fork cannot free the
+    # parent's.
+    my $lock = XCAT::BuildUtils::_BuildLock->new($lockdir, $$, $fh);
     # Registered weakly, so holding it here does not keep the lock alive past its caller's
     # scope. The registry exists only so a signal can release what DESTROY will not.
     require Scalar::Util;
     push @LIVE_LOCKS, $lock;
     Scalar::Util::weaken($LIVE_LOCKS[-1]);
     return $lock;
+}
+
+# flock_unsupported: does this errno mean the filesystem refuses locks, rather than that a
+# peer holds one? 524 is ENOTSUPP, which an NFS re-export answers for every lock call.
+sub flock_unsupported {
+    my ($errno) = @_;
+    require POSIX;
+    return 1 if $errno == 524;
+    for my $name (qw(ENOLCK EOPNOTSUPP ENOSYS)) {
+        my $code = eval { POSIX->can($name) ? POSIX->$name() : undef };
+        return 1 if defined($code) && $errno == $code;
+    }
+    return 0;
+}
+
+# take_build_lock: take the checkout's lock, or die.
+# Returns the guard object -- the lock is held for as long as the caller keeps it.
+sub take_build_lock {
+    my ($path, $dir) = @_;
+    return acquire_lock_dir(lock_path_for($path, $dir) . '.d', $path);
 }
 
 #-------------------------------------------------------------------------------
@@ -791,7 +934,7 @@ sub cancel_build {
 }
 
 {   package XCAT::BuildUtils::_BuildLock;
-    sub new { my ($c,$d,$p)=@_; return bless { dir=>$d, pid=>$p, released=>0 }, $c }
+    sub new { my ($c,$d,$p,$fh)=@_; return bless { dir=>$d, pid=>$p, fh=>$fh, released=>0 }, $c }
     # Idempotent: a signal handler and then DESTROY both reach here, and the second must not
     # remove a directory a LATER build has since taken.
     sub release {
@@ -801,6 +944,9 @@ sub cancel_build {
         return unless $$ == $s->{pid};
         unlink "$s->{dir}/owner";
         rmdir $s->{dir};
+        # Closing the handle drops the flock. The kernel would do it at exit anyway; doing it
+        # here is what lets a caller release and retake within one process.
+        if ($s->{fh}) { close $s->{fh}; undef $s->{fh}; unlink "$s->{dir}.lock" }
         return;
     }
     sub DESTROY { shift->release }

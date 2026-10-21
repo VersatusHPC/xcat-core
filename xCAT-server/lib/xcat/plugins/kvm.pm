@@ -642,7 +642,7 @@ sub build_xmldesc {
     #memory binding:     "membind:<numa node set>"
     #cpu mode:           "cpumode:<host-model|host-passthrough>"
     #machine type:       "machine:<pc|q35|any valid VM machine type>"
-    #firmware:           "firmware:efi"
+    #firmware:           "firmware:efi" or "firmware:efi-secureboot"
     if ($advsettings) {
         my @tmp_array = split ";", $advsettings;
         foreach (@tmp_array) {
@@ -673,6 +673,10 @@ sub build_xmldesc {
             }
         }
     }
+
+    my $machine_error = xCAT::KVMUtils::firmware_machine_error($firmware, $machine_type,
+        $confdata->{nodetype}->{$node}->[0]->{arch}, $node);
+    return (-1, $machine_error) if $machine_error;
 
     # Support VM machine types specified through vm.othersettings, e.g., q35, pseries-rhel7.4.0.
     $xtree{os} = xCAT::KVMUtils::guest_os($profile,

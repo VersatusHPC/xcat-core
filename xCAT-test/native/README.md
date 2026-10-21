@@ -199,6 +199,21 @@ generates disposable SSH keys and checks their installation through the real scr
 These tests do not perform
 an installation, capture a kernel crash or modify host accounts.
 
+The SELinux policy case runs as root in a disposable EL10 container. It needs
+`make`, `selinux-policy-devel`, `selinux-policy-targeted`, `libselinux-utils`,
+`policycoreutils`, `attr` and Capture::Tiny. It installs the xCAT module into a
+private copy of the targeted store, so the host policy does not change. Set
+`TMPDIR` to a file system that stores `security.selinux` attributes, such as a
+tmpfs:
+
+```
+TMPDIR=/mnt/labels prove xCAT-test/native/selinux_file_contexts.t
+```
+
+The case looks up labels in the compiled `file_contexts` and relabels a copy of
+`/install` with `setfiles`. It does not need an enforcing kernel, and it does not
+run the rpm scriptlets.
+
 Check the TAP output for skipped prerequisites. A successful `prove` exit with
 skipped cases does not qualify those cases.
 
@@ -259,6 +274,7 @@ On EL8 or EL10, install `bubblewrap`, `rpm-build`, `systemd`, `chkconfig`,
 
 ```
 prove xCAT-test/native/xcatd_rpm_lifecycle.t \
+      xCAT-test/native/xcatd_relocated_startup.t \
       xCAT-test/native/apache_rpm_configuration.t \
       xCAT-test/native/apache_package_lifecycle.t \
       xCAT-test/native/package_upgrade_logging.t

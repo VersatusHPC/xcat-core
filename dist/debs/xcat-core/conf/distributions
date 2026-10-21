@@ -1,8 +1,0 @@
-Origin: xCAT internal repository
-Label: xcat-core bazaar repository
-Codename: noble
-Architectures: amd64 ppc64el riscv64
-Components: main
-Description: Repository automatically genereted conf
-SignWith: 64C82A868D818E69
-

@@ -1,6 +1,0 @@
-[xcat-core]
-name=xCAT 2 Core packages
-baseurl=https://xcat.org/files/xcat/repos/yum/devel/xcat-core
-enabled=1
-gpgcheck=1
-gpgkey=https://xcat.org/files/xcat/repos/yum/devel/xcat-core/repodata/repomd.xml.key

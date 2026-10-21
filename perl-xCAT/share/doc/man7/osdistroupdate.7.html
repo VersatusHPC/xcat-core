@@ -1,0 +1,79 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#osdistroupdate-Attributes">osdistroupdate Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>osdistroupdate</b> - a logical object definition in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>osdistroupdate Attributes:</b> <i>dirpath</i>, <i>downloadtime</i>, <i>osdistroname</i>, <i>osupdatename</i>, <i>usercomment</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Logical objects of this type are stored in the xCAT database in one or more tables. Use the following commands to manipulate the objects: <b>mkdef</b>, <b>chdef</b>, <b>lsdef</b>, and <b>rmdef</b>. These commands will take care of knowing which tables the object attributes should be stored in. The attribute list below shows, in parentheses, what tables each attribute is stored in.</p>
+
+<h1 id="osdistroupdate-Attributes">osdistroupdate Attributes:</h1>
+
+<dl>
+
+<dt id="dirpath-osdistroupdate.dirpath"><b>dirpath</b> (osdistroupdate.dirpath)</dt>
+<dd>
+
+<p>Path to where OS distro update is stored. (e.g. /install/osdistroupdates/rhels6.2-x86_64-20120716-update)</p>
+
+</dd>
+<dt id="downloadtime-osdistroupdate.downloadtime"><b>downloadtime</b> (osdistroupdate.downloadtime)</dt>
+<dd>
+
+<p>The timestamp when OS distro update was downloaded..</p>
+
+</dd>
+<dt id="osdistroname-osdistroupdate.osdistroname"><b>osdistroname</b> (osdistroupdate.osdistroname)</dt>
+<dd>
+
+<p>The OS distro name to update. (e.g. rhels)</p>
+
+</dd>
+<dt id="osupdatename-osdistroupdate.osupdatename"><b>osupdatename</b> (osdistroupdate.osupdatename)</dt>
+<dd>
+
+<p>Name of OS update. (e.g. rhn-update1)</p>
+
+</dd>
+<dt id="usercomment-osdistroupdate.comments"><b>usercomment</b> (osdistroupdate.comments)</dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>mkdef(1)</b>, <b>chdef(1)</b>, <b>lsdef(1)</b>, <b>rmdef(1)</b></p>
+
+
+</body>
+
+</html>
+
+

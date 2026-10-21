@@ -1,0 +1,79 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#notification-Attributes">notification Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>notification</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>notification Attributes:</b> <i>filename</i>, <i>tables</i>, <i>tableops</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Contains registrations to be notified when a table in the xCAT database changes. Users can add entries to have additional software notified of changes. Add and remove entries using the provided xCAT commands regnotif and unregnotif.</p>
+
+<h1 id="notification-Attributes">notification Attributes:</h1>
+
+<dl>
+
+<dt id="filename"><b>filename</b></dt>
+<dd>
+
+<p>The path name of a file that implements the callback routine when the monitored table changes. Can be a perl module or a command. See the regnotif man page for details.</p>
+
+</dd>
+<dt id="tables"><b>tables</b></dt>
+<dd>
+
+<p>Comma-separated list of xCAT database tables to monitor.</p>
+
+</dd>
+<dt id="tableops"><b>tableops</b></dt>
+<dd>
+
+<p>Specifies the table operation to monitor for. Valid values: &quot;d&quot; (rows deleted), &quot;a&quot; (rows added), &quot;u&quot; (rows updated).</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+<p>Set to &#39;yes&#39; or &#39;1&#39; to comment out this row.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

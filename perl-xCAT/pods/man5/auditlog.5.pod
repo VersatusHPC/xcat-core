@@ -1,0 +1,66 @@
+=head1 NAME
+
+B<auditlog> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<auditlog Attributes:>  I<recid>, I<audittime>, I<userid>, I<clientname>, I<clienttype>, I<command>, I<noderange>, I<args>, I<status>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Audit Data log.
+
+=head1 auditlog Attributes:
+
+=over 10
+
+
+=item B<recid>
+
+The record id.
+
+=item B<audittime>
+
+The timestamp for the audit entry.
+
+=item B<userid>
+
+The user running the command.
+
+=item B<clientname>
+
+The client machine, where the command originated.
+
+=item B<clienttype>
+
+Type of command: cli, java, webui, other.
+
+=item B<command>
+
+Command executed. See auditskipcmds site table attribute to control which commands get logged.
+
+=item B<noderange>
+
+The noderange on which the command was run.
+
+=item B<args>
+
+The command argument list.
+
+=item B<status>
+
+Allowed or Denied.
+
+=item B<comments>
+
+Any user-provided notes.
+
+=item B<disable>
+
+Do not use.  tabprune will not work if set to yes or 1
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

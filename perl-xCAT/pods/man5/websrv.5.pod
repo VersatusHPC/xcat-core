@@ -1,0 +1,46 @@
+=head1 NAME
+
+B<websrv> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<websrv Attributes:>  I<node>, I<port>, I<username>, I<password>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Web service parameters
+
+=head1 websrv Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The web service hostname.
+
+=item B<port>
+
+The port of the web service.
+
+=item B<username>
+
+Userid to use to access the web service.
+
+=item B<password>
+
+Password to use to access the web service.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

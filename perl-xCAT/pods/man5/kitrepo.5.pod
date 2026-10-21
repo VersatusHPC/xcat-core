@@ -1,0 +1,62 @@
+=head1 NAME
+
+B<kitrepo> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<kitrepo Attributes:>  I<kitreponame>, I<kitname>, I<osbasename>, I<osmajorversion>, I<osminorversion>, I<osarch>, I<compat_osbasenames>, I<kitrepodir>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+This table stores all kits added to the xCAT cluster.
+
+=head1 kitrepo Attributes:
+
+=over 10
+
+
+=item B<kitreponame>
+
+The unique generated kit repo package name, when kit is added to the cluster.
+
+=item B<kitname>
+
+The Kit name which this Kit Package Repository belongs to.
+
+=item B<osbasename>
+
+The OS distro name which this repository is based on.
+
+=item B<osmajorversion>
+
+The OS distro major version which this repository is based on.
+
+=item B<osminorversion>
+
+The OS distro minor version which this repository is based on. If this attribute is not set, it means that this repo applies to all minor versions.
+
+=item B<osarch>
+
+The OS distro arch which this repository is based on.
+
+=item B<compat_osbasenames>
+
+List of compatible OS base names.
+
+=item B<kitrepodir>
+
+The path to Kit Repository directory on the Mgt Node.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

@@ -1,0 +1,122 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#PARAMETERS">PARAMETERS</a></li>
+  <li><a href="#OPTIONS">OPTIONS</a></li>
+  <li><a href="#RETURN-VALUE">RETURN VALUE</a></li>
+  <li><a href="#EXAMPLES">EXAMPLES</a></li>
+  <li><a href="#FILES">FILES</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>lsvlan</b> - It lists the existing vlans for the cluster.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>lsvlan</b></p>
+
+<p><b>lsvlan</b> [<i>vlanid</i>]</p>
+
+<p><b>lsvlan</b> [<b>-h</b>|<b>--help</b>]</p>
+
+<p><b>lsvlan</b> [<b>-v</b>|<b>--version</b>]</p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>The <b>lsvlan</b> command lists all the vlans for the cluster. If <i>vlanid</i> is specifined it will list more details about this vlan including the nodes in the vlan.</p>
+
+<h1 id="PARAMETERS">PARAMETERS</h1>
+
+<p><i>vlanid</i> is a unique vlan number. If it is omitted, all vlans will be listed.</p>
+
+<h1 id="OPTIONS">OPTIONS</h1>
+
+<dl>
+
+<dt id="h---help-Display-usage-message"><b>-h|--help</b> Display usage message.</dt>
+<dd>
+
+</dd>
+<dt id="v---version-Command-Version"><b>-v|--version</b> Command Version.</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h1 id="RETURN-VALUE">RETURN VALUE</h1>
+
+<p>0 The command completed successfully.</p>
+
+<p>1 An error has occurred.</p>
+
+<h1 id="EXAMPLES">EXAMPLES</h1>
+
+<dl>
+
+<dt id="To-list-all-the-vlans-in-the-cluster">1. To list all the vlans in the cluster</dt>
+<dd>
+
+<pre><code>lsvlan</code></pre>
+
+<p>Output is similar to:</p>
+
+<pre><code>vlan 3:
+    subnet 10.3.0.0
+    netmask 255.255.0.0
+
+vlan 4:
+    subnet 10.4.0.0
+    netmask 255.255.0.0</code></pre>
+
+</dd>
+<dt id="To-list-the-details-for-vlan3">2. To list the details for vlan3</dt>
+<dd>
+
+<pre><code>lsvlan 3</code></pre>
+
+<p>Output is similar to:</p>
+
+<pre><code>vlan 3
+    subnet 10.3.0.0
+    netmask 255.255.0.0
+
+    hostname    ip address      node            vm host
+    v3n1        10.3.0.1        c68m4hsp06
+    v3n2        10.3.0.2        x3455n01
+    v3n3        10.3.0.3        x3650n01
+    v3n4        10.3.0.4        x3650n01kvm1    x3650n01
+    v3n5        10.3.0.5        x3650n01kvm2    x3650n01</code></pre>
+
+</dd>
+</dl>
+
+<h1 id="FILES">FILES</h1>
+
+<p>/opt/xcat/bin/lsvlan</p>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><a href="../../man1/mkvlan.1.html">mkvlan(1)</a>, <a href="../../man1/rmvlan.1.html">rmvlan(1)</a>, <a href="../../man1/chvlan.1.html">chvlan(1)</a></p>
+
+
+</body>
+
+</html>
+
+

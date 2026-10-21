@@ -1,0 +1,62 @@
+=head1 NAME
+
+B<mic> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<mic Attributes:>  I<node>, I<host>, I<id>, I<nodetype>, I<bridge>, I<onboot>, I<vlog>, I<powermgt>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+The host, slot id and configuration of the mic (Many Integrated Core).
+
+=head1 mic Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name or group name.
+
+=item B<host>
+
+The host node which the mic card installed on.
+
+=item B<id>
+
+The device id of the mic node.
+
+=item B<nodetype>
+
+The hardware type of the mic node. Generally, it is mic.
+
+=item B<bridge>
+
+The virtual bridge on the host node which the mic connected to.
+
+=item B<onboot>
+
+Set mic to autoboot when mpss start. Valid values: yes|no. Default is yes.
+
+=item B<vlog>
+
+Set the Verbose Log to console. Valid values: yes|no. Default is no.
+
+=item B<powermgt>
+
+Set the Power Management for mic node. This attribute is used to set the power management state that mic may get into when it is idle. Four states can be set: cpufreq, corec6, pc3 and pc6. The valid value for powermgt attribute should be [cpufreq=<on|off>]![corec6=<on|off>]![pc3=<on|off>]![pc6=<on|off>]. e.g. cpufreq=on!corec6=off!pc3=on!pc6=off. Refer to the doc of mic to get more information for power management.
+
+=item B<comments>
+
+Any user-provided notes.
+
+=item B<disable>
+
+Do not use.  tabprune will not work if set to yes or 1
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

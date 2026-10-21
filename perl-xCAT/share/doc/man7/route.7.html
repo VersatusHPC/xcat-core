@@ -1,0 +1,85 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#route-Attributes">route Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>route</b> - a logical object definition in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>route Attributes:</b> <i>gateway</i>, <i>ifname</i>, <i>mask</i>, <i>net</i>, <i>routename</i>, <i>usercomment</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Logical objects of this type are stored in the xCAT database in one or more tables. Use the following commands to manipulate the objects: <b>mkdef</b>, <b>chdef</b>, <b>lsdef</b>, and <b>rmdef</b>. These commands will take care of knowing which tables the object attributes should be stored in. The attribute list below shows, in parentheses, what tables each attribute is stored in.</p>
+
+<h1 id="route-Attributes">route Attributes:</h1>
+
+<dl>
+
+<dt id="gateway-routes.gateway"><b>gateway</b> (routes.gateway)</dt>
+<dd>
+
+<p>The gateway that routes the ip traffic from the mn to the nodes. It is usually a service node.</p>
+
+</dd>
+<dt id="ifname-routes.ifname"><b>ifname</b> (routes.ifname)</dt>
+<dd>
+
+<p>The interface name that facing the gateway. It is optional for IPv4 routes, but it is required for IPv6 routes.</p>
+
+</dd>
+<dt id="mask-routes.mask"><b>mask</b> (routes.mask)</dt>
+<dd>
+
+<p>The network mask.</p>
+
+</dd>
+<dt id="net-routes.net"><b>net</b> (routes.net)</dt>
+<dd>
+
+<p>The network address.</p>
+
+</dd>
+<dt id="routename-routes.routename"><b>routename</b> (routes.routename)</dt>
+<dd>
+
+<p>Name used to identify this route.</p>
+
+</dd>
+<dt id="usercomment-routes.comments"><b>usercomment</b> (routes.comments)</dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>mkdef(1)</b>, <b>chdef(1)</b>, <b>lsdef(1)</b>, <b>rmdef(1)</b></p>
+
+
+</body>
+
+</html>
+
+

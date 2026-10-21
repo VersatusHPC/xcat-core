@@ -1,0 +1,38 @@
+=head1 NAME
+
+B<pduoutlet> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<pduoutlet Attributes:>  I<node>, I<pdu>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Contains list of outlet numbers on the pdu each node is connected to.
+
+=head1 pduoutlet Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name or group name.
+
+=item B<pdu>
+
+a comma-separated list of outlet number for each PDU, ex: pdu1:outlet1,pdu2:outlet1
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

@@ -1,0 +1,50 @@
+=head1 NAME
+
+B<rack> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<rack Attributes:>  I<rackname>, I<displayname>, I<num>, I<height>, I<room>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Rack information.
+
+=head1 rack Attributes:
+
+=over 10
+
+
+=item B<rackname>
+
+The rack name.
+
+=item B<displayname>
+
+Alternative name for rack. Only used by PCM.
+
+=item B<num>
+
+The rack number.
+
+=item B<height>
+
+Number of units which can be stored in the rack.
+
+=item B<room>
+
+The room in which the rack is located.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

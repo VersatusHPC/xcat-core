@@ -1,0 +1,91 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#chain-Attributes">chain Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>chain</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>chain Attributes:</b> <i>node</i>, <i>currstate</i>, <i>currchain</i>, <i>chain</i>, <i>ondiscover</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Controls what operations are done (and it what order) when a node is discovered and deployed.</p>
+
+<h1 id="chain-Attributes">chain Attributes:</h1>
+
+<dl>
+
+<dt id="node"><b>node</b></dt>
+<dd>
+
+<p>The node name or group name.</p>
+
+</dd>
+<dt id="currstate"><b>currstate</b></dt>
+<dd>
+
+<p>The current or next chain step to be executed on this node by xCAT-genesis. Set by xCAT during node discovery or as a result of nodeset.</p>
+
+</dd>
+<dt id="currchain"><b>currchain</b></dt>
+<dd>
+
+<p>The chain steps still left to do for this node. This attribute will be automatically adjusted by xCAT while xCAT-genesis is running on the node (either during node discovery or a special operation like firmware update). During node discovery, this attribute is initialized from the chain attribute and updated as the chain steps are executed.</p>
+
+</dd>
+<dt id="chain"><b>chain</b></dt>
+<dd>
+
+<p>A comma-delimited chain of actions to be performed automatically when this node is discovered for the first time. (xCAT and the DHCP server do not recognize the MAC address of the node when xCAT initializes the discovery process.) The last step in this process is to run the operations listed in the chain attribute, one by one. Valid values: boot, runcmd=&lt;cmd&gt;, runimage=&lt;URL&gt;, shell, standby. For example, to have the genesis kernel pause to the shell, use chain=shell.</p>
+
+</dd>
+<dt id="ondiscover"><b>ondiscover</b></dt>
+<dd>
+
+<p>This attribute is currently not used by xCAT. The &quot;nodediscover&quot; operation is always done during node discovery.</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+<p>Set to &#39;yes&#39; or &#39;1&#39; to comment out this row.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

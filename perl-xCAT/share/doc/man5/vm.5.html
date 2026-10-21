@@ -1,0 +1,231 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#vm-Attributes">vm Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>vm</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>vm Attributes:</b> <i>node</i>, <i>mgr</i>, <i>host</i>, <i>migrationdest</i>, <i>storage</i>, <i>storagemodel</i>, <i>storagecache</i>, <i>storageformat</i>, <i>cfgstore</i>, <i>memory</i>, <i>cpus</i>, <i>nics</i>, <i>nicmodel</i>, <i>bootorder</i>, <i>clockoffset</i>, <i>virtflags</i>, <i>master</i>, <i>vncport</i>, <i>textconsole</i>, <i>powerstate</i>, <i>beacon</i>, <i>datacenter</i>, <i>cluster</i>, <i>guestostype</i>, <i>othersettings</i>, <i>physlots</i>, <i>vidmodel</i>, <i>vidproto</i>, <i>vidpassword</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Virtualization parameters</p>
+
+<h1 id="vm-Attributes">vm Attributes:</h1>
+
+<dl>
+
+<dt id="node"><b>node</b></dt>
+<dd>
+
+<p>The node or static group name</p>
+
+</dd>
+<dt id="mgr"><b>mgr</b></dt>
+<dd>
+
+<p>The function manager for the virtual machine</p>
+
+</dd>
+<dt id="host"><b>host</b></dt>
+<dd>
+
+<p>The system that currently hosts the VM</p>
+
+</dd>
+<dt id="migrationdest"><b>migrationdest</b></dt>
+<dd>
+
+<p>A noderange representing candidate destinations for migration (i.e. similar systems, same SAN, or other criteria that xCAT can use</p>
+
+</dd>
+<dt id="storage"><b>storage</b></dt>
+<dd>
+
+<p>A list of storage files or devices to be used. i.e. dir:///cluster/vm/&lt;nodename&gt; or nfs://&lt;server&gt;/path/to/folder/</p>
+
+</dd>
+<dt id="storagemodel"><b>storagemodel</b></dt>
+<dd>
+
+<p>Model of storage devices to provide to guest</p>
+
+</dd>
+<dt id="storagecache"><b>storagecache</b></dt>
+<dd>
+
+<p>Select caching scheme to employ. E.g. KVM understands &#39;none&#39;, &#39;writethrough&#39; and &#39;writeback&#39;</p>
+
+</dd>
+<dt id="storageformat"><b>storageformat</b></dt>
+<dd>
+
+<p>Select disk format to use by default (e.g. raw versus qcow2)</p>
+
+</dd>
+<dt id="cfgstore"><b>cfgstore</b></dt>
+<dd>
+
+<p>Optional location for persistent storage separate of emulated hard drives for virtualization solutions that require persistent store to place configuration data</p>
+
+</dd>
+<dt id="memory"><b>memory</b></dt>
+<dd>
+
+<p>Megabytes of memory the VM currently should be set to.</p>
+
+</dd>
+<dt id="cpus"><b>cpus</b></dt>
+<dd>
+
+<p>Number of CPUs the node should see.</p>
+
+</dd>
+<dt id="nics"><b>nics</b></dt>
+<dd>
+
+<p>Network configuration parameters. Of the general form [physnet:]interface,.. Generally, interface describes the vlan entity (default for native, tagged for tagged, vl[number] for a specific vlan. physnet is a virtual switch name or port description that is used for some virtualization technologies to construct virtual switches. hypervisor.netmap can map names to hypervisor specific layouts, or the descriptions described there may be used directly here where possible. A macvtap device can be created by adding the &quot;|direct&quot; suffix to the interface name.</p>
+
+</dd>
+<dt id="nicmodel"><b>nicmodel</b></dt>
+<dd>
+
+<p>Model of NICs that will be provided to VMs (i.e. e1000, rtl8139, virtio, etc)</p>
+
+</dd>
+<dt id="bootorder"><b>bootorder</b></dt>
+<dd>
+
+<p>Boot sequence (i.e. net,hd)</p>
+
+</dd>
+<dt id="clockoffset"><b>clockoffset</b></dt>
+<dd>
+
+<p>Whether to have guest RTC synced to &quot;localtime&quot; or &quot;utc&quot; If not populated, xCAT will guess based on the nodetype.os contents.</p>
+
+</dd>
+<dt id="virtflags"><b>virtflags</b></dt>
+<dd>
+
+<p>General flags used by the virtualization method. For example, in Xen it could, among other things, specify paravirtualized setup, or direct kernel boot. For a hypervisor/dom0 entry, it is the virtualization method (i.e. &quot;xen&quot;). For KVM, the following flag=value pairs are recognized: imageformat=[raw|fullraw|qcow2] raw is a generic sparse file that allocates storage on demand fullraw is a generic, non-sparse file that preallocates all space qcow2 is a sparse, copy-on-write capable format implemented at the virtualization layer rather than the filesystem level clonemethod=[qemu-img|reflink] qemu-img allows use of qcow2 to generate virtualization layer copy-on-write reflink uses a generic filesystem facility to clone the files on your behalf, but requires filesystem support such as btrfs placement_affinity=[migratable|user_migratable|pinned]</p>
+
+</dd>
+<dt id="master"><b>master</b></dt>
+<dd>
+
+<p>The name of a master image, if any, this virtual machine is linked to. This is generally set by clonevm and indicates the deletion of a master that would invalidate the storage of this virtual machine</p>
+
+</dd>
+<dt id="vncport"><b>vncport</b></dt>
+<dd>
+
+<p>Tracks the current VNC display port (currently not meant to be set</p>
+
+</dd>
+<dt id="textconsole"><b>textconsole</b></dt>
+<dd>
+
+<p>Tracks the Psuedo-TTY that maps to the serial port or console of a VM</p>
+
+</dd>
+<dt id="powerstate"><b>powerstate</b></dt>
+<dd>
+
+<p>This flag is used by xCAT to track the last known power state of the VM.</p>
+
+</dd>
+<dt id="beacon"><b>beacon</b></dt>
+<dd>
+
+<p>This flag is used by xCAT to track the state of the identify LED with respect to the VM.</p>
+
+</dd>
+<dt id="datacenter"><b>datacenter</b></dt>
+<dd>
+
+<p>Optionally specify a datacenter for the VM to exist in (only applicable to VMWare)</p>
+
+</dd>
+<dt id="cluster"><b>cluster</b></dt>
+<dd>
+
+<p>Specify to the underlying virtualization infrastructure a cluster membership for the hypervisor.</p>
+
+</dd>
+<dt id="guestostype"><b>guestostype</b></dt>
+<dd>
+
+<p>This allows administrator to specify an identifier for OS to pass through to virtualization stack. Normally this should be ignored as xCAT will translate from nodetype.os rather than requiring this field be used</p>
+
+</dd>
+<dt id="othersettings"><b>othersettings</b></dt>
+<dd>
+
+<p>This is a semicolon-delimited list of key-value pairs to be included in a vmx file of VMware or KVM. DO NOT use &#39;chdef &lt;node&gt; -p|-m vmothersetting=...&#39; to add options to it or delete options from it because chdef uses commas, not semicolons, to separate items. Hugepage on POWER systems: Specify the hugepage and/or bsr (Barrier Synchronization Register) values, e.g., &#39;hugepage:1,bsr:2&#39;. KVM CPU mode: Specify how the host CPUs are utilized, e.g., &#39;cpumode:host-passthrough&#39;, &#39;cpumode:host-model&#39;. With the passthrough mode, the performance of x86 VMs can be improved significantly. KVM CPU pinning: Specify which host CPUs are used, e.g., &#39;vcpupin:&#39;0-15,^8&#39;, where &#39;-&#39; denotes the range and &#39;^&#39; denotes exclusion. This option allows a comma-delimited list. KVM memory binding: Specify which nodes that host memory are used, e.g., &#39;membind:0&#39;, where the memory in node0 of the hypervisor is used. /sys/devices/system/node has node0 and node8 on some POWER systems, node0 and node1 on some x86_64 systems. This option allows a guest VM to access specific memory regions. PCI passthrough: PCI devices can be assigned to a virtual machine for exclusive usage, e.g., &#39;devpassthrough:pci_0001_01_00_0,pci_0000_03_00_0&#39;. A PCI device can also be expressed as &#39;devpassthrough:0001:01:00.1&#39;. The devices are put in a comma-delimited list. The PCI device names can be obtained by running <b>virsh nodedev-list</b> on the host. VM machine type: Specify a machine type for VM creation on the host, e.g., &#39;machine:pc&#39;. Typical machine types are pc, q35, and pseries.</p>
+
+</dd>
+<dt id="physlots"><b>physlots</b></dt>
+<dd>
+
+<p>Specify the physical slots drc index that will assigned to the partition, the delimiter is &#39;,&#39;, and the drc index must started with &#39;0x&#39;. For more details, reference manpage for &#39;lsvm&#39;.</p>
+
+</dd>
+<dt id="vidmodel"><b>vidmodel</b></dt>
+<dd>
+
+<p>Model of video adapter to provide to guest. For example, qxl in KVM</p>
+
+</dd>
+<dt id="vidproto"><b>vidproto</b></dt>
+<dd>
+
+<p>Request a specific protocol for remote video access be set up. For example, spice in KVM.</p>
+
+</dd>
+<dt id="vidpassword"><b>vidpassword</b></dt>
+<dd>
+
+<p>Password to use instead of temporary random tokens for VNC and SPICE access</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

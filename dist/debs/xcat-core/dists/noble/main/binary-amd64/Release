@@ -1,0 +1,5 @@
+Component: main
+Origin: xCAT internal repository
+Label: xcat-core bazaar repository
+Architecture: amd64
+Description: Repository automatically genereted conf

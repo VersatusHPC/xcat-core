@@ -1,0 +1,161 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#network-Attributes">network Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>network</b> - a logical object definition in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>network Attributes:</b> <i>ddnsdomain</i>, <i>dhcpserver</i>, <i>domain</i>, <i>dynamicrange</i>, <i>gateway</i>, <i>logservers</i>, <i>mask</i>, <i>mgtifname</i>, <i>mtu</i>, <i>nameservers</i>, <i>net</i>, <i>netname</i>, <i>nodehostname</i>, <i>ntpservers</i>, <i>staticrange</i>, <i>staticrangeincrement</i>, <i>tftpserver</i>, <i>usercomment</i>, <i>vlanid</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Logical objects of this type are stored in the xCAT database in one or more tables. Use the following commands to manipulate the objects: <b>mkdef</b>, <b>chdef</b>, <b>lsdef</b>, and <b>rmdef</b>. These commands will take care of knowing which tables the object attributes should be stored in. The attribute list below shows, in parentheses, what tables each attribute is stored in.</p>
+
+<h1 id="network-Attributes">network Attributes:</h1>
+
+<dl>
+
+<dt id="ddnsdomain-networks.ddnsdomain"><b>ddnsdomain</b> (networks.ddnsdomain)</dt>
+<dd>
+
+<p>A domain to be combined with nodename to construct FQDN for DDNS updates induced by DHCP. This is not passed down to the client as &quot;domain&quot;</p>
+
+</dd>
+<dt id="dhcpserver-networks.dhcpserver"><b>dhcpserver</b> (networks.dhcpserver)</dt>
+<dd>
+
+<p>The DHCP server that is servicing this network. Required to be explicitly set for pooled service node operation. This field should not be set except for service node operation. Also, &lt;xcatmaster&gt; is not a valid field value for this field.</p>
+
+</dd>
+<dt id="domain-networks.domain"><b>domain</b> (networks.domain)</dt>
+<dd>
+
+<p>The DNS domain name (ex. cluster.com).</p>
+
+</dd>
+<dt id="dynamicrange-networks.dynamicrange"><b>dynamicrange</b> (networks.dynamicrange)</dt>
+<dd>
+
+<p>The IP address range used by DHCP to assign dynamic IP addresses for requests on this network. This should not overlap with entities expected to be configured with static host declarations, i.e. anything ever expected to be a node with an address registered in the mac table.</p>
+
+</dd>
+<dt id="gateway-networks.gateway"><b>gateway</b> (networks.gateway)</dt>
+<dd>
+
+<p>The network gateway. It can be set to an ip address or the keyword &lt;xcatmaster&gt;, the keyword &lt;xcatmaster&gt; indicates the cluster-facing ip address configured on this management node or service node. Leaving this field blank means that there is no gateway for this network.</p>
+
+</dd>
+<dt id="logservers-networks.logservers"><b>logservers</b> (networks.logservers)</dt>
+<dd>
+
+<p>The log servers for this network. Used in creating the DHCP network definition. Assumed to be the DHCP server if not set.</p>
+
+</dd>
+<dt id="mask-networks.mask"><b>mask</b> (networks.mask)</dt>
+<dd>
+
+<p>The network mask.</p>
+
+</dd>
+<dt id="mgtifname-networks.mgtifname"><b>mgtifname</b> (networks.mgtifname)</dt>
+<dd>
+
+<p>The interface name of the management/service node facing this network. !remote!&lt;nicname&gt; indicates a non-local network on a specific nic for relay DHCP.</p>
+
+</dd>
+<dt id="mtu-networks.mtu"><b>mtu</b> (networks.mtu)</dt>
+<dd>
+
+<p>The default MTU for the network, If multiple networks are applied to the same nic on the SN and/or CN, the MTU shall be the same for those networks.</p>
+
+</dd>
+<dt id="nameservers-networks.nameservers"><b>nameservers</b> (networks.nameservers)</dt>
+<dd>
+
+<p>A comma delimited list of DNS servers that each node in this network should use. This value will end up in the nameserver settings of the /etc/resolv.conf on each node in this network. If this attribute value is set to the IP address of an xCAT node, make sure DNS is running on it. In a hierarchical cluster, you can also set this attribute to &quot;&lt;xcatmaster&gt;&quot; to mean the DNS server for each node in this network should be the node that is managing it (either its service node or the management node). Used in creating the DHCP network definition, and DNS configuration.</p>
+
+</dd>
+<dt id="net-networks.net"><b>net</b> (networks.net)</dt>
+<dd>
+
+<p>The network address.</p>
+
+</dd>
+<dt id="netname-networks.netname"><b>netname</b> (networks.netname)</dt>
+<dd>
+
+<p>Name used to identify this network definition.</p>
+
+</dd>
+<dt id="nodehostname-networks.nodehostname"><b>nodehostname</b> (networks.nodehostname)</dt>
+<dd>
+
+<p>A regular expression used to specify node name to network-specific hostname. i.e. &quot;/\z/-secondary/&quot; would mean that the hostname of &quot;n1&quot; would be n1-secondary on this network. By default, the nodename is assumed to equal the hostname, followed by nodename-interfacename.</p>
+
+</dd>
+<dt id="ntpservers-networks.ntpservers"><b>ntpservers</b> (networks.ntpservers)</dt>
+<dd>
+
+<p>The ntp servers for this network. Used in creating the DHCP network definition. Assumed to be the DHCP server if not set.</p>
+
+</dd>
+<dt id="staticrange-networks.staticrange"><b>staticrange</b> (networks.staticrange)</dt>
+<dd>
+
+<p>The IP address range used to dynamically assign static IPs to newly discovered nodes. This should not overlap with the dynamicrange nor overlap with entities that were manually assigned static IPs. The format for the attribute value is: &lt;startip&gt;-&lt;endip&gt;.</p>
+
+</dd>
+<dt id="staticrangeincrement-networks.staticrangeincrement"><b>staticrangeincrement</b> (networks.staticrangeincrement)</dt>
+<dd>
+
+</dd>
+<dt id="tftpserver-networks.tftpserver"><b>tftpserver</b> (networks.tftpserver)</dt>
+<dd>
+
+<p>The TFTP server that is servicing this network. If not set, the DHCP server is assumed.</p>
+
+</dd>
+<dt id="usercomment-networks.comments"><b>usercomment</b> (networks.comments)</dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="vlanid-networks.vlanid"><b>vlanid</b> (networks.vlanid)</dt>
+<dd>
+
+<p>The vlan ID if this network is within a vlan.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>mkdef(1)</b>, <b>chdef(1)</b>, <b>lsdef(1)</b>, <b>rmdef(1)</b></p>
+
+
+</body>
+
+</html>
+
+

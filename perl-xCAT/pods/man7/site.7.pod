@@ -1,0 +1,37 @@
+=head1 NAME
+
+B<site> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<site Attributes:>  I<installdir>, I<master>, I<xcatdport>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 site Attributes:
+
+=over 6
+
+
+=item B<installdir> (site.value)
+
+The installation directory
+
+=item B<master> (site.value)
+
+The management node
+
+=item B<xcatdport> (site.value)
+
+Port used by xcatd daemon on master
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

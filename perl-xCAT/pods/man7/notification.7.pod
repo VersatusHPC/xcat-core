@@ -1,0 +1,41 @@
+=head1 NAME
+
+B<notification> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<notification Attributes:>  I<comments>, I<filename>, I<tableops>, I<tables>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 notification Attributes:
+
+=over 6
+
+
+=item B<comments> (notification.comments)
+
+Any user-written notes.
+
+=item B<filename> (notification.filename)
+
+The path name of a file that implements the callback routine when the monitored table changes.  Can be a perl module or a command.  See the regnotif man page for details.
+
+=item B<tableops> (notification.tableops)
+
+Specifies the table operation to monitor for. Valid values:  "d" (rows deleted), "a" (rows added), "u" (rows updated).
+
+=item B<tables> (notification.tables)
+
+Comma-separated list of xCAT database tables to monitor.
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

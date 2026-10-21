@@ -1,0 +1,74 @@
+=head1 NAME
+
+B<nodelist> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<nodelist Attributes:>  I<node>, I<groups>, I<status>, I<statustime>, I<appstatus>, I<appstatustime>, I<primarysn>, I<hidden>, I<updatestatus>, I<updatestatustime>, I<zonename>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+The list of all the nodes in the cluster, including each node's current status and what groups it is in.
+
+=head1 nodelist Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The hostname of a node in the cluster.
+
+=item B<groups>
+
+A comma-delimited list of groups this node is a member of.  Group names are arbitrary, except all nodes should be part of the 'all' group. Internal group names are designated by using __<groupname>.  For example, __Unmanaged, could be the internal name for a group of nodes that is not managed by xCAT. Admins should avoid using the __ characters when defining their groups.
+
+=item B<status>
+
+The current status of this node.  This attribute will be set by xCAT software.  Valid values: defined, booting, netbooting, booted, discovering, configuring, installing, alive, standingby, powering-off, unreachable. If blank, defined is assumed. The possible status change sequences are: For installation: defined->[discovering]->[configuring]->[standingby]->installing->booting->[postbooting]->booted->[alive],  For diskless deployment: defined->[discovering]->[configuring]->[standingby]->netbooting->[postbooting]->booted->[alive],  For booting: [alive/unreachable]->booting->[postbooting]->booted->[alive],  For powering off: [alive]->powering-off->[unreachable], For monitoring: alive->unreachable. Discovering and configuring are for x Series discovery process. Alive and unreachable are set only when there is a monitoring plug-in start monitor the node status for xCAT. Note that the status values will not reflect the real node status if you change the state of the node from outside of xCAT (i.e. power off the node using HMC GUI).
+
+=item B<statustime>
+
+The data and time when the status was updated.
+
+=item B<appstatus>
+
+A comma-delimited list of application status. For example: 'sshd=up,ftp=down,ll=down'
+
+=item B<appstatustime>
+
+The date and time when appstatus was updated.
+
+=item B<primarysn>
+
+Not used currently. The primary servicenode, used by this node.
+
+=item B<hidden>
+
+Used to hide fsp and bpa definitions, 1 means not show them when running lsdef and nodels
+
+=item B<updatestatus>
+
+The current node update status. Valid states are synced, out-of-sync,syncing,failed.
+
+=item B<updatestatustime>
+
+The date and time when the updatestatus was updated.
+
+=item B<zonename>
+
+The name of the zone to which the node is currently assigned. If undefined, then it is not assigned to any zone. 
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

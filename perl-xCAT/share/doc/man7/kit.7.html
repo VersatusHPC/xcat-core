@@ -1,0 +1,103 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#kit-Attributes">kit Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>kit</b> - a logical object definition in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>kit Attributes:</b> <i>basename</i>, <i>description</i>, <i>isinternal</i>, <i>kitdeployparams</i>, <i>kitdir</i>, <i>kitname</i>, <i>ostype</i>, <i>release</i>, <i>version</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Logical objects of this type are stored in the xCAT database in one or more tables. Use the following commands to manipulate the objects: <b>mkdef</b>, <b>chdef</b>, <b>lsdef</b>, and <b>rmdef</b>. These commands will take care of knowing which tables the object attributes should be stored in. The attribute list below shows, in parentheses, what tables each attribute is stored in.</p>
+
+<h1 id="kit-Attributes">kit Attributes:</h1>
+
+<dl>
+
+<dt id="basename-kit.basename"><b>basename</b> (kit.basename)</dt>
+<dd>
+
+<p>The kit base name</p>
+
+</dd>
+<dt id="description-kit.description"><b>description</b> (kit.description)</dt>
+<dd>
+
+<p>The Kit description.</p>
+
+</dd>
+<dt id="isinternal-kit.isinternal"><b>isinternal</b> (kit.isinternal)</dt>
+<dd>
+
+<p>A flag to indicated if the Kit is internally used. When set to 1, the Kit is internal. If 0 or undefined, the kit is not internal.</p>
+
+</dd>
+<dt id="kitdeployparams-kit.kitdeployparams"><b>kitdeployparams</b> (kit.kitdeployparams)</dt>
+<dd>
+
+<p>The file containing the default deployment parameters for this Kit. These parameters are added to the OS Image definition.s list of deployment parameters when one or more Kit Components from this Kit are added to the OS Image.</p>
+
+</dd>
+<dt id="kitdir-kit.kitdir"><b>kitdir</b> (kit.kitdir)</dt>
+<dd>
+
+<p>The path to Kit Installation directory on the Mgt Node.</p>
+
+</dd>
+<dt id="kitname-kit.kitname"><b>kitname</b> (kit.kitname)</dt>
+<dd>
+
+<p>The unique generated kit name, when kit is added to the cluster.</p>
+
+</dd>
+<dt id="ostype-kit.ostype"><b>ostype</b> (kit.ostype)</dt>
+<dd>
+
+<p>The kit OS type. Linux or AIX.</p>
+
+</dd>
+<dt id="release-kit.release"><b>release</b> (kit.release)</dt>
+<dd>
+
+<p>The kit release</p>
+
+</dd>
+<dt id="version-kit.version"><b>version</b> (kit.version)</dt>
+<dd>
+
+<p>The kit version</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>mkdef(1)</b>, <b>chdef(1)</b>, <b>lsdef(1)</b>, <b>rmdef(1)</b></p>
+
+
+</body>
+
+</html>
+
+

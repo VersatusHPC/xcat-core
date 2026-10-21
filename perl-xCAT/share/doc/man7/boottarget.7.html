@@ -1,0 +1,79 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#boottarget-Attributes">boottarget Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>boottarget</b> - a logical object definition in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>boottarget Attributes:</b> <i>bprofile</i>, <i>comments</i>, <i>initrd</i>, <i>kcmdline</i>, <i>kernel</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Logical objects of this type are stored in the xCAT database in one or more tables. Use the following commands to manipulate the objects: <b>mkdef</b>, <b>chdef</b>, <b>lsdef</b>, and <b>rmdef</b>. These commands will take care of knowing which tables the object attributes should be stored in. The attribute list below shows, in parentheses, what tables each attribute is stored in.</p>
+
+<h1 id="boottarget-Attributes">boottarget Attributes:</h1>
+
+<dl>
+
+<dt id="bprofile-boottarget.bprofile"><b>bprofile</b> (boottarget.bprofile)</dt>
+<dd>
+
+<p>All nodes with a nodetype.profile value equal to this value and nodetype.os set to &quot;boottarget&quot;, will use the associated kernel, initrd, and kcmdline.</p>
+
+</dd>
+<dt id="comments-boottarget.comments"><b>comments</b> (boottarget.comments)</dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="initrd-boottarget.initrd"><b>initrd</b> (boottarget.initrd)</dt>
+<dd>
+
+<p>The initial ramdisk image that network boot actions should use (could be a DOS floppy or hard drive image if using memdisk as kernel)</p>
+
+</dd>
+<dt id="kcmdline-boottarget.kcmdline"><b>kcmdline</b> (boottarget.kcmdline)</dt>
+<dd>
+
+<p>Arguments to be passed to the kernel</p>
+
+</dd>
+<dt id="kernel-boottarget.kernel"><b>kernel</b> (boottarget.kernel)</dt>
+<dd>
+
+<p>The kernel that network boot actions should currently acquire and use. Note this could be a chained boot loader such as memdisk or a non-linux boot loader</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>mkdef(1)</b>, <b>chdef(1)</b>, <b>lsdef(1)</b>, <b>rmdef(1)</b></p>
+
+
+</body>
+
+</html>
+
+

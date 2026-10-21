@@ -1,0 +1,58 @@
+=head1 NAME
+
+B<bootparams> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<bootparams Attributes:>  I<node>, I<kernel>, I<initrd>, I<kcmdline>, I<addkcmdline>, I<dhcpstatements>, I<adddhcpstatements>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Current boot settings to be sent to systems attempting network boot for deployment, stateless, or other reasons.  Mostly automatically manipulated by xCAT.
+
+=head1 bootparams Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node or group name
+
+=item B<kernel>
+
+The kernel that network boot actions should currently acquire and use.  Note this could be a chained boot loader such as memdisk or a non-linux boot loader
+
+=item B<initrd>
+
+The initial ramdisk image that network boot actions should use (could be a DOS floppy or hard drive image if using memdisk as kernel)
+
+=item B<kcmdline>
+
+(Deprecated, use addkcmdline instead) Arguments to be passed to the kernel.
+
+=item B<addkcmdline>
+
+User specified kernel options for os provision process (no prefix) or the provisioned os (with prefix "R::"). Multiple options should be delimited with spaces(" ") and surrounded with quotes. To have the same option used for os provision process and for provisioned os, specify that option with and without the prefix: addkcmdline="R::display=3 display=3"
+
+=item B<dhcpstatements>
+
+xCAT manipulated custom dhcp statements (not intended for user manipulation)
+
+=item B<adddhcpstatements>
+
+Custom dhcp statements for administrator use (not implemneted yet)
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

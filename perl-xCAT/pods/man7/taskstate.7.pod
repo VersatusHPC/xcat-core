@@ -1,0 +1,49 @@
+=head1 NAME
+
+B<taskstate> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<taskstate Attributes:>  I<command>, I<disable>, I<node>, I<pid>, I<reserve>, I<state>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 taskstate Attributes:
+
+=over 6
+
+
+=item B<command> (taskstate.command)
+
+Current command is running
+
+=item B<disable> (taskstate.disable)
+
+Set to 'yes' or '1' to comment out this row.
+
+=item B<node> (taskstate.node)
+
+The node name.
+
+=item B<pid> (taskstate.pid)
+
+The process id of the request process.
+
+=item B<reserve> (taskstate.reserve)
+
+used to lock the node
+
+=item B<state> (taskstate.state)
+
+The task state(callback, running) for the node.
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

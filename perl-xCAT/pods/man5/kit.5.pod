@@ -1,0 +1,66 @@
+=head1 NAME
+
+B<kit> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<kit Attributes:>  I<kitname>, I<basename>, I<description>, I<version>, I<release>, I<ostype>, I<isinternal>, I<kitdeployparams>, I<kitdir>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+This table stores all kits added to the xCAT cluster.
+
+=head1 kit Attributes:
+
+=over 10
+
+
+=item B<kitname>
+
+The unique generated kit name, when kit is added to the cluster.
+
+=item B<basename>
+
+The kit base name
+
+=item B<description>
+
+The Kit description.
+
+=item B<version>
+
+The kit version
+
+=item B<release>
+
+The kit release
+
+=item B<ostype>
+
+The kit OS type.  Linux or AIX.
+
+=item B<isinternal>
+
+A flag to indicated if the Kit is internally used. When set to 1, the Kit is internal. If 0 or undefined, the kit is not internal.
+
+=item B<kitdeployparams>
+
+The file containing the default deployment parameters for this Kit.  These parameters are added to the OS Image definition.s list of deployment parameters when one or more Kit Components from this Kit are added to the OS Image.
+
+=item B<kitdir>
+
+The path to Kit Installation directory on the Mgt Node.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

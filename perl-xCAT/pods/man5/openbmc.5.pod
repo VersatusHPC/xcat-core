@@ -1,0 +1,54 @@
+=head1 NAME
+
+B<openbmc> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<openbmc Attributes:>  I<node>, I<bmc>, I<consport>, I<taggedvlan>, I<username>, I<password>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Setting for nodes that are controlled by an on-board OpenBMC.
+
+=head1 openbmc Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name or group name.
+
+=item B<bmc>
+
+The hostname of the BMC adapter.
+
+=item B<consport>
+
+The console port for OpenBMC.
+
+=item B<taggedvlan>
+
+bmcsetup script will configure the network interface of the BMC to be tagged to the VLAN specified.
+
+=item B<username>
+
+The BMC userid. If not specified, the key=openbmc row in the passwd table is used as the default.
+
+=item B<password>
+
+The BMC password. If not specified, the key=openbmc row in the passwd table is used as the default.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

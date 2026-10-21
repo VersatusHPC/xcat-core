@@ -1,0 +1,46 @@
+=head1 NAME
+
+B<cfgmgt> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<cfgmgt Attributes:>  I<node>, I<cfgmgr>, I<cfgserver>, I<roles>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Configuration management data for nodes used by non-xCAT osimage management services to install and configure software on a node.  
+
+=head1 cfgmgt Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node being managed by the cfgmgr service
+
+=item B<cfgmgr>
+
+The name of the configuration manager service.  Currently 'chef' and 'puppet' are supported services.
+
+=item B<cfgserver>
+
+The xCAT node name of the chef server or puppet master
+
+=item B<roles>
+
+The roles associated with this node as recognized by the cfgmgr for the software that is to be installed and configured.  These role names map to chef recipes or puppet manifest classes that should be used for this node.  For example, chef OpenStack cookbooks have roles such as mysql-master,keystone, glance, nova-controller, nova-conductor, cinder-all.  
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

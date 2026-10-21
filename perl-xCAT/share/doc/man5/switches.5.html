@@ -1,0 +1,123 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#switches-Attributes">switches Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>switches</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>switches Attributes:</b> <i>switch</i>, <i>snmpversion</i>, <i>username</i>, <i>password</i>, <i>privacy</i>, <i>auth</i>, <i>linkports</i>, <i>sshusername</i>, <i>sshpassword</i>, <i>protocol</i>, <i>switchtype</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Parameters to use when interrogating switches</p>
+
+<h1 id="switches-Attributes">switches Attributes:</h1>
+
+<dl>
+
+<dt id="switch"><b>switch</b></dt>
+<dd>
+
+<p>The hostname/address of the switch to which the settings apply</p>
+
+</dd>
+<dt id="snmpversion"><b>snmpversion</b></dt>
+<dd>
+
+<p>The version to use to communicate with switch. SNMPv1 is assumed by default.</p>
+
+</dd>
+<dt id="username"><b>username</b></dt>
+<dd>
+
+<p>The username to use for SNMPv3 communication, ignored for SNMPv1</p>
+
+</dd>
+<dt id="password"><b>password</b></dt>
+<dd>
+
+<p>The password string for SNMPv3 or community string for SNMPv1/SNMPv2. Falls back to passwd table, and site snmpc value if using SNMPv1/SNMPv2.</p>
+
+</dd>
+<dt id="privacy"><b>privacy</b></dt>
+<dd>
+
+<p>The privacy protocol to use for v3. xCAT will use authNoPriv if this is unspecified. DES is recommended to use if v3 enabled, as it is the most readily available.</p>
+
+</dd>
+<dt id="auth"><b>auth</b></dt>
+<dd>
+
+<p>The authentication protocol to use for SNMPv3. SHA is assumed if v3 enabled and this is unspecified</p>
+
+</dd>
+<dt id="linkports"><b>linkports</b></dt>
+<dd>
+
+<p>The ports that connect to other switches. Currently, this column is only used by vlan configuration. The format is: &quot;port_number:switch,port_number:switch...&quot;. Refer to the switch table for details on how to specify the port numbers.</p>
+
+</dd>
+<dt id="sshusername"><b>sshusername</b></dt>
+<dd>
+
+<p>The remote login user name. It can be for ssh or telnet. If it is for telnet, set protocol to &quot;telnet&quot;. If the sshusername is blank, the username, password and protocol will be retrieved from the passwd table with &quot;switch&quot; as the key.</p>
+
+</dd>
+<dt id="sshpassword"><b>sshpassword</b></dt>
+<dd>
+
+<p>The remote login password. It can be for ssh or telnet. If it is for telnet, set protocol to &quot;telnet&quot;. If the sshusername is blank, the username, password and protocol will be retrieved from the passwd table with &quot;switch&quot; as the key.</p>
+
+</dd>
+<dt id="protocol"><b>protocol</b></dt>
+<dd>
+
+<p>Protocol for running remote commands for the switch. The valid values are: ssh, telnet. ssh is the default. If the sshusername is blank, the username, password and protocol will be retrieved from the passwd table with &quot;switch&quot; as the key. The passwd.comments attribute is used for protocol.</p>
+
+</dd>
+<dt id="switchtype"><b>switchtype</b></dt>
+<dd>
+
+<p>The type of switch. It is used to identify the file name that implements the functions for this switch. The valid values are: Mellanox, Cisco, BNT and Juniper.</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

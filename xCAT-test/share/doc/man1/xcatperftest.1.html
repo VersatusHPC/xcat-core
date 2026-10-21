@@ -1,0 +1,184 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#OPTIONS">OPTIONS</a></li>
+  <li><a href="#RETURN-VALUE">RETURN VALUE</a></li>
+  <li><a href="#COMMAND-LIST-FILE">COMMAND LIST FILE</a></li>
+  <li><a href="#ENVIRONMENT-VARIABLE">ENVIRONMENT VARIABLE</a></li>
+  <li><a href="#EXAMPLES">EXAMPLES</a></li>
+  <li><a href="#FILES">FILES</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>xcatperftest</b> - Run xCAT command performance baseline testing on fake nodes.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>xcatperftest</b> [<b>-?|-h</b>]</p>
+
+<p>[<b>PERF_DRYRUN</b>=y] <b>xcatperftest run</b> [<i>command-list-file</i>]</p>
+
+<p>[<b>PERF_DRYRUN</b>=y] [<b>PERF_NOCREATE</b>=y] <b>xcatperftest</b> &lt;total&gt; [<i>command-list-file</i>]</p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>The <b>xcatperftest</b> command runs commands defined in a command list file and get their execution response time baseline for performance purpose. The <b>xcatperftest</b> command is part of the xCAT package <b>xCAT-test</b>, and you can run it standalone or leverage it to build up your automation test cases.</p>
+
+<p>Any command could be defined in the command list file, however, it is recommended that the one-time initial configuration is well prepared prior to running <b>xcatperftest</b> command. For example, the network object, osdistro and osimage image objects.</p>
+
+<p>Follow the steps below to run <b>xcatperftest</b> command:</p>
+
+<p>1. Install <b>xCAT-test</b> on a xCAT management node.</p>
+
+<p>2. Prepare a command list with the commands you want to measure.</p>
+
+<p>3. Prepare the initial configuration based on the command list to make sure all commands could be executed in techinal.</p>
+
+<p>4. Run <b>xcatperftest</b> with the total fake nodes number and the above command list file.</p>
+
+<p>Node: It is suggested to run the command in background as it normally takes long time to finish all the performance testing with large amount of fake nodes.</p>
+
+<h1 id="OPTIONS">OPTIONS</h1>
+
+<dl>
+
+<dt id="h"><b>-?|-h</b></dt>
+<dd>
+
+<p>Display usage message.</p>
+
+</dd>
+<dt id="command-list-file"><i>command-list-file</i></dt>
+<dd>
+
+<p>Specifies the command list file with full-path. xCAT supports an example command file: /opt/xcat/share/xcat/tools/autotest/perfcmds.lst</p>
+
+</dd>
+<dt id="total">&lt;total&gt;</dt>
+<dd>
+
+<p>Total number of fake nodes will be defined during the testing.</p>
+
+</dd>
+</dl>
+
+<h1 id="RETURN-VALUE">RETURN VALUE</h1>
+
+<p>0 The command completed successfully.</p>
+
+<p>1 An error has occurred.</p>
+
+<h1 id="COMMAND-LIST-FILE">COMMAND LIST FILE</h1>
+
+<p>The command list file is in flat text format, the testing framework will parse the file line by line, here is an example of the command list file:</p>
+
+<pre><code>#SERIES# 1,50,100,250,500,1000,2500,5000
+mkdef -z -f &lt; #STANZ#
+lsdef #NODES#
+makehosts #NODES#
+makedns -n #NODES#
+makedhcp #NODES#
+makeknownhosts #NODES#
+nodech #NODES# groups,=group1
+nodels #NODES# noderes
+nodeset #NODES# osimage=rhels7.3-GA-ppc64le-install-compute
+chdef -t node -o #NODES# postscripts=&quot;fake&quot; profile=&quot;install&quot; netboot=&quot;grub2&quot;
+rmdef -t node #PERFGRP#
+mkdef -z &lt; #STANZ#
+noderm #PERFGRP#</code></pre>
+
+<p><b>Note</b>: Each line defines one command, and the commands dependency should be handled by the line order. If you define a node range series line (started with <b>#SERIES#</b>) in this file, xcatperftest will run the command for each node range defined in series line.</p>
+
+<p><b>#SERIES#</b> To define a node range series, and the series should be an comma split incremental number sequence.</p>
+
+<p><b>#STANZ#</b> It will be replaced with real stanz file path when this command line runs.</p>
+
+<p><b>#NODES#</b> It will be replaced with real node range defined in <b>#SERIES#</b> line when this command line runs. If no series line, the node group will be used.</p>
+
+<p><b>#PERFGRP#</b> It will be replaced with node group when this command line runs.</p>
+
+<h1 id="ENVIRONMENT-VARIABLE">ENVIRONMENT VARIABLE</h1>
+
+<p>The <b>xcatperftest</b> command supports customization by some environment variables.</p>
+
+<p><b>FAKE_NODE_PREFIX</b></p>
+
+<p>Optional, the prefix of the fake compute node name. By default, the value is &#39;fake&#39;</p>
+
+<p><b>FAKE_NODE_GROUP</b></p>
+
+<p># Optional, the group name of all the fake compute nodes. By default, the value is &#39;perftest&#39;</p>
+
+<p><b>FAKE_NETWORK_PRO</b></p>
+
+<p>Mandatory, the Provision network for all the fake compute nodes. By default, the value is &#39;192.168&#39;. It must be a string like &#39;A.B&#39;, and be matched with `tabdump networks`</p>
+
+<p><b>FAKE_NETWORK_BMC</b></p>
+
+<p>Mandatory, the BMC network for all the fake compute nodes. By default, the value is &#39;192.168&#39;. Note: It could not be the same subnet as &#39;FAKE_NETWORK_PRO&#39; It must be a string like &#39;A.B&#39; and no need to be defined in &#39;networks&#39; table.</p>
+
+<p><b>PERF_NODETEMPL</b></p>
+
+<p>Optional, the node template name used for generating fake nodes. By default, it will be auto-detected according to the current arch.</p>
+
+<p><b>PERF_DRYRUN</b></p>
+
+<p>Optional, indicate no real commands will be executed if the environment variable is set.</p>
+
+<p><b>PERF_NOCREATE</b></p>
+
+<p>Optional, indicate no new fake nodes will be created if the environment variable is set.</p>
+
+<h1 id="EXAMPLES">EXAMPLES</h1>
+
+<ol>
+
+<li><p>To run the performance testing for the commands defined in /tmp/cmd.lst on 5000 fake nodes:</p>
+
+<pre><code>xcatperftest 5000 /tmp/cmd.lst</code></pre>
+
+</li>
+<li><p>To generate an xCAT node object stanz file for 10000 nodes in subnet 10.100.0.0:</p>
+
+<pre><code>FAKE_NETWORK_PRO=10.100 FAKE_NETWORK_BMC=10.200 xcatperftest 10000</code></pre>
+
+</li>
+<li><p>To run the performance testing for the commands defined in /opt/xcat/share/xcat/tools/autotest/perfcmds.lst on 5000 existing fake nodes:</p>
+
+<pre><code>PERF_NOCREATE=y xcatperftest 5000 /opt/xcat/share/xcat/tools/autotest/perfcmds.lst</code></pre>
+
+</li>
+<li><p>To run the performance testing for the commands defined in /tmp/cmd.lst in existing xCAT environment:</p>
+
+<pre><code>xcatperftest run /tmp/cmd.lst</code></pre>
+
+</li>
+</ol>
+
+<h1 id="FILES">FILES</h1>
+
+<p>/opt/xcat/bin/xcatperftest</p>
+
+<p>/opt/xcat/share/xcat/tools/autotest/perfcmds.lst</p>
+
+
+</body>
+
+</html>
+
+

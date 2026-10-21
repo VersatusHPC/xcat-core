@@ -1,0 +1,50 @@
+=head1 NAME
+
+B<nodegroup> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<nodegroup Attributes:>  I<groupname>, I<grouptype>, I<members>, I<membergroups>, I<wherevals>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Contains group definitions, whose membership is dynamic depending on characteristics of the node.
+
+=head1 nodegroup Attributes:
+
+=over 10
+
+
+=item B<groupname>
+
+Name of the group.
+
+=item B<grouptype>
+
+Static or Dynamic. A static group is defined to contain a specific set of cluster nodes. A dynamic node group is one that has its members determined by specifying a selection criteria for node attributes.
+
+=item B<members>
+
+The value of the attribute is not used, but the attribute is necessary as a place holder for the object def commands.  (The membership for static groups is stored in the nodelist table.)
+
+=item B<membergroups>
+
+This attribute stores a comma-separated list of nodegroups that this nodegroup refers to. This attribute is only used by PCM.
+
+=item B<wherevals>
+
+A list of "attr*val" pairs that can be used to determine the members of a dynamic group, the delimiter is "::" and the operator * can be ==, =~, != or !~.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

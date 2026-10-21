@@ -1,0 +1,58 @@
+=head1 NAME
+
+B<virtsd> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<virtsd Attributes:>  I<node>, I<sdtype>, I<stype>, I<location>, I<host>, I<cluster>, I<datacenter>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+The parameters which used to create the Storage Domain
+
+=head1 virtsd Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The name of the storage domain
+
+=item B<sdtype>
+
+The type of storage domain. Valid values: data, iso, export
+
+=item B<stype>
+
+The type of storge. Valid values: nfs, fcp, iscsi, localfs
+
+=item B<location>
+
+The path of the storage
+
+=item B<host>
+
+For rhev, a hypervisor host needs to be specified to manage the storage domain as SPM (Storage Pool Manager). But the SPM role will be failed over to another host when this host down.
+
+=item B<cluster>
+
+A cluster of hosts
+
+=item B<datacenter>
+
+A collection for all host, vm that will shared the same storages, networks.
+
+=item B<comments>
+
+
+
+=item B<disable>
+
+
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

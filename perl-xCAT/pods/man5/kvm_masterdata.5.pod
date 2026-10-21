@@ -1,0 +1,38 @@
+=head1 NAME
+
+B<kvm_masterdata> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<kvm_masterdata Attributes:>  I<name>, I<xml>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Persistent store for KVM plugin for masters
+
+=head1 kvm_masterdata Attributes:
+
+=over 10
+
+
+=item B<name>
+
+The name of the relevant master
+
+=item B<xml>
+
+The XML description to be customized for clones of this master
+
+=item B<comments>
+
+
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

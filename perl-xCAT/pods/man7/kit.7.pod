@@ -1,0 +1,61 @@
+=head1 NAME
+
+B<kit> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<kit Attributes:>  I<basename>, I<description>, I<isinternal>, I<kitdeployparams>, I<kitdir>, I<kitname>, I<ostype>, I<release>, I<version>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 kit Attributes:
+
+=over 6
+
+
+=item B<basename> (kit.basename)
+
+The kit base name
+
+=item B<description> (kit.description)
+
+The Kit description.
+
+=item B<isinternal> (kit.isinternal)
+
+A flag to indicated if the Kit is internally used. When set to 1, the Kit is internal. If 0 or undefined, the kit is not internal.
+
+=item B<kitdeployparams> (kit.kitdeployparams)
+
+The file containing the default deployment parameters for this Kit.  These parameters are added to the OS Image definition.s list of deployment parameters when one or more Kit Components from this Kit are added to the OS Image.
+
+=item B<kitdir> (kit.kitdir)
+
+The path to Kit Installation directory on the Mgt Node.
+
+=item B<kitname> (kit.kitname)
+
+The unique generated kit name, when kit is added to the cluster.
+
+=item B<ostype> (kit.ostype)
+
+The kit OS type.  Linux or AIX.
+
+=item B<release> (kit.release)
+
+The kit release
+
+=item B<version> (kit.version)
+
+The kit version
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

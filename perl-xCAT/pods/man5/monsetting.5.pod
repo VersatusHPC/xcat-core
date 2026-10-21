@@ -1,0 +1,42 @@
+=head1 NAME
+
+B<monsetting> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<monsetting Attributes:>  I<name>, I<key>, I<value>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Specifies the monitoring plug-in specific settings. These settings will be used by the monitoring plug-in to customize the behavior such as event filter, sample interval, responses etc. Entries should be added, removed or modified by chtab command. Entries can also be added or modified by the monstart command when a monitoring plug-in is brought up.
+
+=head1 monsetting Attributes:
+
+=over 10
+
+
+=item B<name>
+
+The name of the monitoring plug-in module.  The plug-in must be put in /lib/perl/xCAT_monitoring/.  See the man page for monstart for details.
+
+=item B<key>
+
+Specifies the name of the attribute. The valid values are specified by each monitoring plug-in. Use "monls name -d" to get a list of valid keys.
+
+=item B<value>
+
+Specifies the value of the attribute.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

@@ -1,0 +1,102 @@
+=head1 NAME
+
+B<networks> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<networks Attributes:>  I<netname>, I<net>, I<mask>, I<mgtifname>, I<gateway>, I<dhcpserver>, I<tftpserver>, I<nameservers>, I<ntpservers>, I<logservers>, I<dynamicrange>, I<staticrange>, I<staticrangeincrement>, I<nodehostname>, I<ddnsdomain>, I<vlanid>, I<domain>, I<mtu>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Describes the networks in the cluster and info necessary to set up nodes on that network.
+
+=head1 networks Attributes:
+
+=over 10
+
+
+=item B<netname>
+
+Name used to identify this network definition.
+
+=item B<net>
+
+The network address.
+
+=item B<mask>
+
+The network mask.
+
+=item B<mgtifname>
+
+The interface name of the management/service node facing this network.  !remote!<nicname> indicates a non-local network on a specific nic for relay DHCP.
+
+=item B<gateway>
+
+The network gateway. It can be set to an ip address or the keyword <xcatmaster>, the keyword <xcatmaster> indicates the cluster-facing ip address configured on this management node or service node. Leaving this field blank means that there is no gateway for this network.
+
+=item B<dhcpserver>
+
+The DHCP server that is servicing this network.  Required to be explicitly set for pooled service node operation.  This field should not be set except for service node operation.  Also, <xcatmaster> is not a valid field value for this field.
+
+=item B<tftpserver>
+
+The TFTP server that is servicing this network.  If not set, the DHCP server is assumed.
+
+=item B<nameservers>
+
+A comma delimited list of DNS servers that each node in this network should use. This value will end up in the nameserver settings of the /etc/resolv.conf on each node in this network. If this attribute value is set to the IP address of an xCAT node, make sure DNS is running on it. In a hierarchical cluster, you can also set this attribute to "<xcatmaster>" to mean the DNS server for each node in this network should be the node that is managing it (either its service node or the management node).  Used in creating the DHCP network definition, and DNS configuration.
+
+=item B<ntpservers>
+
+The ntp servers for this network.  Used in creating the DHCP network definition.  Assumed to be the DHCP server if not set.
+
+=item B<logservers>
+
+The log servers for this network.  Used in creating the DHCP network definition.  Assumed to be the DHCP server if not set.
+
+=item B<dynamicrange>
+
+The IP address range used by DHCP to assign dynamic IP addresses for requests on this network.  This should not overlap with entities expected to be configured with static host declarations, i.e. anything ever expected to be a node with an address registered in the mac table.
+
+=item B<staticrange>
+
+The IP address range used to dynamically assign static IPs to newly discovered nodes.  This should not overlap with the dynamicrange nor overlap with entities that were manually assigned static IPs.  The format for the attribute value is:    <startip>-<endip>.
+
+=item B<staticrangeincrement>
+
+
+
+=item B<nodehostname>
+
+A regular expression used to specify node name to network-specific hostname.  i.e. "/\z/-secondary/" would mean that the hostname of "n1" would be n1-secondary on this network.  By default, the nodename is assumed to equal the hostname, followed by nodename-interfacename.
+
+=item B<ddnsdomain>
+
+A domain to be combined with nodename to construct FQDN for DDNS updates induced by DHCP.  This is not passed down to the client as "domain"
+
+=item B<vlanid>
+
+The vlan ID if this network is within a vlan.
+
+=item B<domain>
+
+The DNS domain name (ex. cluster.com).
+
+=item B<mtu>
+
+The default MTU for the network, If multiple networks are applied to the same nic on the SN and/or CN, the MTU shall be the same for those networks.
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

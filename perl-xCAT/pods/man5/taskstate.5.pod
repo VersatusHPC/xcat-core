@@ -1,0 +1,46 @@
+=head1 NAME
+
+B<taskstate> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<taskstate Attributes:>  I<node>, I<command>, I<state>, I<pid>, I<reserve>, I<disable>
+
+=head1 DESCRIPTION
+
+The task state for the node.
+
+=head1 taskstate Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name.
+
+=item B<command>
+
+Current command is running
+
+=item B<state>
+
+The task state(callback, running) for the node.
+
+=item B<pid>
+
+The process id of the request process.
+
+=item B<reserve>
+
+used to lock the node
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

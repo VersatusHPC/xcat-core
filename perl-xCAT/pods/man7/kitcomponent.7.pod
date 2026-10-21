@@ -1,0 +1,85 @@
+=head1 NAME
+
+B<kitcomponent> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<kitcomponent Attributes:>  I<basename>, I<description>, I<driverpacks>, I<exlist>, I<genimage_postinstall>, I<kitcompdeps>, I<kitcompname>, I<kitname>, I<kitpkgdeps>, I<kitreponame>, I<postbootscripts>, I<prerequisite>, I<release>, I<serverroles>, I<version>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 kitcomponent Attributes:
+
+=over 6
+
+
+=item B<basename> (kitcomponent.basename)
+
+Kit Component basename.
+
+=item B<description> (kitcomponent.description)
+
+The Kit component description.
+
+=item B<driverpacks> (kitcomponent.driverpacks)
+
+Comma-separated List of driver package names. These must be full names like: pkg1-1.0-1.x86_64.rpm.
+
+=item B<exlist> (kitcomponent.exlist)
+
+Exclude list file containing the files/directories to exclude when building a diskless image.
+
+=item B<genimage_postinstall> (kitcomponent.genimage_postinstall)
+
+Comma-separated list of postinstall scripts that will run during the genimage.
+
+=item B<kitcompdeps> (kitcomponent.kitcompdeps)
+
+Comma-separated list of kit components that this kit component depends on.
+
+=item B<kitcompname> (kitcomponent.kitcompname)
+
+The unique Kit Component name. It is auto-generated when the parent Kit is added to the cluster.
+
+=item B<kitname> (kitcomponent.kitname)
+
+The Kit name which this Kit Component belongs to.
+
+=item B<kitpkgdeps> (kitcomponent.kitpkgdeps)
+
+Comma-separated list of packages that this kit component depends on.
+
+=item B<kitreponame> (kitcomponent.kitreponame)
+
+The Kit Package Repository name which this Kit Component belongs to.
+
+=item B<postbootscripts> (kitcomponent.postbootscripts)
+
+Comma-separated list of postbootscripts that will run during the node boot.
+
+=item B<prerequisite> (kitcomponent.prerequisite)
+
+Prerequisite for this kit component, the prerequisite includes ospkgdeps,preinstall,preupgrade,preuninstall scripts
+
+=item B<release> (kitcomponent.release)
+
+Kit Component release.
+
+=item B<serverroles> (kitcomponent.serverroles)
+
+The types of servers that this Kit Component can install on.  Valid types are: mgtnode, servicenode, compute
+
+=item B<version> (kitcomponent.version)
+
+Kit Component version.
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

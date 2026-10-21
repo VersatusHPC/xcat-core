@@ -1,0 +1,56 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: xCAT internal repository
+Label: xcat-core bazaar repository
+Codename: noble
+Date: Wed, 21 Oct 2026 20:35:48 UTC
+Architectures: amd64 ppc64el riscv64
+Components: main
+Description: Repository automatically genereted conf
+MD5Sum:
+ 919bf82a398609f07fdc61c33fb94376 11024 main/binary-amd64/Packages
+ 9152e0a6e1c116ce8d9237754f8e1b1a 3636 main/binary-amd64/Packages.gz
+ 1bf6eb798ccb1b1e5f704b6221d42e71 157 main/binary-amd64/Release
+ 0ca881ad55360bb841812812e8c284c0 11016 main/binary-ppc64el/Packages
+ 0e81d29bf021bba99ad9b0367ee8f1cf 3629 main/binary-ppc64el/Packages.gz
+ 07fe26f40ff08508275f1deaff08c3d5 159 main/binary-ppc64el/Release
+ 7e1a3a3eba3453ad7562c98f8d5e0eb6 10900 main/binary-riscv64/Packages
+ 5d7d7cd98fe5f0715db88d7644ecbcdf 3625 main/binary-riscv64/Packages.gz
+ ae5bab93a8427414824b6bed0e86b05a 159 main/binary-riscv64/Release
+SHA1:
+ 2aed402f1b79ef85f705e8f03c8469b664fcd4f0 11024 main/binary-amd64/Packages
+ 4917c088d1d155600f372e2937f8041cb5ea930b 3636 main/binary-amd64/Packages.gz
+ abc7f0b8bd9778c8c7dda8c42c66139c4beee0a8 157 main/binary-amd64/Release
+ 1472b08b6093e6683a9b4a30f39d5a2a2384eb1d 11016 main/binary-ppc64el/Packages
+ 5de144c64b96b664625afaaa8d5d3974e4a33c81 3629 main/binary-ppc64el/Packages.gz
+ f9df93d39d17466dfd34ab5c12a0e56c591bd7e1 159 main/binary-ppc64el/Release
+ 035fb87eae9c6013e05813b3a656ab4fae43e277 10900 main/binary-riscv64/Packages
+ 1d39c268859b61f9ec5df9ae242d11e6c0b5a8e6 3625 main/binary-riscv64/Packages.gz
+ 7024dd287be65fd6a78f023e209076365666fb1d 159 main/binary-riscv64/Release
+SHA256:
+ 1232e2a9e1e55e5fe206d33d14f4528c36649dacfa9a14f7887c2e59c1a5f6f0 11024 main/binary-amd64/Packages
+ bfee8c3ff867fbf7728c5245e5a01ae580d85509933ce8efcf419b94390b18e2 3636 main/binary-amd64/Packages.gz
+ d9e85c4c87cea24e1bf1bc38656fc5224e5cf9379cb8835a2aa4fe2101531234 157 main/binary-amd64/Release
+ e27c2554b73cbe934841979cdcedbf84559fd0d5d98de6e84c4080e72554172c 11016 main/binary-ppc64el/Packages
+ d084ed14aa56520ebb89987a63b523af99115d1817f87063cf620fc113f5211a 3629 main/binary-ppc64el/Packages.gz
+ 047384b8da715a625014064eb479ca83e5b282e54ae7be3b96ef05e849fc0ad7 159 main/binary-ppc64el/Release
+ 515b6d84acb726d070243c146c711c7febbe960a3e229e3155a19b133736e6d0 10900 main/binary-riscv64/Packages
+ c47ebea1141b68e82844eac5f2233e4ccdb100b69e1308d66ab8f326d262b25b 3625 main/binary-riscv64/Packages.gz
+ 95dc720afe98cf9db97af971dcd6dd4170239ad92e90345885e23b27f2bd145b 159 main/binary-riscv64/Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEECHBEU25Iq5cimU4UQSPEIMtgrUMFAmrZIiQACgkQQSPEIMtg
+rUMEAQ/+O1vg3bOek8efAXPp6poh4G2jTtGOae5P1nIbLtnLTStIm7Pmn4y60yYM
+SvuEpt3RN7omD2Zh4yjHW2J35eX0Qj0Ho8wVz5ozld8M+jSgIOO3NCMbrIesGlcF
+1a/8+BFMUlckGfCcCym4ZzX/T8cL/ne/IVtj9eSAKz1WA/d+e/sibaveU0pV5v/c
+bGVb56q0JFFeaHZCVw1/O/U5m8QU1GcAVaN5exmRVc+OvlqGy/GRbp2YO86VdeRE
+0qwYFZ/I5Gp0rgow1w3FSKqV4tfyxy674zmGXOB7zKcZTVobCMa3DUGRHNcLZOm5
+jIIXLseMV8M8hJVulBnY9Rspl9pc2e02dgz5PHZocJX7mzg+CPJ/hxbrB5N4UsyB
+80SBqJCQOfAdSYynDhHiiyzlBYSHEsYfWFCc6IXlF57HLl8wvE5GYNZFGRqrnX8A
+p6HMZoxJuTlVKFBmQyXKIrMwvaIBM29nyN/aBZEIUpZElb2giTM8bLJkQ8BoNF22
+nRSiBANGkgu5jv5RXOxbdqcqIwqh7/fh3uKNwRJnPLwayu5csUVnIMC/pWC2aYYW
+FyW84fpQlRUrVnboE+nthRV8pTsCnp6T7wjfBRchsqSdbbWACFBwsHx15JiJ5ur3
+XveEsdVbvh6h1GGcp3qpdeYZCPJL2Y+NODeB7Gqx9bxgucWhnys=
+=ZPkd
+-----END PGP SIGNATURE-----

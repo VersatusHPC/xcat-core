@@ -1,0 +1,50 @@
+=head1 NAME
+
+B<token> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<token Attributes:>  I<tokenid>, I<username>, I<expire>, I<created>, I<access>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+The token of users for authentication.
+
+=head1 token Attributes:
+
+=over 10
+
+
+=item B<tokenid>
+
+It is a UUID as an unified identify for the user.
+
+=item B<username>
+
+The user name.
+
+=item B<expire>
+
+The expire time for this token.
+
+=item B<created>
+
+Creation time for this token.
+
+=item B<access>
+
+Last access time for this token.
+
+=item B<comments>
+
+Any user-provided notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

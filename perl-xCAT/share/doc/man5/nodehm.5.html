@@ -1,0 +1,145 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#nodehm-Attributes">nodehm Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>nodehm</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>nodehm Attributes:</b> <i>node</i>, <i>power</i>, <i>mgt</i>, <i>cons</i>, <i>termserver</i>, <i>termport</i>, <i>conserver</i>, <i>serialport</i>, <i>serialspeed</i>, <i>serialflow</i>, <i>getmac</i>, <i>cmdmapping</i>, <i>consoleondemand</i>, <i>consoleenabled</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>Settings that control how each node&#39;s hardware is managed. Typically, an additional table that is specific to the hardware type of the node contains additional info. E.g. the ipmi, mp, and ppc tables.</p>
+
+<h1 id="nodehm-Attributes">nodehm Attributes:</h1>
+
+<dl>
+
+<dt id="node"><b>node</b></dt>
+<dd>
+
+<p>The node name or group name.</p>
+
+</dd>
+<dt id="power"><b>power</b></dt>
+<dd>
+
+<p>The method to use to control the power of the node. If not set, the mgt attribute will be used. Valid values: ipmi, blade, hmc, ivm, fsp, kvm, esx, rhevm. If &quot;ipmi&quot;, xCAT will search for this node in the ipmi table for more info. If &quot;blade&quot;, xCAT will search for this node in the mp table. If &quot;hmc&quot;, &quot;ivm&quot;, or &quot;fsp&quot;, xCAT will search for this node in the ppc table.</p>
+
+</dd>
+<dt id="mgt"><b>mgt</b></dt>
+<dd>
+
+<p>The method to use to do general hardware management of the node. This attribute is used as the default if power or getmac is not set. Valid values: openbmc, ipmi, blade, hmc, ivm, fsp, bpa, kvm, esx, rhevm. See the power attribute for more details.</p>
+
+</dd>
+<dt id="cons"><b>cons</b></dt>
+<dd>
+
+<p>The console method. If nodehm.serialport is set, this will default to the nodehm.mgt setting, otherwise it defaults to unused. Valid values: cyclades, mrv, or the values valid for the mgt attribute.</p>
+
+</dd>
+<dt id="termserver"><b>termserver</b></dt>
+<dd>
+
+<p>The hostname of the terminal server.</p>
+
+</dd>
+<dt id="termport"><b>termport</b></dt>
+<dd>
+
+<p>The port number on the terminal server that this node is connected to.</p>
+
+</dd>
+<dt id="conserver"><b>conserver</b></dt>
+<dd>
+
+<p>The hostname of the machine where the conserver daemon is running. If not set, the default is the xCAT management node.</p>
+
+</dd>
+<dt id="serialport"><b>serialport</b></dt>
+<dd>
+
+<p>The serial port for this node, in the linux numbering style (0=COM1/ttyS0, 1=COM2/ttyS1). For SOL on IBM blades, this is typically 1. For rackmount IBM servers, this is typically 0.</p>
+
+</dd>
+<dt id="serialspeed"><b>serialspeed</b></dt>
+<dd>
+
+<p>The speed of the serial port for this node. For SOL this is typically 19200.</p>
+
+</dd>
+<dt id="serialflow"><b>serialflow</b></dt>
+<dd>
+
+<p>The flow control value of the serial port for this node. For SOL this is typically &#39;hard&#39;.</p>
+
+</dd>
+<dt id="getmac"><b>getmac</b></dt>
+<dd>
+
+<p>The method to use to get MAC address of the node with the getmac command. If not set, the mgt attribute will be used. Valid values: same as values for mgmt attribute.</p>
+
+</dd>
+<dt id="cmdmapping"><b>cmdmapping</b></dt>
+<dd>
+
+<p>The fully qualified name of the file that stores the mapping between PCM hardware management commands and xCAT/third-party hardware management commands for a particular type of hardware device. Only used by PCM.</p>
+
+</dd>
+<dt id="consoleondemand"><b>consoleondemand</b></dt>
+<dd>
+
+<p>This overrides the value from site.consoleondemand. Set to &#39;yes&#39;, &#39;no&#39;, &#39;1&#39; (equivalent to &#39;yes&#39;), or &#39;0&#39; (equivalent to &#39;no&#39;). If not set, the default is the value from site.consoleondemand.</p>
+
+</dd>
+<dt id="consoleenabled"><b>consoleenabled</b></dt>
+<dd>
+
+<p>A flag field to indicate whether the node is registered in the console server. If &#39;1&#39;, console is enabled, if not set, console is not enabled.</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+<p>Set to &#39;yes&#39; or &#39;1&#39; to comment out this row.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

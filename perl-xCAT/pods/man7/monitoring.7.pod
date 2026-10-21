@@ -1,0 +1,41 @@
+=head1 NAME
+
+B<monitoring> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<monitoring Attributes:>  I<comments>, I<disable>, I<name>, I<nodestatmon>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 monitoring Attributes:
+
+=over 6
+
+
+=item B<comments> (monitoring.comments)
+
+Any user-written notes.
+
+=item B<disable> (monitoring.disable)
+
+Set to 'yes' or '1' to comment out this row.
+
+=item B<name> (monitoring.name)
+
+The name of the monitoring plug-in module.  The plug-in must be put in /lib/perl/xCAT_monitoring/.  See the man page for monstart for details.
+
+=item B<nodestatmon> (monitoring.nodestatmon)
+
+Specifies if the monitoring plug-in is used to feed the node status to the xCAT cluster.  Any one of the following values indicates "yes":  y, Y, yes, Yes, YES, 1.  Any other value or blank (default), indicates "no".
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

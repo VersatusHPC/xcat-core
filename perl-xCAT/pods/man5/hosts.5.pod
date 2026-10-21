@@ -1,0 +1,46 @@
+=head1 NAME
+
+B<hosts> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<hosts Attributes:>  I<node>, I<ip>, I<hostnames>, I<otherinterfaces>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+IP addresses and hostnames of nodes.  This info is optional and is only used to populate /etc/hosts and DNS via makehosts and makedns.  Using regular expressions in this table can be a quick way to populate /etc/hosts.
+
+=head1 hosts Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name or group name.
+
+=item B<ip>
+
+The IP address of the node. This is only used in makehosts.  The rest of xCAT uses system name resolution to resolve node names to IP addresses.
+
+=item B<hostnames>
+
+Hostname aliases added to /etc/hosts for this node. Comma or blank separated list.
+
+=item B<otherinterfaces>
+
+Other IP addresses to add for this node.  Format: -<ext>:<ip>,<intfhostname>:<ip>,...
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

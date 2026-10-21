@@ -1,0 +1,118 @@
+=head1 NAME
+
+B<discoverydata> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<discoverydata Attributes:>  I<uuid>, I<node>, I<method>, I<discoverytime>, I<arch>, I<cpucount>, I<cputype>, I<memory>, I<mtm>, I<serial>, I<nicdriver>, I<nicipv4>, I<nichwaddr>, I<nicpci>, I<nicloc>, I<niconboard>, I<nicfirm>, I<switchname>, I<switchaddr>, I<switchdesc>, I<switchport>, I<otherdata>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Discovery data which sent from genesis.
+
+=head1 discoverydata Attributes:
+
+=over 10
+
+
+=item B<uuid>
+
+The uuid of the node which send out the discovery request.
+
+=item B<node>
+
+The node name which assigned to the discovered node.
+
+=item B<method>
+
+The method which handled the discovery request. The method could be one of: switch, blade, profile, sequential.
+
+=item B<discoverytime>
+
+The last time that xCAT received the discovery message.
+
+=item B<arch>
+
+The architecture of the discovered node. e.g. x86_64.
+
+=item B<cpucount>
+
+The number of cores multiply by threads core supported for the discovered node. e.g. 192.
+
+=item B<cputype>
+
+The cpu type of the discovered node. e.g. Intel(R) Xeon(R) CPU E5-2690 0 @ 2.90GHz
+
+=item B<memory>
+
+The memory size of the discovered node. e.g. 198460852
+
+=item B<mtm>
+
+The machine type model of the discovered node. e.g. 786310X
+
+=item B<serial>
+
+The serial number of the discovered node. e.g. 1052EFB
+
+=item B<nicdriver>
+
+The driver of the nic. The value should be comma separated <nic name!driver name>. e.g. eth0!be2net,eth1!be2net
+
+=item B<nicipv4>
+
+The ipv4 address of the nic. The value should be comma separated <nic name!ipv4 address>. e.g. eth0!10.0.0.212/8
+
+=item B<nichwaddr>
+
+The hardware address of the nic. The should will be comma separated <nic name!hardware address>. e.g. eth0!34:40:B5:BE:DB:B0,eth1!34:40:B5:BE:DB:B4
+
+=item B<nicpci>
+
+The pic device of the nic. The value should be comma separated <nic name!pci device>. e.g. eth0!0000:0c:00.0,eth1!0000:0c:00.1
+
+=item B<nicloc>
+
+The location of the nic. The value should be comma separated <nic name!nic location>. e.g. eth0!Onboard Ethernet 1,eth1!Onboard Ethernet 2
+
+=item B<niconboard>
+
+The onboard info of the nic. The value should be comma separated <nic name!onboard info>. e.g. eth0!1,eth1!2
+
+=item B<nicfirm>
+
+The firmware description of the nic. The value should be comma separated <nic name!fimware description>. e.g. eth0!ServerEngines BE3 Controller,eth1!ServerEngines BE3 Controller
+
+=item B<switchname>
+
+The switch name which the nic connected to. The value should be comma separated <nic name!switch name>. e.g. eth0!c909f06sw01
+
+=item B<switchaddr>
+
+The address of the switch which the nic connected to. The value should be comma separated <nic name!switch address>. e.g. eth0!192.168.70.120
+
+=item B<switchdesc>
+
+The description of the switch which the nic connected to. The value should be comma separated <nic name!switch description>. e.g. eth0!IBM Flex System Fabric EN4093 10Gb Scalable Switch, flash image: version 7.2.6, boot image: version 7.2.6
+
+=item B<switchport>
+
+The port of the switch that the nic connected to. The value should be comma separated <nic name!switch port>. e.g. eth0!INTA2
+
+=item B<otherdata>
+
+The left data which is not parsed to specific attributes (The complete message comes from genesis)
+
+=item B<comments>
+
+Any user-written notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

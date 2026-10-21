@@ -1,0 +1,81 @@
+=head1 NAME
+
+B<eventlog> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<eventlog Attributes:>  I<application>, I<comments>, I<component>, I<disable>, I<eventtime>, I<eventtype>, I<id>, I<message>, I<monitor>, I<monnode>, I<node>, I<rawdata>, I<recid>, I<severity>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 eventlog Attributes:
+
+=over 6
+
+
+=item B<application> (eventlog.application)
+
+The application that reports the event.
+
+=item B<comments> (eventlog.comments)
+
+Any user-provided notes.
+
+=item B<component> (eventlog.component)
+
+The component where the event occurred.
+
+=item B<disable> (eventlog.disable)
+
+Do not use.  tabprune will not work if set to yes or 1
+
+=item B<eventtime> (eventlog.eventtime)
+
+The timestamp for the event.
+
+=item B<eventtype> (eventlog.eventtype)
+
+The type of the event.
+
+=item B<id> (eventlog.id)
+
+The location or the resource name where the event occurred.
+
+=item B<message> (eventlog.message)
+
+The full description of the event.
+
+=item B<monitor> (eventlog.monitor)
+
+The name of the monitor that monitors this event.
+
+=item B<monnode> (eventlog.monnode)
+
+The node that monitors this event.
+
+=item B<node> (eventlog.node)
+
+The node where the event occurred.
+
+=item B<rawdata> (eventlog.rawdata)
+
+The data that associated with the event. 
+
+=item B<recid> (eventlog.recid)
+
+The record id.
+
+=item B<severity> (eventlog.severity)
+
+The severity of the event. Valid values are: informational, warning, critical.
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

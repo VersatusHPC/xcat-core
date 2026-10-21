@@ -1,0 +1,37 @@
+=head1 NAME
+
+B<firmware> - a logical object definition in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<firmware Attributes:>  I<cfgfile>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Logical objects of this type are stored in the xCAT database in one or more tables.  Use the following commands
+to manipulate the objects: B<mkdef>, B<chdef>, B<lsdef>, and B<rmdef>.  These commands will take care of
+knowing which tables the object attributes should be stored in.  The attribute list below shows, in
+parentheses, what tables each attribute is stored in.
+
+=head1 firmware Attributes:
+
+=over 6
+
+
+=item B<cfgfile> (firmware.cfgfile)
+
+The file to use.
+
+=item B<comments> (firmware.comments)
+
+Any user-written notes.
+
+=item B<disable> (firmware.disable)
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<mkdef(1)>, B<chdef(1)>, B<lsdef(1)>, B<rmdef(1)>

@@ -1,0 +1,115 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#kit-Attributes">kit Attributes:</a></li>
+  <li><a href="#SEE-ALSO">SEE ALSO</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p><b>kit</b> - a table in the xCAT database.</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p><b>kit Attributes:</b> <i>kitname</i>, <i>basename</i>, <i>description</i>, <i>version</i>, <i>release</i>, <i>ostype</i>, <i>isinternal</i>, <i>kitdeployparams</i>, <i>kitdir</i>, <i>comments</i>, <i>disable</i></p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>This table stores all kits added to the xCAT cluster.</p>
+
+<h1 id="kit-Attributes">kit Attributes:</h1>
+
+<dl>
+
+<dt id="kitname"><b>kitname</b></dt>
+<dd>
+
+<p>The unique generated kit name, when kit is added to the cluster.</p>
+
+</dd>
+<dt id="basename"><b>basename</b></dt>
+<dd>
+
+<p>The kit base name</p>
+
+</dd>
+<dt id="description"><b>description</b></dt>
+<dd>
+
+<p>The Kit description.</p>
+
+</dd>
+<dt id="version"><b>version</b></dt>
+<dd>
+
+<p>The kit version</p>
+
+</dd>
+<dt id="release"><b>release</b></dt>
+<dd>
+
+<p>The kit release</p>
+
+</dd>
+<dt id="ostype"><b>ostype</b></dt>
+<dd>
+
+<p>The kit OS type. Linux or AIX.</p>
+
+</dd>
+<dt id="isinternal"><b>isinternal</b></dt>
+<dd>
+
+<p>A flag to indicated if the Kit is internally used. When set to 1, the Kit is internal. If 0 or undefined, the kit is not internal.</p>
+
+</dd>
+<dt id="kitdeployparams"><b>kitdeployparams</b></dt>
+<dd>
+
+<p>The file containing the default deployment parameters for this Kit. These parameters are added to the OS Image definition.s list of deployment parameters when one or more Kit Components from this Kit are added to the OS Image.</p>
+
+</dd>
+<dt id="kitdir"><b>kitdir</b></dt>
+<dd>
+
+<p>The path to Kit Installation directory on the Mgt Node.</p>
+
+</dd>
+<dt id="comments"><b>comments</b></dt>
+<dd>
+
+<p>Any user-written notes.</p>
+
+</dd>
+<dt id="disable"><b>disable</b></dt>
+<dd>
+
+<p>Set to &#39;yes&#39; or &#39;1&#39; to comment out this row.</p>
+
+</dd>
+</dl>
+
+<h1 id="SEE-ALSO">SEE ALSO</h1>
+
+<p><b>nodels(1)</b>, <b>chtab(8)</b>, <b>tabdump(8)</b>, <b>tabedit(8)</b></p>
+
+
+</body>
+
+</html>
+
+

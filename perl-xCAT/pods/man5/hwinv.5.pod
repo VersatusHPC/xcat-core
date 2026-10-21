@@ -1,0 +1,50 @@
+=head1 NAME
+
+B<hwinv> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<hwinv Attributes:>  I<node>, I<cputype>, I<cpucount>, I<memory>, I<disksize>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+The hareware inventory for the node.
+
+=head1 hwinv Attributes:
+
+=over 10
+
+
+=item B<node>
+
+The node name or group name.
+
+=item B<cputype>
+
+The cpu model name for the node.
+
+=item B<cpucount>
+
+The number of cpus for the node.
+
+=item B<memory>
+
+The size of the memory for the node in MB.
+
+=item B<disksize>
+
+The size of the disks for the node in GB.
+
+=item B<comments>
+
+Any user-provided notes.
+
+=item B<disable>
+
+Set to 'yes' or '1' to comment out this row.
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

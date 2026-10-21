@@ -1,0 +1,74 @@
+=head1 NAME
+
+B<vmmaster> - a table in the xCAT database.
+
+=head1 SYNOPSIS
+
+B<vmmaster Attributes:>  I<name>, I<os>, I<arch>, I<profile>, I<storage>, I<storagemodel>, I<nics>, I<vintage>, I<originator>, I<virttype>, I<specializeparameters>, I<comments>, I<disable>
+
+=head1 DESCRIPTION
+
+Inventory of virtualization images for use with clonevm.  Manual intervention in this table is not intended.
+
+=head1 vmmaster Attributes:
+
+=over 10
+
+
+=item B<name>
+
+The name of a master
+
+=item B<os>
+
+The value of nodetype.os at the time the master was captured
+
+=item B<arch>
+
+The value of nodetype.arch at the time of capture
+
+=item B<profile>
+
+The value of nodetype.profile at time of capture
+
+=item B<storage>
+
+The storage location of bulk master information
+
+=item B<storagemodel>
+
+The default storage style to use when modifying a vm cloned from this master
+
+=item B<nics>
+
+The nic configuration and relationship to vlans/bonds/etc
+
+=item B<vintage>
+
+When this image was created
+
+=item B<originator>
+
+The user who created the image
+
+=item B<virttype>
+
+The type of virtualization this image pertains to (e.g. vmware, kvm, etc)
+
+=item B<specializeparameters>
+
+Implementation specific arguments, currently only "autoLogonCount=<number" for ESXi clonevme
+
+=item B<comments>
+
+
+
+=item B<disable>
+
+
+
+=back
+
+=head1 SEE ALSO
+
+B<nodels(1)>, B<chtab(8)>, B<tabdump(8)>, B<tabedit(8)>

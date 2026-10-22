@@ -12,7 +12,16 @@ use strict;
 use Socket;
 
 use xCAT::MsgUtils;
+use xCAT::NetworkUtils;
 use xCAT::Utils;
+
+=head1 NAME
+
+xCAT::DSHCore - distributed command execution and reachability helpers
+
+=head1 FUNCTIONS
+
+=head2 Process and ping helpers
 
 #---------------------------------------------------------------------------
 
@@ -679,6 +688,73 @@ sub ping_hostnames
 #---------------------------------------------------------------------------
 
 =head3
+        partition_ping_targets
+
+        Resolves ping targets and separates them into the address family that
+        should be probed.  IPv4 remains preferred for dual-stack targets so
+        existing behavior is preserved.
+
+        Arguments:
+                @targets - hostnames or address literals
+
+        Returns:
+                references to the IPv4, IPv6, and unresolved target arrays
+
+=cut
+
+#---------------------------------------------------------------------------
+
+sub partition_ping_targets
+{
+    my ($class, @targets) = @_;
+    my (@ipv4, @ipv6, @unresolved);
+
+    foreach my $target (@targets)
+    {
+        my $family = xCAT::NetworkUtils->node_address_family($target);
+        if (defined($family) && $family == 4)
+        {
+            push @ipv4, $target;
+        }
+        elsif (defined($family) && $family == 6)
+        {
+            push @ipv6, $target;
+        }
+        else
+        {
+            push @unresolved, $target;
+        }
+    }
+
+    return (\@ipv4, \@ipv6, \@unresolved);
+}
+
+
+#---------------------------------------------------------------------------
+
+=head3
+        parse_pping_result_line
+
+        Parses the stable C<target: ping|noping> output contract.  The greedy
+        target match intentionally accepts IPv6 address literals containing
+        colons.
+
+=cut
+
+#---------------------------------------------------------------------------
+
+sub parse_pping_result_line
+{
+    my ($class, $line) = @_;
+    return unless defined($line);
+    return ($1, $2) if $line =~ /^(.+):\s+(ping|noping)\s*$/;
+    return;
+}
+
+
+#---------------------------------------------------------------------------
+
+=head3
         pping_hostnames
 
         Executes pping on a given list of hostnames and returns a list of those
@@ -735,9 +811,8 @@ sub pping_hostnames
     my @no_response = ();
     foreach my $line (@output)
     {
-        my ($hostname, $result) = split ':', $line;
-        my ($token,    $status) = split ' ', $result;
-        chomp($token);
+        my ($hostname, $token) = $class->parse_pping_result_line($line);
+        next unless defined($hostname);
         if ($token ne 'ping') {
             push @no_response, $hostname;
         }

@@ -816,12 +816,14 @@ sub cancel_build {
 # chronyd_manage_pid_files(); m4 leaves an undefined interface name in its
 # output, and checkmodule stops on it. openEuler 24.03sp4 carries
 # selinux-policy 40.7 and does compile the module, and is excluded too, so no
-# openEuler release ships a package the other releases cannot build.
+# openEuler release ships a package the other releases cannot build. Leap 15.6
+# packages no selinux-policy at all, in any of the four repositories its mock
+# template configures, so BuildRequires: selinux-policy-devel cannot resolve.
 #
 # openSUSE ships no legacy Genesis. Operator decision, 2026-10-22.
 my @PACKAGE_SKIPS = (
     {   package  => 'xCAT-selinux',
-        prefixes => ['openeuler-'],
+        prefixes => [ 'openeuler-', 'opensuse-' ],
         reason   => 'SELinux support is EL only',
     },
     {   package  => 'xCAT-genesis-base',

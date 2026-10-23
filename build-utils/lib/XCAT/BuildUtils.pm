@@ -44,7 +44,7 @@ our @EXPORT_OK = qw(
     rewrite_file write_script read_line
     buildinfo_text
     targetarch_from_target
-    openeuler_build_target openeuler_repo_subdir
+    openeuler_build_target openeuler_repo_subdir package_skip_reason
     mock_config_text mock_build_owner prepare_mock_resultdirs
     genesis_chroot_name genesis_target_arch genesis_build_plan
     genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
@@ -842,6 +842,39 @@ sub cancel_build {
     return;
 }
 
+
+# The packages that only the EL targets build, and why. xCAT-selinux is EL
+# only: its policy module is compiled against the selinux-policy of the build
+# target, and openEuler 20.03 and 22.03 carry selinux-policy 3.14.2, which
+# defines none of unconfined_server_stream_connectto(), files_map_etc_files()
+# or chronyd_manage_pid_files(). m4 leaves an undefined interface name in its
+# output, and checkmodule stops on it. openEuler 24.03sp4 carries
+# selinux-policy 40.7 and does compile the module, and is excluded too, so no
+# openEuler release ships a package the other releases cannot build. openSUSE
+# Leap ships no selinux-policy-devel at all.
+my %EL_ONLY_PACKAGES = (
+    'xCAT-selinux' => 'SELinux support is EL only',
+);
+
+# The EL build targets, named positively: alma+epel-<N>-<arch> for the three EL
+# releases, and the suffixed rocky target mock cross-builds riscv64 through.
+my $EL_TARGET = qr/\A(?:alma|rocky|centos|rhel)(?:\+epel)?-/;
+
+# Why $pkg is not built for $target, or undef when the pair is built. The test is
+# on EL rather than on the families that are not EL, so a family added later
+# skips an EL-only package instead of trying to build it. openSUSE was added
+# after this guard and matched neither arm of a /\Aopeneuler-/ test, so
+# xcat-core-build-opensuse #42 spent three attempts on "No matching package to
+# install: selinux-policy-devel" and failed the whole openSUSE family.
+sub package_skip_reason {
+    my ($pkg, $target) = @_;
+    my $reason = $EL_ONLY_PACKAGES{ $pkg // '' } or return undef;
+    # No target names no platform. buildrpms.pl always has one; a caller that
+    # does not is asking about the package, not about a pair.
+    return undef unless defined($target) && length($target);
+    return undef if $target =~ $EL_TARGET;
+    return $reason;
+}
 
 sub openeuler_build_target {
     my ($os, $arch) = @_;

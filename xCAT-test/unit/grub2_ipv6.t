@@ -5,6 +5,9 @@ no warnings 'once';
 
 use Cwd qw(getcwd);
 use FindBin;
+# grub2.pm loads xCAT::DHCP::BootPolicy, which lives in perl-xCAT. Without this the require
+# below dies at compile time and the file reports no plan at all rather than a failure.
+use lib "$FindBin::Bin/../../perl-xCAT", "$FindBin::Bin/../../xCAT-server/lib/perl";
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use Test::More;

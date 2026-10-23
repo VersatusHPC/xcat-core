@@ -806,25 +806,40 @@ sub cancel_build {
     sub DESTROY { shift->release }
 }
 
-# The packages that only the EL targets build, and why. xCAT-selinux is EL
-# only: its policy module is compiled against the selinux-policy of the build
-# target, and openEuler 20.03 and 22.03 carry selinux-policy 3.14.2, which
-# defines none of unconfined_server_stream_connectto(), files_map_etc_files()
-# or chronyd_manage_pid_files(). m4 leaves an undefined interface name in its
+# The packages a target does not build, and why. Each rule names the package and
+# the target-name prefixes that do not build it.
+#
+# xCAT-selinux is EL only: its policy module is compiled against the
+# selinux-policy of the build target. openEuler 20.03 and 22.03 carry
+# selinux-policy 3.14.2, which defines none of
+# unconfined_server_stream_connectto(), files_map_etc_files() or
+# chronyd_manage_pid_files(); m4 leaves an undefined interface name in its
 # output, and checkmodule stops on it. openEuler 24.03sp4 carries
 # selinux-policy 40.7 and does compile the module, and is excluded too, so no
 # openEuler release ships a package the other releases cannot build.
-my %EL_ONLY_PACKAGES = (
-    'xCAT-selinux' => 'SELinux support is EL only',
+#
+# openSUSE ships no legacy Genesis. Operator decision, 2026-10-22.
+my @PACKAGE_SKIPS = (
+    {   package  => 'xCAT-selinux',
+        prefixes => ['openeuler-'],
+        reason   => 'SELinux support is EL only',
+    },
+    {   package  => 'xCAT-genesis-base',
+        prefixes => ['opensuse-'],
+        reason   => 'openSUSE ships no legacy Genesis',
+    },
 );
 
-# Why $pkg is not built for $target, or undef when the pair is built. openEuler
-# is the one non-EL family buildrpms.pl targets.
+# Why $pkg is not built for $target, or undef when the pair is built.
 sub package_skip_reason {
     my ($pkg, $target) = @_;
-    my $reason = $EL_ONLY_PACKAGES{ $pkg // '' } or return undef;
-    return undef unless defined($target) && $target =~ /\Aopeneuler-/;
-    return $reason;
+    return undef unless defined($pkg) && defined($target);
+    for my $skip (@PACKAGE_SKIPS) {
+        next unless $pkg eq $skip->{package};
+        return $skip->{reason}
+            if grep { index($target, $_) == 0 } @{ $skip->{prefixes} };
+    }
+    return undef;
 }
 
 sub openeuler_build_target {

@@ -23,6 +23,15 @@ my @openeuler_targets = qw(
     openeuler-24.03sp4-x86_64
     openeuler-24.03-ppc64le
 );
+# Leap 15.6 packages no selinux-policy. Measured 2026-10-22 over the four repositories the
+# mock template configures -- oss, non-oss and the oss, sle and backports updates -- which
+# carry libselinux1, libselinux-devel and selinux-tools and no selinux-policy at any version.
+# BuildRequires: selinux-policy-devel cannot resolve, and %{_datadir}/selinux/devel/Makefile
+# is absent.
+my @opensuse_targets = qw(
+    opensuse-leap-15.6-x86_64
+    opensuse-leap-42.3-x86_64
+);
 my @el_targets = qw(
     alma+epel-8-x86_64
     alma+epel-9-x86_64
@@ -34,10 +43,10 @@ my $decides = XCAT::BuildUtils->can('package_skip_reason');
 ok($decides, 'BuildUtils decides which packages a target builds');
 
 SKIP: {
-    skip 'BuildUtils has no build-plan decision', 17 unless $decides;
+    skip 'BuildUtils has no build-plan decision', 19 unless $decides;
 
-    foreach my $target (@openeuler_targets) {
-        ok($decides->('xCAT-selinux', $target),
+    foreach my $target (@openeuler_targets, @opensuse_targets) {
+        is($decides->('xCAT-selinux', $target), 'SELinux support is EL only',
             "xCAT-selinux is not built for $target");
     }
 

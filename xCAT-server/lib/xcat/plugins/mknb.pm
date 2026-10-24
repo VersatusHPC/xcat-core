@@ -389,6 +389,42 @@ Returns:
 =cut
 
 #-------------------------------------------------------------------------------
+
+=head3 missing_legacy_genesis_payload
+
+Descriptions:
+    The file a legacy Genesis source must carry and does not, or undef when it is complete.
+
+    _select_genesis_source resolves a source by directory. The OpenEmbedded and exported
+    generations have their contents checked afterwards, by _prebuilt_genesis_requested and
+    _validate_prebuilt_genesis_manifest. The legacy generation had no such check, and two
+    packages share its directory: xCAT-genesis-scripts ships fs/ into
+    share/xcat/netboot/genesis/<arch>/ and xCAT-genesis-base ships the kernel beside it. So the
+    directory exists on a node that installs the scripts alone.
+
+    The order follows stage_genesis_payload, which copies fs/ before the kernel, so the reported
+    file is the copy that would have failed first.
+
+Arguments:
+    $genesis_dir - the directory _select_genesis_source resolved, or undef.
+Returns:
+    The path of the missing file, or undef.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub missing_legacy_genesis_payload {
+    my ($genesis_dir) = @_;
+    return unless defined($genesis_dir);
+    my $fs = "$genesis_dir/fs";
+    return $fs unless -d $fs;
+    # xCAT-genesis-base has shipped the kernel as a link to a versioned name.
+    my $kernel = "$genesis_dir/kernel";
+    return $kernel unless -e $kernel || -l $kernel;
+    return;
+}
+
+#-------------------------------------------------------------------------------
 sub stage_genesis_payload {
     my (%a)  = @_;
     my $run  = $a{run} || sub { return system($_[0]); };
@@ -585,6 +621,16 @@ sub process_request {
         || _genesis_export_manifest_present($genesis_dir)) {
         $callback->({
             error => ["Incomplete Genesis export: $genesis_dir"],
+            errorcode => [1],
+        });
+        return;
+    }
+    # Report the missing payload here, by name. Without this the run generates ssh keys and a
+    # temporary directory first and fails in stage_genesis_payload with "Failed to copy
+    # <dir>/kernel contents", which names a file the reader has no reason to expect.
+    if (my $missing = missing_legacy_genesis_payload($genesis_dir)) {
+        $callback->({
+            error => ["Incomplete legacy Genesis image for architecture $arch: $missing is missing"],
             errorcode => [1],
         });
         return;

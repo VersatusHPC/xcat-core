@@ -1324,7 +1324,7 @@ foreach my $case (@invalid_mac_cases) {
         'query and delete retain alias matches when the associated MAC is malformed'
     );
     ok(
-        grep( { ( $_->{duid} || '' ) eq '00:04:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff' } @$matches ),
+        grep( { ( $_->{duid} || '' ) eq '00:04:33:22:11:00:55:44:77:66:88:99:aa:bb:cc:dd:ee:ff' } @$matches ),
         'query and delete retain DUID matches when the associated MAC is malformed'
     );
 }
@@ -2472,8 +2472,8 @@ for my $case (['80', ''], ['080', ':080'], ['8080', ':8080']) {
 
     my %by_hostname = map { $_->{hostname} => $_ } @$reservations;
     my $grub2 = $by_hostname{nodev6};
-    # vpd.uuid is the DUID payload, in the order the client sends it. See kea_duid_from_uuid.
-    is( $grub2->{duid}, '00:04:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff', 'DHCPv6 reservation matches the DUID-UUID a UEFI client sends' );
+    # Without mac.duid the first three UUID fields are reversed, as EDK2 firmware sends them.
+    is( $grub2->{duid}, '00:04:33:22:11:00:55:44:77:66:88:99:aa:bb:cc:dd:ee:ff', 'DHCPv6 reservation matches the DUID-UUID a UEFI client sends' );
     is( $grub2->{'option-data'}[0]{name}, 'bootfile-url', 'grub2 reservation carries RFC 5970 bootfile-url' );
     is( $grub2->{'option-data'}[0]{data}, 'tftp://[2001:db8::1]/boot/grub2/grub2-nodev6', 'grub2 bootfile URL uses the IPv6-facing xCAT server and bracketed authority' );
     ok( $grub2->{'option-data'}[0]{'always-send'}, 'grub2 bootfile URL is always sent' );
@@ -2616,34 +2616,52 @@ for my $case (['80', ''], ['080', ':080'], ['8080', ':8080']) {
         'an IPv6-only node never reaches the IPv4 next-server resolver' );
 }
 
-# A DUID-UUID CARRIES vpd.uuid VERBATIM.
-#
-# RFC 6355 puts the sixteen octets of the system UUID in the DUID, in the order the client sends
-# them. vpd.uuid already holds that order: discovery swaps the first three SMBIOS fields before it
-# reports them, and kvm.pm swaps them back to build the libvirt <uuid>. A swap here is a second
-# one, Kea never matches the reservation, and the node takes a pool address with no bootfile-url.
-#
-# xcat76-cn, 2026-10-23: the libvirt domain UUID is c78c76bf-3286-46f3-b80d-8fe079dd6de7, which
-# kvm.pm built from vpd.uuid bf768cc7-8632-f346-b80d-8fe079dd6de7. The firmware sent
-# 00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7, which is that vpd.uuid unchanged.
+# UEFI firmware built on EDK2 sends the SMBIOS UUID bytes as its DUID-UUID. SMBIOS 2.6 and later
+# store the first three UUID fields little-endian, so these octets differ from the RFC 4122 order of
+# vpd.uuid. Measured on a UEFI client, 2026-10-23, with vpd.uuid c78c76bf-3286-46f3-b80d-8fe079dd6de7:
+#   RFC 4122 order    00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7
+#   the firmware sent 00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7
 {
-    is( xCAT_plugin::dhcp::kea_duid_from_uuid('bf768cc7-8632-f346-b80d-8fe079dd6de7'),
-        '00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7',
-        'the DUID is 00:04 and vpd.uuid unchanged, the octets the firmware on xcat76-cn sent' );
+    no warnings 'redefine';
+    my $uefi_duid = '00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7';
+    my %nodes = (
+        uefi      => { mac => '02:00:00:00:00:71', ip => '2001:db8:71::50', uuid => 'c78c76bf-3286-46f3-b80d-8fe079dd6de7' },
+        plain     => { mac => '02:00:00:00:00:72', ip => '2001:db8:71::51', uuid => '1234567812344bcd98761234567890ab' },
+        malformed => { mac => '02:00:00:00:00:73', ip => '2001:db8:71::52', uuid => 'not-a-uuid' },
+        absent    => { mac => '02:00:00:00:00:74', ip => '2001:db8:71::53' },
+    );
+    my %tables = (
+        noderes => DHCPKeaResTable->new( {} ),
+        mac     => DHCPKeaResTable->new( { map { $_ => { mac => $nodes{$_}{mac} } } keys %nodes } ),
+        vpd     => DHCPKeaResTable->new(
+            { map { $_ => { defined( $nodes{$_}{uuid} ) ? ( uuid => $nodes{$_}{uuid} ) : () } } keys %nodes } ),
+    );
+    local *xCAT::Table::new = sub { return $tables{ $_[1] }; };
+    my $getipaddr = sub {
+        my ( $host, %opt ) = @_;
+        return $opt{OnlyV6} && $nodes{$host} ? $nodes{$host}{ip} : undef;
+    };
+    local *xCAT::NetworkUtils::getipaddr  = $getipaddr;
+    local *xCAT_plugin::dhcp::getipaddr   = $getipaddr;
+    local *xCAT_plugin::dhcp::ipIsDynamic = sub { return 0; };
+    my @errors;
+    local $xCAT_plugin::dhcp::callback = sub { push @errors, @{ $_[0]{error} || [] }; };
 
-    # An asymmetric uuid: every field would move under a swap, and none may.
-    my $duid = xCAT_plugin::dhcp::kea_duid_from_uuid('00112233-4455-6677-8899-aabbccddeeff');
-    is( $duid, '00:04:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
-        'time_low, time_mid and time_hi keep the order vpd.uuid spells them in' );
+    my $reservations = xCAT_plugin::dhcp::kea_build_node_reservations6(
+        bless( {}, 'DHCPKeaRes6Backend' ), {}, [ sort keys %nodes ] );
+    my %by_hostname = map { $_->{hostname} => $_ } @$reservations;
+    is_deeply( \@errors, [], 'the DHCPv6 reservations of the UUID cases build without errors' );
+    is( $by_hostname{uefi}{duid}, $uefi_duid, 'the reservation carries the DUID-UUID that the UEFI client sends' );
+    is( $by_hostname{plain}{duid}, '00:04:78:56:34:12:34:12:cd:4b:98:76:12:34:56:78:90:ab', 'a vpd.uuid without separators gives the same DUID' );
+    foreach my $node (qw(malformed absent)) {
+        ok( !exists( $by_hostname{$node}{duid} ), "a $node vpd.uuid gives no DUID" );
+        is( $by_hostname{$node}{'hw-address'}, $nodes{$node}{mac},
+            "the reservation of a node with a $node vpd.uuid falls back to its MAC" );
+    }
 
-    # A UUID with no separators is the same value.
-    is( xCAT_plugin::dhcp::kea_duid_from_uuid('bf768cc78632f346b80d8fe079dd6de7'),
-        '00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7',
-        'separators in vpd.uuid do not change the DUID' );
-
-    # Anything that is not sixteen octets has no DUID rather than a truncated one.
-    is( xCAT_plugin::dhcp::kea_duid_from_uuid('not-a-uuid'), undef, 'a malformed uuid gives no DUID' );
-    is( xCAT_plugin::dhcp::kea_duid_from_uuid(undef),        undef, 'an absent uuid gives no DUID' );
+    my @duids = map { $_->{duid} } grep { $_->{duid} }
+      @{ xCAT_plugin::dhcp::kea_reservation_matches_for_nodes( ['uefi'] ) };
+    is_deeply( \@duids, [$uefi_duid], 'query and delete match the DUID that the reservation carries' );
 }
 
 done_testing();

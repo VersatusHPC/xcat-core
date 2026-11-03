@@ -14,6 +14,7 @@ use xCAT::Utils;
 use xCAT::SvrUtils;
 use xCAT::UFTP;
 use xCAT::MsgUtils;
+use xCAT::ConsolePolicy;
 use Data::Dumper;
 use Getopt::Long;
 Getopt::Long::Configure("bundling");
@@ -1341,11 +1342,8 @@ sub mkinstall {
                     xCAT::MsgUtils->report_node_error($callback, $node, "serialport defined, but no serialspeed for this node in nodehm table");
                     next;
                 }
-                if ($arch =~ /ppc64/i) {
-                    $kcmdline .= " console=tty0 console=hvc" . $sent->{serialport} . "," . $sent->{serialspeed};
-                } else {
-                    $kcmdline .= " console=tty0 console=ttyS" . $sent->{serialport} . "," . $sent->{serialspeed};
-                }
+                $kcmdline .= " " . xCAT::ConsolePolicy::kernel_console_arguments(
+                    $arch, $sent->{serialport}, $sent->{serialspeed});
                 if ($sent->{serialflow} =~ /(hard|cts|ctsrts)/) {
                     $kcmdline .= "n8r";
                 }
@@ -1963,13 +1961,8 @@ sub mknetboot
                 xCAT::MsgUtils->report_node_error($callback, $node,"serialport defined, but no serialspeed for $node in nodehm table");
                 next;
             }
-            if ($arch =~ /ppc64/i) {
-                $kcmdline .=
-                    "console=tty0 console=hvc" . $sent->{serialport} . "," . $sent->{serialspeed};
-            } else {
-                $kcmdline .=
-                    "console=tty0 console=ttyS" . $sent->{serialport} . "," . $sent->{serialspeed};
-            }
+            $kcmdline .= xCAT::ConsolePolicy::kernel_console_arguments(
+                $arch, $sent->{serialport}, $sent->{serialspeed});
             if ($sent->{serialflow} =~ /(hard|tcs|ctsrts)/)
             {
                 $kcmdline .= "n8r";

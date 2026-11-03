@@ -145,6 +145,85 @@ sub _ignore_ipv6_route
     return 0;
 }
 
+#-----------------------------------------------------------------------------
+
+=head3 _ipv6_prefix_key
+
+    Descriptions:
+        The network part of an IPv6 prefix, as packed bytes, with its length.
+
+        The address is packed and then masked, so the key does not depend on
+        the spelling: 2001:0db8:0000:0172::/64 and 2001:db8:172::/64 give the
+        same key.
+
+    Arguments:
+        $prefix - the prefix, as <address>/<length>
+
+    Returns:
+        the masked address and the prefix length, or an empty list when the
+        prefix cannot be read.
+
+=cut
+
+#-----------------------------------------------------------------------------
+sub _ipv6_prefix_key
+{
+    my ($prefix) = @_;
+
+    return unless defined $prefix;
+    my ($addr, $bits) = split m!/!, $prefix, 2;
+    $bits = '' unless defined $bits;
+    $bits =~ s!^/!!;
+    return unless $bits =~ /^\d+$/ and $bits <= 128;
+    my $packed = eval { Socket::inet_pton(Socket::AF_INET6(), $addr) };
+    return unless defined $packed and length($packed) == 16;
+
+    my $mask = pack 'B128', ('1' x $bits) . ('0' x (128 - $bits));
+    return (($packed & $mask), $bits);
+}
+
+#-----------------------------------------------------------------------------
+
+=head3 _ipv6_network_defined
+
+    Descriptions:
+        Says whether the networks table already defines one IPv6 prefix.
+
+        A row states its prefix length in net= or in mask=, and both forms
+        name the same network: makenetworks writes net=2001:db8:1::/64, and
+        mkdef takes net=2001:db8:1:: with mask=/64.
+
+    Arguments:
+        $nets   - the network definitions, as a hash reference of
+                  netname => { net => ..., mask => ... }
+        $prefix - the prefix to look for, as <address>/<length>
+
+    Returns:
+        1 when the prefix is already defined, 0 when it is not.
+
+=cut
+
+#-----------------------------------------------------------------------------
+sub _ipv6_network_defined
+{
+    my ($nets, $prefix) = @_;
+
+    return 0 unless ref($nets) eq 'HASH';
+    my ($wanted, $bits) = _ipv6_prefix_key($prefix);
+    return 0 unless defined $wanted;
+
+    foreach my $netn (keys %$nets) {
+        my $curnet = $nets->{$netn}{'net'};
+        next unless defined($curnet) and $curnet =~ /:/;
+        my $cur = $curnet;
+        $cur .= '/' . ($nets->{$netn}{'mask'} // '') unless $cur =~ m!/!;
+        my ($have, $havebits) = _ipv6_prefix_key($cur);
+        next unless defined $have;
+        return 1 if $havebits == $bits and $have eq $wanted;
+    }
+    return 0;
+}
+
 sub donets
 {
     my $callback = shift;
@@ -412,29 +491,7 @@ sub donets
             my @myv6addrs = split /\n/, `ip -6 addr show dev $dev scope global`;
 
             #for v6, deprecating mask since the CIDR slash syntax is ubiquitous
-            my $consideredaddr = $net;
-            $consideredaddr =~ s!/(.*)!!;
-            my $consideredbits = $1;
-
-            #below may be redundant, but apply resolution in case ambiguous net, e.g. 2001:0db8:0::/64 is the same thing as 2001:0db8::/64
-            $consideredaddr = xCAT::NetworkUtils->getipaddr($consideredaddr);
-            my $netexists = 0;
-            foreach my $netn (@netlist) { #search for network that doesn't exist yet
-                my $curnet = $nethash{$netn}{'net'};
-                unless ($curnet =~ /:/) {    #only ipv6 here
-                    next;
-                }
-                $curnet =~ s!/(.*)!!;        #remove
-                my $curnetbits = $1;
-                unless ($consideredbits == $curnetbits) { #only matches if netmask matches
-                    next;
-                }
-                $currnet = xCAT::NetworkUtils->getipaddr($currnet);
-                unless ($currnet eq $consideredaddr) {
-                    next;
-                }
-                $netexists = 1;
-            }
+            my $netexists = _ipv6_network_defined(\%nethash, $net);
             if ($::DISPLAY) {
                 push @{ $rsp->{data} }, "\n#From $host.";
                 push @{ $rsp->{data} }, "$net:";
@@ -442,7 +499,7 @@ sub donets
                 push @{ $rsp->{data} }, "    net=$net";
                 push @{ $rsp->{data} }, "    mgtifname=$dev";
             } else {
-                unless ($netexiss) {
+                unless ($netexists) {
                     my $tmpmask = $net;
                     $tmpmask =~ s!^.*/!/!;
                     $nettab->setAttribs({ 'net' => $net, 'mask' => $tmpmask }, { 'netname' => $net, 'mgtifname' => $dev });

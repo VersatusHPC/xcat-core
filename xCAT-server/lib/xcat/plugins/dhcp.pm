@@ -951,7 +951,11 @@ sub addnode6 {
     # to load, so EDK2 reports "PXE-E21: Remote boot cancelled" and tries the next boot entry.
     my $nrent        = $nrhash       ? $nrhash->{$node}->[0]       : undef;
     my $ntent        = $nodetypeents ? $nodetypeents->{$node}->[0] : undef;
-    my $bootfile_url = dhcp6_bootfile_url_for_node( $node, $node, $nrent, $ntent );
+    # mac.duid decides which client this host answers. With canonical it is iPXE, which needs the
+    # boot script of the node and not the shim.
+    my ($primary)    = dhcp6_node_clients( $identity->{duids}, $nrent );
+    my $bootfile_url = dhcp6_bootfile_url_for_node( $node, $node, $nrent, $ntent,
+        $primary ? $primary->{client} : undef );
     my $statements6  = 'ddns-hostname \"' . $node . '\";';
     $statements6 .= ' option dhcp6.bootfile-url \"' . $bootfile_url . '\";' if $bootfile_url;
     $commands .= 'set statements = "' . $statements6 . '";' . "\n";
@@ -983,12 +987,14 @@ sub addnode6_other_clients
     my @clients = dhcp6_node_clients( $identity->{duids}, $nrent );
     shift @clients;
     my $commands = '';
+    my %created;
     foreach my $client (@clients) {
         next unless $client->{duid};
         my $url = dhcp6_bootfile_url_for_node( $node, $node, $nrent, $ntent, $client->{client} );
         next unless $url;
 
         my $name = "$node-$client->{client}";
+        $created{$name} = 1;
         foreach my $key ( "set name = \"$name\"", "set dhcp-client-identifier = $client->{duid}" ) {
             $commands .= "new host\n$key\nopen\nremove\nclose\n";
         }
@@ -998,6 +1004,12 @@ sub addnode6_other_clients
         $commands .= 'set statements = "option dhcp6.bootfile-url \"' . $url . '\";";' . "\n";
         $commands .= "create\n";
         $commands .= "close\n";
+    }
+
+    # A change of netboot or of mac.duid can leave a host of a client that no longer solicits,
+    # and nothing else names it.
+    foreach my $name ( map { "$node-$_" } dhcp6_secondary_clients() ) {
+        $commands .= "new host\nset name = \"$name\"\nopen\nremove\nclose\n" unless $created{$name};
     }
 
     return $commands;
@@ -2949,7 +2961,7 @@ sub kea_process_request
         if ($restart->{error}) {
             $callback->({ error => [ $restart->{error} ], errorcode => [1] });
         }
-        configure_router_advertisements($callback, $activenics) if $using_dhcp6;
+        configure_router_advertisements($callback, $activenics);
         flock($dhcplockfd, LOCK_UN);
         return;
     }
@@ -3087,7 +3099,8 @@ sub kea_process_request
             $callback->({ error => [ $restart->{error} ], errorcode => [1] });
         }
     }
-    configure_router_advertisements($callback, $activenics) if $using_dhcp6;
+    # Also without a DHCPv6 subnet, which is when an advertisement left from before is withdrawn.
+    configure_router_advertisements($callback, $activenics);
 
     flock($dhcplockfd, LOCK_UN);
 }
@@ -4653,7 +4666,9 @@ sub kea_node_reservations6
 
         my $first = 1;
         foreach my $client (@identities) {
-            my %reservation = ( 'subnet-id' => $subnet_id );
+            # An entry without an address carries no hostname, so nothing else in it names the
+            # node. The owner lets an update or a delete find it after the netboot method changed.
+            my %reservation = ( 'subnet-id' => $subnet_id, 'user-context' => { 'xcat-node' => $node } );
             if ($first) {
                 $reservation{hostname}       = $hname;
                 $reservation{'ip-addresses'} = [$ip];
@@ -4964,9 +4979,10 @@ sub dhcp6_chainloads
     return ( defined($netboot) && $netboot eq 'ipxe' ) ? 1 : 0;
 }
 
-#: The clients of a node that hold no address, and which therefore get a host of their own on ISC
-#: DHCP. delnode6 removes those hosts, so the names come from one list.
-sub dhcp6_secondary_clients { return qw(ipxe genesis); }
+#: The clients of a node that can hold no address, and which therefore get a host of their own on
+#: ISC DHCP. delnode6 removes those hosts, so the names come from one list. The firmware is one of
+#: them when mac.duid=canonical gives the address to iPXE.
+sub dhcp6_secondary_clients { return qw(firmware ipxe genesis); }
 
 #---
 # =head3 dhcp6_node_clients
@@ -5043,6 +5059,8 @@ sub kea_reservation_matches_for_nodes
 
     foreach my $node (@$nodes) {
         push @matches, { hostname => $node };
+        # The DHCPv6 entries of every client the node had, whatever its netboot method is now.
+        push @matches, { 'user-context' => { 'xcat-node' => $node } };
         my $ip = getipaddr($node, OnlyV4 => 1);
         push @matches, { 'ip-address' => $ip } if $ip;
         my $ip6 = getipaddr($node, OnlyV6 => 1);
@@ -5399,7 +5417,8 @@ sub enable_ipv6_forwarding {
 
     site.dhcpinterfaces names the interfaces this server answers on. An
     advertisement on any other interface would offer this host as a router to a
-    LAN the administrator kept it off. An empty or absent set is no restriction.
+    LAN the administrator kept it off. An empty or absent set is no restriction,
+    and neither is the wildcard *, which Kea also accepts.
 
 =cut
 
@@ -5409,6 +5428,7 @@ sub ra_interface_is_served {
 
     return 0 unless defined($interface) && length($interface);
     return 1 unless ref($activenics) eq 'HASH' && scalar(keys %$activenics);
+    return 1 if $activenics->{'*'};
     return $activenics->{$interface} ? 1 : 0;
 }
 
@@ -5432,6 +5452,49 @@ sub radvd_needs_restart {
 
     return 1 if $changed;
     return $running ? 0 : 1;
+}
+
+#-----------------------------------------------------------------------------
+
+=head3 withdraw_router_advertisements
+
+    Stops the advertisements of an earlier makedhcp when no IPv6 network is
+    left to announce.
+
+    Arguments:
+        $callback - the response callback
+    Returns:
+        nothing.
+
+    radvd announces a router lifetime of zero when it stops, so the clients
+    drop the route at once. The file is removed so that a restart does not
+    announce the old prefix again. A file that xCAT did not write is left alone.
+
+=cut
+
+#-----------------------------------------------------------------------------
+sub withdraw_router_advertisements
+{
+    my ($callback) = @_;
+
+    my $current;
+    if (open(my $fh, '<', $radvdconffile)) {
+        local $/;
+        $current = <$fh>;
+        close($fh);
+    }
+    return unless xCAT::NetworkUtils::radvd_config_is_xcat($current);
+
+    my $rc = xCAT::Utils->stopservice('radvd');
+    if ($rc) {
+        $callback->({ warning => ["radvd did not stop (exit $rc), so it still announces the IPv6 networks that were removed."] });
+        return;
+    }
+    xCAT::Utils->disableservice('radvd');
+    unless (unlink($radvdconffile)) {
+        $callback->({ warning => ["Cannot remove $radvdconffile, so a restart of radvd announces the removed IPv6 networks again: $!"] });
+    }
+    return;
 }
 
 #-----------------------------------------------------------------------------
@@ -5470,7 +5533,10 @@ sub configure_router_advertisements
     }
 
     my $config = xCAT::NetworkUtils::radvd_config(\@wanted);
-    return unless defined $config;
+    unless (defined $config) {
+        withdraw_router_advertisements($callback);
+        return;
+    }
 
     foreach my $net (@wanted) {
         enable_ipv6_forwarding($net->{interface});

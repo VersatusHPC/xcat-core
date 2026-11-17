@@ -500,10 +500,11 @@ sub getsynclistfile()
 
 #-------------------------------------------------------------------------------
 
-# Leap major version => SLE os name. Add a Leap release here only after its
-# installer path is validated.
+# Leap major version => SLE os name. Leap 16 has no assets of its own yet and
+# reads the SLE 15 ones.
 my %OPENSUSE_LEAP_SLE_OS = (
     '15' => 'sle15',
+    '16' => 'sle15',
     '42' => 'sles12',
 );
 

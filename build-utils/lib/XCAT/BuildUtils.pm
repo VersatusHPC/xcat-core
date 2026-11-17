@@ -27,6 +27,7 @@ use Pod::Usage qw(pod2usage);
 use feature 'say';
 
 our @EXPORT_OK = qw(
+    mock_gpgkey_override
     source_date_epoch snap_release deb_version
     stage_probe_helpers XCAT_PROBE_HELPERS stage_genesis_base_sources
     stage_xcat_probe_sources stage_xcatsn_templates
@@ -1352,6 +1353,43 @@ sub mock_config_text {
     # that only surfaces later as a confusing MN install failure. 'simple' isolation is a plain
     # chroot -- reliable for these RPM builds -- and sidesteps the nspawn cgroup race entirely.
     $text .= "config_opts['isolation'] = 'simple'\n";
+    $text .= mock_gpgkey_override($target);
+    return $text;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_gpgkey_override
+
+    Descriptions: The mock configuration lines that replace a signing key the
+                  host cannot import with a current copy of the same key.
+
+    Arguments:
+        $target - the mock target, e.g. opensuse-leap-16.0-x86_64
+
+    Returns: the lines to append after the target configuration, or ''
+
+=cut
+
+#-------------------------------------------------------------------------------
+
+# rpm-sequoia rejects the ALP-Main key in distribution-gpg-keys 1.123 and
+# earlier: "No binding signature". dnf runs inside the chroot, so the
+# replacement is a URL, not a host path.
+my @MOCK_GPGKEY_OVERRIDES = (
+    [ qr/^opensuse-leap-16\./,
+      'file:///usr/share/distribution-gpg-keys/suse/RPM-GPG-KEY-SuSE-ALP-Main',
+      'https://download.opensuse.org/distribution/leap/16.0/repo/oss/gpg-pubkey-09d9ea69-68595a8c.asc' ],
+);
+
+sub mock_gpgkey_override {
+    my ($target) = @_;
+    my $text = '';
+    for my $o (@MOCK_GPGKEY_OVERRIDES) {
+        my ($match, $old, $new) = @$o;
+        next unless $target =~ $match;
+        $text .= "config_opts['dnf.conf'] = config_opts['dnf.conf'].replace('$old', '$new')\n";
+    }
     return $text;
 }
 

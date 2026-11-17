@@ -64,3 +64,28 @@ check:rc==200
 cmd: lsdef -t network network_rest
 check:output=~Error: (\[.*?\]: )?Could not find an object named 'network_rest' of type 'network'.
 end
+
+start:restapi_5148_rows_multi
+description: GET /tables/<table>/rows/<attr>=<value> returns every row that matches, not the first one (xcat-core/#5148)
+label:restapi
+cmd:chtab netname=rest5148_a networks.net=192.0.2.0 networks.mask=255.255.255.240
+check:rc==0
+cmd:chtab netname=rest5148_b networks.net=192.0.2.16 networks.mask=255.255.255.240
+check:rc==0
+cmd:curl -s --cacert /install/postscripts/ca/ca-cert.pem "https://$$MN/xcatws/tables/networks/rows/mask=255.255.255.240?userName=__GETTABLEVALUE(key,system,username,passwd)__&userPW=__GETTABLEVALUE(key,system,password,passwd)__"
+check:output=~rest5148_a
+check:output=~rest5148_b
+cmd:chtab -d netname=rest5148_a networks; chtab -d netname=rest5148_b networks
+check:rc==0
+end
+
+start:restapi_5148_delete_badattr
+description: DELETE /tables/<table>/rows/<attr>=<value> with an attribute the table does not have returns an error that names it, and deletes nothing (xcat-core/#5148)
+label:restapi
+# The attribute name is computed, so the checks below cannot match the command text.
+cmd:attr=bogus_$((40+2));before=`tabdump networks | wc -l`;out=`curl -s -m 60 -X DELETE --cacert /install/postscripts/ca/ca-cert.pem "https://$$MN/xcatws/tables/networks/rows/$attr=255.255.255.0?userName=__GETTABLEVALUE(key,system,username,passwd)__&userPW=__GETTABLEVALUE(key,system,password,passwd)__"`;rc=$?;after=`tabdump networks | wc -l`;echo "curl rc=$rc";echo "$out";echo "rows before=$before after=$after";[ $rc -eq 0 ] && [ "$before" = "$after" ]
+check:rc==0
+check:output=~"errorcode"
+check:output=~bogus_42
+check:output!~Can't call method
+end

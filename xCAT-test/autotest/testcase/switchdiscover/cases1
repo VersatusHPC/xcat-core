@@ -1,0 +1,18 @@
+start:switchdiscover_snmp_cisco
+description:switchdiscover -s snmp finds the Cisco Catalyst at SWITCH_SIM_IP, names its type Cisco, and -w writes it to the xCAT DB. SWITCH_SIM_IP and SWITCH_SIM_NAME name a switch, or a simulated one, that answers SNMPv1 community public.
+label:others,discovery,switch
+cmd:sh -c 'if lsdef -t node -o $$SWITCH_SIM_NAME >/dev/null 2>&1; then rmdef -t node -o $$SWITCH_SIM_NAME; fi'
+check:rc==0
+cmd:switchdiscover --range $$SWITCH_SIM_IP -s snmp -w
+check:rc==0
+check:output=~Cisco IOS Software
+check:output=~$$SWITCH_SIM_NAME
+check:output=~Writing the data into xCAT DB
+cmd:lsdef -t node -o $$SWITCH_SIM_NAME -i switchtype,ip,nodetype
+check:rc==0
+check:output=~switchtype=Cisco
+check:output=~ip=$$SWITCH_SIM_IP
+check:output=~nodetype=switch
+cmd:rmdef -t node -o $$SWITCH_SIM_NAME
+check:rc==0
+end

@@ -35,7 +35,8 @@ cmd:nodeset $$CN osimage=$(cat /tmp/xcattest.freebsd.osimage)
 check:rc==0
 cmd:makedhcp $$CN
 check:rc==0
-cmd:rpower $$CN reset || rpower $$CN on
+# rpower reset of a KVM node with no domain reports "off" and returns 0. boot starts it either way.
+cmd:rpower $$CN boot
 check:rc==0
 # The installer reports "installing", then the first disk boot reports "booted".
 cmd:a=0; while [ $a -lt 120 ]; do s=$(lsdef $$CN -i status -c | awk -F= '{print $2}'); echo "$(date +%T) $s"; [ "$s" = booted ] && exit 0; a=$((a+1)); sleep 30; done; exit 1

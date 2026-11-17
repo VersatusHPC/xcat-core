@@ -223,7 +223,7 @@ sub process_request {
     }
 
     my $distname = $osver;
-    if ($osver =~ /^leap15/) {
+    if (xCAT::SvrUtils::opensuse_leap_sle_os($osver)) {
         $distname = "sles";
     } else {
         until (-r "$::XCATROOT/share/xcat/netboot/$distname/" or not $distname) {

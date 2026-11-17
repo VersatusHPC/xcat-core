@@ -26,6 +26,34 @@ sub handled_commands {
       }
 }
 
+#-------------------------------------------------------
+
+=head3  _netboot_osfamily
+
+    Return the share/xcat/netboot directory name for an os version.
+
+=cut
+
+#-------------------------------------------------------
+sub _netboot_osfamily {
+    my $osver    = shift;
+    my $osfamily = $osver;
+    $osfamily =~ s/\d+//g;
+    $osfamily =~ s/\.//g;
+    if ($osfamily =~ /rh/) {
+        $osfamily = "rh";
+    }
+
+    # OS version on s390x can contain 'sp', e.g. sles11sp1
+    if ($osfamily =~ /sles/ && $osfamily =~ /sp/) {
+        $osfamily = "sles";
+    }
+    if (xCAT::SvrUtils::opensuse_leap_sle_os($osver)) {
+        $osfamily = "sles";
+    }
+    return $osfamily;
+}
+
 sub process_request {
     my $request  = shift;
     my $callback = shift;
@@ -287,22 +315,7 @@ sub process_request {
 
 
     ### Get the Profile ####
-    my $osfamily = $osver;
-    $osfamily =~ s/\d+//g;
-    $osfamily =~ s/\.//g;
-    if ($osfamily =~ /rh/) {
-        $osfamily = "rh";
-    }
-
-    # OS version on s390x can contain 'sp', e.g. sles11sp1
-    # If the $osfamily contains 'sles' and 'sp', the $osfamily = sles
-    if ($osfamily =~ /sles/ && $osfamily =~ /sp/) {
-        $osfamily = "sles";
-    }
-    # openSUSE Leap 15.x reuses the existing SLES diskless image scripts.
-    if ($osver =~ /^leap15/) {
-        $osfamily = "sles";
-    }
+    my $osfamily = _netboot_osfamily($osver);
     if ($osver =~ /^openeuler/) {
         unless (defined(xCAT::Utils::normalize_openeuler_version(substr($osver, 9)))
             && $arch =~ /^(?:x86_64|ppc64le|riscv64)$/) {

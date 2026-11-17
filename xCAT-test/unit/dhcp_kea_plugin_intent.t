@@ -307,6 +307,7 @@ my @sysconfig_policy_cases = (
     [ 'opensuse-leap15.6',       1, 'openSUSE Leap 15.6' ],
     [ 'opensuse_leap15.6',       1, 'underscored openSUSE Leap 15.6' ],
     [ 'leap15.6',                1, 'short Leap 15.6' ],
+    [ 'opensuse42.3',            1, 'openSUSE Leap 42.3, which declares ID=opensuse' ],
     [ 'rhel6',                    0, 'RHEL 6' ],
     [ 'rhel6.10',                 0, 'RHEL 6.10' ],
     [ 'rhel7',                    1, 'RHEL 7' ],

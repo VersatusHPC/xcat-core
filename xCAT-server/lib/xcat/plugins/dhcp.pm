@@ -3663,7 +3663,8 @@ sub dhcpd_sysconfig_uses_interface_key
         $os_version .= ".$os_minor";
     }
 
-    if (   $os_family =~ /(sles|opensuse[-_]?leap|leap)/i
+    # Leap 42 declares ID=opensuse, Leap 15 declares ID=opensuse-leap.
+    if (   $os_family =~ /(sles|opensuse|leap)/i
         && xCAT::Utils->version_cmp( $os_version, '11' ) >= 0) {
         return 1;
     }

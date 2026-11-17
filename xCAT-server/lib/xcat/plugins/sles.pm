@@ -105,6 +105,26 @@ sub autoyast_boot_args
       . " install=$httpmethod://$authority$httpprefix/1";
 }
 
+#-------------------------------------------------------
+
+=head3  _install_kcmdline
+
+    Return the installer kernel command line of a diskful node.
+    Arguments: the node os, then the autoyast_boot_args arguments.
+
+=cut
+
+#-------------------------------------------------------
+sub _install_kcmdline
+{
+    my ($os, @args) = @_;
+    my $kcmdline = autoyast_boot_args(@args);
+
+    # The Leap linuxrc fetches an installer update from the internet by default.
+    $kcmdline .= " self_update=0" if xCAT::SvrUtils::opensuse_leap_sle_os($os);
+    return $kcmdline;
+}
+
 my $useflowcontrol = "0";
 use File::Find;
 use File::Basename;
@@ -116,12 +136,14 @@ my @cpiopid;
 
 sub handled_commands
 {
+    # xcatd splits this value on ":", so the pattern cannot use "(?:".
+    my $leap = join("|", map { "(leap$_.*)" } xCAT::SvrUtils::opensuse_leap_majors());
     return {
         copycd      => "sles",
-        mknetboot   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)",
-        mkinstall   => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)",
-        mkstatelite => "nodetype:os=(sle.*)|(leap15.*)",
-        mksysclone  => "nodetype:os=(sle.*)|(suse.*)|(leap15.*)"
+        mknetboot   => "nodetype:os=(sle.*)|(suse.*)|$leap",
+        mkinstall   => "nodetype:os=(sle.*)|(suse.*)|$leap",
+        mkstatelite => "nodetype:os=(sle.*)|$leap",
+        mksysclone  => "nodetype:os=(sle.*)|(suse.*)|$leap"
     };
 }
 
@@ -408,7 +430,7 @@ sub mknetboot
 
             # TODO: should get the $pkgdir value from the linuximage table
             $pkgdir = "$installroot/$osver/$arch";
-        } elsif ($osver =~ /suse.*/ or $osver =~ /leap15.*/) {
+        } elsif ($osver =~ /suse.*/ or xCAT::SvrUtils::opensuse_leap_sle_os($osver)) {
             $platform = "sles";
         }
 
@@ -1007,7 +1029,7 @@ sub mkinstall
                 $plat = "sle";
             } elsif ($os =~ /suse.*/) {
                 $plat = "suse";
-            } elsif ($os =~ /leap15.*/) {
+            } elsif (xCAT::SvrUtils::opensuse_leap_sle_os($os)) {
                 $plat = "sles";
             } else {
                 $plat = "foobar";
@@ -1232,10 +1254,7 @@ sub mkinstall
                 $httpprefix =~ s/^$installroot/\/install/;
             }
             my $kcmdline =
-              autoyast_boot_args($httpmethod, $netserver, $httpport, $httpprefix, $node);
-            if ($os =~ /^leap15/) {
-                $kcmdline .= " self_update=0";
-            }
+              _install_kcmdline($os, $httpmethod, $netserver, $httpport, $httpprefix, $node);
 
             my $installnic;
             my $primarynic;
@@ -1694,8 +1713,10 @@ sub _opensuse_leap_distname
 {
     my $version = shift;
     return unless defined $version;
-    return unless $version =~ /^(15(?:\.\d+)?)/;
-    return "leap$1";
+    return unless $version =~ /^(\d+(?:\.\d+)?)/;
+    my $distname = "leap$1";
+    return unless xCAT::SvrUtils::opensuse_leap_sle_os($distname);
+    return $distname;
 }
 
 sub _detect_opensuse_leap_treeinfo
@@ -1753,12 +1774,32 @@ sub _detect_opensuse_leap_media
     return ($distname, $arch);
 }
 
+# Leap 42 media has no .treeinfo and names its release only in the content file.
+sub _detect_opensuse_leap_content
+{
+    my $mntpath = shift;
+    open(my $fh, "<", "$mntpath/content") or return;
+    my ($distro, $arch);
+    while (my $line = <$fh>) {
+        if ($line =~ /^DISTRO\s+(.*)$/) {
+            $distro = $1;
+        } elsif ($line =~ m{^REPOID\s+\S*/(\S+)$}) {
+            $arch = $1;
+        }
+    }
+    close($fh);
+
+    my ($distname) = _detect_opensuse_leap_media(undef, $distro);
+    return unless $distname;
+    return ($distname, $arch);
+}
+
 sub _copycd_distname_supported
 {
     my $distname = shift;
     return 1 unless $distname;
     return 1 if $distname =~ /^(?:sle|suse)/;
-    return 1 if $distname =~ /^leap15(?:\..*)?$/;
+    return 1 if $distname =~ /^leap\d+(?:\.\d+)?$/ and xCAT::SvrUtils::opensuse_leap_sle_os($distname);
     return;
 }
 
@@ -1848,6 +1889,7 @@ sub copycd
     my $linktwo = 0;
 
     my ($opensuse_distname, $opensuse_arch) = _detect_opensuse_leap_treeinfo($mntpath);
+    ($opensuse_distname, $opensuse_arch) = _detect_opensuse_leap_content($mntpath) unless $opensuse_distname;
     if ($opensuse_distname) {
         $detdistname = $opensuse_distname;
         $distname = $opensuse_distname unless $distname;

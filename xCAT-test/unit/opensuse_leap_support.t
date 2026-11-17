@@ -12,9 +12,31 @@ use lib "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins";
 use lib "$FindBin::Bin/../../xCAT-server/share/xcat/netboot/imgutils";
 
 require sles;
+require genimage;
 use xCAT::SvrUtils;
 use xCAT::Template;
 use imgutils;
+
+# xcatd (xCAT-server/sbin/xcatd) splits a handled_commands value on ":" for the
+# table and on "=" for the column, then matches the node attribute against the
+# rest of the value.
+sub dispatch_matches {
+    my ($spec, $os) = @_;
+    my (undef, $cols) = split(/:/, $spec);
+    my (undef, $pattern) = split(/=/, $cols, 2);
+    return ($os =~ /$pattern/) ? 1 : 0;
+}
+
+sub write_media_file {
+    my ($dir, $name, $text) = @_;
+    my $path = "$dir/$name";
+    my $parent = $path;
+    $parent =~ s{/[^/]+$}{};
+    mkdir $parent unless -d $parent;
+    open(my $fh, '>', $path) or die "Cannot write $path: $!";
+    print {$fh} $text;
+    close($fh);
+}
 
 my $leap_compute_template_path = "$FindBin::Bin/../../xCAT-server/share/xcat/install/sles/compute.leap15.tmpl";
 open(my $leap_compute_template_fh, '<', $leap_compute_template_path) or die "Cannot read Leap compute template: $!";
@@ -98,9 +120,11 @@ ok(!xCAT_plugin::sles::_copycd_distname_supported('leap16.0'), 'copycd rejects u
 ok(!xCAT_plugin::sles::_copycd_distname_supported('opensuse15.6'), 'copycd does not accept generic openSUSE distname override');
 
 my %commands = %{ xCAT_plugin::sles->handled_commands };
-like($commands{mkinstall}, qr/leap15\.\*/, 'mkinstall handles openSUSE Leap 15 nodes');
-like($commands{mknetboot}, qr/leap15\.\*/, 'mknetboot handles openSUSE Leap 15 nodes');
-like($commands{mkstatelite}, qr/leap15\.\*/, 'mkstatelite handles openSUSE Leap 15 nodes');
+foreach my $command (qw(mkinstall mknetboot mkstatelite mksysclone)) {
+    ok(dispatch_matches($commands{$command}, 'leap15.6'), "$command handles openSUSE Leap 15 nodes");
+    ok(!dispatch_matches($commands{$command}, 'leap16.0'), "$command leaves openSUSE Leap 16 nodes unhandled");
+    ok(!dispatch_matches($commands{$command}, 'rhels9.4'), "$command leaves Red Hat nodes to the rh plugin");
+}
 
 my @os_search = xCAT::SvrUtils::get_os_search_list('leap15.6');
 is_deeply(
@@ -211,5 +235,82 @@ is(
     "$real_netboot_dir/compute.sle15.pkglist",
     'openSUSE diskless profile lookup falls back to SLE 15 pkglist'
 );
+
+# openSUSE Leap 42.3 is the SLE 12 generation. Its DVD has no .treeinfo, and
+# media.1/media names no product. The files below are copied from
+# openSUSE-Leap-42.3-DVD-x86_64.iso.
+my $leap42_dvd = tempdir(CLEANUP => 1);
+write_media_file($leap42_dvd, 'media.1/media', "openSUSE\n20170719164308\n1\n");
+write_media_file($leap42_dvd, 'media.1/products', "/ openSUSE-Leap 42.3-0\n");
+write_media_file($leap42_dvd, 'content', <<'EOF');
+CONTENTSTYLE  11
+DATADIR       suse
+DESCRDIR      suse/setup/descr
+DISTRO        cpe:/o:opensuse:opensuse:42.3,openSUSE Leap 42.3
+LINGUAS       cs da de el en_GB en_US es fr hu it ja pl pt pt_BR ru zh zh_CN zh_TW
+REPOID        obsproduct://build.opensuse.org/openSUSE:Leap:42.3/openSUSE/42.3/dvd/x86_64
+VENDOR        openSUSE
+EOF
+
+my ($leap42_dist, $leap42_arch) = eval { xCAT_plugin::sles::_detect_opensuse_leap_content($leap42_dvd) };
+is($leap42_dist, 'leap42.3', 'detects the openSUSE Leap 42.3 distname from the DVD content file');
+is($leap42_arch, 'x86_64', 'detects the openSUSE Leap 42.3 arch from the DVD content file');
+
+my $sle12_dvd = tempdir(CLEANUP => 1);
+write_media_file($sle12_dvd, 'media.1/products', "/ SLES12-SP3 12.3-0\n");
+write_media_file($sle12_dvd, 'content', <<'EOF');
+CONTENTSTYLE  11
+DEFAULTBASE   x86_64
+DISTRO        cpe:/o:suse:sles:12:sp3,SUSE Linux Enterprise Server 12 SP3
+LABEL         SUSE Linux Enterprise Server 12 SP3
+EOF
+my ($sle12_dist) = eval { xCAT_plugin::sles::_detect_opensuse_leap_content($sle12_dvd) };
+is($sle12_dist, undef, 'leaves SLES 12 media to the SLE content parser');
+
+is(xCAT_plugin::sles::_opensuse_leap_distname('42.3'), 'leap42.3', 'maps the Leap 42.3 media version to leap42.3');
+ok(xCAT_plugin::sles::_copycd_distname_supported('leap42.3'), 'copycd accepts an explicit leap42.3 distname override');
+foreach my $command (qw(mkinstall mknetboot mkstatelite mksysclone)) {
+    ok(dispatch_matches($commands{$command}, 'leap42.3'), "$command handles openSUSE Leap 42 nodes");
+}
+
+is_deeply(
+    [ xCAT::SvrUtils::get_os_search_list('leap42.3') ],
+    [qw(leap42.3 leap42.2 leap42.1 leap42.0 leap42 sles12)],
+    'openSUSE Leap 42.x searches exact, minor, major, then the SLES 12 fallback'
+);
+
+my $share_install = "$FindBin::Bin/../../xCAT-server/share/xcat/install/sles";
+is(
+    xCAT::SvrUtils::get_tmpl_file_name($share_install, 'compute', 'leap42.3', 'x86_64'),
+    "$share_install/compute.sles12.tmpl",
+    'a Leap 42 compute node reads the shipped SLES 12 autoyast template'
+);
+
+my $share_netboot = "$FindBin::Bin/../../xCAT-server/share/xcat/netboot/sles";
+my $leap42_netboot_pkglist = imgutils::get_profile_def_filename('leap42.3', 'compute', 'x86_64', $share_netboot, 'pkglist');
+is(
+    $leap42_netboot_pkglist,
+    realpath("$share_netboot/compute.leap42.x86_64.pkglist"),
+    'a Leap 42 diskless image reads the shipped Leap 42 netboot pkglist'
+);
+my $leap42_netboot_names = '';
+if ($leap42_netboot_pkglist and open(my $fh, '<', $leap42_netboot_pkglist)) {
+    $leap42_netboot_names = do { local $/; <$fh> };
+    close($fh);
+}
+like($leap42_netboot_names, qr/^kernel-default$/m, 'the Leap 42 netboot pkglist installs a kernel');
+unlike($leap42_netboot_names, qr/^(?:open-lldp|fcoe-utils)$/m, 'the Leap 42 netboot pkglist names no package that the Leap 42.3 DVD lacks');
+
+foreach my $case ([qw(leap42.3 sles)], [qw(leap15.6 sles)], [qw(sles12.3 sles)], [qw(sles11sp1 sles)], [qw(rhels9.4 rh)]) {
+    my ($osver, $family) = @$case;
+    is(eval { xCAT_plugin::genimage::_netboot_osfamily($osver) }, $family, "genimage reads the $family diskless scripts for $osver");
+}
+
+is(eval { xCAT_plugin::sles::_install_kcmdline('leap42.3', 'http', '10.0.0.1', 80, '/install/leap42.3/x86_64', 'cn1') },
+    'autoyast=http://10.0.0.1:80/install/autoinst/cn1 install=http://10.0.0.1:80/install/leap42.3/x86_64/1 self_update=0',
+    'the Leap 42 installer does not fetch an installer update');
+is(eval { xCAT_plugin::sles::_install_kcmdline('sles12.3', 'http', '10.0.0.1', 80, '/install/sles12.3/x86_64', 'cn1') },
+    'autoyast=http://10.0.0.1:80/install/autoinst/cn1 install=http://10.0.0.1:80/install/sles12.3/x86_64/1',
+    'the SLES 12 installer command line is unchanged');
 
 done_testing();

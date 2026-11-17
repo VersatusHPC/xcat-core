@@ -122,4 +122,30 @@ subtest 'EL and openEuler keep the expressions they have' => sub {
         'xCAT-server.spec still asks EL10 weakly for perl-DB_File');
 };
 
+# openSUSE Leap 16.0 ships no nmap and no perl(IO::Socket::INET6). Its core is built in a Leap 16
+# chroot, so the build for suse_version 1600 may only recommend them. Leap 15.6 and 42.3 keep the
+# hard requirements, because their Minimal-VM image installs no recommended package.
+subtest 'the Leap 16 build only recommends what Leap 16 does not ship' => sub {
+    my $rpmspec = qx(command -v rpmspec 2>/dev/null);
+    chomp($rpmspec);
+    plan skip_all => 'rpmspec is required' unless $rpmspec && -x $rpmspec;
+    my %wants = (
+        'xCAT/xCAT.spec'               => qr/^nmap$/,
+        'xCAT-client/xCAT-client.spec' => qr/^nmap$/,
+        'xCAT-server/xCAT-server.spec' => qr/^perl\(IO::Socket::INET6\)$/,
+        'perl-xCAT/perl-xCAT.spec'     => qr/^perl\(IO::Socket::INET6\)$/,
+    );
+    for my $spec (sort keys %wants) {
+        for my $build (['Leap 15', 'suse_version 1500', 1], ['Leap 16', 'suse_version 1600', 0]) {
+            my ($name, $define, $want) = @$build;
+            my @requires = qx($rpmspec -q --requires --target x86_64 --define 'version 2.20.0' --define 'release 1' --undefine rhel --undefine suse_version --define '$define' $root/$spec 2>/dev/null);
+            chomp @requires;
+            s/\s+$// for @requires;
+            ok(scalar(@requires), "rpmspec reads $spec for $name");
+            is(scalar(grep { $_ =~ $wants{$spec} } @requires), $want,
+                "$spec built for $name " . ($want ? 'requires' : 'does not require') . " $wants{$spec}");
+        }
+    }
+};
+
 done_testing();

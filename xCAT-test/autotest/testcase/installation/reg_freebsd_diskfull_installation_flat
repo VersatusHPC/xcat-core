@@ -28,7 +28,8 @@ cmd:printf 'authorized_keys_file=/etc/xcat/freebsd/administrators.pub\n' > /etc/
 check:rc==0
 cmd:printf 'target_disk=%s\ntarget_disk_ident=%s\nfilesystem=ufs\nswap_size=0\n' $$FREEBSD_DISK $$FREEBSD_DISK_IDENT > /etc/xcat/freebsd/$$CN.disk && chmod 0644 /etc/xcat/freebsd/$$CN.disk
 check:rc==0
-cmd:chdef -t osimage -o $(cat /tmp/xcattest.freebsd.osimage) template=/etc/xcat/freebsd/settings 'partitionfile=/etc/xcat/freebsd/#NODE#.disk'
+# xcattest ends a line at '#', so the per-node path is named in full, not with #NODE#.
+cmd:chdef -t osimage -o $(cat /tmp/xcattest.freebsd.osimage) template=/etc/xcat/freebsd/settings partitionfile=/etc/xcat/freebsd/$$CN.disk
 check:rc==0
 cmd:nodeset $$CN osimage=$(cat /tmp/xcattest.freebsd.osimage)
 check:rc==0

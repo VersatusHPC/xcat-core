@@ -1,5 +1,5 @@
 start:confignetwork_roce_rxe
-description:confignetwork configures a RoCE nic from the nics table: its IP, a soft-RoCE (rdma_rxe) link on it, and RoCE v2 as the default GID type. rping and ib_send_bw then run between the CN and the MN over that link.
+description:confignetwork configures a RoCE nic from the nics table: its IP, a soft-RoCE (rdma_rxe) link on it, and a RoCE v2 GID for the nic IP on that link. rping and ib_send_bw then run between the CN and the MN over that link.
 label:others,network,roce
 cmd:lsdef $$CN;if [ $? -eq 0 ]; then lsdef -l $$CN -z >/tmp/CN.roce.stanza ;fi
 check:rc==0
@@ -21,7 +21,7 @@ check:output=~198.18.0.10/24
 cmd:xdsh $$CN "rdma link show"
 check:rc==0
 check:output=~state ACTIVE physical_state LINK_UP netdev $$SECONDNIC
-cmd:xdsh $$CN "for d in /sys/class/infiniband/*; do c=/sys/kernel/config/rdma_cm/\$(basename \$d); mkdir -p \$c && cat \$c/ports/1/default_roce_mode; rmdir \$c; done"
+cmd:xdsh $$CN "for l in \$(rdma link show | sed -n 's/^link \([^/]*\)\/.* netdev $$SECONDNIC *\$/\1/p'); do d=/sys/class/infiniband/\$l/ports/1; for g in \$d/gids/*; do if [ \$(cat \$g) = 0000:0000:0000:0000:0000:ffff:c612:000a ]; then cat \$d/gid_attrs/types/\$(basename \$g); fi; done; done"
 check:rc==0
 check:output=~RoCE v2
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/confignetwork/roce_peer.sh up __GETNODEATTR($$CN,ip)__ 198.18.0.1/24
@@ -38,7 +38,7 @@ check:rc==0
 check:output=~65536\s+1000\s+\d
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/confignetwork/roce_peer.sh down __GETNODEATTR($$CN,ip)__ 198.18.0.1/24
 check:rc==0
-cmd:xdsh $$CN "for l in \$(rdma link show | sed -n 's/^link \([^/]*\)\/.* netdev $$SECONDNIC\$/\1/p'); do rdma link delete \$l; done"
+cmd:xdsh $$CN "for l in \$(rdma link show | sed -n 's/^link \([^/]*\)\/.* netdev $$SECONDNIC *\$/\1/p'); do rdma link delete \$l; done"
 cmd:xdsh $$CN "ip addr del 198.18.0.10/24 dev $$SECONDNIC"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del $$SECONDNIC
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh restore

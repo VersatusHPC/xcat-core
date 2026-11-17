@@ -1,0 +1,56 @@
+start:reg_freebsd_diskfull_installation_flat
+description:Install FreeBSD 15.1 on the compute node from imported mfsBSD media, stateful, flat
+os:Linux
+label:flat_cn_diskful,provision,freebsd
+# $$ISO is an xcat-mfsbsd-1 boot bundle built by buildmfsbsd.sh, not the FreeBSD release DVD.
+# The legacy disk policy names one disk by device and serial. $$FREEBSD_DISK names the device and
+# $$FREEBSD_DISK_IDENT the serial the installer reads from it.
+cmd:chdef -t node -o $$CN servicenode= monserver=$$MN nfsserver=$$MN tftpserver=$$MN xcatmaster=$$MN netboot=xnba os=freebsd15.1 arch=x86_64
+check:rc==0
+cmd:makedns -n
+check:rc==0
+cmd:if [ -x /usr/bin/goconserver ]; then makegocons $$CN; else makeconservercf $$CN; fi
+check:rc==0
+cmd:makedhcp -n
+check:rc==0
+cmd:makedhcp -a
+check:rc==0
+cmd:copycds $$ISO
+check:rc==0
+# copycds names the image with a digest of the media, so the name is read back, not predicted.
+cmd:lsdef -t osimage -s | awk '/^freebsd15\.1-x86_64-install-compute/ {print $1}' > /tmp/xcattest.freebsd.osimage; test "$(wc -l < /tmp/xcattest.freebsd.osimage)" -eq 1
+check:rc==0
+cmd:cat /tmp/xcattest.freebsd.osimage
+check:output=~freebsd15.1-x86_64-install-compute
+cmd:mkdir -p -m 0755 /etc/xcat/freebsd && install -m 0644 /root/.ssh/id_rsa.pub /etc/xcat/freebsd/administrators.pub
+check:rc==0
+cmd:printf 'authorized_keys_file=/etc/xcat/freebsd/administrators.pub\n' > /etc/xcat/freebsd/settings && chmod 0644 /etc/xcat/freebsd/settings
+check:rc==0
+cmd:printf 'target_disk=%s\ntarget_disk_ident=%s\nfilesystem=ufs\nswap_size=0\n' $$FREEBSD_DISK $$FREEBSD_DISK_IDENT > /etc/xcat/freebsd/$$CN.disk && chmod 0644 /etc/xcat/freebsd/$$CN.disk
+check:rc==0
+cmd:chdef -t osimage -o $(cat /tmp/xcattest.freebsd.osimage) template=/etc/xcat/freebsd/settings 'partitionfile=/etc/xcat/freebsd/#NODE#.disk'
+check:rc==0
+cmd:nodeset $$CN osimage=$(cat /tmp/xcattest.freebsd.osimage)
+check:rc==0
+cmd:makedhcp $$CN
+check:rc==0
+cmd:rpower $$CN reset || rpower $$CN on
+check:rc==0
+# The installer reports "installing", then the first disk boot reports "booted".
+cmd:a=0; while [ $a -lt 120 ]; do s=$(lsdef $$CN -i status -c | awk -F= '{print $2}'); echo "$(date +%T) $s"; [ "$s" = booted ] && exit 0; a=$((a+1)); sleep 30; done; exit 1
+check:rc==0
+cmd:lsdef -l $$CN
+cmd:ping $$CN -c 3
+check:rc==0
+cmd:xdsh $$CN freebsd-version
+check:rc==0
+check:output=~15\.1-RELEASE
+cmd:xdsh $$CN uname -m
+check:rc==0
+check:output=~amd64
+cmd:xdsh $$CN mount
+check:rc==0
+check:output=~ufs
+cmd:if [ -x /usr/bin/goconserver ]; then makegocons -d $$CN; else makeconservercf -d $$CN; fi
+cmd:rm -f /tmp/xcattest.freebsd.osimage
+end

@@ -43,6 +43,8 @@ BEGIN {
     }
     sub getipaddr { return '192.0.2.20'; }
     sub my_ip_facing { return (0, '192.0.2.1'); }
+    sub node_is_ipv6_only { return 0; }
+    sub isIpv6addr { return ($_[1] // '') =~ /:/ ? 1 : 0; }
     $INC{'xCAT/NetworkUtils.pm'} = __FILE__;
 
     package xCAT::ServiceNodeUtils;

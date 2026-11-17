@@ -28,6 +28,11 @@ fixtures. They require Bubblewrap, Bash, GNU core utilities, grep, sed, and
 permission to create user namespaces. The CI workflow installs Bubblewrap and
 enables those namespaces.
 
+`routeop_linklocal.bats` also needs iproute2 and kernel support for dummy
+network interfaces. It maps root and grants `CAP_NET_ADMIN` only inside a
+new user and network namespace. It runs as an ordinary user and changes
+real kernel routes only in that private network namespace.
+
 Missing prerequisites fail these tests without stopping unrelated test files.
 Non-Linux hosts report a skip. Set `TMPDIR` to a writable, executable filesystem
 if the default temporary directory is mounted with `noexec`.
@@ -64,14 +69,16 @@ reap children created by deliberate-fault tests.
 
 ## Genesis sandbox prerequisites
 
-`genesis_bmcsetup_users.bats` and `genesis_getadapter.bats` run the complete
-checkout scripts with private filesystem, process, and network namespaces.
-They replace hardware and transport commands, not the scripts under test.
-The fixtures do not contact a BMC or transmit an adapter request.
+`genesis_bmcsetup_users.bats`, `genesis_getadapter.bats` and
+`genesis_discovery_uuid.bats` run the complete checkout scripts with private
+filesystem, process, and network namespaces. They replace hardware and
+transport commands, not the scripts under test. The fixtures do not contact a
+BMC or transmit an adapter or discovery request.
 
 These tests require Linux, bats-core 1.4 or newer, Bubblewrap, Bash, GNU core
 utilities, awk, grep, sed, and user namespace support. The adapter tests also
-require `cmp` from diffutils. The CI environment provides these dependencies.
+require `cmp` from diffutils, and the discovery test requires gzip. The CI
+environment provides these dependencies.
 Missing prerequisites fail on Linux; non-Linux hosts report a skip.
 The temporary filesystem must allow executable files.
 

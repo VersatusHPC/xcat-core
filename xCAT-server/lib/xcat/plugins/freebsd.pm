@@ -219,7 +219,7 @@ sub _copy_bundle {
 sub copycd {
     my ($request, $callback, $doreq) = @_;
     my @args = @{ $request->{arg} || [] };
-    my ($mount, $source, $inspect, $noosimage, $nonoverwrite, $name, $arch, $path, $specific);
+    my ($mount, $source, $inspect, $noosimage, $nonoverwrite, $name, $arch, $path, $specific, $isofile);
     my @parse_errors;
     my $parser = Getopt::Long::Parser->new(config => [qw(no_auto_abbrev no_ignore_case)]);
     my $parsed;
@@ -228,7 +228,9 @@ sub copycd {
         $parsed = $parser->getoptionsfromarray(\@args,
             'm=s' => \$mount, 'f=s' => \$source, 'i' => \$inspect,
             'o' => \$noosimage, 'w' => \$nonoverwrite, 'n=s' => \$name,
-            'a=s' => \$arch, 'p=s' => \$path, 's' => \$specific);
+            'a=s' => \$arch, 'p=s' => \$path, 's' => \$specific,
+            # copycds names the ISO file for the casper plugin. FreeBSD media does not use it.
+            'I=s' => \$isofile);
     }
     return unless defined($mount);
     my $legacy = -e "$mount/xcat/mfsbsd.json" || -l "$mount/xcat/mfsbsd.json";

@@ -30,6 +30,7 @@ BEGIN {
     package xCAT::NetworkUtils;
     sub determinehostname { return 'manager'; }
     sub checkNodeIPaddress { return { ip => '192.0.2.10' }; }
+    sub ipxe_script_server_for_node { return ('${next-server}', undef); }
     package xCAT::Table;
     our (%rows, @lookups);
     sub new { return bless { table => $_[1] }, $_[0]; }
@@ -248,7 +249,7 @@ subtest 'boot never reads or cancels installation ownership' => sub {
     is($cancel_calls, 0, 'boot never invokes cancellation');
     is(xCAT::FreeBSDInstall::state('node1', directory => $state_directory)->{phase}, 'installed', 'completion persists installed ownership');
     is(read_file("$tftp/xcat/xnba/nodes/node1"), "#!gpxe\n#boot\nexit\n", 'BIOS boot returns to firmware');
-    is(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), "#!gpxe\n#boot\nexit\n", 'UEFI boot replaces the installer with exit');
+    is(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), "#!gpxe\n#boot\nexit 1\n", 'UEFI boot replaces the installer with exit');
     render($tftp, {}, 'boot', {os => 'rhels9'}, {}, {server => '192.0.2.20', target => 'iqn.example'});
     like(read_file("$tftp/xcat/xnba/nodes/node1"), qr/hdboot\n/, 'existing iSCSI BIOS local-boot behavior is preserved');
 };

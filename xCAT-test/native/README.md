@@ -45,6 +45,15 @@ packages, execute target-architecture binaries or prove that the generated image
 
 ## Other native tests
 
+`debian_genimage_profile_assets.t` runs the Debian genimage command in an
+isolated filesystem. It checks custom and shipped package lists,
+extra-package lists and postinstall scripts. Package tools and postinstall
+scripts stop with deliberate failures after recording the selected input.
+Only the Debian script directory is copied, with no installed xCAT libraries.
+Source-checkout copies follow symlinks. An optional directory argument checks
+a package payload without following symlinks.
+It does not install packages or build an initrd.
+
 The pull-request workflow runs these packaging cases explicitly as an ordinary
 user:
 
@@ -56,11 +65,18 @@ prove xCAT-test/native/probe_package_payload.t \
 
 They need RPM build/query tools, cpio, createrepo_c, zstd, rsync, GnuPG, Python 3
 with RPM bindings, user/mount namespaces, and the Perl modules Capture::Tiny,
-File::Slurper, Parallel::ForkManager and XML::LibXML. The probe command also
-needs `which`. The release test uses an ephemeral signing key and removes its
-agent. These checks inspect real packages and repository output; they do not
-qualify package installation on every target architecture. On EL8, install both
-`python36` and `python3-rpm` to provide the interpreter and its RPM bindings.
+Digest::SHA, File::Slurper, Parallel::ForkManager and XML::LibXML. The probe
+command also needs `which`. The release test uses an ephemeral signing key and
+removes its agent. These checks inspect real packages and repository output;
+they do not qualify package installation on every target architecture. On EL8,
+install both `python36` and `python3-rpm` to provide the interpreter and its RPM
+bindings.
+
+The release case also runs source-only finalization with unsigned and signed
+binary RPMs, empty binary trees, and absent, retained and standalone aliases.
+It checks that binary files and aliases retain their bytes, modes and timestamps
+while source RPMs and metadata use a different signing key. This covers cached
+source RPMs; it does not run mock or publish a repository.
 
 The Debian probe permission test has a separate pull-request CI step. It needs
 Debian build tools, BATS, bubblewrap, fakeroot, reprepro and
@@ -199,8 +215,55 @@ generates disposable SSH keys and checks their installation through the real scr
 These tests do not perform
 an installation, capture a kernel crash or modify host accounts.
 
+The SELinux policy case runs as root in a disposable EL10 container. It needs
+`make`, `selinux-policy-devel`, `selinux-policy-targeted`, `libselinux-utils`,
+`policycoreutils`, `attr` and Capture::Tiny. It installs the xCAT module into a
+private copy of the targeted store, so the host policy does not change. Set
+`TMPDIR` to a file system that stores `security.selinux` attributes, such as a
+tmpfs:
+
+```
+TMPDIR=/mnt/labels prove xCAT-test/native/selinux_file_contexts.t
+```
+
+The case looks up labels in the compiled `file_contexts` and relabels a copy of
+`/install` with `setfiles`. It does not need an enforcing kernel, and it does not
+run the rpm scriptlets.
+
+The repair case drives the procedure the SELinux page documents for a published
+artifact that carries the wrong type:
+
+```
+TMPDIR=/mnt/labels prove xCAT-test/native/selinux_image_repair.t
+```
+
+It adds local file-context mappings with `semanage`, so it also needs
+`policycoreutils-python-utils`. Those mappings go into the policy store of the
+host, so the case refuses to run where SELinux is enabled, and it removes every
+mapping it adds. `restorecon` is a no-op where SELinux is disabled, so the case
+applies the mappings with `setfiles` and asserts that the merged `file_contexts`
+answers what the store answers for each path it measures.
+
 Check the TAP output for skipped prerequisites. A successful `prove` exit with
 skipped cases does not qualify those cases.
+
+`networkmanager_autoconnect.t` runs the NetworkManager helper of the install
+script library under Bash, with an `nmcli` command fixture, in a private
+filesystem. It needs Bubblewrap and unprivileged user namespaces:
+
+```
+prove xCAT-test/native/networkmanager_autoconnect.t
+```
+
+`detect_dhcpd_tcpdump_lookup.t` runs the DHCP server detectors of xCAT-server
+and xCAT-probe with a `tcpdump` command fixture. The capture cases need a
+default route on the loopback interface, so they run in mount and network
+namespaces from `unshare` instead of Bubblewrap. They need `unshare`, `mount`,
+`ip` and a writable `/var/tmp`, and skip without a private network namespace:
+
+```
+prove xCAT-test/native/detect_dhcpd_tcpdump_lookup.t
+```
 
 ## FIPS policy and discovery keys
 
@@ -250,7 +313,8 @@ On Debian or Ubuntu, install `bubblewrap`, `debhelper`, `devscripts`, `fakeroot`
 prove xCAT-test/native/xcatd_debian_lifecycle.t \
       xCAT-test/native/xcatd_restart_callers.t \
       xCAT-test/native/apache_package_lifecycle.t \
-      xCAT-test/native/package_upgrade_logging.t
+      xCAT-test/native/package_upgrade_logging.t \
+      xCAT-test/native/xcatd_debian_init_state.t
 ```
 
 On EL8 or EL10, install `bubblewrap`, `rpm-build`, `systemd`, `chkconfig`,
@@ -259,6 +323,7 @@ On EL8 or EL10, install `bubblewrap`, `rpm-build`, `systemd`, `chkconfig`,
 
 ```
 prove xCAT-test/native/xcatd_rpm_lifecycle.t \
+      xCAT-test/native/xcatd_relocated_startup.t \
       xCAT-test/native/apache_rpm_configuration.t \
       xCAT-test/native/apache_package_lifecycle.t \
       xCAT-test/native/package_upgrade_logging.t
@@ -374,24 +439,34 @@ user with Bubblewrap and unprivileged user namespaces enabled:
 ```
 prove xCAT-test/native/install_profile_riscv64.t \
       xCAT-test/native/netboot_profile_riscv64.t \
+      xCAT-test/native/netboot_profile_postinstall.t \
       xCAT-test/native/builddebs_riscv64.t \
-      xCAT-test/native/ubuntu_subiquity_template.t
+      xCAT-test/native/ubuntu_subiquity_template.t \
+      xCAT-test/native/ubuntu_subiquity_install_disk.t
 ```
 
 The renderers need the system Perl with the xCAT dependencies, XML::Simple,
 DBD::SQLite, Capture::Tiny, and File::Slurper. The sandbox clears the environment
-and does not mount perlbrew or local::lib directories. The Subiquity case also
-needs /usr/bin/python3 with PyYAML; on EL8, install python36 for that path.
+and does not mount perlbrew or local::lib directories. The Subiquity cases also
+need /usr/bin/python3 with PyYAML; on EL8, install python36 for that path.
 The Debian case needs debhelper, devscripts, fakeroot, and reprepro, and skips
 on non-Debian hosts. Each case creates its own temporary files and database.
 The temporary directory must allow execution; set TMPDIR if /tmp is noexec.
 Sandbox commands require GNU timeout and have a 45-second limit.
-Pull-request CI runs these cases and rejects whole-file skips. The permissive
-SELinux case records an existing postinstall defect as TODO, without changing
-production behavior.
+Pull-request CI runs these cases and rejects whole-file skips.
 
 The netboot case executes the selected postinstall file directly. Its private
 /bin/sh uses Bash, as on EL, including when the test host uses another shell.
+
+`netboot_profile_postinstall.t` runs the affected EL postinstall owners and
+their distro and service aliases. It checks the resulting SELinux settings,
+missing files, comments, repeated execution, permissions, ownership and host
+sentinels. It uses the same sandbox and Perl dependencies. CI runs it on
+Ubuntu, EL8 and EL10. It executes host tools against private image roots;
+it does not boot the target architecture or verify kernel SELinux state.
+Both Bash and dash are required. The firewalld cases cover regular files,
+valid and dangling symlinks, absent entries and directories under both shells.
+The unit files, unrelated links and host entries must remain unchanged.
 
 The Subiquity case replaces downloads and external commands, and uses a
 loopback install-monitor peer. It does not install an operating system.

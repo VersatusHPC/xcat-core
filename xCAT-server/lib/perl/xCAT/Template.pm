@@ -456,7 +456,7 @@ sub subvars {
                         $writerepo .="$repo_in_post\n";
                         $writerepo .="EOF\n";
                     }
-                } elsif ($platform =~ /^(sles|suse|leap15)/) {
+                } elsif ($platform =~ /^(sles|suse)/ or xCAT::SvrUtils::opensuse_leap_sle_os($platform)) {
                     my $http = _sles_media_url($node_ipv6_only, $master_uri_host, $httpportsuffix, $pkgdir);
                     $source .= "         <listentry>
                <media_url>$http</media_url>

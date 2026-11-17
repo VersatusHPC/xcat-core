@@ -493,10 +493,7 @@ sub get_profile_def_filename {
     my $ext = shift;
 
     my @osbase = _profile_lookup_osbase_list($osver);
-    my $fallbackos;
-    if ($osver =~ /^leap15/) {
-        $fallbackos = "sle15";
-    }
+    my $fallbackos = xCAT::SvrUtils::opensuse_leap_sle_os($osver);
     return xCAT::ProfileUtils::find_profile_asset(
         $base, $profile, $arch, $ext, $osver, @osbase,
         ($fallbackos ? ($fallbackos) : ()));

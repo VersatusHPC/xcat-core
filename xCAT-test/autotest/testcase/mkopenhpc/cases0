@@ -1,0 +1,28 @@
+start:mkopenhpc_slurm_hierarchy
+description:mkopenhpc deploys Slurm with slurmctld on the MN and slurmd on a CN behind a service node, and srun runs a job on that CN
+os:Linux
+label:openhpc
+cmd:rm -f /tmp/mkopenhpc_slurm_hierarchy.ready
+cmd:mkopenhpc -r $$OHPC_REPO -p $$SLURM_PARTITION $$CN && touch /tmp/mkopenhpc_slurm_hierarchy.ready
+check:rc==0
+# xcattest keeps running commands after a failed check. The steps below need what mkopenhpc
+# deploys, so each one starts only when mkopenhpc succeeded.
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && systemctl is-active munge slurmctld
+check:rc==0
+# The CN gets munge.key and slurm.conf from the SN through its synclist and postscripts, so it is
+# provisioned again behind the SN.
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 1
+check:rc==0
+check:output=~Provision node\(s\)\: $$CN
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && xdsh $$CN "systemctl is-active munge slurmd"
+check:rc==0
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && xdsh $$SN "systemctl is-active slurmd"
+check:rc!=0
+# slurmd registers some seconds after the node boots.
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
+check:output=~^idle$
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && srun -N1 -p $$SLURM_PARTITION hostname
+check:rc==0
+check:output=~^$$CN
+cmd:rm -f /tmp/mkopenhpc_slurm_hierarchy.ready
+end

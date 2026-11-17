@@ -1,0 +1,86 @@
+start:fips_makedns_tsig
+description: On a FIPS management node, makedns signs DNS updates with an HMAC-SHA256 TSIG key and named accepts them
+os:Linux
+label:mn_only,fips
+cmd:cat /proc/sys/crypto/fips_enabled
+check:output=~^1
+cmd:makedns -n
+check:rc==0
+cmd:grep -h -i algorithm /etc/named.conf
+check:output=~hmac-sha256
+check:output!~hmac-md5
+# makedns <node> sends a dynamic update signed with the key, so a lookup that comes back proves named
+# accepted the HMAC-SHA256 signature.
+cmd:makedns -d $$CN
+check:rc==0
+cmd:host $$CN __GETTABLEVALUE(key,master,value,site)__
+check:output!~__GETNODEATTR($$CN,ip)__
+cmd:makedns $$CN
+check:rc==0
+cmd:host $$CN __GETTABLEVALUE(key,master,value,site)__
+check:rc==0
+check:output=~__GETNODEATTR($$CN,ip)__
+end
+
+start:fips_makedhcp_kea
+description: On a FIPS management node, makedhcp writes a configuration with HMAC-SHA256 keys and serves the node
+os:Linux
+label:mn_only,fips
+cmd:cat /proc/sys/crypto/fips_enabled
+check:output=~^1
+cmd:makedhcp -n
+check:rc==0
+cmd:makedhcp $$CN
+check:rc==0
+cmd:makedhcp -q $$CN
+check:rc==0
+check:output=~__GETNODEATTR($$CN,ip)__
+# The key stanza is in the Kea DDNS configuration on Kea, and in dhcpd.conf on ISC DHCP.
+cmd:cat /etc/kea/*.conf /etc/dhcp/dhcpd.conf 2>/dev/null | grep -i -E 'algorithm'
+check:output=~[Hh][Mm][Aa][Cc]-[Ss][Hh][Aa]256
+check:output!~[Hh][Mm][Aa][Cc]-[Mm][Dd]5
+end
+
+start:restapi_token_fips
+description: On a FIPS management node, the REST API answers over HTTPS and accepts the token it issues
+os:Linux
+label:mn_only,fips,restapi
+cmd:cat /proc/sys/crypto/fips_enabled
+check:output=~^1
+cmd:dnf install -y mod_ssl
+check:rc==0
+cmd:cp -p /etc/httpd/conf.d/ssl.conf /tmp/ssl.conf.fips_case
+check:rc==0
+# server-cred.pem holds the key and the certificate. The key line is deleted, not commented out:
+# xcattest reads a hash sign in a command as the start of a comment.
+cmd:sed -i -e 's|^\(\s*\)SSLCertificateFile.*$|\1SSLCertificateFile /etc/xcat/cert/server-cred.pem|' -e '/^\s*SSLCertificateKeyFile/d' /etc/httpd/conf.d/ssl.conf
+check:rc==0
+cmd:systemctl restart httpd
+check:rc==0
+cmd:tabch key=xcat,username=__GETTABLEVALUE(key,system,username,passwd)__ passwd.password=__GETTABLEVALUE(key,system,password,passwd)__
+check:rc==0
+# One command: a token lives in a shell variable. The node list read with the token must equal nodels.
+cmd:token=`curl -s -X POST --cacert /install/postscripts/ca/ca-cert.pem 'https://$$MN/xcatws/tokens' -H Content-Type:application/json --data '{"userName":"__GETTABLEVALUE(key,system,username,passwd)__","userPW":"__GETTABLEVALUE(key,system,password,passwd)__"}' | sed -n 's/.*"id":"\([^"]*\)".*/\1/p'`;echo "token: $token";rest=`curl -s --cacert /install/postscripts/ca/ca-cert.pem -H "X-Auth-Token: $token" 'https://$$MN/xcatws/nodes' | tr -d '[]" ' | tr ',' '\n' | sort | paste -sd,`;want=`nodels | sort | paste -sd,`;echo "REST: $rest";echo "nodels: $want";[ -n "$token" ] && [ -n "$want" ] && [ "$rest" = "$want" ]
+check:rc==0
+cmd:tabch -d key=xcat passwd
+check:rc==0
+cmd:mv -f /tmp/ssl.conf.fips_case /etc/httpd/conf.d/ssl.conf; dnf remove -y mod_ssl; systemctl restart httpd
+check:rc==0
+end
+
+start:fips_node_enabled
+description: A compute node installed from an osimage with fips=1 runs with the kernel in FIPS mode
+os:Linux
+label:provision,fips
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=1
+check:rc==0
+# Install only when the osimage took the attribute. Without it the install measures nothing.
+cmd:if lsdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute -i fips | grep -q 'fips=1'; then /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute; else echo "the osimage has no fips attribute"; exit 1; fi
+check:rc==0
+cmd:state=`xdsh $$CN cat /proc/sys/crypto/fips_enabled | awk '{print $2}'`;echo "fips_enabled on $$CN: $state";[ "$state" = 1 ]
+check:rc==0
+cmd:xdsh $$CN update-crypto-policies --show
+check:rc==0
+check:output=~FIPS
+cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=
+end

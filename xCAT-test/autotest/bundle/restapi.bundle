@@ -27,4 +27,6 @@ restapi_modify_wrong_field_CN
 restapi_delete_temp_CN_put
 restapi_nodeshell_cmd_root
 restapi_nodeshell_cmd_non_root
+restapi_5148_rows_multi
+restapi_5148_delete_badattr
 restapi_cleanup_on_MN_CN

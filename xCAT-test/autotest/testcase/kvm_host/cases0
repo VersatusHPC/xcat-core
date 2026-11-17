@@ -1,0 +1,46 @@
+start:kvm_host_provision_mkvm
+description:install the compute node as a KVM host from the kvm profile, then create a guest on it with mkvm and install the guest
+os:Linux
+label:kvm_host
+# The osimage names no template and no pkglist, so mkinstall resolves the kvm profile files for
+# this OS exactly as it does for a site that defines a kvm osimage.
+cmd:mkdef -f -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-kvm imagetype=linux osname=Linux osvers=__GETNODEATTR($$CN,os)__ osarch=__GETNODEATTR($$CN,arch)__ profile=kvm provmethod=install pkgdir=/install/__GETNODEATTR($$CN,os)__/__GETNODEATTR($$CN,arch)__
+check:rc==0
+cmd:rm -f /tmp/kvm_host_provision_mkvm.host_ready
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-kvm 1 && touch /tmp/kvm_host_provision_mkvm.host_ready
+check:rc==0
+check:output=~Provision node\(s\)\: $$CN
+# xcattest keeps running commands after a failed check. Each step below needs a booted host, so
+# it starts only when the install above succeeded.
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "grep -c -w -E 'svm|vmx' /proc/cpuinfo"
+check:rc==0
+check:output=~$$CN: [1-9]
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system domcapabilities --virttype kvm"
+check:rc==0
+check:output=~<domain>kvm</domain>
+cmd:mkdef -f -t node -o $$KVMGUEST groups=all,kvmguest ip=$$KVMGUEST_IP arch=__GETNODEATTR($$CN,arch)__ os=__GETNODEATTR($$CN,os)__ mgt=kvm cons=kvm netboot=__GETNODEATTR($$CN,netboot)__ serialport=0 serialspeed=115200 vmhost=$$CN vmcpus=2 vmmemory=4096 vmnics=br0 vmnicnicmodel=virtio vmstorage=dir:///var/lib/libvirt/images vmstoragecache=writeback
+check:rc==0
+cmd:makehosts $$KVMGUEST
+check:rc==0
+cmd:makedns -n
+check:rc==0
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && mkvm $$KVMGUEST -s 10G
+check:rc==0
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system list --all --name"
+check:rc==0
+check:output=~$$CN: $$KVMGUEST
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && makedhcp $$KVMGUEST
+check:rc==0
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$KVMGUEST __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 1
+check:rc==0
+check:output=~Provision node\(s\)\: $$KVMGUEST
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$KVMGUEST hostname
+check:rc==0
+check:output=~$$KVMGUEST: $$KVMGUEST
+cmd:rmvm $$KVMGUEST -f -p
+cmd:makedhcp -d $$KVMGUEST
+cmd:makehosts -d $$KVMGUEST
+cmd:rmdef -t node -o $$KVMGUEST
+cmd:rmdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-kvm
+cmd:rm -f /tmp/kvm_host_provision_mkvm.host_ready
+end

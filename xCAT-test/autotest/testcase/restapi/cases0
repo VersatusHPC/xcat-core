@@ -48,9 +48,10 @@ end
 start:restapi_list_nodes
 description: List nodes on the management node with "curl -X GET"
 label:restapi
-cmd:username=__GETTABLEVALUE(key,system,username,passwd)__;password=__GETTABLEVALUE(key,system,password,passwd)__;xdsh $$CN "curl -X GET -s --cacert /root/ca-cert.pem 'https://$$MN/xcatws/nodes?&userName=$username&userPW=$password'"
+# The node list must equal nodels. A flat cluster defines no service node, so a fixed node name
+# fails there. The CN name is no check either: xdsh puts it at the start of every output line.
+cmd:username=__GETTABLEVALUE(key,system,username,passwd)__;password=__GETTABLEVALUE(key,system,password,passwd)__;rest=`xdsh $$CN "curl -X GET -s --cacert /root/ca-cert.pem 'https://$$MN/xcatws/nodes?userName=$username&userPW=$password'" | sed 's/^[^:]*: //' | tr -d '[]" ' | tr ',' '\n' | sort | paste -sd,`;want=`nodels | sort | paste -sd,`;echo "REST: $rest";echo "nodels: $want";[ -n "$want" ] && [ "$rest" = "$want" ]
 check:rc==0
-check:output=~$$SN
 end
 
 start:restapi_list_node_CN

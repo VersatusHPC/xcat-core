@@ -67,6 +67,16 @@ like(mock_config_text('perl-xCAT', 'openeuler-24.03-ppc64le', $ppc, 1),
 unlike(mock_config_text('perl-xCAT', 'opensuse-leap-15.6-x86_64', $x86, 1),
     qr/perl-generators/, 'and still does not on a SUSE target');
 
+# The ALP-Main key in distribution-gpg-keys 1.123 and earlier has no binding signature that
+# rpm-sequoia accepts, so every Leap 16.0 package fails its GPG check. openSUSE publishes a
+# current copy of the same key.
+my $leap16 = mock_config_text('xCAT', 'opensuse-leap-16.0-x86_64', "include('templates/opensuse-leap-16.0.tpl')\n", 1);
+like($leap16,
+    qr{\Qconfig_opts['dnf.conf'] = config_opts['dnf.conf'].replace('file:///usr/share/distribution-gpg-keys/suse/RPM-GPG-KEY-SuSE-ALP-Main', 'https://download.opensuse.org/distribution/leap/16.0/repo/oss/gpg-pubkey-09d9ea69-68595a8c.asc')\E},
+    'a Leap 16.0 build verifies packages with the current SUSE 16 key');
+unlike(mock_config_text('xCAT', 'opensuse-leap-15.6-x86_64', $x86, 1), qr/gpg-pubkey-09d9ea69/,
+    'a Leap 15.6 build keeps the keys its target declares');
+
 # prepare_mock_resultdirs gives the result directories, and the files a previous
 # build left in them, to the owner mock's loader reports.
 my $tmp = tempdir(CLEANUP => 1);

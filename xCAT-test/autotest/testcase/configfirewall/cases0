@@ -1,0 +1,56 @@
+start:configfirewall_firewalld
+description:configfirewall leaves firewalld running and enabled on the MN and on a CN, with the ports xCAT serves open on the provisioning NIC and on the public NIC of the MN. The case puts the firewall state of both nodes back at the end
+label:firewall
+os:rhels
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh save
+check:rc==0
+cmd:xdcp $$CN /opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh /tmp/fw_check.sh
+check:rc==0
+cmd:xdsh $$CN /tmp/fw_check.sh save
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; /install/postscripts/configfirewall --private "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" --public "$($T/fw_check.sh nic-default)"'
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 22/tcp 3001/tcp 3002/tcp 69/udp 67/udp 80/tcp 2049/tcp 873/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-default)" 22/tcp 3001/tcp 3002/tcp 69/udp 80/tcp 873/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:updatenode $$CN -P "configfirewall --auto"
+check:rc==0
+check:output=~configfirewall exited with code 0
+cmd:xdsh $$CN "/tmp/fw_check.sh check \$(/tmp/fw_check.sh nic-default) 22/tcp 3001/tcp 3002/tcp 69/udp 67/udp 80/tcp 2049/tcp 873/tcp"
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:xdsh $$CN /tmp/fw_check.sh restore
+check:rc==0
+cmd:xdsh $$CN rm -f /tmp/fw_check.sh
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh restore
+check:rc==0
+end
+
+start:configfirewall_nat
+description:configfirewall --nat makes the MN masquerade out of its public NIC with firewalld running, and the CN then reaches the external network through the MN. The case first takes away any masquerade the MN had, and confirms the CN loses the external network, so the second reach can only come from configfirewall
+label:firewall
+os:rhels
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh save
+check:rc==0
+cmd:sh -c 'if systemctl is-active --quiet firewalld; then for z in $(firewall-cmd --get-zones); do firewall-cmd --zone=$z --remove-masquerade >/dev/null; firewall-cmd --permanent --zone=$z --remove-masquerade >/dev/null; done; fi; true'
+check:rc==0
+cmd:xdsh $$CN "curl -sS -m 30 -o /dev/null -w CNEXT=%{http_code} http://1.1.1.1/"
+check:output!~CNEXT=[1-5][0-9][0-9]
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; /install/postscripts/configfirewall --private "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" --public "$($T/fw_check.sh nic-default)" --nat'
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh masquerade "$($T/fw_check.sh nic-default)"'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:xdsh $$CN "curl -sS -m 30 -o /dev/null -w CNEXT=%{http_code} http://1.1.1.1/"
+check:rc==0
+check:output=~CNEXT=[23][0-9][0-9]
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh restore
+check:rc==0
+end

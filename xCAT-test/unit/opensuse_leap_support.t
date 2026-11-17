@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
+use File::Path qw(make_path);
 use FindBin;
 use Cwd qw(realpath);
 
@@ -32,7 +33,7 @@ sub write_media_file {
     my $path = "$dir/$name";
     my $parent = $path;
     $parent =~ s{/[^/]+$}{};
-    mkdir $parent unless -d $parent;
+    make_path($parent);
     open(my $fh, '>', $path) or die "Cannot write $path: $!";
     print {$fh} $text;
     close($fh);
@@ -111,18 +112,18 @@ is($media_dist, 'leap15.6', 'detects openSUSE Leap distname from media files');
 is($media_arch, 'x86_64', 'detects openSUSE Leap arch from media files');
 
 my ($unsupported_dist) = xCAT_plugin::sles::_detect_opensuse_leap_media(
-    "openSUSE - openSUSE-Leap-16.0-NET-x86_64-Media\n",
-    "/ openSUSE-Leap 16.0-1\n"
+    "openSUSE - openSUSE-Leap-17.0-NET-x86_64-Media\n",
+    "/ openSUSE-Leap 17.0-1\n"
 );
-is($unsupported_dist, undef, 'does not detect unvalidated openSUSE Leap 16 media as supported');
+is($unsupported_dist, undef, 'does not detect an unknown openSUSE Leap release as supported');
 ok(xCAT_plugin::sles::_copycd_distname_supported('leap15.6'), 'copycd accepts explicit Leap distname override');
-ok(!xCAT_plugin::sles::_copycd_distname_supported('leap16.0'), 'copycd rejects unvalidated Leap 16 distname override');
+ok(!xCAT_plugin::sles::_copycd_distname_supported('leap17.0'), 'copycd rejects an unknown Leap distname override');
 ok(!xCAT_plugin::sles::_copycd_distname_supported('opensuse15.6'), 'copycd does not accept generic openSUSE distname override');
 
 my %commands = %{ xCAT_plugin::sles->handled_commands };
 foreach my $command (qw(mkinstall mknetboot mkstatelite mksysclone)) {
     ok(dispatch_matches($commands{$command}, 'leap15.6'), "$command handles openSUSE Leap 15 nodes");
-    ok(!dispatch_matches($commands{$command}, 'leap16.0'), "$command leaves openSUSE Leap 16 nodes unhandled");
+    ok(!dispatch_matches($commands{$command}, 'leap17.0'), "$command leaves an unknown openSUSE Leap release unhandled");
     ok(!dispatch_matches($commands{$command}, 'rhels9.4'), "$command leaves Red Hat nodes to the rh plugin");
 }
 
@@ -133,11 +134,11 @@ is_deeply(
     'openSUSE Leap 15.x searches exact, minor, major, then SLE 15 fallback'
 );
 
-my @unsupported_os_search = xCAT::SvrUtils::get_os_search_list('leap16.0');
+my @unsupported_os_search = xCAT::SvrUtils::get_os_search_list('leap17.0');
 unlike(
     join(' ', @unsupported_os_search),
-    qr/\bsle16\b/,
-    'openSUSE Leap 16 does not silently use an unvalidated SLE 16 fallback'
+    qr/\bsle/,
+    'an unknown openSUSE Leap release does not silently use an SLE fallback'
 );
 
 my $install_dir = tempdir(CLEANUP => 1);
@@ -312,5 +313,48 @@ is(eval { xCAT_plugin::sles::_install_kcmdline('leap42.3', 'http', '10.0.0.1', 8
 is(eval { xCAT_plugin::sles::_install_kcmdline('sles12.3', 'http', '10.0.0.1', 80, '/install/sles12.3/x86_64', 'cn1') },
     'autoyast=http://10.0.0.1:80/install/autoinst/cn1 install=http://10.0.0.1:80/install/sles12.3/x86_64/1',
     'the SLES 12 installer command line is unchanged');
+
+# openSUSE Leap 16.0. The offline installer image keeps the package repository and its
+# .treeinfo in install/. The .treeinfo below is copied from
+# Leap-16.0-offline-installer-x86_64-Build178.27.install.iso.
+my $leap16_iso = tempdir(CLEANUP => 1);
+write_media_file($leap16_iso, 'install/.treeinfo', <<'EOF');
+[header]
+version = 1.0
+
+[release]
+name = openSUSE Leap
+version = 16.0
+
+[general]
+arch = x86_64
+family = openSUSE Leap
+name = openSUSE Leap 16.0
+version = 16.0
+platforms = x86_64,xen
+EOF
+my ($leap16_dist, $leap16_arch) = xCAT_plugin::sles::_detect_opensuse_leap_treeinfo($leap16_iso);
+is($leap16_dist, 'leap16.0', 'detects openSUSE Leap 16.0 from install/.treeinfo');
+is($leap16_arch, 'x86_64', 'detects the openSUSE Leap 16.0 arch from install/.treeinfo');
+ok(xCAT_plugin::sles::_copycd_distname_supported('leap16.0'), 'copycd accepts an explicit leap16.0 distname override');
+foreach my $command (qw(mkinstall mknetboot mkstatelite mksysclone)) {
+    ok(dispatch_matches($commands{$command}, 'leap16.0'), "$command handles openSUSE Leap 16 nodes");
+}
+is_deeply(
+    [ xCAT::SvrUtils::get_os_search_list('leap16.0') ],
+    [qw(leap16.0 leap16 sle15)],
+    'openSUSE Leap 16.0 searches exact, major, then the SLE 15 assets'
+);
+
+# After copycds, the copy keeps install/ beside the installer. The media root must serve the
+# repository, as on a Leap 15 DVD.
+my $leap16_copy = tempdir(CLEANUP => 1);
+write_media_file($leap16_copy, 'install/repodata/repomd.xml', "<repomd/>\n");
+write_media_file($leap16_copy, 'install/x86_64/aaa_base-1.rpm', "rpm\n");
+write_media_file($leap16_copy, 'boot/x86_64/loader/linux', "kernel\n");
+eval { xCAT_plugin::sles::_link_opensuse_install_tree($leap16_copy) };
+ok(-r "$leap16_copy/repodata/repomd.xml", 'the copied Leap 16 media root serves the repository metadata');
+ok(-r "$leap16_copy/x86_64/aaa_base-1.rpm", 'the copied Leap 16 media root serves the packages');
+is(readlink("$leap16_copy/boot") // '', '', 'the installer boot tree stays a directory');
 
 done_testing();

@@ -1,0 +1,20 @@
+start:hostbased_auth_nonroot_ssh
+description:after mkhostbased-auth, a user with no ssh keys logs in by ssh from the CN to the SN through host-based authentication alone. Root's private keys on the CN are moved aside for the login. A login before mkhostbased-auth must fail, so the second login can only come from the host-based setup
+label:hostbased
+os:Linux
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh setup xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-SETUP-OK
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh login xcathba $$CN $$SN
+check:rc!=0
+check:output=~HBA-LOGIN-BAD
+cmd:mkhostbased-auth $$SN,$$CN
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh login xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-LOGIN-OK
+check:output!~HBA-LOGIN-BAD
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh cleanup xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-CLEANUP-OK
+end

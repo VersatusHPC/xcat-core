@@ -61,7 +61,13 @@ Conflicts: xCAT
 Requires: net-tools
 Requires: /usr/bin/killall
 # yaboot-xcat is pulled in so any SN can manage ppc nodes
-Requires: httpd nfs-utils nmap bind
+Requires: httpd nfs-utils bind
+# Leap 16 ships no nmap. nodestat runs without it.
+%if 0%{?suse_version} >= 1600
+Recommends: nmap
+%else
+Requires: nmap
+%endif
 # openEuler's system-release version does not identify an EL release.
 #
 # openSUSE takes the plain name: rpm 4.11 on the sles12 node has no rich dependencies, and

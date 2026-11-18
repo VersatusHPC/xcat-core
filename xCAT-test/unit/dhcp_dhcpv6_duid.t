@@ -524,6 +524,7 @@ sub isc_hosts {
 # IPv4 nodes share a MAC in the same way.
 {
     package DUIDParityV4Backend;
+    our @ISA = ('xCAT::DHCP::Backend::Kea');
     sub subnet_id_for_ip { return 1; }
 }
 {

@@ -53,6 +53,8 @@ A test belongs in `integration/` when it needs something the checkout cannot pro
 | `dhcp_dhcpv6_duid.t` | `dhcpd` with `omshell`, or `kea-dhcp4` and `kea-dhcp6`, root, and `ip netns` for two private network namespaces |
 | `dhcp_kea_config_validation.t` | a `kea-dhcp4` binary that can read the generated config |
 | `dhcp_kea_control_agent_smoke.t` | live `kea-dhcp4` and `kea-ctrl-agent`, root, and the Kea host-commands hook |
+| `freebsd_dhcp.t` | ISC and Kea binaries, Linux root, and loopback UDP sockets on temporary ports |
+| `freebsd_package_payload.t` | built FreeBSD server, Perl and metadata RPM or DEB packages supplied through environment variables |
 | `html_form_runtime_dependency.t` | the installed `HTML::Form` module |
 | `openeuler_package_postscripts.t` | Linux root, private mount namespaces and DNF; tests complete package postscripts with command doubles and an isolated repository directory |
 | `openeuler_postscript_repositories.t` | Linux root, private mount namespaces, DNF and RPM signing tools; tests actual signed repository transactions in isolated install roots |

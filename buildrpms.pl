@@ -62,6 +62,8 @@ use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildi
                         openeuler_build_target openeuler_repo_subdir
                         package_skip_reason
                         mock_config_text acquire_lock_dir
+                        mock_root_layout mock_additional_packages mock_scrub_plan
+                        run_then_scrub
                         start_build_worker detach_build_workers);
 use POSIX ();                   # WNOHANG, for the non-blocking waitpid in abort_builds()
 use Getopt::Long qw(GetOptions);
@@ -323,21 +325,43 @@ EOF
     $? >> 0;
 }
 
+sub mock_layout {
+    my ($pkg, $target) = @_;
+    return mock_root_layout($pkg, $target, $opts{mock_uniqueext});
+}
+
+# Called in the parent before any build starts. mock rebuilds a root cache that is
+# older than a configuration file, and every package of a target shares that cache.
 sub createmockconfig {
     my ($pkg, $target) = @_;
-    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
-    my $chroot = "$pkg-$target$ext";
-    my $cfgfile = "/etc/mock/$chroot.cfg";
+    my $cfgfile = "/etc/mock/" . mock_layout($pkg, $target)->{config} . ".cfg";
     return if -f $cfgfile && ! $opts{force};
     write_text($cfgfile,
-        mock_config_text($pkg, "$target$ext", read_text("/etc/mock/$target.cfg"), $SOURCE_DATE_EPOCH));
+        mock_config_text($pkg, $target, read_text("/etc/mock/$target.cfg"), $SOURCE_DATE_EPOCH,
+            $opts{mock_uniqueext}));
+}
+
+# Remove this package's buildroots. The caches under /var/cache/mock/<target> stay.
+sub scrubmockroot {
+    my ($pkg, $target) = @_;
+    my @mounts;
+    if (open my $fh, '<', '/proc/self/mountinfo') {
+        @mounts = map { (split ' ')[4] } <$fh>;
+        close $fh;
+    }
+    my $plan = mock_scrub_plan(mock_layout($pkg, $target), '/var/lib/mock', @mounts);
+    if ($plan->{command}) {
+        system(@{ $plan->{command} }) == 0
+            or warn "[buildrpms] @{$plan->{command}} failed (rc=$?)\n";
+    }
+    remove_tree($_) for @{ $plan->{remove} };
+    warn "[buildrpms] kept $_: something is mounted under it\n" for @{ $plan->{keep} };
 }
 
 # mock writes --resultdir as chrootuid, and this script runs as root.
 sub prepare_mock_resultdirs {
     my ($pkg, $target) = @_;
-    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
-    XCAT::BuildUtils::prepare_mock_resultdirs("$pkg-$target$ext", undef,
+    XCAT::BuildUtils::prepare_mock_resultdirs(mock_layout($pkg, $target)->{config}, undef,
         "dist/$target/rpms", "dist/$target/rpms/SRPMS");
 }
 
@@ -432,8 +456,7 @@ sub buildspkgs {
     die "FATAL: buildspkgs ran outside buildall; the staging directory is unset\n"
         unless length $SOURCES;
 
-    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
-    my $chroot = "$pkg-$target$ext";
+    my $chroot = mock_layout($pkg, $target)->{config};
     my $targetarch =
       targetarch_from_target( $target, $ARCH );
     my $genesis_tarch = genesis_tarch_from_targetarch($targetarch);
@@ -449,6 +472,7 @@ sub buildspkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+    push @opts, map { "--additional-package=$_" } mock_additional_packages($pkg, $target);
 
 
     say "Building $diskcache";
@@ -484,8 +508,7 @@ EOF
 sub buildpkgs {
     my ($pkg, $target) = @_;
     my $optsref = \%opts;
-    my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
-    my $chroot = "$pkg-$target$ext";
+    my $chroot = mock_layout($pkg, $target)->{config};
 
     # get x86_64 from alma+epel-9-x86_64
     my $targetarch =
@@ -503,6 +526,7 @@ sub buildpkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
+    push @opts, map { "--additional-package=$_" } mock_additional_packages($pkg, $target);
 
 
     my $spkgname = sub {
@@ -535,17 +559,20 @@ sub buildall {
     my ($pkg, $target) = @_;
     # The parent deletes this directory when it reaps the child.
     $SOURCES = prepare_build_sources_dir($SOURCES_BASE, $$);
-    createmockconfig($pkg, $target);
     prepare_mock_resultdirs($pkg, $target);
     buildsources($pkg, $target);
     share_build_sources_dir($SOURCES);
-    buildspkgs($pkg, $target);
-    # --source-only stops here: buildspkgs has produced the src.rpm, and the binary
-    # rebuild is the only thing buildpkgs does. Everything upstream of this point --
-    # the spec, the staged sources, the mock root -- is identical either way, which
-    # is why source-only belongs here rather than in a parallel script.
-    return if $opts{source_only};
-    buildpkgs($pkg, $target);
+    # Each package unpacks about 600 MB of buildroot. Nothing reuses it, so it goes
+    # at the end, also when the build fails.
+    run_then_scrub(sub {
+        buildspkgs($pkg, $target);
+        # --source-only stops here: buildspkgs has produced the src.rpm, and the binary
+        # rebuild is the only thing buildpkgs does. Everything upstream of this point --
+        # the spec, the staged sources, the mock root -- is identical either way, which
+        # is why source-only belongs here rather than in a parallel script.
+        return if $opts{source_only};
+        buildpkgs($pkg, $target);
+    }, sub { scrubmockroot($pkg, $target) });
 }
 
 sub configure_nginx {
@@ -915,18 +942,19 @@ sub mock_pids {
     return @pids;
 }
 
+my %BUILDROOTS;          # mock -r name => its buildroot and bootstrap directory names
+
 sub sweep_mock_mounts {
     # Fallback only (after SIGKILL): lazy-unmount binds left under THIS build's own chroots --
-    # each chroot's dir plus its "-bootstrap" sibling. Scoped to @chroots so an unrelated,
+    # each package's buildroot plus its bootstrap buildroot. Scoped to @chroots so an unrelated,
     # concurrent build's mounts under other /var/lib/mock chroots are never torn out.
     my (@chroots) = @_;
     return unless @chroots;
-    my %want = map { $_ => 1 } @chroots;
+    my %want = map { $_ => 1 } map { @{ $BUILDROOTS{$_} // [] } } @chroots;
     open my $f, '<', '/proc/mounts' or return;
     my @mp = grep {
         my ($comp) = m{^/var/lib/mock/([^/]+)/};
-        if (defined $comp) { (my $base = $comp) =~ s/-bootstrap$//; $want{$comp} || $want{$base} }
-        else { 0 }
+        defined $comp && $want{$comp};
     } map { (split ' ')[1] } <$f>;
     close $f;
     system('umount', '-l', $_) for sort { length($b) <=> length($a) } @mp;
@@ -1038,6 +1066,7 @@ sub main {
             . " requested targets\n";
         return;
     }
+    createmockconfig(@$_) for @rpms;
     my $pm = Parallel::ForkManager->new($opts{nproc});
 
     # Track which mock chroot each live child is building so abort_builds can scrub it.
@@ -1060,8 +1089,9 @@ sub main {
 
     for my $pair (@rpms) {
         my ($pkg, $target) = $pair->@*;
-        my $ext = $opts{mock_uniqueext} ? "-$opts{mock_uniqueext}" : "";
-        my $chroot = "$pkg-$target$ext";              # matches buildspkgs/buildpkgs `-r`
+        my $layout = mock_layout($pkg, $target);
+        my $chroot = $layout->{config};               # matches buildspkgs/buildpkgs `-r`
+        $BUILDROOTS{$chroot} = [ @$layout{qw(buildroot bootstrap)} ];
         start_build_worker(sub { $pm->start($chroot) }) and next;
         $SIG{INT} = $SIG{TERM} = 'DEFAULT';           # child: die on signal; the parent cleans up
 

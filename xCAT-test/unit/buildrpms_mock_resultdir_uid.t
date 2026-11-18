@@ -51,7 +51,8 @@ sub effective {
 my $out = mock_config_text('xCAT', 'openeuler-24.03-ppc64le', $ppc, 1790988617);
 is(effective($out, 'chrootuid'), '1000', 'the build uid the target declares is preserved');
 is(effective($out, 'chrootgid'), '1000', 'and so is the group');
-is(effective($out, 'root'), '"xCAT-openeuler-24.03-ppc64le"', 'the chroot is still named per package');
+is(effective($out, 'root'), '"openeuler-24.03-ppc64le"', 'the root is the target, so the cache is shared');
+is(effective($out, 'unique-ext'), "'xCAT'", 'and the buildroot is still per package');
 
 my $plain = mock_config_text('xCAT', 'openeuler-24.03sp4-x86_64', $x86, 1790988617);
 is(effective($plain, 'chrootuid'), undef, 'a target that declares no uid is left to mock');
@@ -61,11 +62,8 @@ is(effective($plain, 'target_arch'), "'x86_64'", 'nothing else in the base confi
 like($out, qr/\Qconfig_opts['environment']['SOURCE_DATE_EPOCH'] = '1790988617'\E/,
     'the reproducible build date is passed into the chroot');
 like($out, qr/\Qconfig_opts['isolation'] = 'simple'\E/, 'nspawn is avoided');
-like(mock_config_text('perl-xCAT', 'openeuler-24.03-ppc64le', $ppc, 1),
-    qr/\Qconfig_opts['chroot_additional_packages'] = 'perl-generators'\E/,
-    'perl-xCAT still gets perl-generators on an rpm-md target');
-unlike(mock_config_text('perl-xCAT', 'opensuse-leap-15.6-x86_64', $x86, 1),
-    qr/perl-generators/, 'and still does not on a SUSE target');
+unlike(mock_config_text('perl-xCAT', 'openeuler-24.03-ppc64le', $ppc, 1),
+    qr/perl-generators/, 'perl-generators stays out of the shared root cache');
 
 # The ALP-Main key in distribution-gpg-keys 1.123 and earlier has no binding signature that
 # rpm-sequoia accepts, so every Leap 16.0 package fails its GPG check. openSUSE publishes a

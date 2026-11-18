@@ -132,6 +132,7 @@ subtest 'the Leap 16 build only recommends what Leap 16 does not ship' => sub {
     my %wants = (
         'xCAT/xCAT.spec'               => qr/^nmap$/,
         'xCAT-client/xCAT-client.spec' => qr/^nmap$/,
+        'xCATsn/xCATsn.spec'           => qr/^nmap$/,
         'xCAT-server/xCAT-server.spec' => qr/^perl\(IO::Socket::INET6\)$/,
         'perl-xCAT/perl-xCAT.spec'     => qr/^perl\(IO::Socket::INET6\)$/,
     );

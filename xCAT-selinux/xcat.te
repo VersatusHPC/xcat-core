@@ -6,12 +6,22 @@ gen_require(`
     type useradd_t, groupadd_t, public_content_t;
     type named_zone_t, named_unit_file_t, systemd_unit_file_t, dhcpd_unit_file_t;
     type auditd_etc_t, selinux_config_t, ldconfig_cache_t, setfiles_t, tmp_t;
-    type device_t;
+    type device_t, bin_t, init_t, initctl_t;
     attribute file_type;
     type admin_home_t, cert_t, krb5_keytab_t, var_run_t;
     class service { start status stop reload enable disable };
     class system { reload status start stop };
     class dbus { send_msg };
+')
+
+# corecmd_exec_bin without its sys_resource_type attribute. selinux-policy
+# 42.1.27 (EL 10.3) added the attribute, and a module that assigns it does not
+# load into an older base: semodule reports an unresolved typeattributeset.
+define(`xcat_exec_bin',`
+    read_lnk_files_pattern($1, bin_t, bin_t)
+    list_dirs_pattern($1, bin_t, bin_t)
+    can_exec($1, bin_t)
+    files_exec_all_base_ro_files($1)
 ')
 
 ########################################
@@ -108,7 +118,7 @@ allow xcat_t self:alg_socket create_socket_perms;
 
 # xcatd and xcatclient are Perl scripts, and both run ordinary commands: ip,
 # systemctl, hostname, mount, rsync, named, rpm.
-corecmd_exec_bin(xcat_t)
+xcat_exec_bin(xcat_t)
 corecmd_exec_shell(xcat_t)
 corecmd_exec_all_executables(xcat_t)
 
@@ -116,7 +126,16 @@ corecmd_exec_all_executables(xcat_t)
 domain_read_all_domains_state(xcat_t)
 init_read_state(xcat_t)
 init_stream_connect(xcat_t)
-init_telinit(xcat_t)
+# init_telinit, without the corecmd_exec_bin it calls (see xcat_exec_bin).
+dev_list_all_dev_nodes(xcat_t)
+allow xcat_t initctl_t:fifo_file rw_fifo_file_perms;
+init_exec(xcat_t)
+ps_process_pattern(xcat_t, init_t)
+allow xcat_t init_t:process signal;
+dontaudit xcat_t self:capability net_admin;
+allow xcat_t self:unix_dgram_socket create_socket_perms;
+allow xcat_t init_t:unix_dgram_socket sendto;
+allow xcat_t init_t:unix_stream_socket connectto;
 kernel_read_system_state(xcat_t)
 kernel_read_network_state(xcat_t)
 
@@ -321,7 +340,7 @@ seutil_manage_file_contexts(xcat_image_t)
 # per run, 4 of them setfiles_t xcat_t:fifo_file append.
 
 # dnf in the chroot, and the rpm scriptlets it runs.
-corecmd_exec_bin(xcat_image_t)
+xcat_exec_bin(xcat_image_t)
 corecmd_exec_shell(xcat_image_t)
 corecmd_exec_all_executables(xcat_image_t)
 can_exec(xcat_image_t, public_content_t)

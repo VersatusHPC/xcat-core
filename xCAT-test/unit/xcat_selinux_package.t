@@ -218,7 +218,7 @@ like($te, qr/^application_domain\(xcat_t, xcat_client_exec_t\)$/m,
 
 # xcatd and xcatclient are Perl scripts. The kernel labels the new process from
 # the script, then the domain runs the interpreter named in the shebang.
-like($te, qr/^corecmd_exec_bin\(xcat_t\)$/m, 'xcat_t runs the interpreter of its own script');
+like($te, qr/^xcat_exec_bin\(xcat_t\)$/m, 'xcat_t runs the interpreter of its own script');
 
 # Collects the source domains that xcat.te gives an automatic transition.
 my @domtrans = $te =~ /^\s*domtrans_pattern\((\w+), xcat_client_exec_t, xcat_t\)$/mg;

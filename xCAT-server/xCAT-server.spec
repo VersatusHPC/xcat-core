@@ -124,9 +124,15 @@ Recommends: perl-Socket6
 # The openSUSE Minimal-VM image sets solver.onlyRequires = true in /etc/zypp/zypp.conf, so
 # zypper installs no recommended package. A recommendation leaves both modules absent, and
 # xCAT::IPMI and the dhcp, nodestat and credentials plugins then take no IPv6 branch at all.
+# Leap 16 ships no IO::Socket::INET6.
+%if 0%{?suse_version} >= 1600
+Requires: perl(Socket6)
+Recommends: perl(IO::Socket::INET6)
+%else
 %if 0%{?suse_version}
 Requires: perl(Socket6)
 Requires: perl(IO::Socket::INET6)
+%endif
 %endif
 
 %if %fsm

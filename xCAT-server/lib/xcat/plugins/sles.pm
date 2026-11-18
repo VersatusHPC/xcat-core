@@ -1722,8 +1722,10 @@ sub _opensuse_leap_distname
 sub _detect_opensuse_leap_treeinfo
 {
     my $mntpath = shift;
-    my $treeinfo = "$mntpath/.treeinfo";
-    return unless -r $treeinfo;
+
+    # The Leap 16 offline image keeps .treeinfo in install/.
+    my ($treeinfo) = grep { -r $_ } ("$mntpath/.treeinfo", "$mntpath/install/.treeinfo");
+    return unless $treeinfo;
 
     my %section;
     my $section = "";
@@ -1792,6 +1794,22 @@ sub _detect_opensuse_leap_content
     my ($distname) = _detect_opensuse_leap_media(undef, $distro);
     return unless $distname;
     return ($distname, $arch);
+}
+
+# The Leap 16 offline image keeps its package repository in install/. Link
+# each entry of install/ into the media root, so the root serves the
+# repository as a Leap 15 DVD does.
+sub _link_opensuse_install_tree
+{
+    my $ospkgpath = shift;
+    return unless -d "$ospkgpath/install/repodata";
+    opendir(my $dh, "$ospkgpath/install") or return;
+    foreach my $entry (readdir($dh)) {
+        next if $entry eq '.' or $entry eq '..';
+        next if -e "$ospkgpath/$entry" or -l "$ospkgpath/$entry";
+        symlink("install/$entry", "$ospkgpath/$entry");
+    }
+    closedir($dh);
 }
 
 sub _copycd_distname_supported
@@ -2268,6 +2286,7 @@ sub copycd
     #    );
     chmod 0755, "$path";
     chmod 0755, "$ospkgpath";
+    _link_opensuse_install_tree($ospkgpath);
 
 
     #append the fingerprint to the .fingerprint file to indicate that the os media has been copied in

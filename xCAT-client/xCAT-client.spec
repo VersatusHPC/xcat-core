@@ -48,7 +48,13 @@ Requires: perl(Expect)
 %if !0%{?suse_version}
 BuildRequires: perl-generators
 %endif
-Requires: nmap perl-XML-Simple perl-XML-Parser
+Requires: perl-XML-Simple perl-XML-Parser
+# Leap 16 ships no nmap. pping falls back to fping.
+%if 0%{?suse_version} >= 1600
+Recommends: nmap
+%else
+Requires: nmap
+%endif
 %else
 Requires: expat
 %endif

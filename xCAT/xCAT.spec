@@ -75,7 +75,13 @@ Recommends: xCAT-genesis-openembedded-s390x
 Requires: rsync
 
 %ifos linux
-Requires: httpd nfs-utils nmap bind perl(CGI)
+Requires: httpd nfs-utils bind perl(CGI)
+# Leap 16 ships no nmap. nodestat runs without it.
+%if 0%{?suse_version} >= 1600
+Recommends: nmap
+%else
+Requires: nmap
+%endif
 # on RHEL7, need to specify it explicitly
 Requires: net-tools
 Requires: /usr/bin/killall

@@ -26,9 +26,15 @@ Requires: perl(JSON) perl(Expect) perl(SNMP) perl(HTML::Form)
 # A recommendation is enough where the package manager installs one. The openSUSE
 # Minimal-VM image sets solver.onlyRequires = true, so zypper installs no recommended
 # package and both modules stay absent, which leaves every IPv6 branch unreachable.
+# Leap 16 ships no IO::Socket::INET6.
+%if 0%{?suse_version} >= 1600
+Requires: perl(Socket6)
+Recommends: perl(IO::Socket::INET6)
+%else
 %if 0%{?suse_version}
 Requires: perl(Socket6)
 Requires: perl(IO::Socket::INET6)
+%endif
 %endif
 %if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?openEuler}
 Recommends: perl(Socket6)

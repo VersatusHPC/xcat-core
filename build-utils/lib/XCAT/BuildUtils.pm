@@ -1384,6 +1384,9 @@ sub mock_config_text {
         or $text .= "config_opts['root'] = \"$layout->{root}\"\n";
     $text .= "config_opts['unique-ext'] = '$layout->{uniqueext}'\n";
     $text .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$epoch'\n";
+    # root_cache deletes the shared cache.tar.gz when a config file is newer
+    # than the cache, and each package gets a new config file.
+    $text .= "config_opts['plugin_conf']['root_cache_opts']['age_check'] = False\n";
     # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with
     #   "Failed to determine whether the unified cgroups hierarchy is used: No medium found"
     # (ENOMEDIUM), which drops that package from the (still-signed) core -> an incomplete build

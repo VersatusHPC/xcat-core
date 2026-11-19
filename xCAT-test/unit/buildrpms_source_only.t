@@ -47,13 +47,14 @@ our @STAGES;
     no warnings 'redefine';
     # Collaborators the lifted code calls. Each records instead of acting.
     sub createrepo_dir { push @main::CREATEREPO, $_[0]; }
-    # The four stages buildall drives. Each records that it was reached.
-    sub createmockconfig { push @main::STAGES, 'createmockconfig'; }
+    # The stages buildall drives. Each records that it was reached.
     sub prepare_mock_resultdirs { push @main::STAGES, 'prepare_mock_resultdirs'; }
     sub buildsources     { push @main::STAGES, 'buildsources'; }
     sub share_build_sources_dir { push @main::STAGES, 'share_build_sources_dir'; }
     sub buildspkgs       { push @main::STAGES, 'buildspkgs'; }
     sub buildpkgs        { push @main::STAGES, 'buildpkgs'; }
+    sub scrubmockroot    { push @main::STAGES, 'scrubmockroot'; }
+    sub run_then_scrub   { my ($build, $scrub) = @_; $build->(); $scrub->(); }
     # buildall assigns a staging directory per build process.
     sub prepare_build_sources_dir { return '/nonexistent/rpmbuild/stub/SOURCES'; }
 }
@@ -130,11 +131,11 @@ sub stages_for {
 }
 
 is_deeply( stages_for(0),
-    [qw(createmockconfig prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs buildpkgs)],
+    [qw(prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs buildpkgs scrubmockroot)],
     'a normal run builds the source rpm and then rebuilds it into binaries' );
 
 is_deeply( stages_for(1),
-    [qw(createmockconfig prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs)],
+    [qw(prepare_mock_resultdirs buildsources share_build_sources_dir buildspkgs scrubmockroot)],
     'a source-only run stops once the source rpm exists' );
 
 ok( !grep( { $_ eq 'buildpkgs' } @{ stages_for(1) } ),

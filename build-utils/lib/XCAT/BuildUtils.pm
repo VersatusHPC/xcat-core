@@ -47,6 +47,7 @@ our @EXPORT_OK = qw(
     targetarch_from_target
     openeuler_build_target openeuler_repo_subdir package_skip_reason
     mock_config_text mock_build_owner prepare_mock_resultdirs
+    mock_root_layout mock_additional_packages mock_scrub_plan run_then_scrub
     genesis_chroot_name genesis_target_arch genesis_build_plan
     genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
     genesis_dists genesis_dist_reason
@@ -1320,6 +1321,41 @@ sub _pid_alive {
 
 #-------------------------------------------------------------------------------
 
+=head3 mock_root_layout
+
+    Descriptions: Name the mock configuration, the shared root and the
+                  per-package buildroot of one package build.
+
+    Arguments:
+        $pkg    - the package being built, e.g. xCAT or perl-xCAT
+        $target - the mock target, e.g. alma+epel-10-x86_64
+        $ext    - the --mock-uniqueext value, or '' or undef
+
+    Returns: a hashref with
+        config    - the name passed to mock -r, /etc/mock/<config>.cfg
+        root      - config_opts['root']: the target, so every package of
+                    the target uses /var/cache/mock/<target>
+        uniqueext - config_opts['unique-ext']: one buildroot per package
+        buildroot - the directory mock builds in, under /var/lib/mock
+        bootstrap - the bootstrap buildroot directory, under /var/lib/mock
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_root_layout {
+    my ($pkg, $target, $ext) = @_;
+    my $uniqueext = (defined $ext && length $ext) ? "$ext-$pkg" : $pkg;
+    return {
+        config    => (defined $ext && length $ext) ? "$pkg-$target-$ext" : "$pkg-$target",
+        root      => $target,
+        uniqueext => $uniqueext,
+        buildroot => "$target-$uniqueext",
+        bootstrap => "$target-bootstrap-$uniqueext",
+    };
+}
+
+#-------------------------------------------------------------------------------
+
 =head3 mock_config_text
 
     Descriptions: Render the per-package mock configuration from a target configuration.
@@ -1329,23 +1365,24 @@ sub _pid_alive {
         $target - the mock target, e.g. openeuler-24.03-ppc64le
         $base   - the text of /etc/mock/<target>.cfg
         $epoch  - SOURCE_DATE_EPOCH, passed into the chroot
+        $ext    - the --mock-uniqueext value, or '' or undef
 
-    Returns: the text to write to /etc/mock/<pkg>-<target>.cfg
+    Returns: the text to write to /etc/mock/<config>.cfg, where <config>
+             is the config name from mock_root_layout
 
 =cut
 
 #-------------------------------------------------------------------------------
 sub mock_config_text {
-    my ($pkg, $target, $base, $epoch) = @_;
-    my $chroot = "$pkg-$target";
+    my ($pkg, $target, $base, $epoch, $ext) = @_;
+    my $layout = mock_root_layout($pkg, $target, $ext);
     my $text = $base;
-    $text =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$chroot\"/;
-    if ($pkg eq "perl-xCAT" && $target !~ /suse|sles|leap/i) {
-        # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora; it does not
-        # exist on openSUSE/SLES (rpm there generates perl provides itself), so injecting
-        # it into a SUSE chroot aborts chroot setup. Suppress it for SUSE targets.
-        $text .= "config_opts['chroot_additional_packages'] = 'perl-generators'\n";
-    }
+    # mock keys /var/cache/mock on the root and not on unique-ext. A root per
+    # package kept one root_cache and one dnf_cache per package and target.
+    # mock locks both caches, so packages of one target can share them.
+    $text =~ s/config_opts\['root'\]\s+=.*/config_opts['root'] = \"$layout->{root}\"/
+        or $text .= "config_opts['root'] = \"$layout->{root}\"\n";
+    $text .= "config_opts['unique-ext'] = '$layout->{uniqueext}'\n";
     $text .= "config_opts['environment']['SOURCE_DATE_EPOCH'] = '$epoch'\n";
     # Avoid systemd-nspawn: it INTERMITTENTLY fails chroot setup with
     #   "Failed to determine whether the unified cgroups hierarchy is used: No medium found"
@@ -1355,6 +1392,94 @@ sub mock_config_text {
     $text .= "config_opts['isolation'] = 'simple'\n";
     $text .= mock_gpgkey_override($target);
     return $text;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_additional_packages
+
+    Descriptions: The packages mock installs into one package's buildroot
+                  beside its BuildRequires.
+
+    Arguments:
+        $pkg    - the package being built
+        $target - the mock target
+
+    Returns: the list of package names, possibly empty
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_additional_packages {
+    my ($pkg, $target) = @_;
+    # perl-generators exports perl(xCAT::...) provides on RHEL/Fedora; it does not
+    # exist on openSUSE/SLES (rpm there generates perl provides itself).
+    # chroot_additional_packages would put it in the root cache that every package
+    # of the target shares, so it goes on the mock command line instead.
+    return ('perl-generators') if $pkg eq 'perl-xCAT' && $target !~ /suse|sles|leap/i;
+    return ();
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_scrub_plan
+
+    Descriptions: Decide how to remove the buildroots of one package build
+                  and keep the caches of its target.
+
+    Arguments:
+        $layout  - the hashref from mock_root_layout
+        $basedir - the mock buildroot directory, normally /var/lib/mock
+        @mounts  - the mount points in the caller's mount namespace
+
+    Returns: a hashref with
+        command - the mock argv that removes the buildroot, or undef when
+                  the buildroot is not there
+        remove  - the directories to delete by hand
+        keep    - the directories left because something is mounted there
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_scrub_plan {
+    my ($layout, $basedir, @mounts) = @_;
+    my %plan = (command => undef, remove => [], keep => []);
+    $plan{command} = [ 'mock', '-r', $layout->{config}, '--scrub=chroot' ]
+        if -d "$basedir/$layout->{buildroot}";
+    # mock --scrub=bootstrap also deletes /var/cache/mock/<root>-bootstrap,
+    # which other packages of the target use at the same time.
+    my $boot = "$basedir/$layout->{bootstrap}";
+    if (-d $boot) {
+        my $mounted = grep { $_ eq $boot || index($_, "$boot/") == 0 } @mounts;
+        push @{ $plan{ $mounted ? 'keep' : 'remove' } }, $boot;
+    }
+    return \%plan;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 run_then_scrub
+
+    Descriptions: Run a build step, then always run its cleanup.
+
+    Arguments:
+        $build - code reference for the build
+        $scrub - code reference for the cleanup
+
+    Returns: what $build returns. Dies with the error of $build, after the
+             cleanup, when $build dies. A cleanup failure is a warning.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub run_then_scrub {
+    my ($build, $scrub) = @_;
+    my @ret;
+    my $ok  = eval { @ret = $build->(); 1 };
+    my $err = $@;
+    eval { $scrub->(); 1 } or warn "cleanup failed: $@";
+    die $err unless $ok;
+    return wantarray ? @ret : $ret[0];
 }
 
 #-------------------------------------------------------------------------------

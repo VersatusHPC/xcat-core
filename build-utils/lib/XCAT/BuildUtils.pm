@@ -47,7 +47,7 @@ our @EXPORT_OK = qw(
     targetarch_from_target
     openeuler_build_target openeuler_repo_subdir package_skip_reason
     mock_config_text mock_build_owner prepare_mock_resultdirs
-    mock_root_layout mock_additional_packages mock_scrub_plan run_then_scrub
+    mock_root_layout mock_additional_packages mock_package_opts mock_scrub_plan run_then_scrub
     genesis_chroot_name genesis_target_arch genesis_build_plan
     genesis_log_errors genesis_log_deny_rules deb_belongs_to_dist
     genesis_dists genesis_dist_reason
@@ -1418,6 +1418,30 @@ sub mock_additional_packages {
     # of the target shares, so it goes on the mock command line instead.
     return ('perl-generators') if $pkg eq 'perl-xCAT' && $target !~ /suse|sles|leap/i;
     return ();
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 mock_package_opts
+
+    Descriptions: The mock options that install mock_additional_packages,
+                  for one mock mode.
+
+    Arguments:
+        $mode   - 'init', 'buildsrpm' or 'rebuild'
+        $pkg    - the package being built
+        $target - the mock target
+
+    Returns: the list of options, possibly empty
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub mock_package_opts {
+    my ($mode, $pkg, $target) = @_;
+    # mock accepts --additional-package only with --rebuild.
+    return () unless $mode eq 'rebuild';
+    return map { "--additional-package=$_" } mock_additional_packages($pkg, $target);
 }
 
 #-------------------------------------------------------------------------------

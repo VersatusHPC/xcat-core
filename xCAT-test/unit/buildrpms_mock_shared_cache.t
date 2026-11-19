@@ -20,10 +20,11 @@ my $target = 'alma+epel-10-x86_64';
 
 # mock takes the last assignment.
 sub effective {
-    my ($text, $opt) = @_;
+    my ($text, @keys) = @_;
+    my $path = join '', map { "\\['\Q$_\E'\\]" } @keys;
     my $v;
     for my $line (split /\n/, $text) {
-        $v = $1 if $line =~ /\Aconfig_opts\['\Q$opt\E'\]\s*=\s*(.+?)\s*\z/;
+        $v = $1 if $line =~ /\Aconfig_opts$path\s*=\s*(.+?)\s*\z/;
     }
     return $v;
 }
@@ -37,6 +38,11 @@ is(effective($cfg{$_}, 'root'), qq("$target"), "$_ uses the cache of the target"
 is(effective($cfg{xCAT}, 'unique-ext'), "'ci-xCAT'", 'xCAT builds in its own buildroot');
 is(effective($cfg{'xCAT-server'}, 'unique-ext'), "'ci-xCAT-server'",
     'and xCAT-server in another one');
+# root_cache deletes the shared cache.tar.gz when a config file is newer than
+# it, and buildrpms.pl writes a new config for every package.
+is(effective($cfg{$_}, qw(plugin_conf root_cache_opts age_check)), 'False',
+    "$_ does not delete the shared root cache")
+    for sort keys %cfg;
 unlike($cfg{'perl-xCAT'}, qr/chroot_additional_packages/,
     'perl-xCAT puts nothing into the shared root cache');
 is(effective(mock_config_text('xCAT', $target, "include('x.cfg')\n", 1, ''), 'root'),

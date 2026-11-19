@@ -62,7 +62,7 @@ use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildi
                         openeuler_build_target openeuler_repo_subdir
                         package_skip_reason
                         mock_config_text acquire_lock_dir
-                        mock_root_layout mock_additional_packages mock_scrub_plan
+                        mock_root_layout mock_additional_packages mock_package_opts mock_scrub_plan
                         run_then_scrub
                         start_build_worker detach_build_workers);
 use POSIX ();                   # WNOHANG, for the non-blocking waitpid in abort_builds()
@@ -472,7 +472,6 @@ sub buildspkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
-    push @opts, map { "--additional-package=$_" } mock_additional_packages($pkg, $target);
 
 
     say "Building $diskcache";
@@ -526,7 +525,7 @@ sub buildpkgs {
 
     my @opts;
     push @opts, "--quiet" unless $opts{verbose};
-    push @opts, map { "--additional-package=$_" } mock_additional_packages($pkg, $target);
+    push @opts, mock_package_opts('rebuild', $pkg, $target);
 
 
     my $spkgname = sub {

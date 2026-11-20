@@ -723,7 +723,8 @@ sub check_firewall {
     $$checkpoint_ref = "Checking firewall is disabled...";
     @$error_ref = ();
 
-    if (probe_utils->is_firewall_open()) {
+    # A firewall that configfirewall configured opens the xCAT ports.
+    if (probe_utils->is_firewall_open() and !-e "/etc/xcat/configfirewall.backend") {
         push @$error_ref, "Firewall is configured on current server";
         $rst = 1;
     }

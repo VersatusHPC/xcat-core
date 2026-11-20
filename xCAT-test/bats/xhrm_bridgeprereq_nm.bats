@@ -78,7 +78,7 @@ EOF
     ! grep -E "^--offline" "$NMCLI_LOG"
 }
 
-@test "the anaconda %post chroot gets keyfiles, mode 600, and no connection is brought up" {
+@test "with no NetworkManager running, keyfiles are written, mode 600, and no connection is brought up" {
     run bash "$SCRIPT" bridgeprereq br0
     echo "$output"
     [ "$status" -eq 0 ]

@@ -16,6 +16,10 @@ FreeBSD stateful installation
    encryption, UEFI, ``xcat-mfsbsd-2`` media, package base repositories, IPv6, IPoIB, LAGG,
    VLAN, service node pools, ``updatenode`` and the serial console.
 
+   A node installed from ``xcat-mfsbsd-1`` media runs no postscripts. ``postscripts``,
+   ``postbootscripts``, ``confignetwork`` and ``updatenode -P`` need ``xcat-mfsbsd-2`` media
+   and ``site.freebsdimportpolicy``.
+
 This installation path targets FreeBSD 15.1-RELEASE on amd64 nodes. The xCAT
 architecture name is ``x86_64``. The management node and service nodes remain
 Linux systems.

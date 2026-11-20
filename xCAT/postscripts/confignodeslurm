@@ -70,6 +70,8 @@ slurm_main() {
         mv -f "$munge_etc/munge.key.new" "$munge_etc/munge.key" || return 1
 
     cp -f "$post_dir/ohpc/slurm.conf" "$slurm_etc/slurm.conf" && chmod 0644 "$slurm_etc/slurm.conf" || return 1
+    # A node reset soon after the install leaves a renamed file empty on XFS unless it is synced.
+    sync
     mkdir -p /var/spool/slurmd
 
     if systemctl is-active --quiet firewalld; then

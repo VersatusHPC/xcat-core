@@ -26,6 +26,7 @@ require xCAT::MsgUtils;
 require xCAT::ServiceNodeUtils;
 require xCAT::NetworkUtils;
 require xCAT::OpenHPCUtils;
+use xCAT::NodeRange;
 
 my $USAGE = "Usage: mkopenhpc -r <repository directory> [-p <partition>] <noderange>\n       mkopenhpc [-h|--help]";
 
@@ -104,10 +105,12 @@ sub process_request
     my ($request, $callback, $subreq) = @_;
     my ($help, $repo, $verbose);
     my $partition = 'compute';
-    local @ARGV = $request->{arg} ? @{ $request->{arg} } : ();
+    my ($args, $nr_was_value) = xCAT::OpenHPCUtils::restore_argv($request->{arg},
+        $request->{noderange} ? $request->{noderange}->[0] : undef, qw(-r --repo -p --partition));
+    local @ARGV = @$args;
     Getopt::Long::Configure('bundling', 'no_pass_through');
     if (!GetOptions('h|help' => \$help, 'r|repo=s' => \$repo, 'p|partition=s' => \$partition,
-            'V|verbose' => \$verbose) || @ARGV) {
+            'V|verbose' => \$verbose) || (@ARGV && !$nr_was_value)) {
         return error($callback, $USAGE);
     }
     if ($help) {
@@ -116,6 +119,7 @@ sub process_request
     }
     $::VERBOSE = $verbose;
     my @nodes = $request->{node} ? @{ $request->{node} } : ();
+    @nodes = xCAT::NodeRange::noderange(join(',', @ARGV)) if $nr_was_value;
     return error($callback, "The noderange is missing.\n$USAGE") unless @nodes;
     return error($callback, "The repository directory is missing.\n$USAGE") unless $repo;
     return error($callback, "$repo is not a repository directory.") unless -d "$repo/repodata";

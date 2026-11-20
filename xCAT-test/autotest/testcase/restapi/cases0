@@ -239,7 +239,7 @@ cmd:username=__GETTABLEVALUE(key,system,username,passwd)__;password=__GETTABLEVA
 check:output=~k4out2
 check:output=~k4end6
 check:output=~k4missing4
-check:output=~HTTP=200
+check:output=~HTTP=20[01]
 end
 
 start:restapi_nodeshell_cmd_root

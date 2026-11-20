@@ -1,0 +1,167 @@
+#!/bin/sh
+# EPL license http://www.eclipse.org/legal/epl-v10.html
+#
+# confighostbasedauth - set up SSH host-based authentication on a node.
+# mkhostbased-auth renders the files and adds this postscript to the node.
+#
+# Usage:
+#   confighostbasedauth <scope>    install the files of the scope, turn host-based login on
+#   confighostbasedauth -r         turn host-based login off, remove the files xCAT wrote
+#
+# The files of a scope come from hostbased/<scope>/ beside this script, which
+# is the postscripts directory the node downloads from its master.
+
+hba_ssh_etc=${XCAT_SSH_ETC:-/etc/ssh}
+hba_src_dir=${XCAT_HBA_SRC:-$(dirname "$0")/hostbased}
+hba_logger=${XCAT_LOGGER:-logger}
+HBA_MARKER="# Written by xCAT mkhostbased-auth."
+HBA_DROPIN="05-xcat-hostbased.conf"
+
+hba_log() {
+    "$hba_logger" -t xcat -p "local4.$1" "confighostbasedauth: $2" 2>/dev/null
+    echo "confighostbasedauth: $2"
+}
+
+# Print the directory of the first "Include <dir>/*.conf" line ahead of any
+# Match block, or nothing.
+hba_include_dir() {
+    hba_conf=$1
+    hba_dir=$(sed -n '/^[[:space:]]*[Mm][Aa][Tt][Cc][Hh][[:space:]]/q; s|^[[:space:]]*[Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]]\{1,\}\([^[:space:]]\{1,\}\)/\*\.conf[[:space:]]*$|\1|p' "$hba_conf" 2>/dev/null | head -n 1)
+    case "$hba_dir" in
+        "") ;;
+        /*) echo "$hba_dir" ;;
+        *)  echo "$hba_ssh_etc/$hba_dir" ;;
+    esac
+}
+
+# Write the options of one config file: a drop-in when the file includes a
+# *.conf directory, else a marked block at the top of the file. ssh and sshd
+# keep the first value they read, so the options go ahead of the others.
+hba_set_options() {
+    hba_conf=$1
+    shift
+    [ -r "$hba_conf" ] || { hba_log err "$hba_conf is missing"; return 1; }
+    hba_dir=$(hba_include_dir "$hba_conf")
+    if [ -n "$hba_dir" ]; then
+        mkdir -p "$hba_dir" || return 1
+        {
+            echo "$HBA_MARKER"
+            for hba_opt in "$@"; do echo "$hba_opt"; done
+        } >"$hba_dir/.$HBA_DROPIN.new" && mv -f "$hba_dir/.$HBA_DROPIN.new" "$hba_dir/$HBA_DROPIN" || return 1
+        chmod 644 "$hba_dir/$HBA_DROPIN"
+        return 0
+    fi
+    hba_clear_options "$hba_conf"
+    {
+        echo "$HBA_MARKER begin"
+        for hba_opt in "$@"; do echo "$hba_opt"; done
+        echo "$HBA_MARKER end"
+        cat "$hba_conf"
+    } >"$hba_conf.xcatnew" && cat "$hba_conf.xcatnew" >"$hba_conf"
+    hba_rc=$?
+    rm -f "$hba_conf.xcatnew"
+    return $hba_rc
+}
+
+hba_clear_options() {
+    hba_conf=$1
+    hba_dir=$(hba_include_dir "$hba_conf")
+    if [ -n "$hba_dir" ] && [ -e "$hba_dir/$HBA_DROPIN" ] &&
+        head -n 1 "$hba_dir/$HBA_DROPIN" | grep -qxF "$HBA_MARKER"; then
+        rm -f "$hba_dir/$HBA_DROPIN"
+    fi
+    if [ -w "$hba_conf" ] && grep -qF "$HBA_MARKER begin" "$hba_conf"; then
+        sed -i "/^$HBA_MARKER begin\$/,/^$HBA_MARKER end\$/d" "$hba_conf"
+    fi
+}
+
+# Install one rendered file. A file that xCAT did not write is kept aside once.
+hba_install_file() {
+    hba_from=$1
+    hba_to=$2
+    [ -r "$hba_from" ] || { hba_log err "$hba_from is missing"; return 1; }
+    if [ -e "$hba_to" ] && ! head -n 1 "$hba_to" | grep -qxF "$HBA_MARKER" &&
+        [ ! -e "$hba_to.xcatorig" ]; then
+        cp -p "$hba_to" "$hba_to.xcatorig"
+    fi
+    { echo "$HBA_MARKER"; cat "$hba_from"; } >"$hba_to.xcatnew" &&
+        chmod 644 "$hba_to.xcatnew" && mv -f "$hba_to.xcatnew" "$hba_to"
+}
+
+hba_remove_file() {
+    hba_to=$1
+    if [ -e "$hba_to" ] && head -n 1 "$hba_to" | grep -qxF "$HBA_MARKER"; then
+        rm -f "$hba_to"
+        [ -e "$hba_to.xcatorig" ] && mv -f "$hba_to.xcatorig" "$hba_to"
+    fi
+    return 0
+}
+
+# Print the path of ssh-keysign, or nothing.
+hba_find_keysign() {
+    for hba_k in ${XCAT_HBA_KEYSIGN:-/usr/libexec/openssh/ssh-keysign /usr/lib/openssh/ssh-keysign /usr/lib/ssh/ssh-keysign /usr/libexec/ssh-keysign}; do
+        [ -x "$hba_k" ] && { echo "$hba_k"; return 0; }
+    done
+    return 1
+}
+
+# EL 10 ships ssh-keysign in its own package, openssh-keysign.
+hba_ensure_keysign() {
+    hba_find_keysign >/dev/null && return 0
+    if command -v dnf >/dev/null 2>&1; then
+        dnf install -y openssh-keysign >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y openssh-keysign >/dev/null 2>&1
+    fi
+    hba_find_keysign >/dev/null && return 0
+    hba_log err "ssh-keysign is not installed"
+    return 1
+}
+
+hba_restart_sshd() {
+    if systemctl cat sshd.service >/dev/null 2>&1; then
+        systemctl restart sshd.service
+    else
+        systemctl restart ssh.service
+    fi
+}
+
+hba_restorecon() {
+    command -v restorecon >/dev/null 2>&1 || return 0
+    restorecon "$@" >/dev/null 2>&1
+    return 0
+}
+
+hba_main() {
+    case "$1" in
+    -r)
+        hba_clear_options "$hba_ssh_etc/sshd_config"
+        hba_clear_options "$hba_ssh_etc/ssh_config"
+        hba_remove_file "$hba_ssh_etc/ssh_known_hosts"
+        hba_remove_file "$hba_ssh_etc/shosts.equiv"
+        hba_restart_sshd || { hba_log err "cannot restart sshd"; return 1; }
+        hba_log info "host-based authentication is off"
+        return 0
+        ;;
+    ""|-*)
+        echo "usage: confighostbasedauth <scope> | -r"
+        return 2
+        ;;
+    esac
+    hba_scope=$1
+    case "$hba_scope" in
+        */*|.*) hba_log err "bad scope name '$hba_scope'"; return 2 ;;
+    esac
+    hba_ensure_keysign || return 1
+    hba_install_file "$hba_src_dir/$hba_scope/ssh_known_hosts" "$hba_ssh_etc/ssh_known_hosts" || return 1
+    hba_install_file "$hba_src_dir/$hba_scope/shosts.equiv" "$hba_ssh_etc/shosts.equiv" || return 1
+    hba_set_options "$hba_ssh_etc/sshd_config" "HostbasedAuthentication yes" || return 1
+    hba_set_options "$hba_ssh_etc/ssh_config" "HostbasedAuthentication yes" "EnableSSHKeysign yes" || return 1
+    hba_restorecon -R "$hba_ssh_etc"
+    hba_restart_sshd || { hba_log err "cannot restart sshd"; return 1; }
+    hba_log info "host-based authentication is on for scope $hba_scope"
+    return 0
+}
+
+# A test sources this file with XCAT_HBA_SOURCED=1 and calls the functions.
+[ -n "${XCAT_HBA_SOURCED:-}" ] || { hba_main "$@"; exit $?; }

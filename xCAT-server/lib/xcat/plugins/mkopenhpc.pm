@@ -105,12 +105,11 @@ sub process_request
     my ($request, $callback, $subreq) = @_;
     my ($help, $repo, $verbose);
     my $partition = 'compute';
-    my ($args, $nr_was_value) = xCAT::OpenHPCUtils::restore_argv($request->{arg},
-        $request->{noderange} ? $request->{noderange}->[0] : undef, qw(-r --repo -p --partition));
-    local @ARGV = @$args;
+    # The client is xcatclientnnr, so the noderange arrives among the arguments.
+    local @ARGV = $request->{arg} ? @{ $request->{arg} } : ();
     Getopt::Long::Configure('bundling', 'no_pass_through');
     if (!GetOptions('h|help' => \$help, 'r|repo=s' => \$repo, 'p|partition=s' => \$partition,
-            'V|verbose' => \$verbose) || (@ARGV && !$nr_was_value)) {
+            'V|verbose' => \$verbose) || @ARGV > 1) {
         return error($callback, $USAGE);
     }
     if ($help) {
@@ -119,7 +118,7 @@ sub process_request
     }
     $::VERBOSE = $verbose;
     my @nodes = $request->{node} ? @{ $request->{node} } : ();
-    @nodes = xCAT::NodeRange::noderange(join(',', @ARGV)) if $nr_was_value;
+    @nodes = xCAT::NodeRange::noderange($ARGV[0]) if @ARGV;
     return error($callback, "The noderange is missing.\n$USAGE") unless @nodes;
     return error($callback, "The repository directory is missing.\n$USAGE") unless $repo;
     return error($callback, "$repo is not a repository directory.") unless -d "$repo/repodata";

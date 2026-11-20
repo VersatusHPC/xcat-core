@@ -768,6 +768,103 @@ sub control_agent_url {
     return "http://$authority/";
 }
 
+#---
+# =head3 control_agent_endpoint
+# Descriptions: The address and port that control_agent_post connects to.
+# Arguments: %opts -- url, or host and port
+# Returns: hash ref { host, port, path, socket_args }, or undef for a URL it cannot read.
+#          socket_args resolve without AI_ADDRCONFIG: with it, glibc returns no IPv4 address
+#          on a host whose only IPv4 address is 127.0.0.1.
+# =cut
+#---
+sub control_agent_endpoint {
+    my ( $self, %opts ) = @_;
+
+    my $url = $opts{url} || $self->control_agent_url(%opts);
+    return unless $url && $url =~ m{^http://(\[[^\]]+\]|[^/:]+)(?::(\d+))?(/.*)?$};
+    my ( $host, $port, $path ) = ( $1, $2 || 80, $3 || '/' );
+    my $authority = $url =~ m{^http://([^/]+)} ? $1 : $host;
+    $host =~ s/^\[|\]$//g;
+    return {
+        host        => $host,
+        port        => $port,
+        path        => $path,
+        authority   => $authority,
+        socket_args => {
+            PeerHost         => $host,
+            PeerPort         => $port,
+            Proto            => 'tcp',
+            GetAddrInfoFlags => 0,
+        },
+    };
+}
+
+#---
+# =head3 parse_http_response
+# Descriptions: Read the status and the body of a raw HTTP/1.x response.
+# Arguments: $raw -- the bytes the server sent
+# Returns: hash ref { success, status, reason, content }
+# =cut
+#---
+sub parse_http_response {
+    my ( $self, $raw ) = @_;
+
+    my ( $head, $body ) = split /\r?\n\r?\n/, ( defined($raw) ? $raw : '' ), 2;
+    return { success => 0, status => 599, reason => 'empty response' }
+      unless defined($head) && $head =~ m{\AHTTP/\d\.\d\s+(\d{3})[ \t]*([^\r\n]*)(.*)\z}s;
+    my ( $status, $reason, $headers ) = ( $1, $2, $3 );
+    $body = '' unless defined($body);
+    if ( $headers =~ /^Content-Length:\s*(\d+)/mi && length($body) > $1 ) {
+        $body = substr( $body, 0, $1 );
+    }
+    return {
+        success => ( $status =~ /^2/ ? 1 : 0 ),
+        status  => $status,
+        reason  => "$status $reason",
+        content => $body,
+    };
+}
+
+#---
+# =head3 control_agent_post
+# Descriptions: POST a JSON body to the Kea Control Agent.
+# Arguments: $body, %opts -- url, host, port, timeout
+# Returns: the parse_http_response hash
+# =cut
+#---
+sub control_agent_post {
+    my ( $self, $body, %opts ) = @_;
+
+    my $endpoint = $self->control_agent_endpoint(%opts)
+      or return { success => 0, status => 599, reason => 'invalid Control Agent URL' };
+    my $timeout = $opts{timeout} || 10;
+
+    require IO::Socket::IP;
+    my $sock = IO::Socket::IP->new( %{ $endpoint->{socket_args} }, Timeout => $timeout )
+      or return { success => 0, status => 599,
+        reason => "Could not connect to '$endpoint->{authority}': " . ( $@ || $! ) };
+
+    my $request = "POST $endpoint->{path} HTTP/1.0\r\n"
+      . "Host: $endpoint->{authority}\r\n"
+      . "Content-Type: application/json\r\n"
+      . "Content-Length: " . length($body) . "\r\n"
+      . "Connection: close\r\n\r\n"
+      . $body;
+    my $raw = '';
+    my $ok = eval {
+        local $SIG{ALRM} = sub { die "timeout\n" };
+        alarm($timeout);
+        print {$sock} $request;
+        while ( defined( my $line = <$sock> ) ) { $raw .= $line; }
+        alarm(0);
+        1;
+    };
+    alarm(0);
+    close($sock);
+    return { success => 0, status => 599, reason => "Control Agent request timed out" } unless $ok;
+    return $self->parse_http_response($raw);
+}
+
 sub control_agent_command {
     my ( $self, $command, $arguments, %opts ) = @_;
 
@@ -781,17 +878,12 @@ sub control_agent_command {
         return $self->{control_agent_handler}->($payload, \%opts);
     }
 
-    eval { require HTTP::Tiny; };
-    return { error => "Unable to use Kea Control Agent: HTTP::Tiny is not installed." } if $@;
-
-    my $response = HTTP::Tiny->new( timeout => $opts{timeout} || 10 )->post(
-        $opts{url} || $self->control_agent_url(%opts),
-        {
-            headers => {
-                'Content-Type' => 'application/json',
-            },
-            content => $self->encode_config($payload),
-        }
+    my $response = $self->control_agent_post(
+        $self->encode_config($payload),
+        url     => $opts{url},
+        host    => $opts{host},
+        port    => $opts{port},
+        timeout => $opts{timeout} || 10,
     );
 
     return { error => "Kea Control Agent request failed: $response->{reason}" } unless $response->{success};

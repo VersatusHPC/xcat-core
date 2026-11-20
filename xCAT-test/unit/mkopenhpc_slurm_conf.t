@@ -53,15 +53,20 @@ is_deeply([ xCAT::OpenHPCUtils::firewall_ports('mn') ], [ '6817/tcp', '60001-601
     'the MN opens slurmctld and the srun range');
 is_deeply([ xCAT::OpenHPCUtils::firewall_ports('node') ], ['6818/tcp'], 'a node opens slurmd');
 
-my @V = qw(-r --repo -p --partition);
-is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-r -p compute cn1)], '/srv/ohpc/3/EL_9', @V) ],
-    [ [qw(-r /srv/ohpc/3/EL_9 -p compute cn1)], 1 ],
-    'the repository directory that xcatclient took as the noderange goes back after -r');
-is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-p -r /srv/x)], 'batch', @V) ],
-    [ [qw(-p batch -r /srv/x)], 1 ], '... or after -p');
-is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-r /srv/x)], 'cn1,cn2', @V) ],
-    [ [qw(-r /srv/x)], 0 ], 'a noderange given first stays the noderange');
-is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-V)], 'cn1', @V) ],
-    [ ['-V'], 0 ], 'an option without a value does not take the noderange');
+# xcatclient sends the first argument without a hyphen as the noderange, and xcatd drops a
+# noderange that matches no node. In "mkopenhpc -r <dir> <noderange>" that argument is the
+# repository directory, so mkopenhpc must use xcatclientnnr, which sends every argument.
+foreach my $manifest (
+    [ 'xCAT-client/xCAT-client.spec',          qr{^ln -sf \.\./bin/(\S+) \$RPM_BUILD_ROOT/%\{prefix\}/sbin/mkopenhpc$}m ],
+    [ 'xCAT-client/debian/xcat-client.links', qr{^opt/xcat/bin/(\S+) opt/xcat/sbin/mkopenhpc$}m ],
+  )
+{
+    my ($file, $re) = @$manifest;
+    open(my $fh, '<', "$FindBin::Bin/../../$file") or die "cannot read $file: $!";
+    my $text = do { local $/; <$fh> };
+    close($fh);
+    my ($client) = $text =~ $re;
+    is($client, 'xcatclientnnr', "$file links mkopenhpc to xcatclientnnr");
+}
 
 done_testing();

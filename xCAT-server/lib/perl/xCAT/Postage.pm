@@ -223,8 +223,10 @@ my $mn;
 sub defer_syncfiles_to_postboot {
     my ($os, $provmethod, $nodesetstate, $postscripts, $postbootscripts) = @_;
 
+    # Subiquity and Agama run the postscripts in a chroot of the installer, before the node boots.
     return ($postscripts, $postbootscripts)
-      unless defined($os) && $os =~ /^(?:ubuntu|debian)/i;
+      unless defined($os)
+      && ($os =~ /^(?:ubuntu|debian)/i || xCAT::SvrUtils::opensuse_leap_uses_agama($os));
 
     my $diskful_install =
          ($nodesetstate && $nodesetstate eq 'install')

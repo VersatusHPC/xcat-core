@@ -118,9 +118,7 @@ sub autoyast_boot_args
 sub _uses_agama
 {
     my ($os) = @_;
-
-    # Leap 42 is older than Leap 15: the numbering restarted.
-    return (defined($os) && $os =~ /^leap(\d+)(?:\D|$)/ && $1 >= 16 && $1 < 42) ? 1 : 0;
+    return xCAT::SvrUtils::opensuse_leap_uses_agama($os);
 }
 
 #-------------------------------------------------------

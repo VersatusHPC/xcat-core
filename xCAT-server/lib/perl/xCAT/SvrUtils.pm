@@ -520,6 +520,30 @@ sub opensuse_leap_sle_os
 
 #-------------------------------------------------------------------------------
 
+=head3 opensuse_leap_uses_agama
+    Whether an openSUSE Leap os name installs with Agama instead of linuxrc and AutoYaST.
+
+    Arguments:
+        osver: an os name, for example leap16.0
+    Returns:
+        1 for Leap 16 and later, 0 otherwise
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub opensuse_leap_uses_agama
+{
+    my $osver = shift;
+    if (defined($osver) && $osver =~ /xCAT::SvrUtils/) {
+        $osver = shift;
+    }
+
+    # Leap 42 is older than Leap 15: the numbering restarted.
+    return (defined($osver) && $osver =~ /^leap(\d+)(?:\D|$)/ && $1 >= 16 && $1 < 42) ? 1 : 0;
+}
+
+#-------------------------------------------------------------------------------
+
 =head3 opensuse_leap_majors
     Returns:
         the supported openSUSE Leap major versions, sorted

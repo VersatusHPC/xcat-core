@@ -28,6 +28,11 @@ plan skip_all => "Postage.pm not found" unless -f $postage;
 
 my $src = do { local $/; open my $fh, '<', $postage or die $!; <$fh> };
 
+# The helper asks xCAT::SvrUtils whether an openSUSE os installs with Agama.
+use lib "$FindBin::Bin/../../perl-xCAT";
+use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
+require xCAT::SvrUtils;
+
 # The helper, and the block in makescript that calls it. BAIL_OUT rather than skip, so a rename
 # fails loudly instead of silently covering nothing.
 my ($helper) = $src =~ /\n(sub defer_syncfiles_to_postboot \{.*?\n\})\n/s;

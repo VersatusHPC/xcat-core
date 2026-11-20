@@ -23,20 +23,22 @@ my @openeuler_targets = qw(
     openeuler-24.03sp4-x86_64
     openeuler-24.03-ppc64le
 );
-# openSUSE Leap ships no selinux-policy-devel at all, so the module has nothing
-# to compile against. The guard this test was written with named openEuler, and
-# openSUSE was enabled afterwards: xcat-core-build-opensuse #42 spent three
-# attempts on "No matching package to install: selinux-policy-devel" and took
-# the whole openSUSE family down with it.
+# openSUSE Leap 15 and 42 ship no selinux-policy-devel, so the module has
+# nothing to compile against there. xcat-core-build-opensuse #42 spent three
+# attempts on "No matching package to install: selinux-policy-devel".
 my @opensuse_targets = qw(
     opensuse-leap-15.6-x86_64
     opensuse-leap-42.3-x86_64
 );
+# Leap 16 runs SELinux enforcing by default and ships selinux-policy-devel.
+# Without the module, httpd on a Leap 16 management node cannot read
+# /tftpboot, and a node fails to boot from it.
 my @el_targets = qw(
     alma+epel-8-x86_64
     alma+epel-9-x86_64
     alma+epel-10-x86_64
     alma+epel-10-ppc64le
+    opensuse-leap-16.0-x86_64
 );
 
 my $decides = XCAT::BuildUtils->can('package_skip_reason');
@@ -81,5 +83,28 @@ foreach my $pkg (qw(xCAT-server xCATsn)) {
     like($if, qr/0%\{\?rhel\} >= 8/, "... that holds on EL 8 and later");
     unlike($if, qr/openEuler/i, "... and not on openEuler");
 }
+
+# Which builds make xCAT-server and xCATsn pull the module in: EL 8 and later,
+# and Leap 16. The Leap 15 build serves Leap 42.3 too, whose rpm 4.11 cannot
+# read a rich dependency, so that build must not carry it.
+subtest 'the requirement reaches EL and Leap 16 builds only' => sub {
+    my $rpmspec = qx(command -v rpmspec 2>/dev/null);
+    chomp($rpmspec);
+    plan skip_all => 'rpmspec is required' unless $rpmspec && -x $rpmspec;
+    my @builds = (
+        [ 'EL 9',    "--define 'rhel 9'",                 1 ],
+        [ 'Leap 16', "--define 'suse_version 1600'",      1 ],
+        [ 'Leap 15', "--define 'suse_version 1500'",      0 ],
+    );
+    foreach my $pkg (qw(xCAT-server xCATsn)) {
+        foreach my $build (@builds) {
+            my ($name, $define, $want) = @$build;
+            my @requires = qx($rpmspec -q --requires --target x86_64 --define 'version 2.20.0' --define 'release 1' --undefine rhel --undefine suse_version $define $root/$pkg/$pkg.spec 2>/dev/null);
+            ok(scalar(@requires), "rpmspec reads $pkg.spec for $name");
+            is(scalar(grep { /^\(xCAT-selinux = 4:2\.20\.0-1 if selinux-policy-targeted\)$/ } @requires),
+                $want, "$pkg built for $name " . ($want ? 'requires' : 'does not require') . ' xCAT-selinux');
+        }
+    }
+};
 
 done_testing();

@@ -120,6 +120,21 @@ for my $value ('1', 'yes', 'YES') {
     is($out, '', 'an unsupported gpgcheck image does not produce a build command');
 }
 
+# A failed package transaction stops the image when its signatures were meant to be verified:
+# always on openEuler, and on EL when linuximage.gpgcheck asks for it.
+ok(imgutils::package_failure_is_fatal(256, 'rocky9.6', 1),
+    'a failed EL transaction with gpgcheck stops the image');
+ok(!imgutils::package_failure_is_fatal(256, 'rocky9.6', 0),
+    'a failed EL transaction without gpgcheck keeps the old behaviour');
+ok(!imgutils::package_failure_is_fatal(256, 'rocky9.6', undef),
+    'an unset gpgcheck keeps the old behaviour');
+ok(imgutils::package_failure_is_fatal(256, 'openeuler24.03sp3', 0),
+    'a failed openEuler transaction stops the image');
+ok(!imgutils::package_failure_is_fatal(0, 'rocky9.6', 1),
+    'a successful EL transaction with gpgcheck continues');
+ok(!imgutils::package_failure_is_fatal(0, 'openeuler24.03sp3', 0),
+    'a successful openEuler transaction continues');
+
 my $builder = slurp_repo_file('xCAT-server/share/xcat/netboot/rh/genimage');
 like($builder, qr/'gpgcheck'\s*=>\s*\\\$gpgcheck/, 'the RPM builder accepts --gpgcheck');
 like($builder, qr/if \(\$gpgcheck \|\| defined\(imgutils::openeuler_release_version\(\$osver\)\)\)/,

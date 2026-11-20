@@ -44,3 +44,4 @@ xz
 net-tools
 iputils
 NetworkManager
+iproute2

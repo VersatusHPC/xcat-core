@@ -22,6 +22,7 @@ use xCAT::UFTP;
 use xCAT::Yum;
 use xCAT::MediaPerms;
 use xCAT::SELinux;
+use xCAT::FIPS;
 
 use Getopt::Long;
 Getopt::Long::Configure("bundling");
@@ -541,7 +542,8 @@ sub mknetboot
                     if (!$linuximagetab) {
                         $linuximagetab = xCAT::Table->new('linuximage', -create => 1);
                     }
-                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'rootimgdir', 'nodebootif', 'dump', 'crashkernelsize', 'partitionfile', 'rootimgchecksum', 'rootimgtransport', 'addkcmdline');
+                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'rootimgdir', 'nodebootif', 'dump', 'crashkernelsize', 'partitionfile', 'rootimgchecksum', 'rootimgtransport', 'addkcmdline', 'fips');
+                    $img_hash{$imagename}->{fips} = $ref1->{'fips'} if $ref1;
                     if (($ref1) && ($ref1->{'rootimgdir'})) {
                         $img_hash{$imagename}->{rootimgdir} = $ref1->{'rootimgdir'};
                     }
@@ -606,6 +608,11 @@ sub mknetboot
             $rootimgchecksum = $ph->{rootimgchecksum};
             $rootimgtransport = $ph->{rootimgtransport};
             $addkcmdline     = $ph->{addkcmdline};
+            my (undef, $fips_error) = xCAT::FIPS->kcmdline_fips($ph->{fips}, $osver, $arch, $ph->{provmethod});
+            if ($fips_error) {
+                xCAT::MsgUtils->report_node_error($callback, $node, "osimage $imagename has fips set: $fips_error");
+                next;
+            }
         }
         else {
             my @ents = xCAT::TableUtils->get_site_attribute("disablenodesetwarning");
@@ -1306,8 +1313,9 @@ sub mkinstall
                     if (!$linuximagetab) {
                         $linuximagetab = xCAT::Table->new('linuximage', -create => 1);
                     }
-                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'template', 'pkgdir', 'pkglist', 'partitionfile', 'driverupdatesrc', 'netdrivers');
+                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'template', 'pkgdir', 'pkglist', 'partitionfile', 'driverupdatesrc', 'netdrivers', 'fips');
                     if ($ref1) {
+                        $img_hash{$imagename}->{fips} = $ref1->{'fips'};
                         if ($ref1->{'template'}) {
                             $img_hash{$imagename}->{template} = $ref1->{'template'};
                         }
@@ -1837,6 +1845,14 @@ sub mkinstall
                     $kcmdline .= "n8r";
                 }
             }
+
+            my ($fips_arg, $fips_error) = xCAT::FIPS->kcmdline_fips(
+                $imagename ? $img_hash{$imagename}->{fips} : undef, $os, $arch, 'install');
+            unless (defined $fips_arg) {
+                xCAT::MsgUtils->report_node_error($callback, $node, "osimage $imagename has fips set: $fips_error");
+                next;
+            }
+            $kcmdline .= " $fips_arg" if $fips_arg;
 
             #$kcmdline .= " noipv6";
             # add the addkcmdline attribute  to the end

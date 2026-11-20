@@ -10,6 +10,7 @@ use Storable qw(dclone);
 use Sys::Syslog;
 use File::Temp qw/tempdir/;
 use xCAT::Table;
+use xCAT::FIPS;
 use xCAT::Utils;
 use xCAT::BootUtils qw(find_genesis_boot_files);
 use xCAT::TableUtils;
@@ -244,7 +245,8 @@ sub mknetboot
                     if (!$linuximagetab) {
                         $linuximagetab = xCAT::Table->new('linuximage', -create => 1);
                     }
-                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'rootimgdir', 'nodebootif', 'dump', 'crashkernelsize', 'partitionfile', 'rootimgchecksum', 'rootimgtransport', 'addkcmdline');
+                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'rootimgdir', 'nodebootif', 'dump', 'crashkernelsize', 'partitionfile', 'rootimgchecksum', 'rootimgtransport', 'addkcmdline', 'fips');
+                    $img_hash{$imagename}->{fips} = $ref1->{'fips'} if $ref1;
                     if (($ref1) && ($ref1->{'rootimgdir'})) {
                         $img_hash{$imagename}->{rootimgdir} = $ref1->{'rootimgdir'};
                     }
@@ -289,6 +291,11 @@ sub mknetboot
                 }
             }
             my $ph = $img_hash{$imagename};
+            my (undef, $fips_error) = xCAT::FIPS->kcmdline_fips($ph->{fips}, $ph->{osver}, $ph->{osarch}, $ph->{provmethod});
+            if ($fips_error) {
+                xCAT::MsgUtils->report_node_error($callback, $node, "osimage $imagename has fips set: $fips_error");
+                next;
+            }
             $osver           = $ph->{osver};
             $arch            = $ph->{osarch};
             $profile         = $ph->{profile};
@@ -918,7 +925,8 @@ sub mkinstall
                     if (!$linuximagetab) {
                         $linuximagetab = xCAT::Table->new('linuximage', -create => 1);
                     }
-                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'template', 'pkgdir', 'pkglist', 'partitionfile', 'driverupdatesrc', 'netdrivers');
+                    (my $ref1) = $linuximagetab->getAttribs({ imagename => $imagename }, 'template', 'pkgdir', 'pkglist', 'partitionfile', 'driverupdatesrc', 'netdrivers', 'fips');
+                    $img_hash{$imagename}->{fips} = $ref1->{'fips'} if $ref1;
                     if ($ref1) {
                         if ($ref1->{'template'}) {
                             $img_hash{$imagename}->{template} = $ref1->{'template'};
@@ -971,6 +979,11 @@ sub mkinstall
                 }
             }
             my $ph = $img_hash{$imagename};
+            my (undef, $fips_error) = xCAT::FIPS->kcmdline_fips($ph->{fips}, $ph->{osver}, $ph->{osarch}, $ph->{provmethod});
+            if ($fips_error) {
+                xCAT::MsgUtils->report_node_error($callback, $node, "osimage $imagename has fips set: $fips_error");
+                next;
+            }
             $os      = $ph->{osver};
             $arch    = $ph->{osarch};
             $profile = $ph->{profile};

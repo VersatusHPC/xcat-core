@@ -51,10 +51,19 @@ function get_def_interface {
     fi
 }
 
+function xhrm_in_chroot {
+    if command -v systemd-detect-virt >/dev/null 2>&1; then
+        systemd-detect-virt --chroot
+        return
+    fi
+    [ "$(stat -c %d:%i / 2>/dev/null)" != "$(stat -c %d:%i /proc/1/root/. 2>/dev/null)" ]
+}
+
 # Create bridge $1 on port $2 with NetworkManager. $3 and $4 are an optional static IPv4
 # address and netmask; without them the bridge takes the IPv4 setup of the port.
-# NetworkManager does not run in the anaconda %post chroot, so there the profiles are written as
-# keyfiles with nmcli --offline and activate at the first boot.
+# In the anaconda %post chroot, nmcli reaches the NetworkManager of the installer, not the one of
+# the installed system. There the profiles are written as keyfiles with nmcli --offline and
+# activate at the first boot.
 function bridge_nm {
     local bname="$1" port="$2" addr="$3" mask="$4"
     local conndir="${XHRM_NM_CONNDIR:-/etc/NetworkManager/system-connections}"
@@ -64,7 +73,7 @@ function bridge_nm {
         echo "xHRM: bond and VLAN bridges are not supported with NetworkManager; use confignetwork with nictypes.$bname=bridge"
         return 1
     fi
-    if [ "$(nmcli -t -f RUNNING general 2>/dev/null)" = "running" ]; then
+    if ! xhrm_in_chroot && [ "$(nmcli -t -f RUNNING general 2>/dev/null)" = "running" ]; then
         live=1
     fi
     if { [ $live -eq 1 ] && nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$bname"; } ||

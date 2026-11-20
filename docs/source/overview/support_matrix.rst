@@ -18,6 +18,8 @@ Operating System & Hardware Support Matrix
 +-----------+---------------+---------+----------+-----------+
 | openSUSE  | Leap 15.6     | yes     | no       | no        |
 +-----------+---------------+---------+----------+-----------+
+| openSUSE  | Leap 16.0     | yes     | no       | no        |
++-----------+---------------+---------+----------+-----------+
 | Ubuntu    | 22.04         | yes     | yes      | no        |
 +-----------+---------------+---------+----------+-----------+
 | Ubuntu    | 24.04         | yes     | yes      | yes       |
@@ -38,6 +40,7 @@ Operating System & Hardware Support Matrix
    openSUSE Leap support covers the management node, and stateful and stateless compute
    nodes. Service nodes, statelite and node discovery are not supported on openSUSE Leap.
    Leap 42.3 installs from its DVD only, because its update repositories are archived.
+   Leap 16.0 compute nodes install with the Agama installer, from the offline installer image.
 
    openEuler support covers the management node, installed and diskless service nodes, and
    stateful and stateless compute nodes. On riscv64, it covers only stateful and stateless

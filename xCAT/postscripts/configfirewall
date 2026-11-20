@@ -1,15 +1,15 @@
 #!/usr/bin/perl
 
-BEGIN
-{
-    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
-}
-use lib "$::XCATROOT/lib/perl";
 use File::Basename qw(dirname);
 use Cwd qw(abs_path);
 
+# A compute node has no lib.pm (perl-lib), so the paths go into @INC directly.
 # xCAT::FirewallUtils ships beside this script, in /install/postscripts or /xcatpost.
-use lib dirname(abs_path($0));
+BEGIN
+{
+    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
+    unshift @INC, dirname(abs_path($0)), "$::XCATROOT/lib/perl";
+}
 
 use strict;
 use Getopt::Long;

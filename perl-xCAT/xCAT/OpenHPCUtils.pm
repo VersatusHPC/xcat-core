@@ -179,43 +179,4 @@ sub firewall_ports
     return ("$SLURMD_PORT/tcp");
 }
 
-#-------------------------------------------------------------------------------
-
-=head3 restore_argv
-
-    Descriptions:
-        xcatclient takes the first argument that does not start with a hyphen
-        as the noderange. In "mkopenhpc -r <dir> -p <partition> <noderange>"
-        that is the repository directory. This sub puts the token back after
-        the option that takes it, so the real noderange stays in the
-        arguments.
-    Arguments:
-        $args      - array ref, the request arguments
-        $noderange - the noderange string xcatclient sent, or undef
-        @value_options - the options that take a value, such as -r --repo
-    Returns:
-        (array ref of the restored arguments, 1 when the noderange string was
-        an option value, else 0)
-
-=cut
-
-#-------------------------------------------------------------------------------
-sub restore_argv
-{
-    my ($args, $noderange, @value_options) = @_;
-    my @args = @{ $args || [] };
-    return (\@args, 0) unless defined $noderange && length $noderange;
-    my %takes_value = map { $_ => 1 } @value_options;
-
-    # xcatclient put the options it saw before the noderange first, so the
-    # noderange string followed one of them.
-    for (my $i = 0 ; $i < @args && $args[$i] =~ /^-/ ; $i++) {
-        next unless $takes_value{ $args[$i] };
-        next if ($i + 1 < @args && $args[ $i + 1 ] !~ /^-/);
-        splice(@args, $i + 1, 0, $noderange);
-        return (\@args, 1);
-    }
-    return (\@args, 0);
-}
-
 1;

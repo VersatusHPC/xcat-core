@@ -89,3 +89,14 @@ check:output=~"errorcode"
 check:output=~bogus_42
 check:output!~Can't call method
 end
+
+start:restapi_5148_rows_badattr
+description: GET /tables/<table>/rows/<attr>=<value> with an attribute the table does not have returns an error that names it (xcat-core/#5148)
+label:restapi
+# The attribute name is computed, so the checks below cannot match the command text.
+cmd:attr=bogus_$((40+3)); curl -s -m 60 --cacert /install/postscripts/ca/ca-cert.pem "https://$$MN/xcatws/tables/networks/rows/$attr=255.255.255.0?userName=__GETTABLEVALUE(key,system,username,passwd)__&userPW=__GETTABLEVALUE(key,system,password,passwd)__"
+check:output=~"errorcode"
+check:output=~bogus_43
+check:output!~Can't call method
+check:output!~No such table
+end

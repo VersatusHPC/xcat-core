@@ -19,7 +19,7 @@ SYNOPSIS
 ********
 
 
-\ **linuximage Attributes:**\   \ *imagename*\ , \ *template*\ , \ *boottarget*\ , \ *addkcmdline*\ , \ *pkglist*\ , \ *pkgdir*\ , \ *otherpkglist*\ , \ *otherpkgdir*\ , \ *exlist*\ , \ *postinstall*\ , \ *rootimgdir*\ , \ *kerneldir*\ , \ *nodebootif*\ , \ *otherifce*\ , \ *netdrivers*\ , \ *kernelver*\ , \ *krpmver*\ , \ *permission*\ , \ *dump*\ , \ *crashkernelsize*\ , \ *partitionfile*\ , \ *driverupdatesrc*\ , \ *gpgcheck*\ , \ *rootimgchecksum*\ , \ *rootimgtransport*\ , \ *comments*\ , \ *disable*\ 
+\ **linuximage Attributes:**\   \ *imagename*\ , \ *template*\ , \ *boottarget*\ , \ *addkcmdline*\ , \ *pkglist*\ , \ *pkgdir*\ , \ *otherpkglist*\ , \ *otherpkgdir*\ , \ *exlist*\ , \ *postinstall*\ , \ *rootimgdir*\ , \ *kerneldir*\ , \ *nodebootif*\ , \ *otherifce*\ , \ *netdrivers*\ , \ *kernelver*\ , \ *krpmver*\ , \ *permission*\ , \ *dump*\ , \ *crashkernelsize*\ , \ *partitionfile*\ , \ *driverupdatesrc*\ , \ *gpgcheck*\ , \ *rootimgchecksum*\ , \ *rootimgtransport*\ , \ *fips*\ , \ *comments*\ , \ *disable*\ 
 
 
 ***********
@@ -204,6 +204,12 @@ linuximage Attributes:
 \ **rootimgtransport**\ 
  
  Stateless images only. How nodes get the compressed root image at boot. 'http' downloads it from the image server. 'uftp' receives it over UFTP multicast from xcat-uftp-listener, and downloads it over HTTP when that fails. If not set, the default is the value of site.rootimgtransport, which defaults to 'http'. 'uftp' needs the root image checksum (rootimgchecksum), an initial ramdisk that genimage built with the UFTP receiver, and site.httpmethod 'http'.
+ 
+
+
+\ **fips**\ 
+ 
+ Set to 1 to install the nodes of this osimage in FIPS mode. nodeset adds fips=1 to the installer kernel line, and the installer sets the FIPS crypto policy. Supported for EL 9 and EL 10 x86_64 diskful osimages only. nodeset fails for other osimages when this is set.
  
 
 

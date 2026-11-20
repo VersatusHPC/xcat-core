@@ -31,7 +31,8 @@ check:rc==0
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system domcapabilities --virttype kvm"
 check:rc==0
 check:output=~<domain>kvm</domain>
-cmd:mkdef -f -t node -o $$KVMGUEST groups=all,kvmguest ip=$$KVMGUEST_IP arch=__GETNODEATTR($$CN,arch)__ os=__GETNODEATTR($$CN,os)__ mgt=kvm cons=kvm netboot=__GETNODEATTR($$CN,netboot)__ serialport=0 serialspeed=115200 vmhost=$$CN vmcpus=2 vmmemory=4096 vmnics=br0 vmnicnicmodel=virtio vmstorage=dir:///var/lib/libvirt/images vmstoragecache=writeback
+# EL 10 needs x86-64-v3. The default guest CPU model of kvm.pm is older, and init fails at boot.
+cmd:mkdef -f -t node -o $$KVMGUEST groups=all,kvmguest ip=$$KVMGUEST_IP arch=__GETNODEATTR($$CN,arch)__ os=__GETNODEATTR($$CN,os)__ mgt=kvm cons=kvm netboot=__GETNODEATTR($$CN,netboot)__ serialport=0 serialspeed=115200 vmhost=$$CN vmcpus=2 vmmemory=4096 vmnics=br0 vmnicnicmodel=virtio vmstorage=dir:///var/lib/libvirt/images vmstoragecache=writeback vmothersetting=cpumode:host-passthrough
 check:rc==0
 cmd:makehosts $$KVMGUEST
 check:rc==0

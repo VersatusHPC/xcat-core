@@ -7,6 +7,10 @@ label:kvm_host
 cmd:mkdef -f -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-kvm imagetype=linux osname=Linux osvers=__GETNODEATTR($$CN,os)__ osarch=__GETNODEATTR($$CN,arch)__ profile=kvm provmethod=install pkgdir=/install/__GETNODEATTR($$CN,os)__/__GETNODEATTR($$CN,arch)__
 check:rc==0
 cmd:rm -f /tmp/kvm_host_provision_mkvm.host_ready
+# xHRM bridgeprereq runs in the installer %post and writes the br0 profiles. The guest NIC
+# attaches to br0, so the guest network boot reaches the management node through the host port.
+cmd:chdef -t node -o $$CN -p postscripts="xHRM bridgeprereq br0"
+check:rc==0
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-kvm 1 && touch /tmp/kvm_host_provision_mkvm.host_ready
 check:rc==0
 check:output=~Provision node\(s\)\: $$CN
@@ -15,10 +19,20 @@ check:output=~Provision node\(s\)\: $$CN
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "grep -c -w -E 'svm|vmx' /proc/cpuinfo"
 check:rc==0
 check:output=~$$CN: [1-9]
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "ip -br link show br0"
+check:rc==0
+check:output=~$$CN: br0\s+UP
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "bridge link"
+check:rc==0
+check:output=~master br0
+# br0 keeps the MAC of its port, so the DHCP and DNS records of the host stay valid.
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && m=$(xdsh $$CN cat /sys/class/net/br0/address | awk '{print $2}') && [ -n "$m" ] && lsdef -t node -o $$CN -i mac -c | grep -i "$m"
+check:rc==0
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system domcapabilities --virttype kvm"
 check:rc==0
 check:output=~<domain>kvm</domain>
-cmd:mkdef -f -t node -o $$KVMGUEST groups=all,kvmguest ip=$$KVMGUEST_IP arch=__GETNODEATTR($$CN,arch)__ os=__GETNODEATTR($$CN,os)__ mgt=kvm cons=kvm netboot=__GETNODEATTR($$CN,netboot)__ serialport=0 serialspeed=115200 vmhost=$$CN vmcpus=2 vmmemory=4096 vmnics=br0 vmnicnicmodel=virtio vmstorage=dir:///var/lib/libvirt/images vmstoragecache=writeback
+# EL 10 needs x86-64-v3. The default guest CPU model of kvm.pm is older, and init fails at boot.
+cmd:mkdef -f -t node -o $$KVMGUEST groups=all,kvmguest ip=$$KVMGUEST_IP arch=__GETNODEATTR($$CN,arch)__ os=__GETNODEATTR($$CN,os)__ mgt=kvm cons=kvm netboot=__GETNODEATTR($$CN,netboot)__ serialport=0 serialspeed=115200 vmhost=$$CN vmcpus=2 vmmemory=4096 vmnics=br0 vmnicnicmodel=virtio vmstorage=dir:///var/lib/libvirt/images vmstoragecache=writeback vmothersetting=cpumode:host-passthrough
 check:rc==0
 cmd:makehosts $$KVMGUEST
 check:rc==0
@@ -26,9 +40,6 @@ cmd:makedns -n
 check:rc==0
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && mkvm $$KVMGUEST -s 10G
 check:rc==0
-cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system list --all --name"
-check:rc==0
-check:output=~$$CN: $$KVMGUEST
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && makedhcp $$KVMGUEST
 check:rc==0
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$KVMGUEST __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 1
@@ -37,7 +48,18 @@ check:output=~Provision node\(s\)\: $$KVMGUEST
 cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$KVMGUEST hostname
 check:rc==0
 check:output=~$$KVMGUEST: $$KVMGUEST
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && rpower $$KVMGUEST stat
+check:rc==0
+check:output=~$$KVMGUEST: on
+# kvm.pm defines the guest when it starts it, so the host lists the guest only after the install.
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && xdsh $$CN "virsh -c qemu:///system list --name"
+check:rc==0
+check:output=~$$CN: $$KVMGUEST
+cmd:test -f /tmp/kvm_host_provision_mkvm.host_ready && lsvm $$KVMGUEST
+check:rc==0
+check:output=~$$KVMGUEST: Host: $$CN
 cmd:rmvm $$KVMGUEST -f -p
+cmd:chdef -t node -o $$CN -m postscripts="xHRM bridgeprereq br0"
 cmd:makedhcp -d $$KVMGUEST
 cmd:makehosts -d $$KVMGUEST
 cmd:rmdef -t node -o $$KVMGUEST

@@ -94,6 +94,12 @@ xCAT REST API supports several common parameters in the resource URI to enable s
        }
      }
 
+  A noderange with brackets, such as ``node[1-3]``, is grouped the same way. ``curl`` expands
+  brackets in a URL into one request per node, so each reply holds one node and nothing is
+  grouped. Run ``curl -g`` (``--globoff``), or write the brackets as ``%5B`` and ``%5D``: ::
+
+    curl -g "https://<xCAT MN>/xcatws/nodes/node[1-3]/power?xcoll=1&userName=...&userPW=..."
+
 ``Note:`` All the above parameters can be used together like following: ::
 
     https://<xCAT MN>/xcatws/nodes?pretty=1&debug=1

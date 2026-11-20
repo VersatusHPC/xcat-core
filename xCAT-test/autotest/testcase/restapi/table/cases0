@@ -100,3 +100,14 @@ check:output=~bogus_43
 check:output!~Can't call method
 check:output!~No such table
 end
+
+start:restapi_5465_xcoll_range
+description: xcoll=1 groups the nodes of a bracketed noderange into one key when the client sends the brackets (curl -g), as it does for a list (xcat-core/#5465)
+label:restapi
+cmd:mkdef -t node -o rest5465n1,rest5465n2 groups=rest5465 mgt=ipmi
+check:rc==0
+cmd:curl -g -s --cacert /install/postscripts/ca/ca-cert.pem "https://$$MN/xcatws/nodes/rest5465n[1-2]/attrs/groups?xcoll=1&userName=__GETTABLEVALUE(key,system,username,passwd)__&userPW=__GETTABLEVALUE(key,system,password,passwd)__"
+check:output=~"rest5465n1,rest5465n2"
+cmd:rmdef -t node -o rest5465n1,rest5465n2
+check:rc==0
+end

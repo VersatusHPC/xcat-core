@@ -30,4 +30,5 @@ restapi_nodeshell_cmd_non_root
 restapi_5148_rows_multi
 restapi_5148_delete_badattr
 restapi_5148_rows_badattr
+restapi_5465_xcoll_range
 restapi_cleanup_on_MN_CN

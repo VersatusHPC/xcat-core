@@ -113,6 +113,9 @@ ok($profile, 'the rendered profile is JSON, which Agama detects by content') or 
 $profile ||= {};
 
 is($profile->{product}{id}, 'openSUSE_Leap', 'the profile selects the Leap product');
+# Agama knows no zone named Etc/UTC, and refuses the whole profile for an unknown zone. The post
+# script sets the zone from the site table instead.
+ok(!exists $profile->{localization}{timezone}, 'the profile leaves the time zone to the post script');
 ok($profile->{root}{hashedPassword}, 'the root password is a hash');
 like($profile->{root}{password} // '', qr/^\$\d\$/, '... crypted from the passwd table');
 is_deeply($profile->{software}{packages}, [qw(openssh wget chrony)], 'the pkglist packages are installed');
@@ -140,6 +143,7 @@ my $pre_text  = -r "$dir/autoinst/cn1.pre"  ? read_text("$dir/autoinst/cn1.pre")
 my $post_text = -r "$dir/autoinst/cn1.post" ? read_text("$dir/autoinst/cn1.post") : '';
 like($pre_text, qr{^\s*/tmp/updateflag \$XCATDHOST \$XCATDPORT "installstatus installing"}m, 'the pre script reports the node installing');
 like($post_text, qr/mypostscript/, 'the post script prepares the xCAT postscripts');
+like($post_text, qr{^ln -sf "/usr/share/zoneinfo/UTC" /etc/localtime$}m, 'the post script sets the site time zone');
 like($post_text, qr{^/tmp/updateflag "192\.0\.2\.1" "3002"$}m, 'the post script asks the management node to boot the node from disk');
 
 done_testing();

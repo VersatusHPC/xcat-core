@@ -9,7 +9,7 @@ use xCAT::StringUtils qw(trim);
 use Sys::Hostname;
 use xCAT::TableUtils;
 use xCAT::NetworkUtils qw/getipaddr/;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use Math::BigInt;
 use MIME::Base64;
 use xCAT::SvrUtils;
@@ -1895,21 +1895,6 @@ sub find_nameserver_for_dns {
     }
 }
 
-sub genpassword
-{
-
-    #Generate a pseudo-random password of specified length
-    my $length   = shift;
-    my $password = '';
-    my $characters =
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
-    while (length($password) < $length)
-    {
-        $password .= substr($characters, int(rand 63), 1);
-    }
-    return $password;
-}
 
 sub makedns_usage
 {

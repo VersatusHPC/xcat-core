@@ -3,7 +3,7 @@ package xCAT_plugin::bmcconfig;
 use Data::Dumper;
 use xCAT::Table;
 use xCAT::MsgUtils;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use xCAT::PasswordUtils;
 use xCAT::IMMUtils;
 use xCAT::BMCUtils;
@@ -19,16 +19,6 @@ sub handled_commands {
     };
 }
 
-sub genpassword {
-    my $length   = shift;
-    my $password = '';
-    my $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
-    while (length($password) < $length) {
-        $password .= substr($characters, int(rand 63), 1);
-    }
-    return $password;
-}
 
 sub net_parms {
     my $bmc    = shift;

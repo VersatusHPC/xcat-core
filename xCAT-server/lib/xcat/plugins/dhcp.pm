@@ -30,7 +30,7 @@ my $candoipv6 = eval {
 };
 use Sys::Syslog;
 use IPC::Open2;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use xCAT::HTTPUtils qw(httpport_suffix);
 use xCAT::SvrUtils;
 use xCAT::DHCP::BootPolicy;
@@ -7511,20 +7511,5 @@ sub newconfig_aix
 }
 
 
-sub genpassword
-{
-
-    #Generate a pseudo-random password of specified length
-    my $length   = shift;
-    my $password = '';
-    my $characters =
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890';
-    srand;    #have to reseed, rand is not rand otherwise
-    while (length($password) < $length)
-    {
-        $password .= substr($characters, int(rand 63), 1);
-    }
-    return $password;
-}
 
 1;

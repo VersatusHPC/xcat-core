@@ -70,6 +70,28 @@ sub openeuler_release_version {
     return $release;
 }
 
+#--------------------------------------------------------------------------
+
+=head3   package_failure_is_fatal
+
+    Descriptions:
+        Decide whether a failed package manager call stops genimage.
+    Arguments:
+        $rc       - the exit status of the package manager
+        $osver    - the osimage osvers
+        $gpgcheck - true when linuximage.gpgcheck asks for signature checks
+    Returns:
+        1 when genimage must stop, 0 otherwise
+
+=cut
+
+#--------------------------------------------------------------------------
+sub package_failure_is_fatal {
+    my ($rc, $osver, $gpgcheck) = @_;
+    return 0 unless $rc;
+    return ($gpgcheck || defined(openeuler_release_version($osver))) ? 1 : 0;
+}
+
 sub rpm_trusted_keys {
     open(my $rpm, '-|', 'rpm', '-qa', '--qf', "%{DESCRIPTION}\n", 'gpg-pubkey*')
       or die "Cannot read trusted RPM keys: $!\n";

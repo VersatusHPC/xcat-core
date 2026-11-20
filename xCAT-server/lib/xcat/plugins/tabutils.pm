@@ -20,6 +20,7 @@ use xCAT::Utils;
 use xCAT::TableUtils;
 use xCAT::MsgUtils;
 use xCAT::DBobjUtils;
+use xCAT::TableQueryUtils;
 use Getopt::Long;
 my $requestcommand;
 
@@ -3008,7 +3009,6 @@ sub delEntries
     my $tables = $request->{table};
     foreach my $table (@$tables) {
         my $tablename = $table->{name}->[0];
-        my $tab       = xCAT::Table->new($tablename);
         my %keyhash;
         my $attrs = $table->{attr};
         foreach my $attrhash (@$attrs) {
@@ -3016,6 +3016,12 @@ sub delEntries
                 $keyhash{$key} = $attrhash->{$key}->[0];
             }
         }
+        my $error = table_query_error($tablename, \%keyhash);
+        if ($error) {
+            $cb->({ error => [$error], errorcode => [1] });
+            next;
+        }
+        my $tab = xCAT::Table->new($tablename);
         if (%keyhash) {    # delete based on requested attributes
             $tab->delEntries(\%keyhash);    #Yes, delete *all* entries
         } else {                            # delete all entries
@@ -3053,8 +3059,6 @@ sub getAttribs
     my $tablename = $request->{table}->[0];
     my $attr      = $request->{attr};
     my @attrs     = @$attr;
-    my $tab       = xCAT::Table->new($tablename);
-    my %rsp;
     my %keyhash;
 
     # if request for ALL attributes
@@ -3071,17 +3075,37 @@ sub getAttribs
     foreach my $k (keys %{ $request->{keys}->[0] }) {
         $keyhash{$k} = $request->{keys}->[0]->{$k}->[0];
     }
-    my $recs = $tab->getAttribs(\%keyhash, \@attrs);
-
-    if ($recs) {
-        my %attrhash = %$recs;
-        foreach my $k (keys %attrhash) {
-
-            push @{ $rsp{$k} }, $recs->{$k};
-        }
+    my $error = table_query_error($tablename, \%keyhash);
+    if ($error) {
+        $cb->({ error => [$error], errorcode => [1] });
+        return;
     }
-    $cb->(\%rsp);
+    my $tab = xCAT::Table->new($tablename);
+
+    # Only the REST API sets allmatches. Other clients read the one-row reply.
+    my $allmatches = $request->{allmatches} ? $request->{allmatches}->[0] : 0;
+    my @recs = $allmatches
+      ? $tab->getAttribs(\%keyhash, \@attrs)
+      : (scalar $tab->getAttribs(\%keyhash, \@attrs));
+    $cb->(xCAT::TableQueryUtils::attribs_reply($tablename, \@recs, $allmatches));
     return;
+}
+
+#---
+# =head3 table_query_error
+# Descriptions: The error for a query on a table that does not exist, or with keys the table
+#               does not have. xCAT::Table turns both into a Perl error.
+# Arguments: $tablename, $keys -- hash ref of key => value
+# Returns: the message, or undef when the query is valid
+# =cut
+#---
+sub table_query_error
+{
+    my ($tablename, $keys) = @_;
+    my $schema = $xCAT::Schema::tabspec{$tablename};
+    return "No such table: $tablename" unless $schema;
+    return xCAT::TableQueryUtils::unknown_keys_error($tablename,
+        xCAT::TableQueryUtils::unknown_keys($schema->{cols}, $keys));
 }
 
 # setAttribs

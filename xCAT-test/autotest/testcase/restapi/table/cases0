@@ -107,7 +107,7 @@ label:restapi
 cmd:mkdef -t node -o rest5465n1,rest5465n2 groups=rest5465 mgt=ipmi
 check:rc==0
 cmd:curl -g -s --cacert /install/postscripts/ca/ca-cert.pem "https://$$MN/xcatws/nodes/rest5465n[1-2]/attrs/groups?xcoll=1&userName=__GETTABLEVALUE(key,system,username,passwd)__&userPW=__GETTABLEVALUE(key,system,password,passwd)__"
-check:output=~"rest5465n1,rest5465n2"
+check:output=~"rest5465n[12],rest5465n[12]"
 cmd:rmdef -t node -o rest5465n1,rest5465n2
 check:rc==0
 end

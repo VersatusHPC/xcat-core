@@ -155,8 +155,8 @@ sub _default_netboot {
     } elsif ($arch =~ /armv7l/ and $currboot !~ /onie/) {
         #for onie switch, the netboot should be "onie"
         return 'onie';
-    } elsif ($arch =~ /^riscv64$/ and $currboot !~ /grub2/) {
-        #riscv64 nodes boot through UEFI and grub2 only
+    } elsif ($arch =~ /^(?:aarch64|riscv64)$/ and $currboot !~ /grub2/) {
+        #aarch64 and riscv64 nodes boot through UEFI and grub2 only
         return 'grub2';
     }
     return;

@@ -296,6 +296,17 @@ sub process_request
                 xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private ed25519 key");
                 next;
             }
+        } elsif ($parm eq 'munge_key') {
+
+            # mkopenhpc writes this key, and copies it to the service nodes.
+            unless (-r '/etc/xcat/ohpc/munge.key') {
+                push @{ $rsp->{'error'} }, "Unable to read the munge key";
+                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read the munge key");
+                next;
+            }
+            xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
+            $tfilename = '/etc/xcat/ohpc/munge.key';
+
         } elsif ($parm =~ /xcat_cfgloc/) {
             xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
             unless (-r "/etc/xcat/cfgloc") {

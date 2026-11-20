@@ -26,3 +26,18 @@ check:rc==0
 check:output=~^$$CN
 cmd:rm -f /tmp/mkopenhpc_slurm_hierarchy.ready
 end
+
+start:mkopenhpc_slurm_fips_cn
+description:Slurm runs a job on a CN in FIPS mode. It runs after fips_node_enabled, which installs the CN again with fips=1; confignodeslurm stays in the CN postbootscripts from mkopenhpc_slurm_hierarchy, so the reinstall sets up munge and slurmd. No extra install
+os:Linux
+label:openhpc,fips
+cmd:state=`xdsh $$CN cat /proc/sys/crypto/fips_enabled | awk '{print $2}'`;echo "fips_enabled on $$CN: $state";[ "$state" = 1 ]
+check:rc==0
+cmd:xdsh $$CN "systemctl is-active munge slurmd"
+check:rc==0
+cmd:for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
+check:output=~^idle$
+cmd:srun -N1 -p $$SLURM_PARTITION hostname
+check:rc==0
+check:output=~^$$CN
+end

@@ -53,4 +53,15 @@ is_deeply([ xCAT::OpenHPCUtils::firewall_ports('mn') ], [ '6817/tcp', '60001-601
     'the MN opens slurmctld and the srun range');
 is_deeply([ xCAT::OpenHPCUtils::firewall_ports('node') ], ['6818/tcp'], 'a node opens slurmd');
 
+my @V = qw(-r --repo -p --partition);
+is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-r -p compute cn1)], '/srv/ohpc/3/EL_9', @V) ],
+    [ [qw(-r /srv/ohpc/3/EL_9 -p compute cn1)], 1 ],
+    'the repository directory that xcatclient took as the noderange goes back after -r');
+is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-p -r /srv/x)], 'batch', @V) ],
+    [ [qw(-p batch -r /srv/x)], 1 ], '... or after -p');
+is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-r /srv/x)], 'cn1,cn2', @V) ],
+    [ [qw(-r /srv/x)], 0 ], 'a noderange given first stays the noderange');
+is_deeply([ xCAT::OpenHPCUtils::restore_argv([qw(-V)], 'cn1', @V) ],
+    [ ['-V'], 0 ], 'an option without a value does not take the noderange');
+
 done_testing();

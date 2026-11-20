@@ -1,6 +1,13 @@
 #!/usr/bin/perl
 # IBM(c) 2014 EPL license http://www.eclipse.org/legal/epl-v10.html
 use strict;
+
+BEGIN
+{
+    $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
+    unshift @INC, "$::XCATROOT/lib/perl";
+}
+use xCAT::RestUtils;
 use CGI qw/:standard/; #todo: remove :standard when the code only uses object oriented interface
 use Data::Dumper;
 
@@ -3199,7 +3206,7 @@ sub filterData {
 
 
         if (exists($_->{serverdone})) {
-            if (defined($outputerror->{error}) || defined($outputerror->{error})) {
+            if (xCAT::RestUtils::error_ends_request($outputerror->{error}, $outputerror->{errorcode})) {
                 addPageContent($JSON->encode($outputerror));
 
                 #return the default http error code to be 403 forbidden

@@ -21,7 +21,7 @@ check:rc!=0
 # slurmd registers some seconds after the node boots.
 cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
 check:output=~^idle$
-cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && srun -N1 -p $$SLURM_PARTITION hostname
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && srun -N1 -p $$SLURM_PARTITION --chdir=/tmp hostname
 check:rc==0
 check:output=~^$$CN
 cmd:rm -f /tmp/mkopenhpc_slurm_hierarchy.ready
@@ -37,7 +37,7 @@ cmd:xdsh $$CN "systemctl is-active munge slurmd"
 check:rc==0
 cmd:for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
 check:output=~^idle$
-cmd:srun -N1 -p $$SLURM_PARTITION hostname
+cmd:srun -N1 -p $$SLURM_PARTITION --chdir=/tmp hostname
 check:rc==0
 check:output=~^$$CN
 end

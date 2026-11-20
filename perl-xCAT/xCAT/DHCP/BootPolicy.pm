@@ -77,11 +77,13 @@ sub kea_client_classes {
         };
     }
 
+    # Some aarch64 UEFI firmware ignores a boot file name without .efi. mknb publishes the alias.
+    my $aarch64_boot = 'boot/grub2/grub2.aarch64' . ( $opts{aarch64_efi} ? '.efi' : '' );
     push @classes, (
         {
             name             => 'xcat-aarch64',
             test             => 'option[93].hex == 0x000b',
-            'boot-file-name' => 'boot/grub2/grub2.aarch64',
+            'boot-file-name' => $aarch64_boot,
         },
         {
             name             => 'xcat-riscv64',
@@ -514,6 +516,10 @@ sub isc_client_architecture_lines {
     $tftpdir =~ s{/+$}{};
     my $kpxe = $present->("$tftpdir/$loader->{bios}");
     my $efi  = $present->("$tftpdir/$loader->{uefi}");
+    # Only a caller that reads the TFTP tree can say the .efi alias exists.
+    my $aarch64_boot = 'boot/grub2/grub2.aarch64';
+    $aarch64_boot .= '.efi'
+      if $opts{loader_present} && $opts{loader_present}->("$tftpdir/$aarch64_boot.efi");
 
     # Each entry is the head of one branch and its statements. They are chained
     # afterwards so dropping one still leaves a well-formed if/else chain.
@@ -571,7 +577,7 @@ sub isc_client_architecture_lines {
       ],
       [
         "option client-architecture = 00:0b { #aaarch64\n ",
-        "      filename \"boot/grub2/grub2.aarch64\";\n",
+        "      filename \"$aarch64_boot\";\n",
       ],
 
       # yaboot, what a ppc64 client fell through to without this branch, is not

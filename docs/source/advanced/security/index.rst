@@ -8,6 +8,7 @@ The security of a system covers a wide range of elements, from the security of s
 
    fips.rst
    selinux.rst
+   firewall.rst
    ssl_config.rst
    security.rst
    apache_hardening.rst

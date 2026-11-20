@@ -373,6 +373,9 @@ if ($leap16_netboot_pkglist and open(my $fh, '<', $leap16_netboot_pkglist)) {
 }
 like($leap16_netboot_names, qr/^kernel-default$/m, 'the Leap 16 netboot pkglist installs a kernel');
 like($leap16_netboot_names, qr/^chrony$/m, 'the Leap 16 netboot pkglist installs chrony');
+# dracut installs its network module only when the image has ip. Leap 15 gets ip through wicked,
+# and the Leap 16 image boots with NetworkManager, which does not pull it in.
+like($leap16_netboot_names, qr/^iproute2$/m, 'the Leap 16 netboot pkglist installs iproute2, which the initrd network needs');
 foreach my $absent (qw(dhcp-client ntp rsyslog insserv-compat net-tools-deprecated open-lldp fcoe-utils kernel-firmware)) {
     unlike($leap16_netboot_names, qr/^\Q$absent\E$/m, "the Leap 16 netboot pkglist does not name $absent, which the Leap 16.0 image lacks");
 }

@@ -1,0 +1,41 @@
+start:reg_freebsd_ipv6_dualstack_flat
+description:confignetwork gives the installed FreeBSD compute node a static IPv6 address beside its IPv4 address
+os:Linux
+label:flat_cn_diskful,freebsd,ipv6
+# Runs after reg_freebsd_diskfull_installation_flat, on the booted node. The provision network is
+# L2 isolated per cluster, so the ULA prefix fd00:402::/64 is the same in every cluster.
+cmd:xdsh $$CN freebsd-version
+check:rc==0
+check:output=~15\.1-RELEASE
+cmd:nic=$(xdsh $$CN "route -n get $$GATEWAY" | awk '/interface:/ {print $NF}'); test -n "$nic" && echo "$nic" > /tmp/xcattest.freebsd6.nic
+check:rc==0
+cmd:mn=$(ip -o -4 addr show | awk -v gw="$$GATEWAY" '$4 ~ "^" gw "/" {print $2}'); test -n "$mn" && echo "$mn" > /tmp/xcattest.freebsd6.mnnic
+check:rc==0
+cmd:ip -6 addr replace fd00:402::1/64 dev $(cat /tmp/xcattest.freebsd6.mnnic) nodad
+check:rc==0
+cmd:g=$$GATEWAY; lsdef -t network -i net -c | awk -F': ' -v n="net=${g%.*}.0" '$2 == n {print $1}' > /tmp/xcattest.freebsd6.net4; test "$(wc -l < /tmp/xcattest.freebsd6.net4)" -eq 1
+check:rc==0
+cmd:mkdef -t network -o freebsd_ipv6_dualstack net=fd00:402::/64 mask=/64 gateway=
+check:rc==0
+cmd:nic=$(cat /tmp/xcattest.freebsd6.nic); ip4=$(lsdef $$CN -i ip -c | awk -F= '{print $2}'); chdef $$CN nictypes.$nic=Ethernet "nicips.$nic=$ip4|fd00:402::10" "nicnetworks.$nic=$(cat /tmp/xcattest.freebsd6.net4)|freebsd_ipv6_dualstack"
+check:rc==0
+cmd:updatenode $$CN -P confignetwork
+check:rc==0
+cmd:xdsh $$CN ifconfig $(cat /tmp/xcattest.freebsd6.nic)
+check:rc==0
+check:output=~inet6 fd00:402::10 prefixlen 64
+check:output=~inet 192\.168\.
+cmd:ping -6 -c 3 fd00:402::10
+check:rc==0
+cmd:xdsh $$CN ping6 -c 3 fd00:402::1
+check:rc==0
+cmd:ssh -6 -o BatchMode=yes -o StrictHostKeyChecking=no root@fd00:402::10 freebsd-version
+check:rc==0
+check:output=~15\.1-RELEASE
+cmd:ping -c 3 $$CN
+check:rc==0
+cmd:nic=$(cat /tmp/xcattest.freebsd6.nic); chdef $$CN nictypes.$nic= nicips.$nic= nicnetworks.$nic=
+cmd:rmdef -t network -o freebsd_ipv6_dualstack
+cmd:ip -6 addr del fd00:402::1/64 dev $(cat /tmp/xcattest.freebsd6.mnnic)
+cmd:rm -f /tmp/xcattest.freebsd6.nic /tmp/xcattest.freebsd6.mnnic /tmp/xcattest.freebsd6.net4
+end

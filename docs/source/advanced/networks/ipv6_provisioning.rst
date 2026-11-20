@@ -32,6 +32,36 @@ node name also resolves to an IPv4 address. After ``chdef <node> ip=<IPv6 addres
 already has a line of each family is dual-stack, and ``makehosts`` keeps both lines. To move
 such a node to IPv6 only, run ``makehosts -d <node>`` and then ``makehosts <node>``.
 
+Router advertisements
+---------------------
+
+**The provisioning network must send router advertisements.** DHCPv6 gives an address but no
+prefix length and no route. A node that gets no router advertisement has one address with a
+prefix length of 128. Some firmware, and the iPXE and initrd stages, do not netboot without
+one: an AMI Aptio V board completed DHCPv6 and then stopped with ``PXE-E18: Server response
+timeout``.
+
+``makedhcp -n`` writes ``/etc/radvd.conf`` for every IPv6 network in the ``networks`` table
+whose ``mgtifname`` DHCP serves, turns on IPv6 forwarding on that interface, and restarts
+``radvd``. The advertisement sets the managed flag (M), and each prefix is on-link and not
+autonomous, so the address comes from the DHCPv6 reservation::
+
+    interface ens4
+    {
+        AdvSendAdvert on;
+        AdvManagedFlag on;
+        AdvOtherConfigFlag on;
+        prefix 2001:db8:149::/64
+        {
+            AdvOnLink on;
+            AdvAutonomous off;
+        };
+    };
+
+When a router on the provisioning network already sends advertisements, it must send the same
+flags. A client that takes its address from SLAAC, for example SLOF on ppc64le, needs
+``AdvAutonomous on``.
+
 The DHCPv6 client identifier
 ----------------------------
 

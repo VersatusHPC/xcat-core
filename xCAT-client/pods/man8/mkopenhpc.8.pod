@@ -1,0 +1,89 @@
+=head1 NAME
+
+B<mkopenhpc> - Set up the OpenHPC repository and a minimal Slurm cluster.
+
+=head1 SYNOPSIS
+
+B<mkopenhpc> B<-r> I<repository_directory> [B<-p> I<partition>] I<noderange> [B<-V>|B<--verbose>]
+
+B<mkopenhpc> [B<-h>|B<--help>]
+
+=head1 DESCRIPTION
+
+B<mkopenhpc> deploys Slurm from an OpenHPC 3 repository: B<slurmctld> on the management node, B<slurmd> on the nodes of the noderange, munge authentication, and one default partition with every node. Supported on an EL 9 x86_64 management node with EL 9 x86_64 diskful nodes.
+
+B<mkopenhpc> does these steps:
+
+=over 2
+
+=item 1.
+Copies the repository to I<installdir>/ohpc/I<major>/x86_64, which the nodes read over HTTP.
+
+=item 2.
+Installs B<ohpc-slurm-server> and B<munge> on the management node. Creates the munge key in /etc/xcat/ohpc/munge.key when it does not exist, writes /etc/slurm/slurm.conf, opens TCP port 6817 and the srun port range 60001-60100 when firewalld runs, and starts B<munge> and B<slurmctld>.
+
+=item 3.
+Copies the munge key, the repository and slurm.conf to the service nodes of the noderange.
+
+=item 4.
+Adds the B<confignodeslurm> postscript to the B<postbootscripts> of each node.
+
+=back
+
+B<confignodeslurm> runs at the next install of a node, or with B<updatenode> I<noderange> B<-P confignodeslurm>. It installs B<ohpc-slurm-client> and B<munge> from its master, reads the munge key from xcatd, installs slurm.conf, opens TCP port 6818 when firewalld runs, and starts B<munge> and B<slurmd>.
+
+The munge key never goes under the install directory, because the HTTP server publishes that directory.
+
+=head1 OPTIONS
+
+=over 6
+
+=item B<-r> I<repository_directory>
+
+A local directory that holds an OpenHPC repository (with B<repodata>), such as a mirror of OpenHPC/3/EL_9.
+
+=item B<-p> I<partition>
+
+The name of the Slurm partition. The default is B<compute>.
+
+=item I<noderange>
+
+The Slurm compute nodes. See the I<noderange> man page for details on supported formats.
+
+=item B<-V|--verbose>
+
+Verbose mode.
+
+=item B<-h|--help>
+
+Display usage message.
+
+=back
+
+=head1 RETURN VALUE
+
+0 The command completed successfully.
+
+1 An error has occurred.
+
+=head1 EXAMPLES
+
+=over 2
+
+=item 1.
+To make the nodes of the compute group Slurm compute nodes in the partition batch:
+
+ mkopenhpc -r /data/openhpc/3/EL_9 -p batch compute
+ updatenode compute -P confignodeslurm
+ srun -N1 -p batch hostname
+
+=back
+
+=head1 FILES
+
+/opt/xcat/sbin/mkopenhpc
+
+=head1 SEE ALSO
+
+L<updatenode(1)|updatenode.1>
+

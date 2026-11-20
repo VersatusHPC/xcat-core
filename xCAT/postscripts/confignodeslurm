@@ -1,0 +1,94 @@
+#!/bin/bash
+# EPL license http://www.eclipse.org/legal/epl-v10.html
+#
+# confignodeslurm - make a node a Slurm compute node of the mkopenhpc cluster.
+# mkopenhpc publishes the repository and slurm.conf and adds this postscript
+# to the node's postbootscripts.
+#
+# It installs ohpc-slurm-client and munge from the OpenHPC repository and the
+# OS AppStream of the node's master, fetches the munge key from xcatd,
+# installs slurm.conf, opens the slurmd port when firewalld runs, and starts
+# munge and slurmd.
+
+slurm_etc=${XCAT_SLURM_ETC:-/etc/slurm}
+munge_etc=${XCAT_MUNGE_ETC:-/etc/munge}
+yum_repos=${XCAT_YUM_REPOS:-/etc/yum.repos.d}
+post_dir=${XCAT_POST_DIR:-$(dirname "$0")}
+slurmd_port=6818
+
+slurm_log() {
+    logger -t xcat -p "local4.$1" "confignodeslurm: $2" 2>/dev/null
+    echo "confignodeslurm: $2"
+}
+
+# Print the repository file for the master's OpenHPC and AppStream trees.
+slurm_repo_file() {
+    master=$1
+    installdir=$2
+    arch=$3
+    ospkgdir=$4
+    printf '[xcat-ohpc]\nname=OpenHPC (xCAT mkopenhpc)\nbaseurl=http://%s%s/ohpc/3/%s\nenabled=1\ngpgcheck=0\n' \
+        "$master" "$installdir" "$arch"
+    if [ -n "$ospkgdir" ]; then
+        printf '\n[xcat-ohpc-appstream]\nname=AppStream for munge (xCAT mkopenhpc)\nbaseurl=http://%s%s/AppStream\nenabled=1\ngpgcheck=0\n' \
+            "$master" "$ospkgdir"
+    fi
+}
+
+# Read the munge key from xcatd. allowcred.awk answers the callback that
+# proves the request comes from this node.
+slurm_fetch_munge_key() {
+    # The listener must not keep the postscript output pipe open after the kill.
+    "$post_dir/allowcred.awk" >/dev/null 2>&1 </dev/null &
+    cred_pid=$!
+    sleep 1
+    "$post_dir/getcredentials.awk" munge_key | xcat_filter_credentials |
+        grep -E -v '</{0,1}errorcode>|/{0,1}data>|</{0,1}content>|</{0,1}desc>|^$' >"$1"
+    rc=${PIPESTATUS[0]}
+    kill -9 "$cred_pid" 2>/dev/null
+    [ "$rc" -eq 0 ] && [ -s "$1" ] && ! grep -q '<error>' "$1"
+}
+
+slurm_main() {
+    master=${MASTER:-$SITEMASTER}
+    installdir=${INSTALLDIR:-/install}
+    arch=${ARCH:-$(uname -m)}
+    [ -n "$master" ] || { slurm_log err "MASTER is not set"; return 1; }
+    [ -r "$post_dir/ohpc/slurm.conf" ] || { slurm_log err "$post_dir/ohpc/slurm.conf is missing"; return 1; }
+
+    slurm_repo_file "$master" "$installdir" "$arch" "$OSPKGDIR" >"$yum_repos/xcat-ohpc.repo" || return 1
+    dnf install -y ohpc-slurm-client munge || { slurm_log err "cannot install ohpc-slurm-client and munge"; return 1; }
+
+    mkdir -p "$munge_etc" "$slurm_etc" || return 1
+    slurm_fetch_munge_key "$munge_etc/munge.key.new" || {
+        rm -f "$munge_etc/munge.key.new"
+        slurm_log err "cannot get the munge key from $master"
+        return 1
+    }
+    # The munge package creates the munge user, so the owner is set after the install.
+    chown munge:munge "$munge_etc/munge.key.new" && chmod 0400 "$munge_etc/munge.key.new" &&
+        mv -f "$munge_etc/munge.key.new" "$munge_etc/munge.key" || return 1
+
+    cp -f "$post_dir/ohpc/slurm.conf" "$slurm_etc/slurm.conf" && chmod 0644 "$slurm_etc/slurm.conf" || return 1
+    # A node reset soon after the install leaves a renamed file empty on XFS unless it is synced.
+    sync
+    mkdir -p /var/spool/slurmd
+
+    if systemctl is-active --quiet firewalld; then
+        firewall-cmd --permanent --add-port="$slurmd_port/tcp" >/dev/null &&
+            firewall-cmd --reload >/dev/null || { slurm_log err "cannot open port $slurmd_port/tcp"; return 1; }
+    fi
+
+    systemctl enable munge slurmd >/dev/null 2>&1
+    systemctl restart munge || { slurm_log err "munge does not start"; return 1; }
+    systemctl restart slurmd || { slurm_log err "slurmd does not start"; return 1; }
+    slurm_log info "slurmd is running"
+    return 0
+}
+
+# A test sources this file with XCAT_SLURM_SOURCED=1 and calls the functions.
+if [ -z "${XCAT_SLURM_SOURCED:-}" ]; then
+    . "$post_dir/xcatlib.sh"
+    slurm_main "$@"
+    exit $?
+fi

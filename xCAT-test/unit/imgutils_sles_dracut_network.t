@@ -35,12 +35,16 @@ sub modules_for {
     return join(' ', $sub->(@_));
 }
 
-my @nm_modules = qw(06dbus-broker 06dbus-daemon 09dbus 35network-manager 35network-legacy 40network);
+my @nm_modules = qw(00systemd 01systemd-initrd 06dbus-broker 06dbus-daemon 09dbus 35network-manager
+    35network-legacy 40network 98dracut-systemd);
 
+# dbus depends on systemd, so systemd becomes /init, and it needs initrd.target from
+# systemd-initrd. Without it the node stops at "Unit initrd.target not found".
 is(modules_for(image(['usr/sbin/NetworkManager', 'usr/bin/dbus-broker'], \@nm_modules)),
-    'dbus-broker network-manager', 'a Leap 16 image names dbus-broker and network-manager');
+    'dbus-broker network-manager systemd systemd-initrd dracut-systemd',
+    'a Leap 16 image names dbus-broker, network-manager and the systemd initrd modules');
 is(modules_for(image(['usr/sbin/NetworkManager', 'usr/bin/dbus-daemon'], \@nm_modules)),
-    'dbus-daemon network-manager', 'an image with only dbus-daemon names dbus-daemon');
+    'dbus-daemon network-manager systemd systemd-initrd dracut-systemd', 'an image with only dbus-daemon names dbus-daemon');
 is(modules_for(image(['usr/sbin/wicked', 'usr/sbin/NetworkManager', 'usr/bin/dbus-broker'], \@nm_modules)),
     '', 'an image with wicked keeps the list it had');
 is(modules_for(image(['usr/sbin/wicked'], [qw(35network-legacy 40network)])),

@@ -2864,6 +2864,9 @@ sub tablerowhdl {
             }
         }
         foreach my $a (@attrs) { push @{ $request->{attr} }, $a; }
+
+        # Every row that matches the keys, not only the first one (xcat-core/#5148).
+        $request->{allmatches} = 1;
     }
 
     my $req = genRequest();
@@ -2872,8 +2875,8 @@ sub tablerowhdl {
     # out of the node hash and make it the key
     my $responses = sendRequest($req, { SuppressEmpty => undef, ForceArray => 0, KeyAttr => [] });
 
-    if (@$responses[0]->{error}) {
-        # Error returned, most likely invalid table, substitute a better error msg
+    # xcatd names the table or the attribute in its error, so keep the message it sends.
+    if (@$responses[0]->{error} and @$responses[0]->{error} =~ /^Can't call method/) {
         @$responses[0]->{error} = "No such table: @tables";
     }
     # Check if there is any real data in response

@@ -5461,7 +5461,10 @@ sub kea_onie_url_for_node
 
 sub kea_boot_client_classes
 {
-    return xCAT::DHCP::BootPolicy->kea_client_classes( kea_ipxe_loader_flags() );
+    return xCAT::DHCP::BootPolicy->kea_client_classes(
+        kea_ipxe_loader_flags(),
+        aarch64_efi => -e "$tftpdir/boot/grub2/grub2.aarch64.efi" ? 1 : 0,
+    );
 }
 
 # The DHCPv6 classes for one network. The boot URL carries a server, so it is built per network

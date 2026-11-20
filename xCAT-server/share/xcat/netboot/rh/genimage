@@ -84,7 +84,7 @@ sub xdie {
 
 sub check_package_result {
     my ($rc) = @_;
-    return unless $rc && defined(imgutils::openeuler_release_version($osver));
+    return unless imgutils::package_failure_is_fatal($rc, $osver, $gpgcheck);
     unuse_hackuname();
     xdie("RPM package manager invocation failed\n");
 }

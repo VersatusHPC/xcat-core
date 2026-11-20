@@ -123,7 +123,7 @@ sub process_request
     return error($callback, "The repository directory is missing.\n$USAGE") unless $repo;
     return error($callback, "$repo is not a repository directory.") unless -d "$repo/repodata";
     return error($callback, "Bad partition name '$partition'.") unless $partition =~ /^[\w.-]+$/;
-    return error($callback, 'mkopenhpc runs on an EL management node.') unless xCAT::Utils->isRedHat();
+    return error($callback, 'mkopenhpc runs on an EL management node.') unless -f '/etc/redhat-release';
 
     my $typetab = xCAT::Table->new('nodetype');
     my $types = $typetab ? $typetab->getNodesAttribs(\@nodes, [ 'os', 'arch' ]) : {};

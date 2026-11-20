@@ -89,7 +89,7 @@ sub openeuler_release_version {
 sub package_failure_is_fatal {
     my ($rc, $osver, $gpgcheck) = @_;
     return 0 unless $rc;
-    return defined(openeuler_release_version($osver)) ? 1 : 0;
+    return ($gpgcheck || defined(openeuler_release_version($osver))) ? 1 : 0;
 }
 
 sub rpm_trusted_keys {

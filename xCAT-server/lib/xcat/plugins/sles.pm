@@ -107,6 +107,68 @@ sub autoyast_boot_args
 
 #-------------------------------------------------------
 
+=head3 _uses_agama
+
+    Descriptions: Whether a node os installs with Agama instead of linuxrc and AutoYaST.
+    Arguments: the node os
+    Returns: 1 for openSUSE Leap 16 and later, 0 otherwise
+=cut
+
+#-------------------------------------------------------
+sub _uses_agama
+{
+    my ($os) = @_;
+
+    # Leap 42 is older than Leap 15: the numbering restarted.
+    return (defined($os) && $os =~ /^leap(\d+)(?:\D|$)/ && $1 >= 16 && $1 < 42) ? 1 : 0;
+}
+
+#-------------------------------------------------------
+
+=head3 agama_boot_args
+
+    Descriptions: The kernel arguments of a diskful Agama install.
+    Arguments: the method, the install server, the port, the package directory prefix, the node
+    Returns: the arguments, with an IPv6 server bracketed
+=cut
+
+#-------------------------------------------------------
+sub agama_boot_args
+{
+    my ($httpmethod, $netserver, $httpport, $httpprefix, $node) = @_;
+    my $authority = xCAT::NetworkUtils::uri_authority($netserver, $httpport);
+    my $media     = "$httpmethod://$authority$httpprefix/1";
+
+    # The initrd names a local medium as its live root. A network boot has none, so dracut
+    # livenet fetches the live root over HTTP, and the repository is the copied media.
+    return "root=live:$media/LiveOS/squashfs.img"
+      . " inst.auto=$httpmethod://$authority/install/autoinst/$node"
+      . " inst.install_url=$media inst.finish=reboot rd.neednet=1 ip=dhcp";
+}
+
+#-------------------------------------------------------
+
+=head3 _agama_node_scripts
+
+    Descriptions: The per-node scripts that an Agama profile fetches by URL. Agama reads a
+    profile as JSON, so the shell scripts stay in files of their own.
+    Arguments: the install directory, the node
+    Returns: one [template, output file] pair for the pre script and one for the post script
+=cut
+
+#-------------------------------------------------------
+sub _agama_node_scripts
+{
+    my ($installroot, $node) = @_;
+    my $scripts = "$::XCATROOT/share/xcat/install/scripts";
+    return (
+        [ "$scripts/pre.agama",  "$installroot/autoinst/$node.pre" ],
+        [ "$scripts/post.agama", "$installroot/autoinst/$node.post" ],
+    );
+}
+
+#-------------------------------------------------------
+
 =head3  _install_kcmdline
 
     Return the installer kernel command line of a diskful node.
@@ -118,6 +180,7 @@ sub autoyast_boot_args
 sub _install_kcmdline
 {
     my ($os, @args) = @_;
+    return agama_boot_args(@args) if _uses_agama($os);
     my $kcmdline = autoyast_boot_args(@args);
 
     # The Leap linuxrc fetches an installer update from the internet by default.
@@ -1115,6 +1178,14 @@ sub mkinstall
                 $partfile,
                 \%tmpl_hash
               );
+        }
+
+        if (!$tmperr && _uses_agama($os)) {
+            foreach my $script (_agama_node_scripts($installroot, $node)) {
+                $tmperr = xCAT::Template->subvars($script->[0], $script->[1], $node,
+                    "", "", "", "", \%tmpl_hash);
+                last if $tmperr;
+            }
         }
 
         if ($tmperr) {

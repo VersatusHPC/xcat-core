@@ -125,4 +125,21 @@ ok($post->{chroot}, 'the post script runs in the installed system');
 unlike(read_text($out), qr/#[A-Z_]+(?::[^#\n]*)?#/, 'the profile leaves no template directive unresolved')
   if -r $out;
 
+# The node scripts render with the same tables, and carry the steps the AutoYaST path runs.
+foreach my $script (plugin('_agama_node_scripts', $dir, 'cn1')) {
+    my ($template, $output) = @$script;
+    make_path("$dir/autoinst");
+    my $err = xCAT::Template->subvars($template, $output, 'cn1', '', '', '', '', { xcatmaster => '192.0.2.1' });
+    ok(!$err, "$template renders") or diag($err);
+    my $text = -r $output ? read_text($output) : '';
+    # post.xcat names /install/postscripts literally, which only a management node has.
+    unlike($text, qr{#(?:INCLUDE[A-Z_]*|TABLE|TABLEBLANKOKAY|XCATVAR|ENV):(?!cannot open /install/postscripts/)[^#\n]*#},
+        "$output leaves no template directive unresolved");
+}
+my $pre_text  = -r "$dir/autoinst/cn1.pre"  ? read_text("$dir/autoinst/cn1.pre")  : '';
+my $post_text = -r "$dir/autoinst/cn1.post" ? read_text("$dir/autoinst/cn1.post") : '';
+like($pre_text, qr{^\s*/tmp/updateflag \$XCATDHOST \$XCATDPORT "installstatus installing"}m, 'the pre script reports the node installing');
+like($post_text, qr/mypostscript/, 'the post script prepares the xCAT postscripts');
+like($post_text, qr{^/tmp/updateflag "192\.0\.2\.1" "3002"$}m, 'the post script asks the management node to boot the node from disk');
+
 done_testing();

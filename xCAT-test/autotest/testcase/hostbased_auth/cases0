@@ -46,3 +46,24 @@ cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh c
 check:rc==0
 check:output=~HBA-CLEANUP-OK
 end
+
+start:hostbased_auth_fips_cn
+description:host-based login works from a CN that runs in FIPS mode. It runs after fips_node_enabled, which installs the CN with fips=1, so sshd, ssh and ssh-keysign on the CN use the FIPS crypto policy
+label:hostbased,fips
+os:Linux
+cmd:state=`xdsh $$CN cat /proc/sys/crypto/fips_enabled | awk '{print $2}'`;echo "fips_enabled on $$CN: $state";[ "$state" = 1 ]
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh setup xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-SETUP-OK
+cmd:mkhostbased-auth $$SN,$$CN
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh login xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-LOGIN-OK
+cmd:mkhostbased-auth -r $$SN,$$CN
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh cleanup xcathba $$CN $$SN
+check:rc==0
+check:output=~HBA-CLEANUP-OK
+end

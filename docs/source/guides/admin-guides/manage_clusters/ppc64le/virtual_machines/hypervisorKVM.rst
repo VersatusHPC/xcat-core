@@ -60,11 +60,10 @@ Create network bridge on hypervisor
 
 To launch VMs, a network bridge must be created on the KVM hypervisor.
 
-If the hypervisor is provisioned successfully according to the steps described above, a network bridge will be created and attached to a physical interface. This can be checked by running ``brctl show`` on the hypervisor to show the network bridge information, please make sure a network bridge has been created and configured according to the parameters passed to postscript "xHRM" ::
+If the hypervisor is provisioned successfully according to the steps described above, a network bridge will be created and attached to a physical interface. This can be checked by running ``bridge link`` on the hypervisor to show the network bridge information, please make sure a network bridge has been created and configured according to the parameters passed to postscript "xHRM" ::
 
-   # brctl show
-   bridge name     bridge id               STP enabled     interfaces
-   br0             8000.000000000000       no              eth0
+   # bridge link
+   2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 32 cost 4
 
 
 If the network bridge is not created or configured successfully, run "xHRM" with **updatenode** on management node to create it manually:::

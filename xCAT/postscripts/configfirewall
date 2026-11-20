@@ -1,20 +1,25 @@
 #!/usr/bin/perl
 
+use File::Basename qw(dirname);
+use Cwd qw(abs_path);
+
+# A compute node has no lib.pm (perl-lib), so the paths go into @INC directly.
+# xCAT::FirewallUtils ships beside this script, in /install/postscripts or /xcatpost.
 BEGIN
 {
     $::XCATROOT = $ENV{'XCATROOT'} ? $ENV{'XCATROOT'} : '/opt/xcat';
+    unshift @INC, dirname(abs_path($0)), "$::XCATROOT/lib/perl";
 }
-use lib "$::XCATROOT/lib/perl";
 
 use strict;
 use Getopt::Long;
 
-use xCAT::Utils;
+use xCAT::FirewallUtils;
 
 Getopt::Long::Configure("bundling");
 $Getopt::Long::ignorecase = 0;
 
-my @allowed_ports = ("22", "53", "69", "80", "443", "873", "3001", "3002");
+my @allowed_ports = xCAT::FirewallUtils::port_list();
 
 if (scalar(@ARGV) == 0)
 {
@@ -28,6 +33,7 @@ if (
         'public=s'  => \$::opt_public,
         'nat'       => \$::opt_nat,
         'ports=s'   => \$::opt_ports,
+        'auto'      => \$::opt_auto,
     )
   )
 {
@@ -42,6 +48,23 @@ if (scalar(@ARGV) > 0)
     print "Unknown options @ARGV\n";
     &usage();
     exit 1;
+}
+
+if ($::opt_auto)
+{
+    if ($::opt_private || $::opt_public)
+    {
+        print "Flag --auto cannot be used with --private or --public\n";
+        &usage();
+        exit 1;
+    }
+    ($::opt_private, $::opt_public) = &auto_interfaces();
+    unless ($::opt_private)
+    {
+        print "configfirewall --auto found no NIC in an xCAT network\n";
+        exit 1;
+    }
+    print "configfirewall --auto: private $::opt_private, public $::opt_public\n";
 }
 
 # --private and --public must be used together
@@ -72,42 +95,20 @@ if ($::opt_ports)
     }
 }
 
-if (-f "/etc/redhat-release")
+my $backend = xCAT::FirewallUtils::backend(
+    redhat         => (-f "/etc/redhat-release"),
+    openeuler      => (-f "/etc/openEuler-release"),
+    suse           => ((-f "/etc/SuSE-release") || (-f "/etc/SUSE-brand")),
+    ubuntu         => (system("grep -i ubuntu /etc/issue > /dev/null 2>&1") == 0),
+    firewalld_unit => (-f "/usr/lib/systemd/system/firewalld.service"),
+);
+
+if (defined($backend) && $backend eq 'firewalld')
 {
-
-    #From Redhat7, firewalld is used as the default firewall service,
-    #however, it does not support complex firewall rules.
-    #So we'd better disable firewalld and use iptables service
-    #iptables service is shiped in iptables-services package in rhels7 iso,
-    #which is not installed by default, it should be installed
-
-    if (-f "/usr/lib/systemd/system/firewalld.service") {
-        if (system("systemctl is-active firewalld > /dev/null 2>&1") == 0) {
-            print "firewalld is running, stopping firewalld service \n";
-            if (system("service firewalld stop") == 0)
-            {
-                print "\n[success]\n";
-            }
-            else
-            {
-                print "\n[failed]\n";
-                exit 1
-            }
-        }
-
-        if (system("systemctl is-enabled firewalld > /dev/null 2>&1") == 0) {
-            print "disabling firewalld service \n";
-            if (system("systemctl disable firewalld") == 0)
-            {
-                print "\n[success]\n";
-            }
-            else
-            {
-                print "\n[failed]\n";
-                exit 1
-            }
-        }
-    }
+    &configure_firewalld();
+}
+elsif (defined($backend) && $backend eq 'iptables')
+{
 
     if ((!-f "/usr/lib/systemd/system/iptables.service") && (!-f "/etc/init.d/iptables")) {
         print "please install iptables-services (for redhat 7) or iptables package first by running:\n";
@@ -136,6 +137,7 @@ if (-f "/etc/redhat-release")
     # restart iptables
     #$cmd = "service iptables restart";
     #system($cmd);
+    require xCAT::Utils;
     xCAT::Utils->restartservice("iptables");
 
     # iptables should be stared on reboot
@@ -143,7 +145,7 @@ if (-f "/etc/redhat-release")
     #system($cmd);
     xCAT::Utils->enableservice("iptables");
 }
-elsif ((-f "/etc/SuSE-release") || (-f "/etc/SUSE-brand"))
+elsif (defined($backend) && $backend eq 'suse')
 {
     my $conffile;
     my $conf;
@@ -184,6 +186,7 @@ elsif ((-f "/etc/SuSE-release") || (-f "/etc/SUSE-brand"))
     # restart firewall
     #my $cmd = "service SuSEfirewall2_setup restart";
     #system($cmd);
+    require xCAT::Utils;
     xCAT::Utils->restartservice("firewall");
 
     # SuSEfirewall2_setup should be stared on reboot
@@ -193,7 +196,7 @@ elsif ((-f "/etc/SuSE-release") || (-f "/etc/SUSE-brand"))
     #system($cmd);
     xCAT::Utils->enableservice("firewall");
 }
-elsif (system("grep -i ubuntu /etc/issue > /dev/null 2>&1") == 0)
+elsif (defined($backend) && $backend eq 'ubuntu')
 {
     my $fwconf = "/etc/fwrules.ubuntu";
 
@@ -233,6 +236,7 @@ exit 0;
 sub usage()
 {
     print "Usage:\n    configfirewall --private <private_interfaces> --public <pubic_interface> [--nat] [--ports <ports_allowed>]\n";
+    print "    configfirewall --auto [--nat] [--ports <ports_allowed>]\n";
 }
 
 sub generate_iptables_conf()
@@ -295,4 +299,90 @@ sub generate_nat_conf()
         $cmd .= "iptables -A FORWARD -i $intf -o $pubintf -m state --state RELATED,ESTABLISHED -j ACCEPT;";
     }
     return $cmd;
+}
+
+#---
+# =head3 configure_firewalld
+# Descriptions: Put the private NICs in the trusted zone and the public NIC in the public
+#               zone with the xCAT ports, and masquerade with --nat. Every change is permanent.
+# =cut
+#---
+sub configure_firewalld
+{
+    system("systemctl unmask firewalld > /dev/null 2>&1");
+    if (system("systemctl enable --now firewalld") != 0)
+    {
+        print "\n[failed] cannot start firewalld\n";
+        exit 1;
+    }
+
+    my @privates = $::opt_private ? split(/,/, $::opt_private) : ();
+    my $plan = xCAT::FirewallUtils::zone_plan(\@privates, $::opt_public);
+    my $nat;
+    if ($::opt_nat)
+    {
+        &setup_ip_forwarding();
+        $nat = xCAT::FirewallUtils::nat_plan($plan);
+    }
+
+    my $rc = 0;
+    foreach my $args (xCAT::FirewallUtils::firewalld_commands($plan, \@allowed_ports, $nat))
+    {
+        # A policy from an earlier run is kept, with what other tools added to it.
+        if ($args->[1] =~ /^--new-policy=(.+)$/)
+        {
+            next if system("firewall-cmd --permanent --info-policy=$1 > /dev/null 2>&1") == 0;
+        }
+        if (system('firewall-cmd', @$args) != 0)
+        {
+            print "firewall-cmd @$args failed\n";
+            $rc = 1;
+        }
+    }
+    if (system("firewall-cmd --reload") != 0)
+    {
+        print "firewall-cmd --reload failed\n";
+        $rc = 1;
+    }
+    exit 1 if $rc;
+
+    # xcatconfig and xcatprobe read the marker, and keep a firewall that configfirewall set.
+    system("mkdir -p /etc/xcat");
+    if (open(my $fh, '>', $xCAT::FirewallUtils::MARKER))
+    {
+        print $fh "firewalld\n";
+        close($fh);
+    }
+    print "\n[success]\n";
+}
+
+#---
+# =head3 auto_interfaces
+# Descriptions: The private NICs (the NICs with an address in an xCAT network) and the public
+#               NIC (the NIC of the default route). A postscript reads the networks from
+#               mypostscript, the management node from the networks table.
+# Returns: (comma-separated private NICs, public NIC)
+# =cut
+#---
+sub auto_interfaces
+{
+    my @nets = xCAT::FirewallUtils::networks_from_env(\%ENV);
+    unless (@nets)
+    {
+        my @lines = `$::XCATROOT/sbin/tabdump networks 2>/dev/null`;
+        @nets = xCAT::FirewallUtils::networks_from_tabdump(@lines);
+    }
+    my %addrs;
+    foreach my $line (`ip -o addr show 2>/dev/null`)
+    {
+        if ($line =~ /^\d+:\s+(\S+?)(?:\@\S+)?\s+inet6?\s+([0-9a-fA-F.:]+)\//)
+        {
+            push @{ $addrs{$1} }, $2;
+        }
+    }
+    my @privates = xCAT::FirewallUtils::private_nics(\@nets, \%addrs);
+    my $public = `ip route show default 2>/dev/null`;
+    $public = ($public =~ /\bdev\s+(\S+)/) ? $1 : '';
+    $public ||= $privates[0];
+    return (join(',', @privates), $public);
 }

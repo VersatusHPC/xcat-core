@@ -527,16 +527,24 @@ if ($::INITIALINSTALL || $::FORCE)
             }
         }
 
-        my $ret = xCAT::Utils->stopservice("firewall");
-        if ($ret != 0)
+        # configfirewall writes this marker. A firewall it configured opens the xCAT ports.
+        if (-e "/etc/xcat/configfirewall.backend")
         {
-            xCAT::MsgUtils->message('E', "Failed to stop firewall");
+            xCAT::MsgUtils->message('I', "Keeping the firewall that configfirewall configured.");
         }
-
-        $ret = xCAT::Utils->disableservice("firewall");
-        if ($ret != 0)
+        else
         {
-            xCAT::MsgUtils->message('E', "Failed to disable firewall on boot");
+            my $ret = xCAT::Utils->stopservice("firewall");
+            if ($ret != 0)
+            {
+                xCAT::MsgUtils->message('E', "Failed to stop firewall");
+            }
+
+            $ret = xCAT::Utils->disableservice("firewall");
+            if ($ret != 0)
+            {
+                xCAT::MsgUtils->message('E', "Failed to disable firewall on boot");
+            }
         }
 
         #}

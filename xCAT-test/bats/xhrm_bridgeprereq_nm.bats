@@ -6,7 +6,9 @@
 #
 # nmcli, ip and modprobe are stubbed. PATH holds no sbin directory, so brctl is absent. The
 # stub nmcli answers "running" only when NM_STATE=running, as in a booted host; otherwise it
-# fails like nmcli in the anaconda %post chroot, where no NetworkManager runs.
+# fails as it does where no NetworkManager runs. The stub systemd-detect-virt reports a chroot
+# only when IN_CHROOT=1. In the anaconda %post chroot nmcli reaches the NetworkManager of the
+# installer, so a running NetworkManager there is not the one of the installed system.
 
 load 'helpers/shell_source'
 
@@ -48,6 +50,7 @@ case "\$*" in
 esac
 EOF
     printf '#!/bin/sh\nexit 0\n' >"$BIN/modprobe"
+    printf '#!/bin/sh\n[ "$1" = --chroot ] && [ "${IN_CHROOT:-0}" = 1 ]\n' >"$BIN/systemd-detect-virt"
     chmod 0755 "$BIN"/*
 
     export PATH="$BIN:/usr/bin:/bin"
@@ -111,4 +114,13 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"confignetwork"* ]]
     ! grep -E "connection add" "$NMCLI_LOG"
+}
+
+@test "the anaconda %post chroot writes keyfiles although nmcli reaches the installer NetworkManager" {
+    IN_CHROOT=1 NM_STATE=running run bash "$SCRIPT" bridgeprereq br0
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ -f "$CONNDIR/br0.nmconnection" ]
+    [ -f "$CONNDIR/br0-port-$PORT.nmconnection" ]
+    ! grep -E "^connection (add|up)" "$NMCLI_LOG"
 }

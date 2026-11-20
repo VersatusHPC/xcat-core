@@ -38,13 +38,14 @@ slurm_repo_file() {
 # Read the munge key from xcatd. allowcred.awk answers the callback that
 # proves the request comes from this node.
 slurm_fetch_munge_key() {
-    (cd "$post_dir" && ./allowcred.awk) &
+    # The listener must not keep the postscript output pipe open after the kill.
+    "$post_dir/allowcred.awk" >/dev/null 2>&1 </dev/null &
     cred_pid=$!
     sleep 1
     "$post_dir/getcredentials.awk" munge_key | xcat_filter_credentials |
         grep -E -v '</{0,1}errorcode>|/{0,1}data>|</{0,1}content>|</{0,1}desc>|^$' >"$1"
     rc=${PIPESTATUS[0]}
-    kill "$cred_pid" 2>/dev/null
+    kill -9 "$cred_pid" 2>/dev/null
     [ "$rc" -eq 0 ] && [ -s "$1" ] && ! grep -q '<error>' "$1"
 }
 

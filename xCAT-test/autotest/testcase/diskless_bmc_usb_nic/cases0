@@ -1,0 +1,12 @@
+start:diskless_bmc_usb_nic_unmanaged
+description:the diskless image leaves the USB NIC of a BMC host interface unmanaged, and the diskless CN ends running, not degraded. Run it after a diskless provision of the CN
+label:diskless
+os:Linux
+cmd:sh -c 'img=$(lsdef -t osimage -o __GETNODEATTR($$CN,provmethod)__ -i rootimgdir -c | sed -n "s/.*rootimgdir=//p"); cat "$img/rootimg/etc/NetworkManager/conf.d/90-xcat-bmc-usb-nic.conf"'
+check:rc==0
+check:output=~managed=0
+check:output=~driver:rndis_host
+cmd:xdsh $$CN "systemctl is-system-running --wait"
+check:output=~:\s+running
+check:output!~degraded
+end

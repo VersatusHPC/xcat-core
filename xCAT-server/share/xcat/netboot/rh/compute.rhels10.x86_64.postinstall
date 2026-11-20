@@ -41,6 +41,9 @@ then
 fi
 #--for redhat 8 and 8.1
 #-- Need to disable firewalld, otherwise, the remoteshell script will not able to get all the SSH keys
+#-- Leave the USB NIC of a BMC host interface unmanaged: it never gets a DHCP lease.
+"${XCATROOT:-/opt/xcat}/share/xcat/netboot/imgutils/bmc_usb_nic_unmanaged.sh" "$installroot"
+
 FIREWALLD="$installroot/etc/systemd/system/multi-user.target.wants/firewalld.service"
 if [ -f "$FIREWALLD" ] || [ -L "$FIREWALLD" ]
 then

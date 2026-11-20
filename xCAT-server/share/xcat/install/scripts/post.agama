@@ -1,0 +1,21 @@
+#!/bin/bash
+# Agama runs this script in the installed system, through chroot, after the installation.
+mkdir -p /var/log/xcat
+{
+echo "Running Agama post-installation script..."
+#INCLUDE:#ENV:XCATROOT#/share/xcat/install/scripts/post.xcat#
+
+# Agama refuses a zone it does not list, such as Etc/UTC, so the zone is set here.
+if [ -e "/usr/share/zoneinfo/#TABLE:site:key=timezone:value#" ]; then
+ln -sf "/usr/share/zoneinfo/#TABLE:site:key=timezone:value#" /etc/localtime
+fi
+
+# The installer writes these files with its own labels, not the file contexts of the policy.
+if command -v restorecon >/dev/null 2>&1; then
+    /usr/sbin/restorecon -RF /xcatpost /opt/xcat /etc /root /var/log
+fi
+
+# Boot the node from its disk from now on.
+/tmp/updateflag "#XCATVAR:XCATMASTER#" "#TABLE:site:key=xcatiport:value#"
+} >>/var/log/xcat/xcat.log 2>&1
+exit 0

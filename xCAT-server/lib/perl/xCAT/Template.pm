@@ -286,6 +286,21 @@ sub subvars {
         $inc =~ s/#INCLUDE_DEFAULT_RMPKGLIST_S#/#INCLUDE_RMPKGLIST:$pkglistfile#/g;
     }
 
+    # An Agama profile is JSON, so its lists are JSON string items, not XML elements.
+    if ($inc =~ /#INCLUDE_DEFAULT_(?:PKGLIST|PTRNLIST)_JSON#/) {
+        my @records;
+        if ($pkglistfile) {
+            require xCAT::Postage;
+            @records = xCAT::Postage->get_pkglist_records($pkglistfile);
+            if (my ($bad) = grep { /^#INCLUDEBAD:/ } @records) {
+                $bad =~ s/^#INCLUDEBAD:(.*)#$/$1/;
+                return $bad;
+            }
+        }
+        $inc =~ s/#INCLUDE_DEFAULT_PKGLIST_JSON#/agama_json_items(0, @records)/eg;
+        $inc =~ s/#INCLUDE_DEFAULT_PTRNLIST_JSON#/agama_json_items(1, @records)/eg;
+    }
+
     # osimage environvar reaches apt-get through ospkgs alone, so such an image installs its list there,
     # and its pkgdir mirrors, which may need those variables too, stay out of the installer's sources
     my $environvar_set = ( $namedargs{environvar} // '' ) =~ /\S/;
@@ -2226,6 +2241,35 @@ sub subiquity_install_mac {
     my (undef, $macaddress) = subiquity_install_netcfg_for_node();
     return $macaddress;
 }
+
+#-------------------------------------------------------
+
+=head3 agama_json_items
+
+    Descriptions: The packages or the patterns of a SUSE pkglist, as the items of a JSON array.
+    Arguments: 1 for the patterns (records that start with @), 0 for the packages; then the
+               pkglist records
+    Returns: the quoted names separated by ", ", or an empty string
+=cut
+
+#-------------------------------------------------------
+sub agama_json_items
+{
+    my ($patterns, @records) = @_;
+    my @names;
+    foreach my $record (@records) {
+        foreach my $word (split /\s+/, $record) {
+            next if $word eq '' or $word =~ /^[#-]/;
+            if ($word =~ /^@(.+)$/) {
+                push @names, $1 if $patterns;
+            } elsif (!$patterns) {
+                push @names, $word;
+            }
+        }
+    }
+    return join(', ', map { (my $n = $_) =~ s/(["\\])/\\$1/g; "\"$n\"" } @names);
+}
+
 
 # ubuntu_autoinstall_packages: the packages of the pkglist records (whole lines, as
 # get_pkglist_records returns them) that a Subiquity autoinstall can install through its packages

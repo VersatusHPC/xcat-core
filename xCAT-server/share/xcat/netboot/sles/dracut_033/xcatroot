@@ -74,6 +74,8 @@ rootimg_download() {
 
 rootimgchecksum="$(getarg rootimgchecksum=)"
 rootimg_uftp="$(getarg xcat.uftp=)"
+# systemd as /init passes no kernel argument to the environment of a dracut service.
+imgurl="$(getarg imgurl=)"
 
 if [ ! -z "$imgurl" ]; then
 	if [ xhttp = x${imgurl%%:*} ] || [ xhttps = x${imgurl%%:*} ]; then

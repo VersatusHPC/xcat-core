@@ -343,6 +343,28 @@ sub stage_dracut_module {
     return map { $_->[1] } @copy;
 }
 
+# The extra dracut modules a SUSE diskless image names when it boots with NetworkManager. The dracut
+# 059 dbus meta module takes dbus-broker only when the list names it, so without these names
+# network-manager fails its dbus dependency and network falls back to network-legacy (dhclient).
+# An image with wicked keeps the list it had. Returns the module names, or an empty list.
+sub sles_dracut_network_modules {
+    my ($rootimg_dir, $moduledir) = @_;
+    return () if -e "$rootimg_dir/usr/sbin/wicked" or !-e "$rootimg_dir/usr/sbin/NetworkManager";
+    my %present;
+    if (opendir(my $dh, $moduledir)) {
+        foreach my $entry (readdir($dh)) {
+            $present{$1} = 1 if $entry =~ /^[0-9]+(.+)$/ && -d "$moduledir/$entry";
+        }
+        closedir($dh);
+    }
+    return () unless $present{'network-manager'};
+    my ($dbus) = grep { $present{$_} && -e "$rootimg_dir/usr/bin/$_" } qw(dbus-broker dbus-daemon);
+    return () unless $dbus;
+
+    # dbus depends on systemd, so systemd becomes /init and needs initrd.target from systemd-initrd.
+    return ($dbus, 'network-manager', grep { $present{$_} } qw(systemd systemd-initrd dracut-systemd));
+}
+
 # The netboot dracut.conf names an exclusive module list, so a module nothing in the list depends
 # on is left out of the initial ramdisk. dracut reads the list and nothing else.
 #

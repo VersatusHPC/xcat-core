@@ -1,0 +1,24 @@
+{
+  "product": { "id": "openSUSE_Leap" },
+  "localization": {
+    "language": "en_US.UTF-8",
+    "keyboard": "us"
+  },
+  "root": {
+    "password": "#CRYPT:passwd:key=system,username=root:password#",
+    "hashedPassword": true
+  },
+  "bootloader": { "extraKernelParams": "#XCATVAR:PERSKCMDLINE#" },
+  "software": {
+    "patterns": [ #INCLUDE_DEFAULT_PTRNLIST_JSON# ],
+    "packages": [ #INCLUDE_DEFAULT_PKGLIST_JSON# ]
+  },
+  "scripts": {
+    "pre": [
+      { "name": "xcat-pre", "url": "http://#MASTERURIHOST##COLONHTTPPORT#/install/autoinst/#HOSTNAME#.pre" }
+    ],
+    "post": [
+      { "name": "xcat-post", "chroot": true, "url": "http://#MASTERURIHOST##COLONHTTPPORT#/install/autoinst/#HOSTNAME#.post" }
+    ]
+  }
+}

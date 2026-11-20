@@ -316,7 +316,9 @@ foreach my $pkg (qw(xCAT-server xCATsn)) {
     ok(defined $index, "$pkg requires xCAT-selinux when selinux-policy-targeted is installed");
     my $if = defined $index ? enclosing_if(\@lines, $index) : undef;
     like($if // '', qr/\brhel\b/, "... only in a Red Hat family build");
-    unlike($if // '', qr/suse/, "... and not in a SUSE build, which has no xCAT-selinux");
+    # Leap 16 is the one SUSE build that has the module.
+    (my $older_suse = $if // '') =~ s/0%\{\?suse_version\} >= 1600//;
+    unlike($older_suse, qr/suse/, "... and in no SUSE build before Leap 16, which has no xCAT-selinux");
 }
 
 done_testing();

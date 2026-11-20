@@ -1,0 +1,11 @@
+@enhanced_base
+iputils
+vim
+openssl
+rsync
+net-tools
+nfs-client
+wget
+openssh
+zypper
+chrony

@@ -388,3 +388,9 @@ check_each_script()
     [ "$(cat "$FX/extracted" 2>/dev/null)" = 'packed image' ]
     [ "$(cat "$FX/newroot-hostname")" = fixed ]
 }
+
+# With systemd as /init (Leap 16, dracut 059 with network-manager), dracut runs xcatroot from a
+# service, which gets no kernel argument in its environment. Each script reads imgurl itself.
+@test 'every script reads imgurl from the kernel command line when its environment has none' {
+    check_each_script 'packed image' "$URL.sha256 $URL $URL.sha256 " 0 '' --unsetenv imgurl
+}

@@ -357,4 +357,32 @@ ok(-r "$leap16_copy/repodata/repomd.xml", 'the copied Leap 16 media root serves 
 ok(-r "$leap16_copy/x86_64/aaa_base-1.rpm", 'the copied Leap 16 media root serves the packages');
 is(readlink("$leap16_copy/boot") // '', '', 'the installer boot tree stays a directory');
 
+# The Leap 16.0 offline installer image is the package source of a diskless image. It carries
+# no dhcp-client, ntp, rsyslog, insserv-compat, net-tools-deprecated, open-lldp, fcoe-utils or
+# kernel-firmware, so the SLE 15 netboot list cannot be installed from it.
+my $leap16_netboot_pkglist = imgutils::get_profile_def_filename('leap16.0', 'compute', 'x86_64', $share_netboot, 'pkglist');
+is(
+    $leap16_netboot_pkglist,
+    realpath("$share_netboot/compute.leap16.x86_64.pkglist"),
+    'a Leap 16 diskless image reads the shipped Leap 16 netboot pkglist'
+);
+my $leap16_netboot_names = '';
+if ($leap16_netboot_pkglist and open(my $fh, '<', $leap16_netboot_pkglist)) {
+    $leap16_netboot_names = do { local $/; <$fh> };
+    close($fh);
+}
+like($leap16_netboot_names, qr/^kernel-default$/m, 'the Leap 16 netboot pkglist installs a kernel');
+like($leap16_netboot_names, qr/^chrony$/m, 'the Leap 16 netboot pkglist installs chrony');
+# dracut installs its network module only when the image has ip. Leap 15 gets ip through wicked,
+# and the Leap 16 image boots with NetworkManager, which does not pull it in.
+like($leap16_netboot_names, qr/^iproute2$/m, 'the Leap 16 netboot pkglist installs iproute2, which the initrd network needs');
+foreach my $absent (qw(dhcp-client ntp rsyslog insserv-compat net-tools-deprecated open-lldp fcoe-utils kernel-firmware)) {
+    unlike($leap16_netboot_names, qr/^\Q$absent\E$/m, "the Leap 16 netboot pkglist does not name $absent, which the Leap 16.0 image lacks");
+}
+is(
+    imgutils::get_profile_def_filename('leap16.0', 'compute', 'x86_64', $share_netboot, 'postinstall'),
+    realpath("$share_netboot/compute.leap16.postinstall"),
+    'a Leap 16 diskless image runs the Leap 16 postinstall, not the SLE 15 one'
+);
+
 done_testing();

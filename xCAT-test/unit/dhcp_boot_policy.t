@@ -650,4 +650,30 @@ is_deeply( $localboot->{'user-context'}{'xcat-macs'},
     [ { node => 'cn08', mac => '52:54:00:00:00:08' }, { node => 'san07', mac => '52:54:00:00:00:07', san => 1 } ],
     'and records which entry is a SAN node, so that a later makedhcp writes it again' );
 
+# ---- aarch64 clients without a reservation (#342) ---------------------------------------------
+# Some aarch64 UEFI firmware ignores a boot file name without .efi. mknb publishes
+# boot/grub2/grub2.aarch64.efi beside the loader, and both backends name it only when it is there.
+is( { map { $_->{name} => $_ } @{ xCAT::DHCP::BootPolicy->kea_client_classes( aarch64_efi => 1 ) } }->{'xcat-aarch64'}{'boot-file-name'},
+    'boot/grub2/grub2.aarch64.efi', 'Kea names the .efi aarch64 loader when it is published' );
+is( { map { $_->{name} => $_ } @{ xCAT::DHCP::BootPolicy->kea_client_classes( aarch64_efi => 0 ) } }->{'xcat-aarch64'}{'boot-file-name'},
+    'boot/grub2/grub2.aarch64', 'Kea keeps the plain aarch64 loader when the .efi name is not published' );
+
+sub isc_aarch64_filename {
+    my (@published) = @_;
+    my %on_disk = map { ( "/tftpboot/$_" => 1 ) } @published;
+    my $lines = join '', @{ xCAT::DHCP::BootPolicy->isc_client_architecture_lines(
+            next_server    => '192.0.2.10',
+            net            => '192.0.2.0',
+            prefix         => 24,
+            tftpdir        => '/tftpboot',
+            loader_present => sub { return $on_disk{ $_[0] } ? 1 : 0 },
+        ) };
+    my ($filename) = $lines =~ /client-architecture = 00:0b \{[^\n]*\n\s*filename "([^"]+)";/;
+    return $filename;
+}
+is( isc_aarch64_filename( 'boot/grub2/grub2.aarch64', 'boot/grub2/grub2.aarch64.efi' ),
+    'boot/grub2/grub2.aarch64.efi', 'ISC names the .efi aarch64 loader when it is published' );
+is( isc_aarch64_filename('boot/grub2/grub2.aarch64'),
+    'boot/grub2/grub2.aarch64', 'ISC keeps the plain aarch64 loader when the .efi name is not published' );
+
 done_testing();

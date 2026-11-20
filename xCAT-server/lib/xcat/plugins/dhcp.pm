@@ -30,7 +30,7 @@ my $candoipv6 = eval {
 };
 use Sys::Syslog;
 use IPC::Open2;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use xCAT::HTTPUtils qw(httpport_suffix);
 use xCAT::SvrUtils;
 use xCAT::DHCP::BootPolicy;
@@ -6819,10 +6819,5 @@ sub newconfig_aix
 }
 
 
-sub genpassword
-{
-    # One generator, in xCAT::Utils, so this secret comes from the OS CSPRNG.
-    return xCAT::Utils::genpassword(@_);
-}
 
 1;

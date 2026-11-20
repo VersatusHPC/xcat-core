@@ -9,7 +9,7 @@ use xCAT::StringUtils qw(trim);
 use Sys::Hostname;
 use xCAT::TableUtils;
 use xCAT::NetworkUtils qw/getipaddr/;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use Math::BigInt;
 use MIME::Base64;
 use xCAT::SvrUtils;
@@ -1895,11 +1895,6 @@ sub find_nameserver_for_dns {
     }
 }
 
-sub genpassword
-{
-    # One generator, in xCAT::Utils, so this secret comes from the OS CSPRNG.
-    return xCAT::Utils::genpassword(@_);
-}
 
 sub makedns_usage
 {

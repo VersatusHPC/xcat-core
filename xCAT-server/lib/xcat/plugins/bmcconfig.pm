@@ -3,7 +3,7 @@ package xCAT_plugin::bmcconfig;
 use Data::Dumper;
 use xCAT::Table;
 use xCAT::MsgUtils;
-use xCAT::Utils;
+use xCAT::Utils qw(genpassword);
 use xCAT::PasswordUtils;
 use xCAT::IMMUtils;
 use xCAT::BMCUtils;
@@ -19,11 +19,6 @@ sub handled_commands {
     };
 }
 
-sub genpassword
-{
-    # One generator, in xCAT::Utils, so this secret comes from the OS CSPRNG.
-    return xCAT::Utils::genpassword(@_);
-}
 
 sub net_parms {
     my $bmc    = shift;

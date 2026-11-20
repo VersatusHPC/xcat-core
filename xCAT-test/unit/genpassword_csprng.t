@@ -12,7 +12,7 @@ use File::Temp qw(tempdir);
 use Test::More;
 
 # CORE::GLOBAL only reaches code compiled after the override, so install it
-# before xCAT::Utils and the extracted plugin routines are compiled. File::Temp
+# before xCAT::Utils is compiled. File::Temp
 # and Test::More are already compiled and keep the real rand.
 our $CORE_RNG_CALLS = 0;
 
@@ -90,35 +90,6 @@ my $expected = 'ab9af';
         'genpassword defaults to 8 characters');
     is($CORE_RNG_CALLS, 0,
         'genpassword uses no Perl rand against the real device');
-}
-
-# The three plugins that generate secrets must use the same generator. They are
-# extracted rather than loaded, because loading them needs a management node.
-my %secret_of = (
-    bmcconfig => 'the generated BMC password',
-    ddns      => 'the DDNS TSIG secret',
-    dhcp      => 'the ISC DHCP OMAPI secret',
-);
-
-foreach my $plugin (sort keys %secret_of) {
-    my $path = "$FindBin::Bin/../../xCAT-server/lib/xcat/plugins/$plugin.pm";
-    open(my $source, '<', $path) or BAIL_OUT("cannot read $path: $!");
-    my $text = do { local $/; <$source> };
-    close($source);
-
-    my ($routine) = $text =~ /^(sub\s+genpassword\b.*?^\})/ms;
-    BAIL_OUT("no genpassword routine found in $plugin.pm") unless $routine;
-
-    my $package = "Local::Extracted::$plugin";
-    eval "package $package; use strict; use warnings; $routine; 1"
-      or BAIL_OUT("cannot compile genpassword from $plugin.pm: $@");
-
-    local $xCAT::Utils::RANDOM_DEVICE = $fixture;
-    $CORE_RNG_CALLS = 0;
-    my $password = eval { $package->can('genpassword')->(5) };
-    is($password, $expected,
-        "$plugin.pm draws $secret_of{$plugin} from the random device");
-    is($CORE_RNG_CALLS, 0, "$plugin.pm calls neither rand nor srand");
 }
 
 done_testing();

@@ -75,4 +75,23 @@ $cfg = defined($path) && -f $path ? read_text($path) : '';
 like($cfg, qr/^if \[ "\$grub_cpu" = "arm64" \]; then\n.*^elif \[ "\$grub_cpu" = "riscv64" \]; then\n.*^fi$/ms,
     'aarch64 and riscv64 share one configuration with one branch each');
 
+# Some aarch64 UEFI firmware ignores a boot file name without .efi (#342).
+# mknb publishes grub2.aarch64.efi as a link to the grub2-xcat loader.
+my $aliasdir = tempdir(CLEANUP => 1);
+make_path("$aliasdir/boot/grub2");
+xCAT_plugin::mknb::_grub2_efi_alias($aliasdir, 'aarch64');
+ok(!-e "$aliasdir/boot/grub2/grub2.aarch64.efi" && !-l "$aliasdir/boot/grub2/grub2.aarch64.efi",
+    'no .efi link is made while the aarch64 loader is missing');
+write_text("$aliasdir/boot/grub2/grub2.aarch64", 'loader');
+xCAT_plugin::mknb::_grub2_efi_alias($aliasdir, 'aarch64');
+is(readlink("$aliasdir/boot/grub2/grub2.aarch64.efi"), 'grub2.aarch64',
+    'grub2.aarch64.efi is a relative link to the aarch64 loader');
+xCAT_plugin::mknb::_grub2_efi_alias($aliasdir, 'aarch64');
+is(readlink("$aliasdir/boot/grub2/grub2.aarch64.efi"), 'grub2.aarch64',
+    'a second mknb keeps the link');
+write_text("$aliasdir/boot/grub2/grub2.riscv64", 'loader');
+xCAT_plugin::mknb::_grub2_efi_alias($aliasdir, 'riscv64');
+ok(!-e "$aliasdir/boot/grub2/grub2.riscv64.efi" && !-l "$aliasdir/boot/grub2/grub2.riscv64.efi",
+    'riscv64 keeps its loader name');
+
 done_testing();

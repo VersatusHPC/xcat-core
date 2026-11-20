@@ -952,14 +952,18 @@ sub cancel_build {
 # releases, and the suffixed rocky target mock cross-builds riscv64 through.
 my $EL_TARGET = qr/\A(?:alma|rocky|centos|rhel)(?:\+epel)?-/;
 
+# The targets that build xCAT-selinux: EL, and openSUSE Leap 16, the first
+# Leap that ships selinux-policy-devel and runs SELinux enforcing.
+my $SELINUX_TARGET = qr/$EL_TARGET|\Aopensuse-leap-16\./;
+
 my @PACKAGE_SKIPS = (
     {   package  => 'xCAT-genesis-base',
         prefixes => ['opensuse-'],
         reason   => 'openSUSE ships no legacy Genesis',
     },
     {   package  => 'xCAT-selinux',
-        only     => $EL_TARGET,
-        reason   => 'SELinux support is EL only',
+        only     => $SELINUX_TARGET,
+        reason   => 'SELinux support is EL and openSUSE Leap 16 only',
     },
 );
 

@@ -231,6 +231,17 @@ check:rc==0
 check:output=~'vmmemori' is not a valid attribute name for an object type
 end
 
+start:restapi_nodeshell_stderr
+description: nodeshell returns the stdout of a command that also writes to stderr and exits 0
+label:restapi
+# The markers are computed, so the checks below cannot match the command text.
+cmd:username=__GETTABLEVALUE(key,system,username,passwd)__;password=__GETTABLEVALUE(key,system,password,passwd)__;curl -s -w ' HTTP=%{http_code}' --cacert /install/postscripts/ca/ca-cert.pem -X POST "https://$$MN/xcatws/nodes/$$CN/nodeshell?userName=$username&userPW=$password" -H Content-Type:application/json --data '{"command":["echo k4out$((1+1)); ls /k4missing$((2+2)); echo k4end$((3+3))"]}'
+check:output=~k4out2
+check:output=~k4end6
+check:output=~k4missing4
+check:output=~HTTP=200
+end
+
 start:restapi_nodeshell_cmd_root
 description: Call nodeshell method to execute a command by root user
 label:restapi

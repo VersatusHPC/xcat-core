@@ -1,0 +1,82 @@
+=head1 NAME
+
+B<mkhostbased-auth> - Set up SSH host-based authentication between the nodes of a noderange.
+
+=head1 SYNOPSIS
+
+B<mkhostbased-auth> I<noderange> [B<-r>|B<--remove>] [B<-V>|B<--verbose>]
+
+B<mkhostbased-auth> [B<-h>|B<--help>]
+
+=head1 DESCRIPTION
+
+B<mkhostbased-auth> lets every user except root log in by SSH from one node of the noderange to another without a user key pair. This command is a technology preview in xCAT 2.21.
+
+The nodes are split into trust scopes. A node in a zone belongs to the scope of that zone. A node in no zone belongs to the scope B<default>. The nodes of a zone with B<sshbetweennodes=no> are skipped.
+
+For each scope, B<mkhostbased-auth> writes B<ssh_known_hosts> and B<shosts.equiv> into I<installdir>/postscripts/hostbased/I<scope>/. B<ssh_known_hosts> holds the host public keys from /etc/xcat/hostkeys (or /etc/xcat/hostkeys/I<node>/) for the short name, the FQDN and the IP addresses of each node. B<shosts.equiv> holds the same names and addresses. The command copies the files to the service nodes of the noderange, then runs the B<confighostbasedauth> postscript on the nodes with B<updatenode -P>.
+
+B<confighostbasedauth> installs the two files in /etc/ssh, sets B<HostbasedAuthentication yes> for sshd and ssh and B<EnableSSHKeysign yes> for ssh, installs B<openssh-keysign> where the distribution ships B<ssh-keysign> in its own package, and restarts sshd.
+
+B<mkhostbased-auth> adds B<confighostbasedauth> I<scope> to the B<postbootscripts> of each node, so a reinstalled node gets the same setup.
+
+When the management node runs in FIPS mode, ed25519 host keys are left out. DSA host keys are never published.
+
+Supported on EL 9 and Ubuntu 24.04 x86_64 nodes.
+
+=head1 SECURITY
+
+B<shosts.equiv> makes each node trust every other node of its scope for every user name. A user who is root on one node of the scope can log in as any other user on every node of the scope. Use a zone to limit a scope. OpenSSH ignores B<shosts.equiv> for root, so root logins still need root's keys.
+
+=head1 OPTIONS
+
+=over 6
+
+=item I<noderange>
+
+A set of comma delimited node names and/or group names. See the I<noderange> man page for details on supported formats.
+
+=item B<-r|--remove>
+
+Removes the setup from the nodes and removes B<confighostbasedauth> from their B<postbootscripts>.
+
+=item B<-V|--verbose>
+
+Verbose mode.
+
+=item B<-h|--help>
+
+Display usage message.
+
+=back
+
+=head1 RETURN VALUE
+
+0 The command completed successfully.
+
+1 An error has occurred.
+
+=head1 EXAMPLES
+
+=over 2
+
+=item 1.
+To let the users of the compute group log in between its nodes:
+
+ mkhostbased-auth compute
+
+=item 2.
+To remove the setup:
+
+ mkhostbased-auth compute -r
+
+=back
+
+=head1 FILES
+
+/opt/xcat/sbin/mkhostbased-auth
+
+=head1 SEE ALSO
+
+L<makeknownhosts(8)|makeknownhosts.8>, L<mkzone(1)|mkzone.1>, L<updatenode(1)|updatenode.1>
+

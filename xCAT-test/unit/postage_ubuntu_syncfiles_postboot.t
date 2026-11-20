@@ -41,6 +41,15 @@ sub defer { return xCAT::Postage::defer_syncfiles_to_postboot(@_) }
     is($postboot, $DEFERRED . "setupntp\n", 'and the postbootscripts receive it');
 }
 
+# openSUSE Leap 16.0 installs with Agama, whose post script runs the postscripts in a chroot of
+# the installer, as Subiquity does.
+{
+    my ($post, $postboot) =
+      defer('leap16.0', 'install', 'install', "syncfiles\notherpkgs\n", "setupntp\n");
+    is($post, "otherpkgs\n", 'a Leap 16 diskful node does not run syncfiles in the installer');
+    is($postboot, $DEFERRED . "setupntp\n", 'a Leap 16 diskful node runs syncfiles after it boots');
+}
+
 # --- paths that must NOT change --------------------------------------------
 my @untouched = (
     [ 'netboot keeps its postscripts on the booted node already',
@@ -51,6 +60,10 @@ my @untouched = (
       'rhels9.4', 'install', 'install' ],
     [ 'SLES is unaffected',
       'sles15.6', 'install', 'install' ],
+    [ 'Leap 15, which installs with AutoYaST, is unaffected',
+      'leap15.6', 'install', 'install' ],
+    [ 'Leap 42.3, which installs with AutoYaST, is unaffected',
+      'leap42.3', 'install', 'install' ],
     [ 'an undefined os is left alone',
       undef, 'install', 'install' ],
 );

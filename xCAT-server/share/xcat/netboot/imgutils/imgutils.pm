@@ -338,7 +338,9 @@ sub sles_dracut_network_modules {
     return () unless $present{'network-manager'};
     my ($dbus) = grep { $present{$_} && -e "$rootimg_dir/usr/bin/$_" } qw(dbus-broker dbus-daemon);
     return () unless $dbus;
-    return ($dbus, 'network-manager');
+
+    # dbus depends on systemd, so systemd becomes /init and needs initrd.target from systemd-initrd.
+    return ($dbus, 'network-manager', grep { $present{$_} } qw(systemd systemd-initrd dracut-systemd));
 }
 
 # The netboot dracut.conf names an exclusive module list, so a module nothing in the list depends

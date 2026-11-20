@@ -227,7 +227,7 @@ elif [ "bridgeprereq" = "$1" ]; then
 
     # To check whether the brctl have been installed
     if ! which brctl &> /dev/null; then
-        if which nmcli &> /dev/null; then
+        if command -v nmcli &> /dev/null; then
             bridge_nm "$BNAME" "$PORTS" "$3" "$4"
             exit $?
         fi

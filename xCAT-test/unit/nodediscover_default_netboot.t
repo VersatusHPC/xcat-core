@@ -69,6 +69,12 @@ is( default_netboot( 'riscv64', '', 'grub2-http' ), undef,   'riscv64 keeps grub
 is( default_netboot( 'riscv64', '', 'grub2-tftp' ), undef,   'riscv64 keeps grub2-tftp' );
 is( default_netboot( 'riscv32', '', '' ),           undef,   'riscv32 is not treated as riscv64' );
 
+# aarch64: UEFI + grub2 only, like riscv64
+is( default_netboot( 'aarch64', '', '' ),           'grub2', 'aarch64 nodes default to grub2' );
+is( default_netboot( 'aarch64', '', 'xnba' ),       'grub2', 'an aarch64 node with an x86 method is corrected to grub2' );
+is( default_netboot( 'aarch64', '', 'grub2' ),      undef,   'aarch64 keeps an explicit grub2 method' );
+is( default_netboot( 'aarch64', '', 'grub2-http' ), undef,   'aarch64 keeps grub2-http' );
+
 # existing architectures keep their behavior
 is( default_netboot( 'x86_64', '', '' ),       'ipxe',      'x86_64 nodes default to ipxe' );
 is( default_netboot( 'x86', '', 'grub2' ),     'ipxe',      'x86 with a non-x86 method is corrected to ipxe' );
@@ -81,7 +87,6 @@ is( default_netboot( 'ppc64', 'pSeries', '' ),        'yaboot', 'non-PowerNV ppc
 is( default_netboot( 'ppc64', 'pSeries', 'yaboot' ),  undef,    'ppc nodes keep yaboot' );
 is( default_netboot( 'armv7l', '', '' ),      'onie', 'armv7l switches default to onie' );
 is( default_netboot( 'armv7l', '', 'onie' ),  undef,  'armv7l keeps onie' );
-is( default_netboot( 'aarch64', '', '' ),     undef,  'aarch64 is left untouched, as before' );
 is( default_netboot( undef, undef, undef ),   undef,  'a missing arch sets nothing' );
 
 is( $warnings, 0, 'no warnings were emitted for undefined inputs' );

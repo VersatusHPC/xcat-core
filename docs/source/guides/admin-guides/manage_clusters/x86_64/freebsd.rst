@@ -1,6 +1,21 @@
 FreeBSD stateful installation
 =============================
 
+.. note::
+
+   FreeBSD provisioning is a technology preview in xCAT 2.21. The xCAT CI tests one
+   configuration:
+
+   * an EL 10 x86_64 management node, SELinux enforcing, no service node;
+   * a FreeBSD 15.1-RELEASE amd64 compute node, stateful;
+   * an ``xcat-mfsbsd-1`` boot bundle that ``buildmfsbsd.sh`` builds from the same xCAT release;
+   * BIOS boot through xNBA, IPv4, DHCPv4 from Kea;
+   * one disk named by device and serial, UFS, no swap.
+
+   The other features in this guide are not tested in 2.21. They include ZFS layouts,
+   encryption, UEFI, ``xcat-mfsbsd-2`` media, package base repositories, IPv6, IPoIB, LAGG,
+   VLAN, service node pools, ``updatenode`` and the serial console.
+
 This installation path targets FreeBSD 15.1-RELEASE on amd64 nodes. The xCAT
 architecture name is ``x86_64``. The management node and service nodes remain
 Linux systems.

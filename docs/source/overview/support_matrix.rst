@@ -26,6 +26,8 @@ Operating System & Hardware Support Matrix
 +-----------+---------------+---------+----------+-----------+
 | openEuler | 24.03 LTS SP4 | yes     | no       | yes       |
 +-----------+---------------+---------+----------+-----------+
+| FreeBSD   | 15.1          | preview | no       | no        |
++-----------+---------------+---------+----------+-----------+
 
 .. note::
 
@@ -39,3 +41,7 @@ riscv64 support covers EL 10 (Rocky Linux 10 and the RHEL 10 RISC-V developer pr
 Ubuntu 24.04 and 26.04, on nodes that boot through UEFI firmware and grub2. Both stateful and
 stateless nodes are supported, and the management node itself can run on riscv64. See
 :doc:`/guides/admin-guides/manage_clusters/riscv64/index` for details.
+
+FreeBSD 15.1 is a technology preview. It covers stateful compute nodes on x86_64 only. The
+management node and service nodes stay Linux. See
+:doc:`/guides/admin-guides/manage_clusters/x86_64/freebsd` for the tested configuration.

@@ -19,7 +19,7 @@ SYNOPSIS
 ********
 
 
-\ **osimage Attributes:**\   \ *addkcmdline*\ , \ *boottarget*\ , \ *bosinst_data*\ , \ *cfmdir*\ , \ *configdump*\ , \ *crashkernelsize*\ , \ *description*\ , \ *driverupdatesrc*\ , \ *dump*\ , \ *environvar*\ , \ *exlist*\ , \ *fb_script*\ , \ *gpgcheck*\ , \ *groups*\ , \ *home*\ , \ *image_data*\ , \ *imagename*\ , \ *imagetype*\ , \ *installp_bundle*\ , \ *installto*\ , \ *isdeletable*\ , \ *kerneldir*\ , \ *kernelver*\ , \ *kitcomponents*\ , \ *krpmver*\ , \ *lpp_source*\ , \ *mksysb*\ , \ *netdrivers*\ , \ *nfsrootopts*\ , \ *nimmethod*\ , \ *nimtype*\ , \ *nodebootif*\ , \ *osarch*\ , \ *osdistroname*\ , \ *osname*\ , \ *osupdatename*\ , \ *osvers*\ , \ *otherifce*\ , \ *otherpkgdir*\ , \ *otherpkglist*\ , \ *otherpkgs*\ , \ *paging*\ , \ *partitionfile*\ , \ *permission*\ , \ *pkgdir*\ , \ *pkglist*\ , \ *postbootscripts*\ , \ *postinstall*\ , \ *postscripts*\ , \ *profile*\ , \ *provmethod*\ , \ *resolv_conf*\ , \ *root*\ , \ *rootfstype*\ , \ *rootimgchecksum*\ , \ *rootimgdir*\ , \ *rootimgtransport*\ , \ *script*\ , \ *serverrole*\ , \ *shared_home*\ , \ *shared_root*\ , \ *spot*\ , \ *synclists*\ , \ *template*\ , \ *tmp*\ , \ *usercomment*\ , \ *winpepath*
+\ **osimage Attributes:**\   \ *addkcmdline*\ , \ *boottarget*\ , \ *bosinst_data*\ , \ *cfmdir*\ , \ *configdump*\ , \ *crashkernelsize*\ , \ *description*\ , \ *driverupdatesrc*\ , \ *dump*\ , \ *environvar*\ , \ *exlist*\ , \ *fb_script*\ , \ *fips*\ , \ *gpgcheck*\ , \ *groups*\ , \ *home*\ , \ *image_data*\ , \ *imagename*\ , \ *imagetype*\ , \ *installp_bundle*\ , \ *installto*\ , \ *isdeletable*\ , \ *kerneldir*\ , \ *kernelver*\ , \ *kitcomponents*\ , \ *krpmver*\ , \ *lpp_source*\ , \ *mksysb*\ , \ *netdrivers*\ , \ *nfsrootopts*\ , \ *nimmethod*\ , \ *nimtype*\ , \ *nodebootif*\ , \ *osarch*\ , \ *osdistroname*\ , \ *osname*\ , \ *osupdatename*\ , \ *osvers*\ , \ *otherifce*\ , \ *otherpkgdir*\ , \ *otherpkglist*\ , \ *otherpkgs*\ , \ *paging*\ , \ *partitionfile*\ , \ *permission*\ , \ *pkgdir*\ , \ *pkglist*\ , \ *postbootscripts*\ , \ *postinstall*\ , \ *postscripts*\ , \ *profile*\ , \ *provmethod*\ , \ *resolv_conf*\ , \ *root*\ , \ *rootfstype*\ , \ *rootimgchecksum*\ , \ *rootimgdir*\ , \ *rootimgtransport*\ , \ *script*\ , \ *serverrole*\ , \ *shared_home*\ , \ *shared_root*\ , \ *spot*\ , \ *synclists*\ , \ *template*\ , \ *tmp*\ , \ *usercomment*\ , \ *winpepath*
 
 
 ***********
@@ -112,6 +112,12 @@ osimage Attributes:
 \ **fb_script**\  (nimimage.fb_script)
  
  The name of a NIM fb_script resource.
+ 
+
+
+\ **fips**\  (linuximage.fips)
+ 
+ Set to 1 to install the nodes of this osimage in FIPS mode. nodeset adds fips=1 to the installer kernel line, and the installer sets the FIPS crypto policy. Supported for EL 9 and EL 10 x86_64 diskful osimages only. nodeset fails for other osimages when this is set.
  
 
 

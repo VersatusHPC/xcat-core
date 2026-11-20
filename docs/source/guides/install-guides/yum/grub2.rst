@@ -1,8 +1,9 @@
 grub2 support for x86_64, aarch64 and riscv64
 =============================================
 
-xCAT 2.17 enables grub2 boot support for x86_64 and aarch64 but does not ship the necessary grub2 binaries for those architectures.
-If you want to use grub2 for x86_64 or aarch64 you need to download the binaries from some EL OS repository.
+xCAT does not ship a grub2 binary for x86_64. To use grub2 for x86_64, download the binary from an EL OS repository.
+
+aarch64 nodes boot through UEFI firmware and grub2 only. The ``grub2-xcat`` package from xcat-dep (1.0-4 or later) installs ``/tftpboot/boot/grub2/grub2.aarch64``, built with the ``/boot/grub2`` prefix that the configuration written by ``nodeset`` needs. Use it instead of the distribution ``grubaa64.efi``, which carries the distribution prefix.
 
 riscv64 nodes can only boot through UEFI firmware and grub2, so they always need ``grub2.riscv64``. ``copycds`` publishes it from the riscv64 installation media, and recent ``grub2-xcat`` packages from xcat-dep install the same image; if your management node has neither (``ls /tftpboot/boot/grub2/grub2.riscv64``), copy the binary by hand as described below.
 

@@ -66,6 +66,7 @@ Requires: xCAT-probe  = 4:%{version}-%{release}
 # RPM 4.11 does not recognize weak dependency tags.
 %if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?suse_version} >= 1500
 Recommends: xCAT-genesis-openembedded-x86_64
+Recommends: xCAT-genesis-openembedded-aarch64
 Recommends: xCAT-genesis-openembedded-ppc64le
 Recommends: xCAT-genesis-openembedded-riscv64
 Recommends: xCAT-genesis-openembedded-s390x

@@ -27,6 +27,7 @@ sub _canonical_genesis_arch {
 # $grub_cpu string reported by that architecture's GRUB build, so one file can
 # carry a menu entry per architecture that shares a network.
 my %GRUB2_DISCOVERY_ARCHES = (
+    aarch64 => 'arm64',
     riscv64 => 'riscv64',
 );
 

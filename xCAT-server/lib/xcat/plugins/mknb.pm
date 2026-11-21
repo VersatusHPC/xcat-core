@@ -1006,6 +1006,7 @@ sub process_request {
             );
         }
     }
+    _grub2_efi_alias($tftpdir, $arch);
     if (exists $GRUB2_DISCOVERY_ARCHES{$arch} && !-e "$tftpdir/boot/grub2/grub2.$arch") {
         # These configurations are only reachable through grub2.<arch>. copycd builds it from
         # Ubuntu media; on EL it is supplied by grub2-xcat or copied from the media.
@@ -1088,6 +1089,20 @@ sub _write_s390x_config {
         unlink $temporary;
         return "Unable to install s390x Genesis configuration: $path: $rename_error";
     }
+    return;
+}
+
+# Publish boot/grub2/grub2.aarch64.efi as a link to the aarch64 loader.
+# Some aarch64 UEFI firmware ignores a boot file name without .efi, and
+# makedhcp names this link for clients without a reservation when it exists.
+sub _grub2_efi_alias {
+    my ($tftpdir, $arch) = @_;
+    return unless $arch eq 'aarch64';
+    my $alias = "$tftpdir/boot/grub2/grub2.$arch.efi";
+    return if -e $alias;
+    return unless -e "$tftpdir/boot/grub2/grub2.$arch";
+    unlink($alias);
+    symlink("grub2.$arch", $alias);
     return;
 }
 

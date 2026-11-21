@@ -228,4 +228,15 @@ is( xCAT_plugin::dhcp::kea_boot_for_node(
     )->{'boot-file-name'},
     '', 'Kea: aarch64 grub2 node in boot state still gets no boot file' );
 
+# A client without a reservation gets the .efi loader name only when mknb published it.
+sub kea_aarch64_class_file {
+    my ($class) = grep { $_->{name} eq 'xcat-aarch64' } @{ xCAT_plugin::dhcp::kea_boot_client_classes() };
+    return $class->{'boot-file-name'};
+}
+unlink("$site_tftp/boot/grub2/grub2.aarch64.efi");
+is( kea_aarch64_class_file(), 'boot/grub2/grub2.aarch64', 'Kea: an unreserved aarch64 client gets grub2.aarch64 without the .efi link' );
+symlink( 'grub2.aarch64', "$site_tftp/boot/grub2/grub2.aarch64.efi" ) or die "Cannot create the .efi link: $!";
+is( kea_aarch64_class_file(), 'boot/grub2/grub2.aarch64.efi', 'Kea: an unreserved aarch64 client gets grub2.aarch64.efi once it is published' );
+unlink("$site_tftp/boot/grub2/grub2.aarch64.efi");
+
 done_testing();

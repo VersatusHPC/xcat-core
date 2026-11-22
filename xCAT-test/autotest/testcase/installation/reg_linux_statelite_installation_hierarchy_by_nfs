@@ -125,4 +125,9 @@ cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-stat
 check:rc==0
 cmd:rootimgdir=`lsdef -t osimage __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-statelite-compute|grep rootimgdir|awk -F'=' '{print $2}'`; if [ -d $rootimgdir ]; then rm -rf $rootimgdir;fi
 check:rc==0
+
+# Remove the CN reservation from the SN. A later case moves the CN to the MN, and the SN still
+# answers the CN with the old boot state: an empty filename, so the CN boots its old disk.
+cmd:makedhcp -d $$CN
+check:rc==0
 end

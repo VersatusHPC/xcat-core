@@ -74,13 +74,14 @@ os:Linux
 label:provision,fips
 cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=1
 check:rc==0
-# A node that boots its old disk also reaches status=booted. The marker tells the two apart.
-cmd:xdsh $$CN "touch /root/xcattest.fips_node_enabled.old_disk"
+# A node that boots its old disk also reaches status=booted. Anaconda writes
+# /root/anaconda-ks.cfg on each install, so its mtime tells the two apart.
+cmd:date +%s > /tmp/xcattest.fips_node_enabled.t0
 check:rc==0
 # Install only when the osimage took the attribute. Without it the install measures nothing.
 cmd:if lsdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute -i fips | grep -q 'fips=1'; then /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute; else echo "the osimage has no fips attribute"; exit 1; fi
 check:rc==0
-cmd:out=`xdsh $$CN "ls -a /root"` || exit 1;n=`echo "$out" | grep -c 'xcattest[.]fips_node_enabled[.]old_disk'`;echo "old-disk markers on $$CN: $n";[ "$n" = 0 ]
+cmd:t0=`cat /tmp/xcattest.fips_node_enabled.t0`;t=`xdsh $$CN "stat -c %Y /root/anaconda-ks.cfg" | awk '{print $2}'`;echo "rinstall at $t0, installed at $t";[ -n "$t" ] && [ "$t" -gt "$t0" ]
 check:rc==0
 cmd:state=`xdsh $$CN cat /proc/sys/crypto/fips_enabled | awk '{print $2}'`;echo "fips_enabled on $$CN: $state";[ "$state" = 1 ]
 check:rc==0
@@ -88,4 +89,5 @@ cmd:xdsh $$CN update-crypto-policies --show
 check:rc==0
 check:output=~FIPS
 cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=
+cmd:rm -f /tmp/xcattest.fips_node_enabled.t0
 end

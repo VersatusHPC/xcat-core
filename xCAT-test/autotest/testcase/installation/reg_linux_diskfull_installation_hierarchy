@@ -131,4 +131,9 @@ cmd:a=0;while ! `xdsh $$CN -t 5 uptime 2>&1 | grep up >/dev/null`; do sleep 10;(
 cmd:xdsh $$CN uptime
 check:rc==0
 check:output=~up
+
+# Remove the CN reservation from the SN. A later case moves the CN to the MN, and the SN still
+# answers the CN with the old boot state: an empty filename, so the CN boots its old disk.
+cmd:makedhcp -d $$CN
+check:rc==0
 end

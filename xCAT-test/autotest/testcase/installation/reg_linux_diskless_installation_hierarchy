@@ -121,6 +121,11 @@ check:rc==0
 # Remove diskless image to free up disk space
 cmd:rmimage __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-netboot-compute
 check:rc==0
+
+# Remove the CN reservation from the SN. A later case moves the CN to the MN, and the SN still
+# answers the CN with the old boot state: an empty filename, so the CN boots its old disk.
+cmd:makedhcp -d $$CN
+check:rc==0
 end
 
 start:reg_linux_diskless_installation_hierarchy_squashfs
@@ -249,4 +254,8 @@ check:rc==0
 cmd:xdsh $$CN "grep 'load host key' /var/log/xcat/xcat.log || echo 'No load hostkey warning' >&2"
 check:output=~No load hostkey warning
 
+# Remove the CN reservation from the SN. A later case moves the CN to the MN, and the SN still
+# answers the CN with the old boot state: an empty filename, so the CN boots its old disk.
+cmd:makedhcp -d $$CN
+check:rc==0
 end

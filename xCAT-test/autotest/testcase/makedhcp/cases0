@@ -361,20 +361,27 @@ check:output==IPXE_PAIR=2
 cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));w={"00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7","00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7"};print("DU"+"IDS="+" ".join(sorted({r["duid"] for s in d["Dhcp6"]["subnet6"] for r in s.get("reservations",[]) if r.get("duid") in w})))'
 check:rc==0
 check:output==DUIDS=00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7 00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7
+# The two boot files are in two per-node client classes, not in the reservations. Kea prefers
+# a reservation's option data over a class's, and the DUID byte order does not tell the firmware
+# from iPXE; the User Class (option 15) that iPXE sends does. Each class matches both DUIDs.
+#
 # RESERVATION ONE, byte-exact. Without a duid attribute the firmware DUID is the primary, so this
 # entry keeps the hostname and the reserved address. EDK2 stores the first three UUID fields
 # little-endian in SMBIOS and copies them into its DUID-UUID in that order, which is why these
 # octets are the uuid above with those fields reversed.
 cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));f="00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==f]+[{}])[0];print("FIRM"+"WARE="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
 check:rc==0
-check:output==FIRMWARE=ci-ipxe-cn|2001:db8:178::20|tftp://[2001:db8:178::1]/xcat/ipxe/x86_64-sb/snponly-shim.efi
+check:output==FIRMWARE=ci-ipxe-cn|2001:db8:178::20|
 # RESERVATION TWO, byte-exact. It carries NO hostname and NO address: Kea refuses a second
 # reservation for one address, and a shared hostname makes upsert_reservations replace one entry
 # with the other. The iPXE client takes an address from the dynamic range and needs only its
 # boot file, which is the per-node script over HTTP.
-cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));c="00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==c]+[{}])[0];print("CHAIN"+"LOAD="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));f="00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==f]+[{}])[0];print("CHAI"+"NLOAD="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
 check:rc==0
-check:output==CHAINLOAD=||http://[2001:db8:178::1]/tftpboot/xcat/ipxe/nodes/ci-ipxe-cn.uefi
+check:output==CHAINLOAD=||
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));h=["0x0004bf768cc78632f346b80d8fe079dd6de7","0x0004c78c76bf328646f3b80d8fe079dd6de7"];c=sorted((x["name"],"".join(o.get("data","") for o in x.get("option-data",[]) if o.get("name")=="bootfile-url"),all(i in x.get("test","") for i in h)) for x in d["Dhcp6"].get("client-classes",[]) if x.get("user-context",{}).get("xcat-node")=="ci-ipxe-cn");print("CLA"+"SSES="+";".join("%s|%s|%s" % t for t in c))'
+check:rc==0
+check:output==CLASSES=ci-ipxe-cn-firmware6|tftp://[2001:db8:178::1]/xcat/ipxe/x86_64-sb/snponly-shim.efi|True;ci-ipxe-cn-ipxe6|http://[2001:db8:178::1]/tftpboot/xcat/ipxe/nodes/ci-ipxe-cn.uefi|True
 # WHICH CLIENT GETS WHICH FILE. duid=canonical makes the RFC 4122 order the primary, so the
 # address moves to the client that sends it -- and that client is iPXE, because iPXE converts the
 # SMBIOS bytes to RFC 4122 order before it builds its DUID. So the canonical entry takes the
@@ -389,12 +396,15 @@ check:rc==0
 cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));w={"00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7","00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7"};print("CANON"+"_PAIR="+" ".join(sorted({r["duid"] for s in d["Dhcp6"]["subnet6"] for r in s.get("reservations",[]) if r.get("duid") in w})))'
 check:rc==0
 check:output==CANON_PAIR=00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7 00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7
-cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));c="00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==c]+[{}])[0];print("CANON"+"ICAL="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));f="00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==f]+[{}])[0];print("CANO"+"NICAL="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
 check:rc==0
-check:output==CANONICAL=ci-ipxe-cn|2001:db8:178::20|http://[2001:db8:178::1]/tftpboot/xcat/ipxe/nodes/ci-ipxe-cn.uefi
-cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));f="00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==f]+[{}])[0];print("SECOND"+"ARY="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
+check:output==CANONICAL=ci-ipxe-cn|2001:db8:178::20|
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));f="00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7";r=([x for s in d["Dhcp6"]["subnet6"] for x in s.get("reservations",[]) if x.get("duid")==f]+[{}])[0];print("SECO"+"NDARY="+r.get("hostname","")+"|"+",".join(r.get("ip-addresses",[]))+"|"+"".join(o.get("data","") for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
 check:rc==0
-check:output==SECONDARY=||tftp://[2001:db8:178::1]/xcat/ipxe/x86_64-sb/snponly-shim.efi
+check:output==SECONDARY=||
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));h=["0x0004bf768cc78632f346b80d8fe079dd6de7","0x0004c78c76bf328646f3b80d8fe079dd6de7"];c=sorted((x["name"],"".join(o.get("data","") for o in x.get("option-data",[]) if o.get("name")=="bootfile-url"),all(i in x.get("test","") for i in h)) for x in d["Dhcp6"].get("client-classes",[]) if x.get("user-context",{}).get("xcat-node")=="ci-ipxe-cn");print("CLA"+"SSES="+";".join("%s|%s|%s" % t for t in c))'
+check:rc==0
+check:output==CLASSES=ci-ipxe-cn-firmware6|tftp://[2001:db8:178::1]/xcat/ipxe/x86_64-sb/snponly-shim.efi|True;ci-ipxe-cn-ipxe6|http://[2001:db8:178::1]/tftpboot/xcat/ipxe/nodes/ci-ipxe-cn.uefi|True
 cmd:chdef -t node ci-ipxe-cn duid=
 check:rc==0
 cmd:makedhcp ci-ipxe-cn
@@ -419,6 +429,9 @@ check:output==GRUB2_ONE=1
 cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));print("GRUB2"+"_URL="+"".join(o.get("data","") for s in d["Dhcp6"]["subnet6"] for r in s.get("reservations",[]) if r.get("hostname")=="ci-ipxe-cn" for o in r.get("option-data",[]) if o.get("name")=="bootfile-url"))'
 check:rc==0
 check:output==GRUB2_URL=tftp://[2001:db8:178::1]/boot/grub2/grub2-ci-ipxe-cn
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));h=["0x0004bf768cc78632f346b80d8fe079dd6de7","0x0004c78c76bf328646f3b80d8fe079dd6de7"];c=sorted((x["name"],"".join(o.get("data","") for o in x.get("option-data",[]) if o.get("name")=="bootfile-url"),all(i in x.get("test","") for i in h)) for x in d["Dhcp6"].get("client-classes",[]) if x.get("user-context",{}).get("xcat-node")=="ci-ipxe-cn");print("CLA"+"SSES="+";".join("%s|%s|%s" % t for t in c))'
+check:rc==0
+check:output==CLASSES=
 # Back to iPXE, and the pair comes back. A one-way change would leave the cell measuring grub2.
 cmd:makedhcp -d ci-ipxe-cn
 check:rc==0
@@ -429,6 +442,9 @@ check:rc==0
 cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));w={"00:04:bf:76:8c:c7:86:32:f3:46:b8:0d:8f:e0:79:dd:6d:e7","00:04:c7:8c:76:bf:32:86:46:f3:b8:0d:8f:e0:79:dd:6d:e7"};print("BACK"+"_PAIR="+str(sum(1 for s in d["Dhcp6"]["subnet6"] for r in s.get("reservations",[]) if r.get("duid") in w)))'
 check:rc==0
 check:output==BACK_PAIR=2
+cmd:python3 -c 'import json;d=json.load(open("/etc/kea/kea-dhcp6.conf"));h=["0x0004bf768cc78632f346b80d8fe079dd6de7","0x0004c78c76bf328646f3b80d8fe079dd6de7"];c=sorted((x["name"],"".join(o.get("data","") for o in x.get("option-data",[]) if o.get("name")=="bootfile-url"),all(i in x.get("test","") for i in h)) for x in d["Dhcp6"].get("client-classes",[]) if x.get("user-context",{}).get("xcat-node")=="ci-ipxe-cn");print("CLA"+"SSES="+";".join("%s|%s|%s" % t for t in c))'
+check:rc==0
+check:output==CLASSES=ci-ipxe-cn-firmware6|tftp://[2001:db8:178::1]/xcat/ipxe/x86_64-sb/snponly-shim.efi|True;ci-ipxe-cn-ipxe6|http://[2001:db8:178::1]/tftpboot/xcat/ipxe/nodes/ci-ipxe-cn.uefi|True
 # NOTHING ON IPv4. An IPv6-only node gets no DHCPv4 reservation and no client class, not even a
 # DROP class, whichever netboot method it carries.
 cmd:python3 -c 'import json,os;p="/etc/kea/kea-dhcp4.conf";d=json.load(open(p)) if os.path.exists(p) else {"Dhcp4":{}};print("V4"+"_COUNT="+str(sum(1 for s in d["Dhcp4"].get("subnet4",[]) for r in s.get("reservations",[]) if r.get("hostname")=="ci-ipxe-cn")+sum(1 for c in d["Dhcp4"].get("client-classes",[]) if "ci-ipxe-cn" in c.get("name",""))))'

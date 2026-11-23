@@ -97,8 +97,10 @@ end
 start:xcatconfig_c
 description:To regenerate cretials
 label:mn_only
-#step1:backup: /etc/xcat/ca /etc/xcat/cert
+#step1:backup: /etc/xcat/ca /etc/xcat/cert, and every copy of the credentials that xcatconfig -c writes
 cmd:cp -r /etc/xcat/ca /etc/xcat/cabak;cp -r /etc/xcat/cert /etc/xcat/certbak
+cmd:cd / && tar -cpf /tmp/xcatconfig_c.cred.tar etc/xcat/ca etc/xcat/cert root/.xcat install/postscripts/ca install/postscripts/_xcat $(test -d home/conserver/.xcat && echo home/conserver/.xcat)
+check:rc==0
 cmd: service goconserver status
 cmd:service conserver status
 #step2:run command and check the output
@@ -119,6 +121,14 @@ check:rc!=0
 cmd:rm -rf /tmp/xcatconfig.test
 check:rc==0
 cmd:rm -rf /etc/xcat/cabak /etc/xcat/certbak
+check:rc==0
+#A service node keeps trusting the old CA, so every hierarchical command after this case fails with
+#"certificate verify failed". Put the old credentials back and restart xcatd to load them.
+cmd:cd / && rm -rf etc/xcat/ca etc/xcat/cert root/.xcat install/postscripts/ca install/postscripts/_xcat && tar -xpf /tmp/xcatconfig_c.cred.tar && rm -f /tmp/xcatconfig_c.cred.tar
+check:rc==0
+cmd:service xcatd restart
+check:rc==0
+cmd:lsdef -t site -o clustersite -i master
 check:rc==0
 cmd:#!/bin/bash
 rc=0
@@ -145,10 +155,6 @@ elif service conserver status;then
     fi 
 fi
 exit $rc
-check:rc==0
-cmd:if lsdef service > /dev/null 2>&1; then updatenode service -P servicenode;fi
-check:rc==0
-cmd:if lsdef service > /dev/null 2>&1; then rpower $$CN stat;fi
 check:rc==0
 end
 

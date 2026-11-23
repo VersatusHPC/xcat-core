@@ -7,6 +7,8 @@
 #INCLUDE:#ENV:XCATROOT#/share/xcat/install/scripts/scriptlib#
 
 activated_ifcfg=0
+# The MN serves no address to a NIC that the mac table marks *NOIP*.
+noip_macs=" $(echo '#TABLEBLANKOKAY:mac:$NODE:mac#' | tr '|' '\n' | sed -n 's/!\*NOIP\*$//p' | tr 'A-F-' 'a-f:' | tr '\n' ' ')"
 if compgen -G "/etc/sysconfig/network-scripts/ifcfg-*" >/dev/null 2>&1; then
     for i in /etc/sysconfig/network-scripts/ifcfg-*
     do
@@ -15,6 +17,10 @@ if compgen -G "/etc/sysconfig/network-scripts/ifcfg-*" >/dev/null 2>&1; then
         # A BMC host interface uses a USB class driver and has link but usually no DHCP server.
         case "$(readlink -f "/sys/class/net/$nicname/device/driver" 2>/dev/null)" in
         */cdc_ether|*/cdc_ncm|*/cdc_eem|*/rndis_host) continue ;;
+        esac
+        nicmac="$(cat "/sys/class/net/$nicname/address" 2>/dev/null)"
+        case "$noip_macs" in
+        *" $nicmac "*) [ -n "$nicmac" ] && continue ;;
         esac
         if ethtool "$nicname" 2>/dev/null | grep -E -i -q "Link detected.*yes" >/dev/null 2>&1
         then

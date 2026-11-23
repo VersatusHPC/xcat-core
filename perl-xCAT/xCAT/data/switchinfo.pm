@@ -51,6 +51,53 @@ our %global_switch_type = (
     dell => "Dell"
 );
 
+#-------------------------------------------------------------------------------
 
+=head3 switch_type
+
+    Descriptions: Map the sysDescr of a device to an xCAT switch type.
+    Arguments:    the sysDescr string
+    Returns:      the type from %global_switch_type, or undef
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub switch_type {
+    my ($vendor) = @_;
+    return undef unless defined $vendor;
+    my $search_string = join '|', map { quotemeta } keys(%global_switch_type);
+    if ($vendor =~ /($search_string)/) {
+        return $global_switch_type{$1};
+    }
+    return undef;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 discovered_switch_attrs
+
+    Descriptions: The chdef attributes for a device that switchdiscover found.
+    Arguments:    hash: device (switch or pdu), ip, mac, vendor, type, community
+    Returns:      a list of attr=value strings
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub discovered_switch_attrs {
+    my (%d) = @_;
+    my @attrs = ("groups=$d{device}", "ip=$d{ip}", "mac=$d{mac}",
+        "nodetype=$d{device}", "mgt=$d{device}", "usercomment=$d{vendor}");
+
+    # chdef refuses community unless nodetype=pdu, and then writes nothing.
+    # A switch keeps its SNMPv1 community in snmppassword (switches.password).
+    if ($d{device} eq 'pdu') {
+        push @attrs, "pdutype=$d{type}";
+        push @attrs, "community=$d{community}" if defined $d{community};
+    } else {
+        push @attrs, "switchtype=$d{type}";
+        push @attrs, "snmppassword=$d{community}" if defined $d{community};
+    }
+    return @attrs;
+}
 
 1;

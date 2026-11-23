@@ -39,14 +39,11 @@ if [ -f "$installroot/etc/selinux/config" ]
 then
     sed -i 's/^\([[:blank:]]*SELINUX=\)\(enforcing\|permissive\)\([[:blank:]]*\(#.*\)\{0,1\}\)$/\1disabled\3/' "$installroot/etc/selinux/config"
 fi
+#-- Leave the USB NIC of a BMC host interface unmanaged: it never gets a DHCP lease.
+"${XCATROOT:-/opt/xcat}/share/xcat/netboot/imgutils/bmc_usb_nic_unmanaged.sh" "$installroot"
+
 #--for redhat 8 and 8.1
 #-- Need to disable firewalld, otherwise, the remoteshell script will not able to get all the SSH keys
-#-- Leave the USB NIC of a BMC host interface unmanaged: it never gets a DHCP lease.
-"${XCATROOT:-/opt/xcat}/share/xcat/netboot/imgutils/bmc_usb_nic_unmanaged.sh" "$installroot"
-
-#-- Leave the USB NIC of a BMC host interface unmanaged: it never gets a DHCP lease.
-"${XCATROOT:-/opt/xcat}/share/xcat/netboot/imgutils/bmc_usb_nic_unmanaged.sh" "$installroot"
-
 FIREWALLD="$installroot/etc/systemd/system/multi-user.target.wants/firewalld.service"
 if [ -f "$FIREWALLD" ] || [ -L "$FIREWALLD" ]
 then

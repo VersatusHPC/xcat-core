@@ -141,8 +141,13 @@ class RedfishRest(object):
 
     def handle_response (self, resp, cmd=''):
 
-        data = resp.json()
         code = resp.status_code
+        # An action may answer 204 No Content (DSP0266). The empty body is not JSON.
+        if code == requests.codes.no_content:
+            self._print_record_log('%s No Content' % code, cmd)
+            return {}
+
+        data = resp.json()
 
         if code != requests.codes.ok and code != requests.codes.created:
 

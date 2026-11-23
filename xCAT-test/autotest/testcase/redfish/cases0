@@ -1,0 +1,137 @@
+start:redfish_rpower_off_on
+description:rpower off and on through a Redfish BMC; rpower stat confirms each new state
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:rpower $$CN off
+check:rc==0
+check:output=~$$CN: off
+cmd:rpower $$CN stat
+check:rc==0
+check:output=~$$CN: off
+cmd:rpower $$CN on
+check:rc==0
+check:output=~$$CN: on
+cmd:rpower $$CN stat
+check:rc==0
+check:output=~$$CN: on
+end
+
+start:redfish_rpower_boot
+description:rpower boot powers on a node that is off; rpower state confirms it
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:rpower $$CN off
+check:rc==0
+cmd:rpower $$CN state
+check:output=~$$CN: off
+cmd:rpower $$CN boot
+check:rc==0
+check:output=~$$CN: boot
+cmd:rpower $$CN state
+check:rc==0
+check:output=~$$CN: on
+end
+
+start:redfish_rpower_reset
+description:rpower reset restarts a node that is on and leaves a node that is off off
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:rpower $$CN on
+check:rc==0
+cmd:rpower $$CN reset
+check:rc==0
+check:output=~$$CN: reset
+cmd:rpower $$CN stat
+check:rc==0
+check:output=~$$CN: on
+cmd:rpower $$CN off
+check:rc==0
+cmd:rpower $$CN reset
+check:rc==0
+check:output=~$$CN: off
+cmd:rpower $$CN stat
+check:rc==0
+check:output=~$$CN: off
+cmd:rpower $$CN on
+check:rc==0
+end
+
+start:redfish_rsetboot_net_hd
+description:rsetboot net and rsetboot hd through a Redfish BMC; rsetboot stat confirms each boot device
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:rsetboot $$CN net
+check:rc==0
+check:output=~$$CN: Network
+cmd:rsetboot $$CN stat
+check:rc==0
+check:output=~$$CN: Network
+cmd:rsetboot $$CN hd
+check:rc==0
+check:output=~$$CN: Hard Drive
+cmd:rsetboot $$CN stat
+check:rc==0
+check:output=~$$CN: Hard Drive
+cmd:rsetboot $$CN net
+check:rc==0
+end
+
+start:redfish_wrong_password
+description:a wrong BMC password fails the login with the 401 status of the BMC
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:gettab node=$$CN openbmc.password > /tmp/redfish_wrong_password.saved
+check:rc==0
+cmd:chtab node=$$CN openbmc.password=xcat-not-the-password
+check:rc==0
+cmd:rpower $$CN stat
+check:rc!=0
+check:output=~$$CN: .*401
+cmd:chtab node=$$CN openbmc.password=$(cat /tmp/redfish_wrong_password.saved)
+check:rc==0
+cmd:rm -f /tmp/redfish_wrong_password.saved
+cmd:rpower $$CN stat
+check:rc==0
+end
+
+start:redfish_unreachable_bmc
+description:a BMC address that answers nothing fails the login with a connection error
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:gettab node=$$CN openbmc.bmc > /tmp/redfish_unreachable_bmc.saved
+check:rc==0
+cmd:chtab node=$$CN openbmc.bmc=192.0.2.1
+check:rc==0
+cmd:rpower $$CN stat
+check:rc!=0
+check:output=~Login to BMC failed: Can't connect to
+cmd:chtab node=$$CN openbmc.bmc=$(cat /tmp/redfish_unreachable_bmc.saved)
+check:rc==0
+cmd:rm -f /tmp/redfish_unreachable_bmc.saved
+cmd:rpower $$CN stat
+check:rc==0
+end
+
+start:redfish_unsupported_command
+description:a command the Redfish plugin does not implement answers a clear error and leaves the node as it was
+Attribute: $$CN-a node with mgt=redfish and a row in the openbmc table
+label:cn_bmc_ready,hctrl_redfish
+hcp:redfish
+cmd:rpower $$CN on
+check:rc==0
+cmd:rpower $$CN softoff
+check:rc!=0
+check:output=~Unsupported command: rpower softoff
+cmd:rvitals $$CN
+check:rc!=0
+check:output=~Unsupported command: rvitals
+cmd:rpower $$CN stat
+check:rc==0
+check:output=~$$CN: on
+end

@@ -1726,7 +1726,7 @@ zvmivp => {
                             <nic1>!<ext1>|<ext2>,<nic2>!<ext1>|<ext2>,..., for example,  eth0!eth0-|eth0-ipv6i-,ib0!ib-|ib-ipv6-.
                         The xCAT object definition commands support to use nichostnameprefixes.<nicname> as the sub attributes.
                         Note:  According to DNS rules a hostname must be a text string up to 24 characters drawn from the alphabet (A-Z), digits (0-9) and minus sign (-). When you are specifying "nichostnameprefixes" or "nicaliases" make sure the resulting hostnames will conform to this naming convention',
-            nictypes => 'Comma-separated list of NIC types per NIC. <nic1>!<type1>,<nic2>!<type2>, e.g. eth0!Ethernet,ib0!Infiniband. The xCAT object definition commands support to use nictypes.<nicname> as the sub attributes.',
+            nictypes => 'Comma-separated list of NIC types per NIC. <nic1>!<type1>,<nic2>!<type2>, e.g. eth0!Ethernet,ib0!Infiniband,ens4!RoCE. RoCE configures the IP of the NIC, an RDMA device on it (soft-RoCE when the NIC has none) and RoCE v2 as the default. The xCAT object definition commands support to use nictypes.<nicname> as the sub attributes.',
             niccustomscripts => 'Comma-separated list of custom scripts per NIC.  <nic1>!<script1>,<nic2>!<script2>, e.g. eth0!configeth eth0, ib0!configib ib0. The xCAT object definition commands support to use niccustomscripts.<nicname> as the sub attribute
 .',
             nicnetworks => 'Comma-separated list of networks connected to each NIC.

@@ -104,8 +104,16 @@ class TestRedfishClient(object):
         with open("%s/with_error_rsp.json" % DATA_DIR,'r') as load_f:
             file_data = json.load(load_f)
             test_rsp._content = json.dumps(file_data)
-        data = self.rf_rest.handle_response(test_rsp, cmd='get_information') 
+        data = self.rf_rest.handle_response(test_rsp, cmd='get_information')
         assert data == file_data
+
+    def test_handle_response_no_content(self):
+        # A Redfish action may answer 204 No Content (DSP0266), with an empty body.
+        test_rsp = requests.Response()
+        test_rsp.status_code = 204
+        test_rsp._content = b''
+        data = self.rf_rest.handle_response(test_rsp, cmd='set_power_state')
+        assert data == {}
 
     def test_request_login_connect_failed(self):
         login_data = { "UserName": self.rf_rest.username, "Password": self.rf_rest.password }

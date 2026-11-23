@@ -95,13 +95,14 @@ sub nat_plan
 # =head3 firewalld_commands
 # Descriptions: The firewall-cmd argument lists for a plan. Every change is permanent and
 #               only adds, so ports and services that other tools opened stay open.
-# Arguments: $plan -- the zone_plan result, $ports -- array ref of ports, $nat -- nat_plan or undef
+# Arguments: $plan -- the zone_plan result, $ports -- array ref of ports, $nat -- nat_plan or undef,
+#            $policies -- array ref of the policy names that firewalld already has, or undef
 # Returns: list of array refs, each one the arguments of one firewall-cmd call
 # =cut
 #---
 sub firewalld_commands
 {
-    my ($plan, $ports, $nat) = @_;
+    my ($plan, $ports, $nat, $policies) = @_;
     my @cmds;
     foreach my $zone (qw(trusted public)) {
         foreach my $nic (@{ $plan->{$zone} || [] }) {
@@ -115,7 +116,9 @@ sub firewalld_commands
     }
     if ($nat) {
         push @cmds, [ '--permanent', "--zone=$nat->{masquerade_zone}", '--add-masquerade' ];
-        push @cmds, [ '--permanent', "--new-policy=$nat->{policy}" ];
+        # A policy from an earlier run is kept, with what other tools added to it.
+        push @cmds, [ '--permanent', "--new-policy=$nat->{policy}" ]
+          unless grep { $_ eq $nat->{policy} } @{ $policies || [] };
         push @cmds, [ '--permanent', "--policy=$nat->{policy}", "--add-ingress-zone=$nat->{ingress}" ];
         push @cmds, [ '--permanent', "--policy=$nat->{policy}", "--add-egress-zone=$nat->{egress}" ];
         push @cmds, [ '--permanent', "--policy=$nat->{policy}", '--set-target=ACCEPT' ];

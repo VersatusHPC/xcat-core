@@ -70,7 +70,7 @@ class TestRedfishClient(object):
         test_rsp = requests.Response()
         test_rsp.status_code = 401
         with open("%s/login_no_auth_rsp.json" % DATA_DIR,'r') as load_f: 
-            test_rsp._content = json.dumps(json.load(load_f))
+            test_rsp._content = json.dumps(json.load(load_f)).encode()
         with pytest.raises(SelfClientException) as excinfo:
             data = self.rf_rest.handle_response(test_rsp, cmd='test_handle_response_not_ok')
         assert excinfo.type == SelfClientException
@@ -81,7 +81,7 @@ class TestRedfishClient(object):
         test_rsp.status_code = 201
         test_rsp.headers = {}
         with open("%s/login_rsp.json" % DATA_DIR,'r') as load_f:
-            test_rsp._content = json.dumps(json.load(load_f))
+            test_rsp._content = json.dumps(json.load(load_f)).encode()
         with pytest.raises(SelfServerException) as excinfo:
             data = self.rf_rest.handle_response(test_rsp, cmd='login')
         assert excinfo.type == SelfServerException
@@ -93,7 +93,7 @@ class TestRedfishClient(object):
         test_rsp.headers = {'X-Auth-Token': 'abcdefghijklmn'}
         with open("%s/login_rsp.json" % DATA_DIR,'r') as load_f:
             file_data = json.load(load_f)
-            test_rsp._content = json.dumps(file_data)
+            test_rsp._content = json.dumps(file_data).encode()
         data = self.rf_rest.handle_response(test_rsp, cmd='get_information')
         assert data == file_data
 
@@ -103,7 +103,7 @@ class TestRedfishClient(object):
         test_rsp.headers = {'X-Auth-Token': 'abcdefghijklmn'}
         with open("%s/with_error_rsp.json" % DATA_DIR,'r') as load_f:
             file_data = json.load(load_f)
-            test_rsp._content = json.dumps(file_data)
+            test_rsp._content = json.dumps(file_data).encode()
         data = self.rf_rest.handle_response(test_rsp, cmd='get_information')
         assert data == file_data
 

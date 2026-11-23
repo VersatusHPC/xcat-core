@@ -39,3 +39,24 @@ The discovery process works with the following four kind of switches: ::
 
 The ``switchdiscover`` command can display the output in xml format, stanza format and normal list format. See the man pages for this command for details.
 
+
+Discovering Cisco Catalyst Switches with SNMP
+`````````````````````````````````````````````
+
+With ``-s snmp``, ``switchdiscover`` reads the system description (sysDescr) and the system name (sysName) of each device with SNMPv1. A sysDescr that contains ``Cisco``, for example ``Cisco IOS Software`` on a Catalyst with IOS or IOS-XE, gives ``switchtype=Cisco``. The sysName becomes the object name.
+
+Before the scan:
+
+* Install ``snmpwalk`` on the management node: ``net-snmp-utils`` on EL, ``net-snmp`` on openEuler and SLES, ``snmp`` on Ubuntu. Without it, the scan stops with ``snmpwalk is not available``.
+* Enable SNMPv1 read access on the switch. ``switchdiscover`` tries the community from ``-c``, then the ``snmpc`` site attribute, then ``public``. For example, on the switch: ::
+
+    snmp-server community public RO
+
+To discover a Catalyst switch at 10.4.25.2 and write it into the xCAT database: ::
+
+    # switchdiscover --range 10.4.25.2 -s snmp -w
+    # lsdef -t node -o <sysName> -i switchtype,snmppassword
+        switchtype=Cisco
+        snmppassword=public
+
+``-w`` stores the community that answered in ``snmppassword`` (``switches.password``).

@@ -11,10 +11,12 @@ use Test::More;
 
 use XCAT::Test::File qw(repo_path);
 use XCAT::Test::Sandbox qw(sandbox_root sandbox_run);
-use XCAT::Test::Template qw(template_database render_template);
+use XCAT::Test::Template qw(template_database set_row render_template);
 
 plan skip_all => 'kickstart %post execution requires Linux' unless $^O eq 'linux';
 my $database = template_database();
+# eno3 is declared with no IP: the MN serves it no address.
+set_row('mac', {node => 'node'}, {mac => '52:54:00:12:34:56|52:54:00:00:00:03!*NOIP*'});
 my $script = "$database/post.rhels8";
 render_template($database, repo_path('xCAT-server/share/xcat/install/scripts/post.rhels8'), $script,
     'node', '', '/install/media', 'rh', undef, {xcatmaster => '192.0.2.1'});
@@ -35,11 +37,13 @@ sub run_post {
         write_text("$root/etc/sysconfig/network-scripts/ifcfg-$nic", "DEVICE=$nic\nBOOTPROTO=dhcp\nONBOOT=no\n");
         write_text("$root/link/$nic", '') if $link;
         next unless $driver;
+        my $mac = $nic eq 'eno3' ? '52:54:00:00:00:03' : '52:54:00:12:34:56';
         my ($bus, $module) = @{$device{$driver}};
         my $device = "$bus/$nic";
         make_path("$root$device", "$root$module", "$root/sys/class/net/$nic");
         symlink($device, "$root/sys/class/net/$nic/device") or die $!;
         symlink($module, "$root$device/driver") or die $!;
+        write_text("$root/sys/class/net/$nic/address", "$mac\n");
     }
     write_text("$root/bin/ethtool",
         "#!/bin/sh\n[ -e \"/fixture/link/\$1\" ] && state=yes || state=no\nprintf '\\tLink detected: %s\\n' \"\$state\"\n");
@@ -63,6 +67,11 @@ sub run_post {
     is_deeply($onboot, {eno1 => 'yes', usb0 => 'no', enx1 => 'yes', eno2 => 'no', renamed0 => 'yes'},
         'activates the NICs with link, a USB Ethernet adapter included, except the USB NIC of the BMC');
     is($nmcli, '', 'leaves the NetworkManager profiles to the ifcfg files');
+}
+
+{
+    my ($onboot) = run_post(eno1 => ['e1000e', 1], eno3 => ['e1000e', 1]);
+    is_deeply($onboot, {eno1 => 'yes', eno3 => 'no'}, 'does not activate a NIC that the mac table marks *NOIP*');
 }
 
 {

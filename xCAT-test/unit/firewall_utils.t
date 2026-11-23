@@ -9,7 +9,7 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../../xCAT/postscripts";
 
-use Test::More tests => 21;
+use Test::More tests => 24;
 
 use xCAT::FirewallUtils;
 
@@ -56,6 +56,12 @@ ok( ( grep { $_ eq '--permanent --policy=xcat-nat --set-target=ACCEPT' } @natcmd
       && ( grep { $_ eq '--permanent --policy=xcat-nat --add-ingress-zone=trusted' } @natcmds ),
     '--nat forwards from trusted' );
 is( xCAT::FirewallUtils::nat_plan( { trusted => ['ens3'], public => [] } ), undef, 'no public NIC, no NAT' );
+ok( ( grep { $_ eq '--permanent --new-policy=xcat-nat' } @natcmds ), '--nat creates the policy when it is absent' );
+my @againcmds = map { join ' ', @$_ }
+  xCAT::FirewallUtils::firewalld_commands( $plan, [], $nat, [ 'allow-host-ipv6', 'xcat-nat' ] );
+ok( !( grep { /--new-policy/ } @againcmds ), '--nat does not create a policy that exists' );
+ok( ( grep { $_ eq '--permanent --policy=xcat-nat --add-ingress-zone=trusted' } @againcmds ),
+    '--nat still sets an existing policy' );
 
 # networks and private_nics
 my %env = (

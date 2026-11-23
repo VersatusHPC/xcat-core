@@ -325,14 +325,12 @@ sub configure_firewalld
         $nat = xCAT::FirewallUtils::nat_plan($plan);
     }
 
+    # --info-policy on an absent policy makes firewalld log INVALID_POLICY. --get-policies does not.
+    my @policies = $nat ? split(' ', `firewall-cmd --permanent --get-policies 2>/dev/null`) : ();
+
     my $rc = 0;
-    foreach my $args (xCAT::FirewallUtils::firewalld_commands($plan, \@allowed_ports, $nat))
+    foreach my $args (xCAT::FirewallUtils::firewalld_commands($plan, \@allowed_ports, $nat, \@policies))
     {
-        # A policy from an earlier run is kept, with what other tools added to it.
-        if ($args->[1] =~ /^--new-policy=(.+)$/)
-        {
-            next if system("firewall-cmd --permanent --info-policy=$1 > /dev/null 2>&1") == 0;
-        }
         if (system('firewall-cmd', @$args) != 0)
         {
             print "firewall-cmd @$args failed\n";

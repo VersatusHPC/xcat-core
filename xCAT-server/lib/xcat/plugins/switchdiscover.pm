@@ -1145,18 +1145,11 @@ sub get_hostname {
 #--------------------------------------------------------------------------------
 sub get_switchtype {
     my $vendor = shift;
-    my $key = "Not support";
 
-    my $search_string = join '|', keys(%xCAT::data::switchinfo::global_switch_type);
-    if ($vendor =~ /($search_string)/) {
-        $key = $1;
-        return $xCAT::data::switchinfo::global_switch_type{$key};
-    } else {
-        if (exists($globalopt{pdu})) {
-            return "crpdu";
-        }
-        return $key;
-    }
+    my $stype = xCAT::data::switchinfo::switch_type($vendor);
+    return $stype if (defined $stype);
+    return "crpdu" if (exists($globalopt{pdu}));
+    return "Not support";
 }
 
 #--------------------------------------------------------------------------------
@@ -1194,10 +1187,12 @@ sub xCATdB {
         # use chdef command to make new device or update
         # it's attribute
         ##################################################
-        if (exists($globalopt{pdu})) {
-            $ret = xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$host,"groups=$device","ip=$ip","mac=$mac","nodetype=$device","mgt=$device","usercomment=$vendor","pdutype=$stype","community=$community"] }, $sub_req, 0, 1);
-        } else {
-            $ret = xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$host,"groups=$device","ip=$ip","mac=$mac","nodetype=$device","mgt=$device","usercomment=$vendor","switchtype=$stype","community=$community"] }, $sub_req, 0, 1);
+        my @attrs = xCAT::data::switchinfo::discovered_switch_attrs(
+            device => $device, ip => $ip, mac => $mac, vendor => $vendor,
+            type => $stype, community => $community);
+        $ret = xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$host,@attrs] }, $sub_req, 0, 1);
+        if ($::RUNCMD_RC != 0) {
+            send_msg($request, 1, "Could not write $device $host into the xCAT DB: " . join("\n", (ref $ret ? @$ret : ())));
         }
     }
 }
@@ -1410,7 +1405,7 @@ sub matchPredefineSwitch {
             if (exists($globalopt{pdu})) {
                 xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$node,"otherinterfaces=$ip",'status=Matched',"mac=$mac","usercomment=$vendor","pdutype=$stype","community=$community"] }, $sub_req, 0, 1);
             } else {
-                xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$node,"otherinterfaces=$ip",'status=Matched',"mac=$mac","switchtype=$stype","usercomment=$vendor","community=$community"] }, $sub_req, 0, 1);
+                xCAT::Utils->runxcmd({ command => ['chdef'], arg => ['-t','node','-o',$node,"otherinterfaces=$ip",'status=Matched',"mac=$mac","switchtype=$stype","usercomment=$vendor",(defined $community ? ("snmppassword=$community") : ())] }, $sub_req, 0, 1);
             }
         }
 

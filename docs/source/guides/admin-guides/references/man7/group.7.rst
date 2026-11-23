@@ -662,7 +662,7 @@ group Attributes:
 
 \ **nictypes**\  (nics.nictypes)
  
- Comma-separated list of NIC types per NIC. <nic1>!<type1>,<nic2>!<type2>, e.g. eth0!Ethernet,ib0!Infiniband. The xCAT object definition commands support to use nictypes.<nicname> as the sub attributes.
+ Comma-separated list of NIC types per NIC. <nic1>!<type1>,<nic2>!<type2>, e.g. eth0!Ethernet,ib0!Infiniband,ens4!RoCE. RoCE configures the IP of the NIC, an RDMA device on it (soft-RoCE when the NIC has none) and RoCE v2 as the default. The xCAT object definition commands support to use nictypes.<nicname> as the sub attributes.
  
 
 

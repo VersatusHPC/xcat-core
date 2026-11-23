@@ -9,5 +9,6 @@ Networking
    switchdiscover/index.rst
    vlan/index.rst
    infiniband/index.rst
+   roce/index.rst
    getadapter.rst
    ipv6_provisioning.rst

@@ -27,6 +27,9 @@ brctl="brctl"
 uniq="uniq"
 xargs="xargs"
 modprobe="modprobe"
+rdma="rdma"
+systemctl="systemctl"
+mount="mount"
 xcatcreatedcon=''
 if [ -n "$LOGLABEL" ]; then
     log_label=$LOGLABEL
@@ -2419,4 +2422,88 @@ function delete_bond_slaves_con {
             $nmcli con delete $slave
         fi
     done
+}
+
+######################################################################
+#
+# rdma_dev_of_nic: print the RDMA device bound to a netdev, if any
+# input: <nic>
+#
+######################################################################
+function rdma_dev_of_nic {
+    # rdma link show prints "link <dev>/<port> ... netdev <nic> ".
+    $rdma link show 2>/dev/null | $awk -v nic="$1" '
+        { for (i = 1; i < NF; i++) if ($i == "netdev" && $(i + 1) == nic) { split($2, a, "/"); print a[1]; exit } }'
+}
+
+######################################################################
+#
+# set_roce_v2: make RoCE v2 the default rdma_cm mode of an RDMA device
+# input: <rdma device>
+#
+######################################################################
+function set_roce_v2 {
+    local dev=$1
+    local cfg=${XCAT_RDMA_CM_CONFIGFS:-/sys/kernel/config/rdma_cm}
+
+    $modprobe rdma_cm || return 1
+    if [ ! -d "$cfg" ]; then
+        $mount -t configfs none ${cfg%/rdma_cm} || return 1
+    fi
+    # The kernel adds ports/<n> when the device directory is made.
+    # Port 1 is the only port of a RoCE device.
+    mkdir -p "$cfg/$dev" || return 1
+    echo "RoCE v2" >"$cfg/$dev/ports/1/default_roce_mode"
+}
+
+######################################################################
+#
+# configure_roce_nic: the RDMA half of a nic with nictypes=RoCE
+# input: <nic>
+# The caller configures the IP of the nic, as for an ethernet nic.
+#
+######################################################################
+function configure_roce_nic {
+    local nic=$1
+    local dev soft=0
+    local unitdir=${XCAT_SYSTEMD_UNIT_DIR:-/etc/systemd/system}
+    local unit="xcat-roce-${nic}.service"
+    local cfg=${XCAT_RDMA_CM_CONFIGFS:-/sys/kernel/config/rdma_cm}
+
+    # A RoCE adapter binds its own RDMA device to the nic. Only a nic
+    # without one gets a soft-RoCE (rdma_rxe) link, and a second link fails.
+    dev=$(rdma_dev_of_nic $nic)
+    if [ -z "$dev" ]; then
+        soft=1
+        dev="rxe_${nic}"
+        $modprobe rdma_rxe || { log_error "The kernel has no rdma_rxe module."; return 1; }
+        $rdma link add $dev type rxe netdev $nic || { log_error "rdma link add $dev failed."; return 1; }
+    fi
+    log_info "RDMA device $dev is on $nic"
+
+    set_roce_v2 $dev || { log_error "Cannot set RoCE v2 on $dev."; return 1; }
+
+    # The rxe link and the rdma_cm default mode are lost at reboot.
+    {
+        echo "[Unit]"
+        echo "Description=xCAT RoCE v2 on $nic"
+        echo "Wants=network-online.target"
+        echo "After=network-online.target sys-subsystem-net-devices-${nic}.device"
+        echo "BindsTo=sys-subsystem-net-devices-${nic}.device"
+        echo ""
+        echo "[Service]"
+        echo "Type=oneshot"
+        echo "RemainAfterExit=yes"
+        if [ $soft -eq 1 ]; then
+            echo "ExecStart=/usr/sbin/modprobe rdma_rxe"
+            echo "ExecStart=/bin/sh -c 'test -e /sys/class/infiniband/$dev || rdma link add $dev type rxe netdev $nic'"
+        fi
+        echo "ExecStart=/usr/sbin/modprobe rdma_cm"
+        echo "ExecStart=/bin/sh -c 'mkdir -p $cfg/$dev && echo RoCE v2 >$cfg/$dev/ports/1/default_roce_mode'"
+        echo ""
+        echo "[Install]"
+        echo "WantedBy=multi-user.target"
+    } >"$unitdir/$unit" || { log_error "Cannot write $unitdir/$unit."; return 1; }
+    $systemctl enable $unit
+    return 0
 }

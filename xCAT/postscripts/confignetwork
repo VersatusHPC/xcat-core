@@ -621,6 +621,26 @@ function configure_nicdevice {
                 errorcode=1
             fi
 
+        #configure RoCE nic: its IP as for an ethernet nic, then its RDMA device
+        elif [ x"$nic_dev_type" = "xroce" ]; then
+            xcatnet=`query_nicnetworks_net $nic_dev`
+            if [ -n "$ipaddrs" ]; then
+                log_info "configure $nic_dev"
+                log_info "call: NMCLI_USED=$networkmanager_active configeth $nic_dev $ipaddrs $xcatnet"
+                NMCLI_USED=$networkmanager_active configeth $nic_dev $ipaddrs $xcatnet
+                if [ $? -ne 0 ]; then
+                    errorcode=1
+                fi
+                get_nic_cfg_file_content $nic_dev
+            else
+                log_warn "There is no ip for $nic_dev."
+            fi
+            configure_roce_nic $nic_dev
+            if [ $? -ne 0 ]; then
+                log_error "configure RoCE on $nic_dev failed."
+                errorcode=1
+            fi
+
         #configure bridge
         #linux bridge type is bridge
         #openvswitch bridge type is bridge_ovs

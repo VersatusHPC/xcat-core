@@ -244,6 +244,6 @@ run_el_repo_check()
         export GO_XCAT_ARCH="$arch"
         run run_el_repo_check
         [ "$status" -eq 0 ]
-        [ "$(joined_file_lines "$CALLS")" = "dnf repoquery -q --arch $arch,noarch --qf %{name} perl-Crypt-CBC;dnf repoquery -q --arch $arch,noarch --qf %{name} perl-IO-Tty" ]
+        [ "$(joined_file_lines "$CALLS")" = "dnf repoquery -y -q --arch $arch,noarch --qf %{name} perl-Crypt-CBC;dnf repoquery -y -q --arch $arch,noarch --qf %{name} perl-IO-Tty" ]
     done
 }

@@ -33,7 +33,7 @@ check:rc==0
 cmd:if xdsh $$CN "grep \"Ubuntu\" /etc/*release >/dev/null"; then xdsh $$CN "DEBIAN_FRONTEND=noninteractive apt-get install -y gnupg"; fi
 
 #Replace sources.list file on Ubuntu
-cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && xdsh $$CN "scp -r $$MN:/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list /etc/apt/sources.list"; fi
+cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && list=/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list && if [ -f $list ]; then xdsh $$CN "scp -r $$MN:$list /etc/apt/sources.list"; fi; fi
 
 #Set flag to accept install dependent packages by default on Ubuntu
 cmd:if grep Ubuntu /etc/*release;then arc_all=`uname -a`; if [[ $arc_all =~ "x86_64" ]]; then xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"; fi; fi
@@ -71,10 +71,11 @@ check:output=~running
 
 #Verify xCAT public key was installed
 cmd:if [[ "$$OS" =~ "ubuntu" ]]; then xdsh $$CN "apt-key list"; else xdsh $$CN "rpm -q gpg-pubkey --qf '%{name}-%{version}-%{release} --> %{summary}\n'"; fi
-check:output=~xCAT Automatic Signing Key
+check:output=~xCAT (Automatic )?Signing Key
 
-#Remove public key on non-Ubuntu system. It was installed during go-xcat RPM installs
-cmd:if [[ "$$OS" != "ubuntu" ]]; then xdsh $$CN "rpm -e gpg-pubkey-ca548a47-5b2c830b"; fi
+#Remove the xCAT public keys on non-Ubuntu system. They were installed during go-xcat RPM installs
+cmd:if [[ ! "$$OS" =~ ubuntu ]]; then xdsh $$CN "rpm -q gpg-pubkey --qf '%{name}-%{version}-%{release} %{summary}\n' | awk '/xCAT/ {print \$1}' | xargs -r rpm -e"; fi
+check:rc==0
 
 cmd:xdsh $$CN "service xcatd stop"
 end
@@ -106,7 +107,7 @@ cmd:if xdsh $$CN "grep \"Red Hat\|Rocky\|Alma\" /etc/*release >/dev/null"; then 
 cmd:if xdsh $$CN "grep \"Ubuntu\" /etc/*release >/dev/null"; then xdsh $$CN "DEBIAN_FRONTEND=noninteractive apt-get install -y gnupg"; fi
 
 #Replace sources.list file on Ubuntu
-cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && xdsh $$CN "scp -r $$MN:/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list /etc/apt/sources.list"; fi
+cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && list=/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list && if [ -f $list ]; then xdsh $$CN "scp -r $$MN:$list /etc/apt/sources.list"; fi; fi
 
 #Set flag to accept install dependent packages by default on Ubuntu
 cmd:if grep Ubuntu /etc/*release;then arc_all=`uname -a`; if [[ $arc_all =~ "x86_64" ]]; then xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"; fi; fi
@@ -150,7 +151,7 @@ cmd:if xdsh $$CN "grep \"Red Hat\|Rocky\|Alma\" /etc/*release >/dev/null"; then 
 cmd:if xdsh $$CN "grep \"Ubuntu\" /etc/*release >/dev/null"; then xdsh $$CN "DEBIAN_FRONTEND=noninteractive apt-get install -y gnupg"; fi
 
 #Replace sources.list file on Ubuntu
-cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && xdsh $$CN "scp -r $$MN:/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list /etc/apt/sources.list"; fi
+cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && list=/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list && if [ -f $list ]; then xdsh $$CN "scp -r $$MN:$list /etc/apt/sources.list"; fi; fi
 
 #Set flag to accept install dependent packages by default on Ubuntu
 cmd:if grep Ubuntu /etc/*release;then arc_all=`uname -a`; if [[ $arc_all =~ "x86_64" ]]; then xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"; fi; fi
@@ -204,7 +205,7 @@ cmd:if xdsh $$CN "grep \"Red Hat\|Rocky\|Alma\" /etc/*release >/dev/null"; then 
 cmd:if xdsh $$CN "grep \"Ubuntu\" /etc/*release >/dev/null"; then xdsh $$CN "DEBIAN_FRONTEND=noninteractive apt-get install -y gnupg"; fi
 
 #Replace sources.list file on Ubuntu
-cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && xdsh $$CN "scp -r $$MN:/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list /etc/apt/sources.list"; fi
+cmd:if grep Ubuntu /etc/*release;then code=`lsb_release -sc` && list=/opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/$code-__GETNODEATTR($$CN,arch)__.sources.list && if [ -f $list ]; then xdsh $$CN "scp -r $$MN:$list /etc/apt/sources.list"; fi; fi
 
 #Set flag to accept install dependent packages by default on Ubuntu
 cmd:if grep Ubuntu /etc/*release;then arc_all=`uname -a`; if [[ $arc_all =~ "x86_64" ]]; then xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"; fi; fi

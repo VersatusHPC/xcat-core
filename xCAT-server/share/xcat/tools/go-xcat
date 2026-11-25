@@ -75,8 +75,8 @@ function usage()
 	                                repository
 	  -x, --xcat-version=[VERSION]  specify the version of xCAT; imply the subdirectory
 	                                of corresponding xCAT version under
-	                                  http://xcat.org/files/xcat/repos/yum/  or
-	                                  http://xcat.org/files/xcat/repos/apt/
+	                                  https://xcat.org/files/xcat/repos/yum/  or
+	                                  https://xcat.org/files/xcat/repos/apt/
 	                                cannot use with --xcat-core
 	  -y, --yes                     answer yes for all questions
 
@@ -99,13 +99,13 @@ function usage()
 	  ${script} --xcat-version=stable install
 	  ${script} --xcat-core=/path/to/xcat-core.tar.bz2 \\
 	          --xcat-dep=/path/to/xcat-dep.tar.bz2 install
-	  ${script} --xcat-core=http://xcat.org/path/to/xcat-core.tar.bz2 \\
-	          --xcat-dep=http://xcat.org/path/to/xcat-dep.tar.bz2 install
+	  ${script} --xcat-core=https://xcat.org/path/to/xcat-core.tar.bz2 \\
+	          --xcat-dep=https://xcat.org/path/to/xcat-dep.tar.bz2 install
 	  ${script} uninstall
 	  ${script} completely uninstall
 
-	xCAT: http://xcat.org/
-	Full documentation at: http://xcat-docs.readthedocs.io/en/stable
+	xCAT: https://xcat.org/
+	Full documentation at: https://xcat-docs.readthedocs.io/en/stable
 	EOF
 }
 
@@ -151,9 +151,9 @@ function verbose_usage()
 	  ${script} --xcat-core=/path/to/xcat-core.tar.gz install
 	  ${script} --xcat-core=/path/to/xcat-core.tar.bz2 install
 	  ${script} --xcat-core=/path/to/xcat-core.tar.xz install
-	  ${script} --xcat-core=http://xcat.org/path/to/xcat-core.repo install
-	  ${script} --xcat-core=http://xcat.org/path/to/xcat-core install
-	  ${script} --xcat-core=http://xcat.org/path/to/xcat-core.tar.bz2 install
+	  ${script} --xcat-core=https://xcat.org/path/to/xcat-core.repo install
+	  ${script} --xcat-core=https://xcat.org/path/to/xcat-core install
+	  ${script} --xcat-core=https://xcat.org/path/to/xcat-core.tar.bz2 install
 	  ${script} --xcat-core=/path/to/xcat-core.repo \\
 	          --xcat-dep=/path/to/xcat-dep.repo install
 	  ${script} --xcat-core=/path/to/xcat-core \\
@@ -183,7 +183,7 @@ function version()
 	return 1
 }
 
-GO_XCAT_DEFAULT_BASE_URL="http://xcat.org/files/xcat/repos"
+GO_XCAT_DEFAULT_BASE_URL="https://xcat.org/files/xcat/repos"
 GO_XCAT_DEFAULT_INSTALL_PATH="/install/xcat"
 GO_XCAT_APT_KEY_FILE="/etc/apt/trusted.gpg.d/xcat.gpg"
 
@@ -681,7 +681,7 @@ function check_repo_version_dnf()
 	do
 		name+=("${name}")
 		ver+=("${ver}")
-	done < <(dnf repoquery -q --qf '%{name} %{version}-%{release}' "$@" 2>/dev/null)
+	done < <(dnf repoquery -y -q --qf '%{name} %{version}-%{release}' "$@" 2>/dev/null)
 	local -i i
 
 	# The above query returns an array of package names and versions. Most "xcat-dep"
@@ -989,7 +989,7 @@ function get_package_list_dnf()
 	type dnf >/dev/null 2>&1 || return 255
 	local repo_id="$1"
 	[[ -z "${repo_id}" ]] && return 1
-	dnf repoquery -q "--repoid=${repo_id}" --qf "%{name}" 2>/dev/null
+	dnf repoquery -y -q "--repoid=${repo_id}" --qf "%{name}" 2>/dev/null
 }
 
 #       $1      repo id
@@ -1068,7 +1068,7 @@ function download_file_curl()
 	local local_file="$2"
 	local log_file="${TMP_DIR}/curl.log.${RANDOM}"
 	local -i rc=0
-	curl -A "${user_agent}" "${url}" -f -o "${local_file}" -S -s >"${log_file}" 2>&1
+	curl -A "${user_agent}" "${url}" -f -L -o "${local_file}" -S -s >"${log_file}" 2>&1
 	rc="$?"
 	if [[ "${rc}" -ne "0" ]]
 	then
@@ -1926,13 +1926,14 @@ function github_issue_6525_workaround()
 # Whether an enabled repository carries the package for this architecture. An
 # installed copy and a source repository do not count, so a binary repository
 # that was disabled is still reported. A failed query stops the run with the
-# package manager's own error.
+# package manager's own error. -y imports the key of a repo_gpgcheck repository, or dnf
+# prints its prompt on stdout before the result.
 function repo_carries()
 {
 	local rpm="$1"
 	local found errors
 	errors="$(mktemp)"
-	found="$(${action} repoquery -q --arch "${GO_XCAT_ARCH},noarch" --qf '%{name}' "${rpm}" 2>"${errors}")" || {
+	found="$(${action} repoquery -y -q --arch "${GO_XCAT_ARCH},noarch" --qf '%{name}' "${rpm}" 2>"${errors}")" || {
 		cat "${errors}"
 		rm -f "${errors}"
 		echo "Could not query the package repositories with '${action} repoquery'"

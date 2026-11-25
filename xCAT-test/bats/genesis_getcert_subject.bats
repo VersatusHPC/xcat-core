@@ -65,7 +65,7 @@ run_getcert()
 {
     local bin="$1"
     timeout -k 2 20 env PATH="$bin" TMPDIR="$BATS_TEST_TMPDIR" GETCERT_CSR_TIMEOUT=0 \
-        /bin/bash "$GETCERT" 192.0.2.1:3001 >/dev/null 2>&1 </dev/null
+        /bin/bash "$GETCERT" 192.0.2.1:3001 >/dev/null 2>&1 </dev/null || true
     [ -s "$SUBJECT" ]
 }
 

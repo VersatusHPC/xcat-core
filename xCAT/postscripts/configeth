@@ -232,6 +232,22 @@ EOF
             done
         fi
 
+        if [ -n "$(_netplan_state "$nic" dns)$(_netplan_state "$nic" search)" ]; then
+            echo "      nameservers:"
+            if [ -n "$(_netplan_state "$nic" dns)" ]; then
+                echo "        addresses:"
+                _netplan_state "$nic" dns | while read -r addr; do
+                    [ -n "$addr" ] && echo "          - ${addr}"
+                done
+            fi
+            if [ -n "$(_netplan_state "$nic" search)" ]; then
+                echo "        search:"
+                _netplan_state "$nic" search | while read -r addr; do
+                    [ -n "$addr" ] && echo "          - ${addr}"
+                done
+            fi
+        fi
+
         # nicextraparams, already normalised and filtered to keys netplan understands by
         # write_netplan_param below
         _netplan_state "$nic" param | while read -r param; do
@@ -330,6 +346,36 @@ write_netplan_route(){
     [ -f "$f" ] || return 0
     _netplan_record "$nic" route "$to $via"
     _netplan_render "$nic"
+}
+
+# write_netplan_dns <nic> <servers> [search] -- record the name servers and search domains.
+# Both lists take commas or spaces. dhcp4: false also drops the name servers that DHCP gave
+# systemd-resolved, so a static NIC without this list resolves no names.
+write_netplan_dns(){
+    local nic="$1" servers="$2" search="$3" f item
+    f="$(netplan_file "$nic")"
+    [ -f "$f" ] || return 0
+    for item in ${servers//,/ }; do
+        _netplan_record "$nic" dns "$item"
+    done
+    for item in ${search//,/ }; do
+        _netplan_record "$nic" search "$item"
+    done
+    _netplan_render "$nic"
+}
+
+# write_netplan_install_nic <nic> <ip> <mask> <gateway> <mtu> <dns> <search> -- write the
+# static drop-in that replaces the DHCP configuration of the install NIC (configeth -s).
+write_netplan_install_nic(){
+    local nic="$1" ip="$2" mask="$3" gateway="$4" mtu="$5" dns="$6" search="$7"
+    netplan_reset_nic "$nic"
+    write_netplan_addr "$nic" "${ip}/$(v4mask2prefix "$mask")" "$mtu"
+    if [ -n "$gateway" ]; then
+        write_netplan_route "$nic" "default" "$gateway"
+    fi
+    if [ -n "$dns" ] || [ -n "$search" ]; then
+        write_netplan_dns "$nic" "$dns" "$search"
+    fi
 }
 
 # write_netplan_param <nic> <name> <value> -- record a nicextraparams key for this interface.
@@ -1232,12 +1278,11 @@ elif [ "$1" = "-s" ];then
     #has to be written as a netplan drop-in too -- this is the path confignetwork takes for
     #every provisioned node, and leaving it on interfaces.d configured nothing (issue #7454)
     if [ -f "/etc/debian_version" ] && [ "$netplan_active" = "1" ];then
-        netplan_reset_nic "${str_inst_nic}"
-        str_inst_prefix=$(v4mask2prefix ${str_inst_mask})
-        write_netplan_addr "${str_inst_nic}" "${str_inst_ip}/${str_inst_prefix}" "${str_inst_mtu}"
-        if [ -n "$str_inst_gateway" ];then
-            write_netplan_route "${str_inst_nic}" "default" "${str_inst_gateway}"
-        fi
+        # The DHCP lease of the install NIC is the only source of its name servers, and the
+        # static drop-in turns DHCP off. Carry them over from the node's own settings.
+        write_netplan_install_nic "${str_inst_nic}" "${str_inst_ip}" "${str_inst_mask}" \
+            "${str_inst_gateway}" "${str_inst_mtu}" \
+            "${str_inst_dns:-$NAMESERVERS}" "${str_inst_dns_search:-$DOMAIN}"
         i=0
         while [ $i -lt ${#array_extra_param_names[@]} ]
         do

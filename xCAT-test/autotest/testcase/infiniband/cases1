@@ -1,0 +1,39 @@
+start:ib_pkglist_genimage
+description:genimage builds a diskless image with the InfiniBand list of the distribution. The image holds the eight packages and ib_ipoib.ko. No IB card is needed.
+os:Linux
+label:others,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/ib_pkglist_genimage.sh __GETNODEATTR($$CN,os)__ __GETNODEATTR($$CN,arch)__
+check:rc==0
+check:output=~The image holds the InfiniBand stack
+end
+
+start:ib_pkglist_install_cn
+description:updatenode -P ospkgs installs the InfiniBand stack of the distribution on a diskful compute node from the BaseOS and AppStream repositories of the osimage. No IB card is needed.
+os:Linux
+label:others,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/ib_pkglist_install_cn.sh $$CN
+check:rc==0
+check:output=~holds the InfiniBand stack
+end
+
+start:configib_missing_device_fails
+description:confignetwork on a compute node without an IB card. ib0 is an InfiniBand nic in the nics table and the node has no InfiniBand device, so configib fails with an error that names ib0, writes no ib0 connection, and updatenode fails.
+os:Linux
+label:others,IB
+cmd:lsdef $$CN -z >/tmp/configib_nocard.stanza
+check:rc==0
+cmd:xdsh $$CN "test ! -e /sys/class/net/ib0"
+check:rc==0
+cmd:mkdef -f -t network -o ib_nocard_net net=11.1.0.0 mask=255.255.0.0 mgtifname=ib0
+check:rc==0
+cmd:chdef $$CN nicips.ib0=11.1.0.100 nictypes.ib0=infiniband nicnetworks.ib0=ib_nocard_net
+check:rc==0
+cmd:updatenode $$CN -P confignetwork
+check:rc!=0
+check:output=~but the node has no InfiniBand device ib0
+cmd:xdsh $$CN "nmcli -g connection.type connection show ib0"
+check:rc!=0
+cmd:rmdef -t network -o ib_nocard_net
+cmd:rmdef $$CN; cat /tmp/configib_nocard.stanza | mkdef -z; rm -f /tmp/configib_nocard.stanza
+check:rc==0
+end

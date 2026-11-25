@@ -5,6 +5,28 @@ xCAT provides a script ``configib`` to help configure the Infiniband adapters on
 
 The Infiniband adapter is considered an additional interface for xCAT. The process for configuring Infiniband adapters complies with the process  of :doc:`Configure Additional Network Interfaces <../../../../guides/admin-guides/manage_clusters/ppc64le/diskful/customize_image/network/cfg_network_adapter>`.
 
+How ``configib`` writes the configuration depends on the operating system of the node:
+
++---------------------------+--------------------------------------------------------------------+
+| Node                      | Configuration                                                      |
++===========================+====================================================================+
+| EL 9 and later            | a NetworkManager connection of type ``infiniband``, made with      |
+|                           | ``nmcli``. Each address carries the prefix of its network. No      |
+|                           | ``ifcfg`` file is written.                                         |
++---------------------------+--------------------------------------------------------------------+
+| Ubuntu with netplan       | ``/etc/netplan/90-xcat-<nic>.yaml``, then ``netplan apply``. An    |
+| (18.04 and later)         | ``MTU`` in ``nicextraparams`` becomes the netplan ``mtu``. Other   |
+|                           | ``nicextraparams`` are ignored, because netplan rejects an unknown |
+|                           | key.                                                               |
++---------------------------+--------------------------------------------------------------------+
+| Ubuntu with ifupdown      | ``/etc/network/interfaces``, then ``ifup``                         |
++---------------------------+--------------------------------------------------------------------+
+| EL 8 and earlier, SLES    | ``ifcfg-<nic>``                                                    |
++---------------------------+--------------------------------------------------------------------+
+
+When the node has no InfiniBand device for the nic, ``configib`` writes nothing for it and
+fails. See :doc:`distribution_ib_stack`.
+
 Below are an simple example to configure Mellanox IB in Ubuntu 14.04.1 on Power8 LE
 
 If your target Mellanox IB adapter has 2 ports, and you plan to give port ib0 4 different IPs, 2 are IPV4 (20.0.0.3 and 30.0.0.3) and another 2 are IPV6 (1:2::3 and 2:2::3).

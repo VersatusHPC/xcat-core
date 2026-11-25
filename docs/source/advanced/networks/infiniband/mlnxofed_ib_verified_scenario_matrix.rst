@@ -50,3 +50,31 @@ The following ISO images and attributes have been verified by the xCAT Team.
 +----------------------------------+-------------------------------------------------------------------+
 | **IB.pkglist**                   | ib.ubuntu14.ppc64le.pkglist                                       |
 +----------------------------------+-------------------------------------------------------------------+
+
+
+Distribution Stack Scenario Matrix
+==================================
+
+The InfiniBand stack of the distribution (``rdma-core``), from xCAT 2.21. See
+:doc:`distribution_ib_stack`. The xCAT CI measures these scenarios on nodes without an IB
+card. No scenario is verified on a ConnectX card yet.
+
++------------------------+-----------------------------------------------+---------------------------+
+| Scenario               | What is checked                               | Status                    |
++========================+===============================================+===========================+
+| EL 10 x86_64, diskless | ``genimage`` with ``ib.rhels10.x86_64``:      | CI, no card               |
+|                        | the eight packages and ``ib_ipoib.ko`` are in |                           |
+|                        | the image                                     |                           |
++------------------------+-----------------------------------------------+---------------------------+
+| EL 10 x86_64, diskful  | ``updatenode -P ospkgs`` installs the eight   | CI, no card               |
+|                        | packages from BaseOS and AppStream            |                           |
++------------------------+-----------------------------------------------+---------------------------+
+| EL 10 x86_64, no card  | ``confignetwork`` fails and names ``ib0``     | CI, no card               |
+|                        | when the node has no IB device                |                           |
++------------------------+-----------------------------------------------+---------------------------+
+| EL 9 x86_64            | the package lists and ``configib`` unit tests | unit tests only           |
++------------------------+-----------------------------------------------+---------------------------+
+| Ubuntu 24.04 x86_64    | ``configib`` writes the netplan drop-in       | unit tests only           |
++------------------------+-----------------------------------------------+---------------------------+
+| IPoIB link to a peer   | ``ping`` over ``ib0``, ``opensm``             | not verified, needs a card|
++------------------------+-----------------------------------------------+---------------------------+

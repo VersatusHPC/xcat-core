@@ -53,7 +53,10 @@ assert_service_user()
     local name="$1" gid="$2" home="$3"
     [ "$(grep -c "^$name:" "$image/etc/passwd")" -eq 1 ]
     grep -q "^[^:]*:[^:]*:$gid:" "$image/etc/group"
-    [ -d "$image$home" ]
+    # The package installs the image as root:root. A home made here is root-owned, and chronyd
+    # then cannot write its drift file. chronyd and dhcpcd create the directory with their own
+    # owner when it is absent.
+    [ ! -e "$image$home" ]
 }
 
 @test "the ubuntu module gives the image the _chrony user of its build root" {

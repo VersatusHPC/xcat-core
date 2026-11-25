@@ -29,6 +29,10 @@ else
     log_label="xcat"
 fi
 
+# XCAT_CONFIGIB_ROOT prefixes every file this script reads or writes under /etc and /sys.
+# The bats tests set it to a scratch tree. It is empty on a node.
+ib_root="${XCAT_CONFIGIB_ROOT:-}"
+
 ########################################################################
 # nmcli_used=0: use network.service
 # nmcli_used=1: use NetworkManager
@@ -118,39 +122,39 @@ restart_ib_driver=0
 #make changes to the confiuration file
 if [ $PLTFRM == "Linux" ]
 then
-    if [ -f "/etc/rdma/rdma.conf" ]
+    if [ -f "${ib_root}/etc/rdma/rdma.conf" ]
     then
-        md5f1=$(md5sum /etc/rdma/rdma.conf |cut -d' ' -f1)
-        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" /etc/rdma/rdma.conf`
-	echo "$TMP1" > /etc/rdma/rdma.conf
-        md5f2=$(md5sum /etc/rdma/rdma.conf |cut -d' ' -f1)
+        md5f1=$(md5sum ${ib_root}/etc/rdma/rdma.conf |cut -d' ' -f1)
+        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" ${ib_root}/etc/rdma/rdma.conf`
+	echo "$TMP1" > ${ib_root}/etc/rdma/rdma.conf
+        md5f2=$(md5sum ${ib_root}/etc/rdma/rdma.conf |cut -d' ' -f1)
         if [ "$md5f2" != "$md5f1" ]; then
             restart_ib_driver=1
         fi
-    elif [ -f "/etc/infiniband/openib.conf" ]
+    elif [ -f "${ib_root}/etc/infiniband/openib.conf" ]
     then
-        md5f1=$(md5sum /etc/infiniband/openib.conf |cut -d' ' -f1)
-        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" /etc/infiniband/openib.conf`
-	echo "$TMP1" > /etc/infiniband/openib.conf
-        md5f2=$(md5sum /etc/infiniband/openib.conf |cut -d' ' -f1)
+        md5f1=$(md5sum ${ib_root}/etc/infiniband/openib.conf |cut -d' ' -f1)
+        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" ${ib_root}/etc/infiniband/openib.conf`
+	echo "$TMP1" > ${ib_root}/etc/infiniband/openib.conf
+        md5f2=$(md5sum ${ib_root}/etc/infiniband/openib.conf |cut -d' ' -f1)
         if [ "$md5f2" != "$md5f1" ]; then
             restart_ib_driver=1
         fi
     fi
 
-    if [ -f "/etc/modprobe.conf" ]
+    if [ -f "${ib_root}/etc/modprobe.conf" ]
     then
 	if [ "$portnum" == "1" ]; then
-            TMP2=`sed "/options ib_ehca nr_ports/d" /etc/modprobe.conf`
-	    echo "$TMP2" > /etc/modprobe.conf
-            echo 'options ib_ehca nr_ports=1' >> /etc/modprobe.conf
+            TMP2=`sed "/options ib_ehca nr_ports/d" ${ib_root}/etc/modprobe.conf`
+	    echo "$TMP2" > ${ib_root}/etc/modprobe.conf
+            echo 'options ib_ehca nr_ports=1' >> ${ib_root}/etc/modprobe.conf
 	else
-            TMP2=`sed "/options ib_ehca nr_ports=1/d" /etc/modprobe.conf`
-	    echo "$TMP2" > /etc/modprobe.conf
+            TMP2=`sed "/options ib_ehca nr_ports=1/d" ${ib_root}/etc/modprobe.conf`
+	    echo "$TMP2" > ${ib_root}/etc/modprobe.conf
 	fi
-	TMP3=`sed "/options ib_ehca lock_hcalls/d" /etc/modprobe.conf`
-	echo "$TMP3" > /etc/modprobe.conf
-        echo 'options ib_ehca lock_hcalls=0' >> /etc/modprobe.conf
+	TMP3=`sed "/options ib_ehca lock_hcalls/d" ${ib_root}/etc/modprobe.conf`
+	echo "$TMP3" > ${ib_root}/etc/modprobe.conf
+        echo 'options ib_ehca lock_hcalls=0' >> ${ib_root}/etc/modprobe.conf
     fi
     #/sbin/chkconfig --level 2345 $ib_driver on > /dev/null 2>&1
     enableservice $ib_driver > /dev/null 2>&1
@@ -162,13 +166,13 @@ fi
 #clean up existing ib nic configrations
 if [ $PLTFRM == "Linux" ]
 then
-    if [ -f /etc/redhat-release ]
+    if [ -f ${ib_root}/etc/redhat-release ]
     then
         OS_name="redhat"
-    elif [ -f /etc/SuSE-release ] || [ -f /etc/SUSE-brand ]
+    elif [ -f ${ib_root}/etc/SuSE-release ] || [ -f ${ib_root}/etc/SUSE-brand ]
     then
         OS_name="suse"
-    elif [ -f /etc/os-release ] && cat /etc/os-release |grep NAME|grep Ubuntu>/dev/null
+    elif [ -f ${ib_root}/etc/os-release ] && cat ${ib_root}/etc/os-release |grep NAME|grep Ubuntu>/dev/null
 	then
         OS_name="ubuntu"
     else
@@ -180,9 +184,9 @@ then
     if [[ $OS_name != 'ubuntu' ]] && ! xcat_is_el9_or_later "$OSVER"; then
         if [ $OS_name == 'suse' ]
         then
-            dir="/etc/sysconfig/network"
+            dir="${ib_root}/etc/sysconfig/network"
         else
-            dir="/etc/sysconfig/network-scripts"
+            dir="${ib_root}/etc/sysconfig/network-scripts"
         fi
 		
         #`rm -f $dir/ifcfg-$nic` 2>&1 1>/dev/null
@@ -193,7 +197,7 @@ then
         done
 
     elif [ $OS_name == 'ubuntu' ]; then
-        interfaces="/etc/network/interfaces"
+        interfaces="${ib_root}/etc/network/interfaces"
 
         for tmp  in `sed -n "/auto ib/=" ${interfaces}`
         do
@@ -386,23 +390,23 @@ do
        then
            # Issue openibd for Linux at boot time
 
-           if [ -f /etc/sysctl.conf ]
+           if [ -f ${ib_root}/etc/sysctl.conf ]
            then
-               TMP1=`sed "/net.ipv4.conf.$nic.arp_filter=1/d" /etc/sysctl.conf`
-	       echo "$TMP1" > /etc/sysctl.conf
-               TMP2=`sed "/net.ipv4.conf.$nic.arp_ignore=1/d" /etc/sysctl.conf`
-	       echo "$TMP2" > /etc/sysctl.conf
+               TMP1=`sed "/net.ipv4.conf.$nic.arp_filter=1/d" ${ib_root}/etc/sysctl.conf`
+	       echo "$TMP1" > ${ib_root}/etc/sysctl.conf
+               TMP2=`sed "/net.ipv4.conf.$nic.arp_ignore=1/d" ${ib_root}/etc/sysctl.conf`
+	       echo "$TMP2" > ${ib_root}/etc/sysctl.conf
                cfg="net.ipv4.conf.$nic.arp_filter=1"
-               grep "$cfg" /etc/sysctl.conf 2>&1 1>/dev/null
+               grep "$cfg" ${ib_root}/etc/sysctl.conf 2>&1 1>/dev/null
                if [ $? -ne 0 ]
                then
-                   echo "net.ipv4.conf.$nic.arp_filter=1" >> /etc/sysctl.conf
+                   echo "net.ipv4.conf.$nic.arp_filter=1" >> ${ib_root}/etc/sysctl.conf
                fi
                cfg="net.ipv4.conf.$nic.arp_ignore=1"
-               grep "$cfg" /etc/sysctl.conf 2>&1 1>/dev/null
+               grep "$cfg" ${ib_root}/etc/sysctl.conf 2>&1 1>/dev/null
                if [ $? -ne 0 ]
                then
-                   echo "net.ipv4.conf.$nic.arp_ignore=1" >> /etc/sysctl.conf
+                   echo "net.ipv4.conf.$nic.arp_ignore=1" >> ${ib_root}/etc/sysctl.conf
                fi
            fi
 
@@ -426,9 +430,9 @@ IPADDR=$nicip" > $dir/ifcfg-$nic
                     fi
                    if [ -n "$gateway" ]; then
                        # Do not add duplicate default gateway entry
-                       grep -E "default\\s+$gateway\\s+" /etc/sysconfig/network/routes 2>&1 1>/dev/null
+                       grep -E "default\\s+$gateway\\s+" ${ib_root}/etc/sysconfig/network/routes 2>&1 1>/dev/null
                        if [ $? -ne 0 ]; then
-                           echo "default $gateway - -" >> /etc/sysconfig/network/routes
+                           echo "default $gateway - -" >> ${ib_root}/etc/sysconfig/network/routes
                        fi
                    fi
 
@@ -459,9 +463,9 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                     fi
                    if [ -n "$gateway" ]; then
                        # Do not add duplicate default gateway entry
-                       grep -E "default\\s+$gateway\\s+" /etc/sysconfig/network/routes 2>&1 1>/dev/null
+                       grep -E "default\\s+$gateway\\s+" ${ib_root}/etc/sysconfig/network/routes 2>&1 1>/dev/null
                        if [ $? -ne 0 ]; then
-                           echo "default $gateway - -" >> /etc/sysconfig/network/routes
+                           echo "default $gateway - -" >> ${ib_root}/etc/sysconfig/network/routes
                        fi
                    fi
                    #add extra params
@@ -672,10 +676,10 @@ IPADDR$ipindex=$nicip"
                         echo "auto $nic
 iface $nic inet6 static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         if [ -n "$gateway" ]; then
-                            echo "gateway $gateway" >> /etc/network/interfaces
+                            echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         fi
                     # ipv4		
                     else
@@ -683,10 +687,10 @@ netmask $netmask" >> /etc/network/interfaces
                         echo "auto $nic
 iface $nic inet static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         #if [ -n "$gateway" ]; then
-                        #    echo "gateway $gateway" >> /etc/network/interfaces
+                        #    echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         #fi
                     fi
                 else   # Not the first ip address
@@ -696,19 +700,19 @@ netmask $netmask" >> /etc/network/interfaces
                         echo "auto $nic
 iface $nic inet6 static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         if [ -n "$gateway" ]; then
-                            echo "gateway $gateway" >> /etc/network/interfaces
+                            echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         fi
                     else  # ipv4
                         echo "auto $nic:$ipindex
 iface $nic:$ipindex inet static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         #if [ -n "$gateway" ]; then
-                        #    echo "gateway $gateway" >> /etc/network/interfaces
+                        #    echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         #fi
                     fi
                 fi
@@ -719,11 +723,11 @@ netmask $netmask" >> /etc/network/interfaces
                     name="${array_extra_param_names[$i]}"
                     value="${array_extra_param_values[$i]}"
                     echo "  $i: name=$name value=$value"
-                    grep -i "${name}" /etc/network/interfaces
+                    grep -i "${name}" ${ib_root}/etc/network/interfaces
                     if [ $? -eq 0 ];then
-                        sed -i "s/.*${name}.*/${name} ${value}/i" >> /etc/network/interfaces 
+                        sed -i "s/.*${name}.*/${name} ${value}/i" >> ${ib_root}/etc/network/interfaces 
                     else
-                        echo "${name} ${value}" >> /etc/network/interfaces 
+                        echo "${name} ${value}" >> ${ib_root}/etc/network/interfaces 
                     fi
                     i=$((i+1))
                 done
@@ -817,7 +821,7 @@ then
         else
             if [[ "$OSVER" == ubuntu14* ]]
             then
-                interfaces="/etc/network/interfaces"
+                interfaces="${ib_root}/etc/network/interfaces"
                 for tmp in `cat $interfaces |grep "auto ib" |sort -u|awk '{print $2}'`
                 do
                     ifdown $tmp  > /dev/null 2>&1

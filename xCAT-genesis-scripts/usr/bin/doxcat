@@ -281,7 +281,7 @@ genesis_dhcp_command() {
         if [ "$family" = 6 ]; then
             echo "dhclient -6 -pf /var/run/dhclient6.$nic.pid $nic -lf /var/lib/dhclient/dhclient6.leases"
         else
-            echo "dhclient -cf /etc/dhclient.conf -pf /var/run/dhclient.$nic.pid $nic"
+            echo "dhclient -cf /etc/dhclient.conf -pf /var/run/dhclient.$nic.pid $nic -lf /var/lib/dhclient/dhclient.leases"
         fi
         return 0
     fi

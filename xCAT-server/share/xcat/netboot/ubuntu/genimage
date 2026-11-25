@@ -2092,11 +2092,7 @@ sub generic_post { #This function is meant to leave the image in a state approxi
     print $cfgfile "    done\n";
     print $cfgfile "end script\n";
 
-    copy("$installroot/postscripts/xcatpostinit", "$rootimg_dir/etc/init.d/xcatpostinit");
-
-    #the ubuntu default run level is 2
-    chmod(0755, "$rootimg_dir/etc/init.d/xcatpostinit");
-    system("cd $rootimg_dir/etc/rc2.d; ln -sf ../init.d/xcatpostinit S61xcatpostinit");
+    imgutils::install_postinit_service($rootimg_dir, "$installroot/postscripts");
 
     #change the /bin/sh link to /bin/bash
     system("cd $rootimg_dir/bin/; ln -sf bash sh");

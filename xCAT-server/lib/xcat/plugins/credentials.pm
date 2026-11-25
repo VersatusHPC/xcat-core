@@ -46,6 +46,9 @@ use Getopt::Long;
 
 use constant DELEGATED_SIGNING_TIMEOUT => 30;
 
+# xcatconfig writes the SSH host keys here. A test points it at a scratch directory.
+our $HOSTKEYDIR = '/etc/xcat/hostkeys';
+
 # IO::Socket::INET6 and Socket6 are optional on an older management node. A
 # node reached over IPv6 needs them; without them the callback stays on IPv4.
 my $inet6support = eval {
@@ -70,6 +73,26 @@ sub handled_commands
         getcredentials => "credentials",
         signx509cert   => "credentials",
     };
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 host_key_file
+
+    The SSH host key file that a node receives. A per-node key comes before the shared one.
+
+    Arguments: the key type (dsa, rsa, ecdsa or ed25519), the node name
+    Returns: the readable path, or undef when $HOSTKEYDIR holds no such key
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub host_key_file {
+    my ($type, $node) = @_;
+    foreach my $file ("$HOSTKEYDIR/$node/ssh_host_${type}_key", "$HOSTKEYDIR/ssh_host_${type}_key") {
+        return $file if -r $file;
+    }
+    return;
 }
 
 #-------------------------------------------------------
@@ -252,48 +275,18 @@ sub process_request
             xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
             $tfilename = "$root/.xcat/client-cred.pem";
 
-        } elsif ($parm =~ /ssh_dsa_hostkey/) {
+        } elsif ($parm =~ /ssh_(dsa|rsa|ecdsa|ed25519)_hostkey/) {
+            my $type = $1;
             xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
-            if (-r "/etc/xcat/hostkeys/$client/ssh_host_dsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/$client/ssh_host_dsa_key";
-            } elsif (-r "/etc/xcat/hostkeys/ssh_host_dsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/ssh_host_dsa_key";
-            } else {
-                push @{ $rsp->{'error'} }, "Unable to read private DSA key from /etc/xcat/hostkeys";
-                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private DSA key");
-                next;
-            }
-        } elsif ($parm =~ /ssh_rsa_hostkey/) {
-            xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
-            if (-r "/etc/xcat/hostkeys/$client/ssh_host_rsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/$client/ssh_host_rsa_key";
-            } elsif (-r "/etc/xcat/hostkeys/ssh_host_rsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/ssh_host_rsa_key";
-            } else {
-                push @{ $rsp->{'error'} }, "Unable to read private RSA key from /etc/xcat/hostkeys";
-                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private RSA key");
-                next;
-            }
-        } elsif ($parm =~ /ssh_ecdsa_hostkey/) {
-            xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
-            if (-r "/etc/xcat/hostkeys/$client/ssh_host_ecdsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/$client/ssh_host_ecdsa_key";
-            } elsif (-r "/etc/xcat/hostkeys/ssh_host_ecdsa_key") {
-                $tfilename = "/etc/xcat/hostkeys/ssh_host_ecdsa_key";
-            } else {
-                push @{ $rsp->{'error'} }, "Unable to read private ECDSA key from /etc/xcat/hostkeys";
-                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private ECDSA key");
-                next;
-            }
-        } elsif ($parm =~ /ssh_ed25519_hostkey/) {
-            xCAT::MsgUtils->trace(0, 'I', "credentials: sending $parm to $client");
-            if (-r "/etc/xcat/hostkeys/$client/ssh_host_ed25519_key") {
-                $tfilename = "/etc/xcat/hostkeys/$client/ssh_host_ed25519_key";
-            } elsif (-r "/etc/xcat/hostkeys/ssh_host_ed25519_key") {
-                $tfilename = "/etc/xcat/hostkeys/ssh_host_ed25519_key";
-            } else {
-                push @{ $rsp->{'error'} }, "Unable to read private ed25519 key from /etc/xcat/hostkeys";
-                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private ed25519 key");
+            $tfilename = host_key_file($type, $client);
+            unless ($tfilename) {
+                my $label = $type eq 'ed25519' ? $type : uc($type);
+                push @{ $rsp->{'error'} }, "Unable to read private $label key from $HOSTKEYDIR";
+
+                # xcatconfig writes no DSA key where OpenSSH dropped DSA, and ssh-keygen refuses
+                # ed25519 in FIPS mode. remoteshell asks for both and continues without them.
+                my $level = ($type eq 'dsa' or $type eq 'ed25519') ? 'I' : 'E';
+                xCAT::MsgUtils->trace(0, $level, "credentials: Unable to read private $label key");
                 next;
             }
         } elsif ($parm eq 'munge_key') {

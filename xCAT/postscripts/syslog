@@ -188,19 +188,6 @@ config_Rsyslog_C3()
 # This is only for Linux, since AIX does not use rsyslog.  It ships its own syslog in an lpp,
 # at least at the time of this code being written
 
-# rsyslog drops a forwarded line that it cannot send, and Ubuntu starts rsyslog
-# before the network is up. EL orders rsyslog after network-online.target. The
-# journal socket holds the lines that arrive before rsyslog starts.
-order_rsyslog_after_network()
-{
-  local dropin="${XCAT_SYSTEMD_UNIT_DIR:-/etc/systemd/system}/rsyslog.service.d"
-  mkdir -p "$dropin" || return $?
-  printf '%s\n' '[Unit]' 'Wants=network-online.target' 'After=network-online.target' \
-    >"$dropin/xcat-network-online.conf" || return $?
-  systemctl daemon-reload >/dev/null 2>&1
-  return 0
-}
-
 config_native_rsyslog_receiver()
 {
   local expanded
@@ -427,9 +414,6 @@ config_rsyslog_V8()
     fi
     echo "*.* @$syslog_forward_target" >> $remoteconf
     echo "# $xCATSettingsEND" >> $remoteconf
-    if type systemctl >/dev/null 2>&1; then
-      order_rsyslog_after_network
-    fi
  fi
  if xcat_is_openeuler "$OSVER"; then
      rsyslogd -N1 -f "$conf_file" || return $?

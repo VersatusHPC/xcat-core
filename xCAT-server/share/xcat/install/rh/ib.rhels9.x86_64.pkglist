@@ -1,0 +1,3 @@
+# The compute list plus the InfiniBand stack of the distribution (rdma-core).
+#INCLUDE:${XCATROOT}/share/xcat/install/rh/compute.rhels9.pkglist#
+#INCLUDE:${XCATROOT}/share/xcat/ib/netboot/rh/ib.rhels9.x86_64.pkglist#

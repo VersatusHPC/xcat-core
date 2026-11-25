@@ -1,0 +1,10 @@
+# The InfiniBand stack of the distribution (rdma-core). No MLNX_OFED.
+# Add this list after the compute list: pkglist=<compute list>,<this list>
+rdma-core
+libibverbs-utils
+librdmacm-utils
+infiniband-diags
+ibacm
+opensm
+perftest
+ucx

@@ -55,6 +55,7 @@ binary-arch:
 	chmod 755 $(rootdir)/share/xcat/ib/*
 	chmod 755 $(rootdir)/share/xcat/ib/netboot/sles/*
 	chmod 755 $(rootdir)/share/xcat/ib/netboot/rh/*
+	chmod 755 $(rootdir)/share/xcat/ib/netboot/ubuntu/*
 	chmod -R go-w $(rootdir)/share/xcat/install $(rootdir)/share/xcat/netboot
 	chmod 644 $(rootdir)/lib/perl/xCAT_plugin/*
 	chmod 644 $(rootdir)/lib/perl/xCAT/*

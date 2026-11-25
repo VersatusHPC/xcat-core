@@ -1384,8 +1384,7 @@ my $pageContent = ''; # Global var containing the ouptut back to the rest client
 my %header_info;      #Global var containing the extra info to the http header
 my $request = { clienttype => 'ws' }; # Global var that holds the request to send to xcatd
 my $remote_host = $q->remote_host();
-my ($client_name, $client_aliases) = gethostbyaddr(inet_aton($remote_host), AF_INET);
-$request->{remote_client}->[0]= $client_name.','.$client_aliases;
+$request->{remote_client}->[0] = xCAT::RestUtils::remote_client($remote_host);
 
 my $format = 'json';                  # The output format for a request invoke
 my $xmlinstalled; # Global var to speicfy whether the xml modules have been loaded

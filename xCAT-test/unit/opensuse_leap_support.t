@@ -6,6 +6,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use Cwd qw(realpath);
+use File::Slurper qw(read_text);
 
 use lib "$FindBin::Bin/../../perl-xCAT";
 use lib "$FindBin::Bin/../../xCAT-server/lib/perl";
@@ -62,6 +63,10 @@ my $sle15_netboot_pkglist = do { local $/; <$sle15_netboot_pkglist_fh> };
 close($sle15_netboot_pkglist_fh);
 
 like($sle15_netboot_pkglist, qr/^xfsprogs$/m, 'SLE 15 netboot pkglist includes xfs tools required by the xCAT dracut module');
+
+# On Leap 16.0 no package in this list pulls in shadow, so the image has no useradd.
+my $leap16_netboot_pkglist = read_text("$FindBin::Bin/../../xCAT-server/share/xcat/netboot/sles/compute.leap16.x86_64.pkglist");
+like($leap16_netboot_pkglist, qr/^shadow$/m, 'Leap 16 netboot pkglist includes shadow, which ships useradd and chpasswd');
 is(xCAT::Template::_sle15_install_product_name('Product-SLES'), 'SLES', 'SLE 15 install source keeps the generic SLES product');
 is(xCAT::Template::_sle15_install_product_name('Module-Basesystem'), 'sle-module-basesystem', 'SLE 15 install source keeps regular modules');
 is(xCAT::Template::_sle15_install_product_name('Module-SAP-Applications'), undef, 'SLE 15 install source skips SAP application module');

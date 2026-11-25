@@ -142,6 +142,8 @@ sub _el10_static_ipv6_boot_args
     # dracut does not retry a static ip= that found no carrier.
     push @args, 'rd.neednet=1', 'rd.net.timeout.carrier=120';
     push @args, "ip=${client_field}::${gateway_field}:$prefix:$hostname:$interface:none";
+    # A static ip= gets no DNS from DHCPv6, so the initial ramdisk and the image have no resolver.
+    push @args, map { "nameserver=$_" } xCAT::NetworkUtils->ipv6_nameservers_for_node($node);
     return join(' ', @args);
 }
 

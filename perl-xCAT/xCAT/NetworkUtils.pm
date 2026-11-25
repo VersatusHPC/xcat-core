@@ -2016,6 +2016,51 @@ sub ipv6_server_for_node
 
 #-------------------------------------------------------------------------------
 
+=head3   ipv6_nameservers_for_node
+
+    Descriptions:
+        Returns the IPv6 resolvers of a node.
+        site.nameservers holds one list for the whole cluster, so an IPv6-only node can be
+        given the IPv4 resolver of another network. The node cannot reach that resolver, and
+        an unreachable server in resolv.conf makes every lookup wait for its timeout.
+        '<xcatmaster>' is the management node, which runs named. It stands in when the
+        cluster configures no IPv6 resolver, because a node with none has no resolv.conf.
+        It is not the gateway: a gateway can be a router that answers no DNS query.
+    Arguments:
+        $node: the node name
+    Returns:
+        A list of IPv6 addresses. It is empty when the management node has no address on
+        the network of the node.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub ipv6_nameservers_for_node
+{
+    my $node = shift;
+    if (defined($node) && $node eq __PACKAGE__)
+    {
+        $node = shift;
+    }
+
+    my %nameservers = %{ xCAT::NetworkUtils->getNodeNameservers([$node]) };
+    my @resolvers;
+    foreach my $nameserver (split(/,/, $nameservers{$node} // ''))
+    {
+        next unless length($nameserver);
+        my $resolved = xCAT::NetworkUtils->ipv6_server_for_node($node, $nameserver);
+        push @resolvers, $resolved
+          if defined($resolved) && index($resolved, ':') >= 0;
+    }
+    return @resolvers if @resolvers;
+
+    my $master6 = xCAT::NetworkUtils->ipv6_server_for_node($node, '<xcatmaster>');
+    return ($master6) if defined($master6) && index($master6, ':') >= 0;
+    return ();
+}
+
+#-------------------------------------------------------------------------------
+
 =head3   my_ip_facing_aix
          Returns my ip address
          AIX only

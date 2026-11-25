@@ -114,8 +114,20 @@ then
             exit
         fi
     fi
-else
+elif [ -e "$ib_root/etc/init.d/openibd" ] || [ -e "$ib_root/usr/lib/systemd/system/openibd.service" ]
+then
+    # Only MLNX_OFED installs openibd.
     ib_driver="openibd"
+    logger -p local4.info -t $log_label "configib: MLNX_OFED found, using the openibd service"
+else
+    # The rdma-core stack of the distribution has no driver service. udev loads ib_ipoib when it
+    # finds an IB device, but not for a device it found before rdma-core was installed.
+    ib_driver=""
+    logger -p local4.info -t $log_label "configib: using the distribution RDMA stack"
+    if [ "$PLTFRM" = "Linux" ] && ! modprobe ib_ipoib >/dev/null 2>&1; then
+        echo "configib: WARNING: cannot load ib_ipoib"
+        logger -p local4.warning -t $log_label "configib: cannot load ib_ipoib"
+    fi
 fi
 
 restart_ib_driver=0
@@ -157,7 +169,9 @@ then
         echo 'options ib_ehca lock_hcalls=0' >> ${ib_root}/etc/modprobe.conf
     fi
     #/sbin/chkconfig --level 2345 $ib_driver on > /dev/null 2>&1
-    enableservice $ib_driver > /dev/null 2>&1
+    if [ -n "$ib_driver" ]; then
+        enableservice $ib_driver > /dev/null 2>&1
+    fi
     #/sbin/service $ib_driver restart
     #restartservice $ib_driver
     sysctl -p > /dev/null 2>&1
@@ -796,7 +810,7 @@ done # end for nic
 if [ $PLTFRM == "Linux" ]
 then
     #/sbin/service $ib_driver restart
-    if [ "$restart_ib_driver" = "1" ]; then
+    if [ "$restart_ib_driver" = "1" ] && [ -n "$ib_driver" ]; then
             echo "restart $ib_driver service"
             logger -p local4.info -t $log_label "restart $ib_driver service"
             restartservice $ib_driver

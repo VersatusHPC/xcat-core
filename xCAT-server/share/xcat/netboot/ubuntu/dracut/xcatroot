@@ -65,7 +65,6 @@ XCATNETPLAN6
           via: $gw
 XCATNETPLAN6GW
         fi
-        chmod 600 $file
     else
         cat > $file <<XCATNETPLAN
 network:
@@ -77,6 +76,7 @@ network:
         macaddress: "$mac"
 XCATNETPLAN
     fi
+    chmod 600 $file
 }
 
 NEWROOT=$3

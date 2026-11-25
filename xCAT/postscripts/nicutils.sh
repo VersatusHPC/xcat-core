@@ -1630,6 +1630,13 @@ function check_NetworkManager_or_network_service() {
         log_info "networking service is active"
         return 0
     fi
+    # netplan renders to systemd-networkd on Ubuntu. confignetwork takes the same path as for
+    # a node with no service, so this is not an error.
+    checkservicestatus systemd-networkd > /dev/null 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_info "systemd-networkd is active"
+        return 2
+    fi
     log_error "NetworkManager, network.service and networking service are not active"
     return 2
 }

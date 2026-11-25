@@ -400,6 +400,50 @@ sub debootstrap_finished {
     return -e "$rootimg_dir/var/lib/dpkg/status" ? 1 : 0;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 install_postinit_service
+
+    Descriptions:
+        Install xcatpostinit into a diskless root image. An image with systemd gets the
+        native xcatpostinit.service. An image without systemd gets the SysV script in rc2.d.
+    Arguments:
+        $rootimg_dir: the root image directory
+        $postscripts_dir: the directory that holds xcatpostinit and xcatpostinit.service
+    Returns:
+        1 on success, dies when a file cannot be written
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub install_postinit_service {
+    my ($rootimg_dir, $postscripts_dir) = @_;
+    my $sysv_script = "$rootimg_dir/etc/init.d/xcatpostinit";
+    my $sysv_link   = "$rootimg_dir/etc/rc2.d/S61xcatpostinit";
+
+    unless (-d "$rootimg_dir/usr/lib/systemd/system" || -d "$rootimg_dir/lib/systemd/system") {
+        File::Copy::copy("$postscripts_dir/xcatpostinit", $sysv_script)
+          or die "Error: cannot write $sysv_script: $!\n";
+        chmod(0755, $sysv_script);
+        unlink($sysv_link);
+        symlink('../init.d/xcatpostinit', $sysv_link) or die "Error: cannot link $sysv_link: $!\n";
+        return 1;
+    }
+
+    # systemd-sysv-generator makes a second unit from an init.d script of the same name.
+    unlink($sysv_link, $sysv_script);
+    mkpath(["$rootimg_dir/opt/xcat", "$rootimg_dir/etc/systemd/system/multi-user.target.wants"]);
+    File::Copy::copy("$postscripts_dir/xcatpostinit", "$rootimg_dir/opt/xcat/xcatpostinit")
+      or die "Error: cannot write $rootimg_dir/opt/xcat/xcatpostinit: $!\n";
+    chmod(0755, "$rootimg_dir/opt/xcat/xcatpostinit");
+    File::Copy::copy("$postscripts_dir/xcatpostinit.service", "$rootimg_dir/etc/systemd/system/xcatpostinit.service")
+      or die "Error: cannot write $rootimg_dir/etc/systemd/system/xcatpostinit.service: $!\n";
+    my $wants = "$rootimg_dir/etc/systemd/system/multi-user.target.wants/xcatpostinit.service";
+    unlink($wants);
+    symlink('../xcatpostinit.service', $wants) or die "Error: cannot link $wants: $!\n";
+    return 1;
+}
+
 # genimage moves the .bak files back, and a .bak that an interrupted run left holds the image's own file.
 sub use_host_resolver {
     my ($rootimg_dir) = @_;

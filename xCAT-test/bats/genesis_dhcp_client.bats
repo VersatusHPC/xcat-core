@@ -8,7 +8,7 @@
 
 load 'helpers/shell_source'
 
-ISC4='dhclient -cf /etc/dhclient.conf -pf /var/run/dhclient.eth0.pid eth0'
+ISC4='dhclient -cf /etc/dhclient.conf -pf /var/run/dhclient.eth0.pid eth0 -lf /var/lib/dhclient/dhclient.leases'
 ISC6='dhclient -6 -pf /var/run/dhclient6.eth0.pid eth0 -lf /var/lib/dhclient/dhclient6.leases'
 
 setup()
@@ -96,6 +96,12 @@ started()
     [ "$(selected 4 dhclient)" = "$ISC4" ]
     [ "$(selected 6 dhclient)" = "$ISC6" ]
     [ "$(selected 4 dhclient dhcpcd)" = "$ISC4" ]
+}
+
+@test "the ISC client keeps its IPv4 leases where the image has a directory for them" {
+    # A Debian-built dhclient defaults to /var/lib/dhcp, which the image does not carry, and
+    # exits. xcat-cmdline.sh creates /var/lib/dhclient, the directory the IPv6 leases use.
+    [[ "$(selected 4 dhclient)" == *' -lf /var/lib/dhclient/dhclient.leases' ]]
 }
 
 @test "dhcpcd stands in for dhclient, waiting for a lease and keeping the address" {

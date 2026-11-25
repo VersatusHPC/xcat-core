@@ -395,6 +395,9 @@ sub stage_genesis_payload {
     my (%a)  = @_;
     my $run  = $a{run} || sub { return system($_[0]); };
     my $rc;
+    # tempdir becomes / of the image. tempdir() makes it 0700, and a daemon that drops root
+    # then cannot read /etc.
+    chmod(0755, $a{tempdir});
     if (($a{genesis_type} // '') eq 'legacy') {
         # Two copies, each able to fail on its own. Return on the first, so neither the exit
         # status nor the name of the unreadable file is lost to the one that follows it.

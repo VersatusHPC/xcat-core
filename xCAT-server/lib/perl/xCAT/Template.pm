@@ -97,34 +97,12 @@ sub _dynamic_kickstart_network
     return $network;
 }
 
-# The IPv6 resolvers of a node. site.nameservers holds one list for the whole cluster, so an
-# IPv6-only node can be given the IPv4 resolver of another network. It cannot reach that
-# resolver, and an unreachable server in resolv.conf makes every lookup wait for its timeout.
-#
-# '<xcatmaster>' is the management node, which runs named. It stands in when the cluster
-# configures no IPv6 resolver, because a node with none writes no resolv.conf at all. It is not
-# the gateway: a cluster whose gateway is a separate router would be given a resolver that
-# answers nothing, and a cluster with no gateway would be given none at all.
-#
-# A management node with no address on the network of the node yields no resolver, rather than
-# a guess.
+# The IPv6 resolvers of a node. NetworkUtils carries the rules, so that the kernel command line
+# of a netboot node names the same resolvers as the kickstart of an installed one.
 sub _ipv6_nameservers_for_node
 {
     my ($candidate) = @_;
-
-    my %nameservers = %{ xCAT::NetworkUtils->getNodeNameservers([$candidate]) };
-    my @resolvers;
-    foreach my $nameserver (split(/,/, $nameservers{$candidate} // '')) {
-        next unless length($nameserver);
-        my $resolved = xCAT::NetworkUtils->ipv6_server_for_node($candidate, $nameserver);
-        push @resolvers, $resolved
-          if defined($resolved) && index($resolved, ':') >= 0;
-    }
-    return @resolvers if @resolvers;
-
-    my $master6 = xCAT::NetworkUtils->ipv6_server_for_node($candidate, '<xcatmaster>');
-    return ($master6) if defined($master6) && index($master6, ':') >= 0;
-    return ();
+    return xCAT::NetworkUtils->ipv6_nameservers_for_node($candidate);
 }
 
 sub _static_kickstart_network6

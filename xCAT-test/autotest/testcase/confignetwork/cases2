@@ -5,7 +5,7 @@ cmd:lsdef $$CN;if [ $? -eq 0 ]; then lsdef -l $$CN -z >/tmp/CN.roce.stanza ;fi
 check:rc==0
 cmd:dnf -y install rdma-core librdmacm-utils perftest
 check:rc==0
-cmd:xdsh $$CN "dnf -y --nogpgcheck --disablerepo='*' --enablerepo='local-*' install rdma-core librdmacm-utils perftest"
+cmd:xdsh $$CN "dnf -y --nogpgcheck --disablerepo='*' --enablerepo='*__GETNODEATTR($$CN,os)__*' install rdma-core librdmacm-utils perftest"
 check:rc==0
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh backup
 check:rc==0

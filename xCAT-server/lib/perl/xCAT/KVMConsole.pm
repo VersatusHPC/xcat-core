@@ -11,6 +11,10 @@ use warnings;
 =head3 console_command
 
     Descriptions: The command that attaches to the serial console of a KVM guest.
+                  goconserver and conserver share one console among their clients, so
+                  no multiplexer runs on the hypervisor. A multiplexer repaints its
+                  screen on each attach, and the console log then repeats old output.
+                  --force takes the console from an earlier session.
     Arguments:    host - the hypervisor that runs the guest
                   node - the libvirt domain name, which is the xCAT node name
     Returns:      the command as a list, for exec
@@ -20,11 +24,7 @@ use warnings;
 #-------------------------------------------------------------------------------
 sub console_command {
     my ($host, $node) = @_;
-    my $session   = "serial-$node-cons";
-    my $virshcons = "virsh -c qemu:///system console --force $node";
-    return ('ssh', '-t', $host,
-        "tmux -u new-session -d -A -x 200 -y 50 -s $session '$virshcons'; "
-          . "tmux set-option -t $session status off; exec tmux -u attach -t $session");
+    return ('ssh', '-t', $host, 'virsh', '-c', 'qemu:///system', 'console', '--force', $node);
 }
 
 1;

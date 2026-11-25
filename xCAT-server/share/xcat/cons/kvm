@@ -69,7 +69,7 @@ until ($dsthost and $speed and $dstty) {
 }
 release_lock();
 
-# TERM may be empty (SLES 12, PowerKVM); a terminal multiplexer needs it.
+# TERM may be empty (SLES 12, PowerKVM); ssh -t needs it.
 if (!$ENV{'TERM'}) {
     $ENV{'TERM'} = "vt100";
 }

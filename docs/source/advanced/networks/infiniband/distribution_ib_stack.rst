@@ -33,6 +33,8 @@ The EL lists hold ``rdma-core``, ``libibverbs-utils``, ``librdmacm-utils``,
 AlmaLinux 9 and 10 DVDs, in BaseOS and AppStream. The Ubuntu list holds the same set with the
 Ubuntu names. On Ubuntu, all of them except ``rdma-core`` are in ``universe``, which is not on
 the installation ISO. Give the osimage a ``pkgdir`` or ``otherpkgdir`` that carries ``universe``.
+The ``ib_ipoib`` module of Ubuntu is in ``linux-modules-extra-<kernel>``. The generic kernel
+installs it, but the ``linux-virtual`` kernel of the Ubuntu cloud images does not.
 
 The netboot list holds only the InfiniBand packages. Add it after the compute list: ::
 

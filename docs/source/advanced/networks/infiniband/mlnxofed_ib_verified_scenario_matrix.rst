@@ -74,7 +74,8 @@ card. No scenario is verified on a ConnectX card yet.
 +------------------------+-----------------------------------------------+---------------------------+
 | EL 9 x86_64            | the package lists and ``configib`` unit tests | unit tests only           |
 +------------------------+-----------------------------------------------+---------------------------+
-| Ubuntu 24.04 x86_64    | ``configib`` writes the netplan drop-in       | unit tests only           |
+| Ubuntu 24.04 x86_64    | ``configib`` writes the netplan drop-in, and  | CI on the management      |
+|                        | fails without an IB device                    | node, no card             |
 +------------------------+-----------------------------------------------+---------------------------+
 | IPoIB link to a peer   | ``ping`` over ``ib0``, ``opensm``             | not verified, needs a card|
 +------------------------+-----------------------------------------------+---------------------------+

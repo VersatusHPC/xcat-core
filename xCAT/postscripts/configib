@@ -495,7 +495,7 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                             # ipv6
                             if echo $nicip | grep : 2>&1 1>/dev/null
                             then
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip
+                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip/$netmask
                             else # ipv4
                                 prefix=$(convert_netmask_to_cidr $netmask)
                                 nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv4.method manual ipv4.addresses $nicip/$prefix
@@ -504,7 +504,7 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                             # ipv6
                             if echo $nicip | grep : 2>&1 1>/dev/null
                             then
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip
+                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip/$netmask
                             else # ipv4
                                 prefix=$(convert_netmask_to_cidr $netmask)
                                 nmcli con add type infiniband con-name $nic ifname $nic ipv4.method manual ipv4.addresses $nicip/$prefix
@@ -569,25 +569,14 @@ IPADDR=$nicip" > $dir/ifcfg-$nic
                     done		
                else # not the first ip address
                    if xcat_is_el9_or_later "$OSVER"; then
-                       if nmcli --field connection.id con show $nic 2>&1 1>/dev/null
-                       then # modify current connection
-                            # ipv6
-                            if echo $nicip | grep : 2>&1 1>/dev/null
-                            then
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip
-                            else # ipv4
-                                prefix=$(convert_netmask_to_cidr $netmask)
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv4.method manual ipv4.addresses $nicip/$prefix
-                            fi
-                       else # create new connection
-                            # ipv6
-                            if echo $nicip | grep : 2>&1 1>/dev/null
-                            then
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip
-                            else # ipv4
-                                prefix=$(convert_netmask_to_cidr $netmask)
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv4.method manual ipv4.addresses $nicip/$prefix
-                            fi
+                       # The connection exists from the first address. "+" adds an address,
+                       # a plain ipv4.addresses replaces the list.
+                       if echo $nicip | grep : 2>&1 1>/dev/null
+                       then
+                           nmcli con modify $nic ipv6.method manual +ipv6.addresses $nicip/$netmask
+                       else
+                           prefix=$(convert_netmask_to_cidr $netmask)
+                           nmcli con modify $nic ipv4.method manual +ipv4.addresses $nicip/$prefix
                        fi
                    else
                        # ipv6

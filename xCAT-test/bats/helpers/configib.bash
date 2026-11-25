@@ -20,9 +20,16 @@ setup_configib()
     : >"$ROOT/etc/sysctl.conf"
 
     local command
-    for command in logger sysctl systemctl modprobe netplan networkctl ifup ifdown ip sleep; do
+    for command in logger sysctl modprobe netplan networkctl ifup ifdown ip sleep; do
         printf '#!/bin/sh\necho "%s $*" >>"$EVENTS"\n' "$command" >"$BIN/$command"
     done
+    # "systemctl is-active" answers inactive unless the test sets SYSTEMCTL_ACTIVE_RC=0.
+    cat >"$BIN/systemctl" <<'SH'
+#!/bin/sh
+echo "systemctl $*" >>"$EVENTS"
+[ "$1" = is-active ] && exit "${SYSTEMCTL_ACTIVE_RC:-3}"
+exit 0
+SH
     cat >"$BIN/nmcli" <<'SH'
 #!/bin/sh
 echo "nmcli $*" >>"$EVENTS"

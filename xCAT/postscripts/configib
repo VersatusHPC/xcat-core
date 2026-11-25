@@ -328,8 +328,32 @@ fi
 
 
 goodnics=""
+ib_rc=0
 for nic in `echo "$NIC_IBNICS" | tr "," "\n"`
 do
+    # A broken IB driver in an image leaves no InfiniBand device. Fail here, before any
+    # configuration is written, so the deployment does not report success without IB.
+    # The type file holds the ARPHRD link layer; 32 is InfiniBand.
+    if [ "$PLTFRM" = "Linux" ]; then
+        ib_err=""
+        # ib_ipoib creates the netdev after modprobe returns.
+        ib_wait=0
+        while [ ! -e "$ib_root/sys/class/net/$nic" ] && [ $ib_wait -lt 10 ]; do
+            sleep 1
+            ib_wait=$((ib_wait+1))
+        done
+        if [ ! -e "$ib_root/sys/class/net/$nic" ]; then
+            ib_err="configib: ERROR: $nic is an InfiniBand nic in the nics table, but the node has no InfiniBand device $nic"
+        elif [ "$(cat "$ib_root/sys/class/net/$nic/type" 2>/dev/null)" != "32" ]; then
+            ib_err="configib: ERROR: $nic is an InfiniBand nic in the nics table, but the link layer of $nic is not InfiniBand"
+        fi
+        if [ -n "$ib_err" ]; then
+            echo "$ib_err"
+            logger -p local4.err -t $log_label "$ib_err"
+            ib_rc=1
+            continue
+        fi
+    fi
     #Get nic ips
     nicips=""
     for tmp in `echo "$NICIPS" | tr "," "\n"`
@@ -894,12 +918,15 @@ then
             logger -p local4.info -t $log_label "restart $ib_driver service"
             restartservice $ib_driver
     fi
-    ib_rc=0
+    netplan_apply=0
     for nic in `echo "$goodnics" | tr "," "\n"|sort -u`
     do
-        # netplan apply takes no nic, so it runs once after the loop.
-        [ "$ib_netplan" = "1" ] && continue
         sleep 5
+        # netplan apply takes no nic, so it runs once after the loop.
+        if [ "$ib_netplan" = "1" ]; then
+            netplan_apply=1
+            continue
+        fi
         if [[ "$OSVER" == rhels6* ]]
         then
             ip link set dev $nic up
@@ -925,12 +952,10 @@ then
             fi
         fi
     done
-    if [ "$ib_netplan" = "1" ] && [ -n "$goodnics" ]; then
-        if ! netplan apply; then
-            echo "configib: netplan apply failed"
-            logger -p local4.err -t $log_label "configib: netplan apply failed"
-            ib_rc=1
-        fi
+    if [ $netplan_apply -eq 1 ] && ! netplan apply; then
+        echo "configib: netplan apply failed"
+        logger -p local4.err -t $log_label "configib: netplan apply failed"
+        ib_rc=1
     fi
     exit $ib_rc
 fi

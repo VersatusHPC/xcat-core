@@ -3314,4 +3314,28 @@ sub named_service_action {
 }
 
 
+#-----------------------------------------------------------------------------
+
+=head3 in_tftpd_is_atftpd
+
+    Whether /usr/sbin/in.tftpd is atftpd. atftpd and tftp-hpa take different start options.
+
+    Arguments: optional code reference that runs in.tftpd with the given arguments and
+               returns its output. The default runs /usr/sbin/in.tftpd.
+    Returns: 1 for atftpd, else 0
+
+=cut
+
+#-----------------------------------------------------------------------------
+sub in_tftpd_is_atftpd {
+    my ($run) = @_;
+    unless ($run) {
+        return 0 unless -x '/usr/sbin/in.tftpd';
+        $run = sub { return `/usr/sbin/in.tftpd @_ 2>&1`; };
+    }
+    my $help = $run->('--help');
+    return ($help =~ /--daemon/ && $help =~ /--group/ && $help =~ /--logfile/) ? 1 : 0;
+}
+
+
 1;

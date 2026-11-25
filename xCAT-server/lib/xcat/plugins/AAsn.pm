@@ -1440,14 +1440,6 @@ sub stop_TFTP
     return 0;
 }
 
-sub in_tftpd_is_atftpd
-{
-    return 0 unless -x "/usr/sbin/in.tftpd";
-
-    my $help = `/usr/sbin/in.tftpd --help 2>&1`;
-    return ($help =~ /--daemon/ && $help =~ /--group/ && $help =~ /--logfile/) ? 1 : 0;
-}
-
 #-----------------------------------------------------------------------------
 #
 #=head3 enable_TFTP
@@ -1503,7 +1495,7 @@ sub enable_TFTP
     my $startcmd = "/usr/sbin/in.tftpd $v4only -v -l -s $tftpdir -m /etc/tftpmapfile4xcat.conf";
     if ($tftpflags) {
         $startcmd = "/usr/sbin/in.tftpd $v4only $tftpflags";
-    } elsif (in_tftpd_is_atftpd()) {
+    } elsif (xCAT::SvrUtils::in_tftpd_is_atftpd()) {
         $startcmd = "/usr/sbin/in.tftpd --daemon --user nobody --group nogroup $tftpdir";
     }
 

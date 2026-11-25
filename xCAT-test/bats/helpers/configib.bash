@@ -57,10 +57,12 @@ ubuntu_root()
     printf 'NAME="Ubuntu"\nVERSION_ID="24.04"\n' >"$ROOT/etc/os-release"
 }
 
-# An IB device that the kernel created, as configib sees it in /sys.
+# A device that the kernel created, as configib sees it in /sys. The type is the ARPHRD link
+# layer: 32 is InfiniBand, 1 is Ethernet.
 ib_device()
 {
     mkdir -p "$ROOT/sys/class/net/$1"
+    printf '%s\n' "${2:-32}" >"$ROOT/sys/class/net/$1/type"
 }
 
 # One NETWORKS_LINE value: <netname> <net> <mask>.

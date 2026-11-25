@@ -1569,7 +1569,7 @@ function log_old_configuration {
         str_temp=`ip addr show dev $nic`
     fi
 
-    logger -t $log_label -p local4.err "configeth: old configuration: $str_temp"
+    logger -t $log_label -p local4.info "configeth: old configuration: $str_temp"
     echo "configeth on $NODE: old configuration: $str_temp"
 }
 

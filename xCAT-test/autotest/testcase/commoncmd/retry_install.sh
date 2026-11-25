@@ -86,11 +86,16 @@ do
 
     #sleep while for installation.
     sleep 360
+    # A status other than powering-on means the node reached the network boot.
+    netbooted=0
     while [ ! `lsdef -l $node|grep status|grep booted` ]
     do 
         sleep $check_status
         stat=`lsdef $node -i status -c | cut -d '=' -f 2`
         echo "[$a] The status is not booted... ($stat)" 
+        if [ "$stat" != "powering-on" ]; then
+            netbooted=1
+        fi
         if [ $stat = "failed" ]; then
             # Installation failed, no reason to keep checking
             break
@@ -105,6 +110,12 @@ do
     lsdef -l $node|grep status|grep booted
     tobooted=$?
     echo "The tobooted is $tobooted"
+
+    # Another rinstall does not change the DHCP, TFTP or firmware path that the node never used.
+    if [[ $tobooted -ne 0 && $netbooted -eq 0 ]]; then
+        echo "$node never netbooted: the status stayed powering-on for the whole try. Not retrying."
+        exit 1
+    fi
 
     node_pingable $node
     pingable=$?

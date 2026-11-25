@@ -377,6 +377,9 @@ if [ -n "$str_ib_nics" ];then
     logger -t $log_label -p local4.info "confignics: executed script: configib for nics: $str_ib_nics, ports: $num_iba_ports"
     echo "confignics on $NODE: executed script: configib for nics: $str_ib_nics, ports: $num_iba_ports"
     NIC_IBNICS=$str_ib_nics NIC_IBAPORTS=$num_iba_ports configib
+    if [ $? -ne 0 ]; then
+        error_code=1
+    fi
 else
     if [ $bool_remove -eq 1 ];then
         logger -t $log_label -p local4.info "confignics: executed script: 'configib -u' to remove all ib nics and configuration files"

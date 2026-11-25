@@ -1,0 +1,65 @@
+start:configib_nmcli_el10
+description:configib for EL 10 makes an infiniband connection with nmcli, with the prefix of each address, and adds the second address. It runs the installed configib against a scratch root with a stub nmcli, so it needs no IB card and no compute node.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh el10
+check:rc==0
+check:output=~nmcli con add type infiniband con-name ib0 ifname ib0 ipv4.method manual ipv4.addresses 10.10.0.5/16
+check:output=~nmcli con modify ib0 ipv6.method manual \+ipv6.addresses fd00:10::5/64
+check:output=~nmcli con up ib0
+check:output!~ifcfg-ib0
+end
+
+start:configib_distro_stack_el10
+description:configib on a node without MLNX_OFED uses the RDMA stack of the distribution. It loads ib_ipoib and does not use openibd. No IB card is needed.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh el10
+check:rc==0
+check:output=~using the distribution RDMA stack
+check:output=~modprobe ib_ipoib
+check:output!~openibd
+end
+
+start:configib_netplan_noble
+description:configib for Ubuntu 24.04 writes a netplan drop-in with every address of ib0 and runs netplan apply. It does not use ifupdown. No IB card is needed.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh noble
+check:rc==0
+check:output=~file /etc/netplan/90-xcat-ib0.yaml
+check:output=~- 10.10.0.5/16
+check:output=~- fd00:10::5/64
+check:output=~netplan apply
+check:output!~ifup ib0
+end
+
+start:configib_missing_device_error
+description:configib fails when ib0 is an InfiniBand nic and the node has no InfiniBand device. It names the nic and writes no connection.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh el10-nodevice
+check:rc!=0
+check:output=~but the node has no InfiniBand device ib0
+check:output!~nmcli con add
+end
+
+start:configib_link_layer_error
+description:configib fails when the device named ib0 is not InfiniBand, as a dummy or Ethernet device is.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh el10-ethernet
+check:rc!=0
+check:output=~the link layer of ib0 is not InfiniBand
+check:output!~nmcli con add
+end
+
+start:configib_netplan_missing_device
+description:configib for Ubuntu 24.04 fails when the node has no InfiniBand device for ib0, and writes no netplan drop-in.
+os:Linux
+label:mn_only,ci_test,IB
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/infiniband/configib_sandbox.sh noble-nodevice
+check:rc!=0
+check:output=~but the node has no InfiniBand device ib0
+check:output!~90-xcat-ib0
+end

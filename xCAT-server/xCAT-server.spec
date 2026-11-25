@@ -190,6 +190,7 @@ mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/image_data
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/scripts
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/sles
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/rh
+mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/ubuntu
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/scripts/Mellanox
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/devicetype
 mkdir -p $RPM_BUILD_ROOT/%{prefix}/share/xcat/hamn
@@ -263,6 +264,7 @@ ln -sf kvm $RPM_BUILD_ROOT/%{prefix}/share/xcat/cons/mic
 cp -r share/xcat/ib/scripts/* $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/scripts
 cp share/xcat/ib/netboot/sles/* $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/sles
 cp share/xcat/ib/netboot/rh/* $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/rh
+cp share/xcat/ib/netboot/ubuntu/* $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/ubuntu
 cp -r share/xcat/devicetype/* $RPM_BUILD_ROOT/%{prefix}/share/xcat/devicetype
 ln -sf Jun $RPM_BUILD_ROOT/%{prefix}/share/xcat/devicetype/EthSwitch/Juniper
 
@@ -270,6 +272,7 @@ chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/cons/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/scripts/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/sles/*
 chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/rh/*
+chmod 755 $RPM_BUILD_ROOT/%{prefix}/share/xcat/ib/netboot/ubuntu/*
 
 cp lib/xcat/plugins/* $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin
 chmod 644 $RPM_BUILD_ROOT/%{prefix}/lib/perl/xCAT_plugin/*

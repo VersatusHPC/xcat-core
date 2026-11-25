@@ -29,6 +29,10 @@ else
     log_label="xcat"
 fi
 
+# XCAT_CONFIGIB_ROOT prefixes every file this script reads or writes under /etc and /sys.
+# The bats tests set it to a scratch tree. It is empty on a node.
+ib_root="${XCAT_CONFIGIB_ROOT:-}"
+
 ########################################################################
 # nmcli_used=0: use network.service
 # nmcli_used=1: use NetworkManager
@@ -83,6 +87,41 @@ convert_netmask_to_cidr() {
 
 
 
+# ib_netplan_file <nic> -- the netplan drop-in that configib owns for one IB nic.
+ib_netplan_file()
+{
+    echo "$ib_root/etc/netplan/90-xcat-$1.yaml"
+}
+
+# ib_netplan_write <nic> <mtu> <address/prefix>... -- write the whole drop-in of one IB nic.
+# netplan has no infiniband section. An IPoIB nic is declared under ethernets by its name.
+# dhcp4 and dhcp6 are false so that a netdef of the same name in another file cannot add a lease.
+ib_netplan_write()
+{
+    local nic=$1 mtu=$2 file addr
+    shift 2
+    file=$(ib_netplan_file "$nic")
+    (
+        umask 077
+        {
+            echo "# Written by the xCAT configib postscript."
+            echo "network:"
+            echo "  version: 2"
+            echo "  ethernets:"
+            echo "    $nic:"
+            echo "      dhcp4: false"
+            echo "      dhcp6: false"
+            [ -n "$mtu" ] && echo "      mtu: $mtu"
+            echo "      addresses:"
+            for addr in "$@"; do
+                echo "        - $addr"
+            done
+        } >"$file.tmp.$$"
+    )
+    mv -f "$file.tmp.$$" "$file"
+    chmod 600 "$file"
+}
+
 #if $NIC_IBNICS is not defined, all ib nics' configuration files will be deleted.
 if [ -z "$NIC_IBNICS" ]; then
     echo "nothing to do."
@@ -110,50 +149,64 @@ then
             exit
         fi
     fi
-else
+elif [ -e "$ib_root/etc/init.d/openibd" ] || [ -e "$ib_root/usr/lib/systemd/system/openibd.service" ]
+then
+    # Only MLNX_OFED installs openibd.
     ib_driver="openibd"
+    logger -p local4.info -t $log_label "configib: MLNX_OFED found, using the openibd service"
+else
+    # The rdma-core stack of the distribution has no driver service. udev loads ib_ipoib when it
+    # finds an IB device, but not for a device it found before rdma-core was installed.
+    ib_driver=""
+    logger -p local4.info -t $log_label "configib: using the distribution RDMA stack"
+    if [ "$PLTFRM" = "Linux" ] && ! modprobe ib_ipoib >/dev/null 2>&1; then
+        echo "configib: WARNING: cannot load ib_ipoib"
+        logger -p local4.warning -t $log_label "configib: cannot load ib_ipoib"
+    fi
 fi
 
 restart_ib_driver=0
 #make changes to the confiuration file
 if [ $PLTFRM == "Linux" ]
 then
-    if [ -f "/etc/rdma/rdma.conf" ]
+    if [ -f "${ib_root}/etc/rdma/rdma.conf" ]
     then
-        md5f1=$(md5sum /etc/rdma/rdma.conf |cut -d' ' -f1)
-        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" /etc/rdma/rdma.conf`
-	echo "$TMP1" > /etc/rdma/rdma.conf
-        md5f2=$(md5sum /etc/rdma/rdma.conf |cut -d' ' -f1)
+        md5f1=$(md5sum ${ib_root}/etc/rdma/rdma.conf |cut -d' ' -f1)
+        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" ${ib_root}/etc/rdma/rdma.conf`
+	echo "$TMP1" > ${ib_root}/etc/rdma/rdma.conf
+        md5f2=$(md5sum ${ib_root}/etc/rdma/rdma.conf |cut -d' ' -f1)
         if [ "$md5f2" != "$md5f1" ]; then
             restart_ib_driver=1
         fi
-    elif [ -f "/etc/infiniband/openib.conf" ]
+    elif [ -f "${ib_root}/etc/infiniband/openib.conf" ]
     then
-        md5f1=$(md5sum /etc/infiniband/openib.conf |cut -d' ' -f1)
-        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" /etc/infiniband/openib.conf`
-	echo "$TMP1" > /etc/infiniband/openib.conf
-        md5f2=$(md5sum /etc/infiniband/openib.conf |cut -d' ' -f1)
+        md5f1=$(md5sum ${ib_root}/etc/infiniband/openib.conf |cut -d' ' -f1)
+        TMP1=`sed "s/SDP_LOAD=yes/SDP_LOAD=no/g" ${ib_root}/etc/infiniband/openib.conf`
+	echo "$TMP1" > ${ib_root}/etc/infiniband/openib.conf
+        md5f2=$(md5sum ${ib_root}/etc/infiniband/openib.conf |cut -d' ' -f1)
         if [ "$md5f2" != "$md5f1" ]; then
             restart_ib_driver=1
         fi
     fi
 
-    if [ -f "/etc/modprobe.conf" ]
+    if [ -f "${ib_root}/etc/modprobe.conf" ]
     then
 	if [ "$portnum" == "1" ]; then
-            TMP2=`sed "/options ib_ehca nr_ports/d" /etc/modprobe.conf`
-	    echo "$TMP2" > /etc/modprobe.conf
-            echo 'options ib_ehca nr_ports=1' >> /etc/modprobe.conf
+            TMP2=`sed "/options ib_ehca nr_ports/d" ${ib_root}/etc/modprobe.conf`
+	    echo "$TMP2" > ${ib_root}/etc/modprobe.conf
+            echo 'options ib_ehca nr_ports=1' >> ${ib_root}/etc/modprobe.conf
 	else
-            TMP2=`sed "/options ib_ehca nr_ports=1/d" /etc/modprobe.conf`
-	    echo "$TMP2" > /etc/modprobe.conf
+            TMP2=`sed "/options ib_ehca nr_ports=1/d" ${ib_root}/etc/modprobe.conf`
+	    echo "$TMP2" > ${ib_root}/etc/modprobe.conf
 	fi
-	TMP3=`sed "/options ib_ehca lock_hcalls/d" /etc/modprobe.conf`
-	echo "$TMP3" > /etc/modprobe.conf
-        echo 'options ib_ehca lock_hcalls=0' >> /etc/modprobe.conf
+	TMP3=`sed "/options ib_ehca lock_hcalls/d" ${ib_root}/etc/modprobe.conf`
+	echo "$TMP3" > ${ib_root}/etc/modprobe.conf
+        echo 'options ib_ehca lock_hcalls=0' >> ${ib_root}/etc/modprobe.conf
     fi
     #/sbin/chkconfig --level 2345 $ib_driver on > /dev/null 2>&1
-    enableservice $ib_driver > /dev/null 2>&1
+    if [ -n "$ib_driver" ]; then
+        enableservice $ib_driver > /dev/null 2>&1
+    fi
     #/sbin/service $ib_driver restart
     #restartservice $ib_driver
     sysctl -p > /dev/null 2>&1
@@ -162,13 +215,13 @@ fi
 #clean up existing ib nic configrations
 if [ $PLTFRM == "Linux" ]
 then
-    if [ -f /etc/redhat-release ]
+    if [ -f ${ib_root}/etc/redhat-release ]
     then
         OS_name="redhat"
-    elif [ -f /etc/SuSE-release ] || [ -f /etc/SUSE-brand ]
+    elif [ -f ${ib_root}/etc/SuSE-release ] || [ -f ${ib_root}/etc/SUSE-brand ]
     then
         OS_name="suse"
-    elif [ -f /etc/os-release ] && cat /etc/os-release |grep NAME|grep Ubuntu>/dev/null
+    elif [ -f ${ib_root}/etc/os-release ] && cat ${ib_root}/etc/os-release |grep NAME|grep Ubuntu>/dev/null
 	then
         OS_name="ubuntu"
     else
@@ -176,13 +229,24 @@ then
         logger -p local4.info -t $log_label "Unsupported to config IB on this OS!"
         exit
     fi
+
+    # Ubuntu 18.04 and later render the network with netplan and do not install ifupdown. Only
+    # ifup that is installed AND a running networking service mean /etc/network/interfaces is
+    # still in use. This is the test of configeth.
+    ib_netplan=0
+    if [ $OS_name == 'ubuntu' ] && command -v netplan >/dev/null 2>&1 && [ -d "$ib_root/etc/netplan" ]; then
+        ib_netplan=1
+        if command -v ifup >/dev/null 2>&1 && systemctl is-active networking >/dev/null 2>&1; then
+            ib_netplan=0
+        fi
+    fi
 	
     if [[ $OS_name != 'ubuntu' ]] && ! xcat_is_el9_or_later "$OSVER"; then
         if [ $OS_name == 'suse' ]
         then
-            dir="/etc/sysconfig/network"
+            dir="${ib_root}/etc/sysconfig/network"
         else
-            dir="/etc/sysconfig/network-scripts"
+            dir="${ib_root}/etc/sysconfig/network-scripts"
         fi
 		
         #`rm -f $dir/ifcfg-$nic` 2>&1 1>/dev/null
@@ -192,8 +256,13 @@ then
             rm -f $dir/ifcfg-$nic 2>&1 1>/dev/null
         done
 
+    elif [ $OS_name == 'ubuntu' ] && [ $ib_netplan -eq 1 ]; then
+        for nic in `echo "$NIC_IBNICS" | tr "," "\n"`
+        do
+            rm -f "$(ib_netplan_file $nic)"
+        done
     elif [ $OS_name == 'ubuntu' ]; then
-        interfaces="/etc/network/interfaces"
+        interfaces="${ib_root}/etc/network/interfaces"
 
         for tmp  in `sed -n "/auto ib/=" ${interfaces}`
         do
@@ -259,8 +328,32 @@ fi
 
 
 goodnics=""
+ib_rc=0
 for nic in `echo "$NIC_IBNICS" | tr "," "\n"`
 do
+    # A broken IB driver in an image leaves no InfiniBand device. Fail here, before any
+    # configuration is written, so the deployment does not report success without IB.
+    # The type file holds the ARPHRD link layer; 32 is InfiniBand.
+    if [ "$PLTFRM" = "Linux" ]; then
+        ib_err=""
+        # ib_ipoib creates the netdev after modprobe returns.
+        ib_wait=0
+        while [ ! -e "$ib_root/sys/class/net/$nic" ] && [ $ib_wait -lt 10 ]; do
+            sleep 1
+            ib_wait=$((ib_wait+1))
+        done
+        if [ ! -e "$ib_root/sys/class/net/$nic" ]; then
+            ib_err="configib: ERROR: $nic is an InfiniBand nic in the nics table, but the node has no InfiniBand device $nic"
+        elif [ "$(cat "$ib_root/sys/class/net/$nic/type" 2>/dev/null)" != "32" ]; then
+            ib_err="configib: ERROR: $nic is an InfiniBand nic in the nics table, but the link layer of $nic is not InfiniBand"
+        fi
+        if [ -n "$ib_err" ]; then
+            echo "$ib_err"
+            logger -p local4.err -t $log_label "$ib_err"
+            ib_rc=1
+            continue
+        fi
+    fi
     #Get nic ips
     nicips=""
     for tmp in `echo "$NICIPS" | tr "," "\n"`
@@ -305,6 +398,8 @@ do
 	   j=$((j+1))
    done
 
+   netplan_addrs=()
+   netplan_mtu=""
    ipindex=0
    for nicip in `echo $nicips | tr "|" "\n"`
    do
@@ -386,23 +481,23 @@ do
        then
            # Issue openibd for Linux at boot time
 
-           if [ -f /etc/sysctl.conf ]
+           if [ -f ${ib_root}/etc/sysctl.conf ]
            then
-               TMP1=`sed "/net.ipv4.conf.$nic.arp_filter=1/d" /etc/sysctl.conf`
-	       echo "$TMP1" > /etc/sysctl.conf
-               TMP2=`sed "/net.ipv4.conf.$nic.arp_ignore=1/d" /etc/sysctl.conf`
-	       echo "$TMP2" > /etc/sysctl.conf
+               TMP1=`sed "/net.ipv4.conf.$nic.arp_filter=1/d" ${ib_root}/etc/sysctl.conf`
+	       echo "$TMP1" > ${ib_root}/etc/sysctl.conf
+               TMP2=`sed "/net.ipv4.conf.$nic.arp_ignore=1/d" ${ib_root}/etc/sysctl.conf`
+	       echo "$TMP2" > ${ib_root}/etc/sysctl.conf
                cfg="net.ipv4.conf.$nic.arp_filter=1"
-               grep "$cfg" /etc/sysctl.conf 2>&1 1>/dev/null
+               grep "$cfg" ${ib_root}/etc/sysctl.conf 2>&1 1>/dev/null
                if [ $? -ne 0 ]
                then
-                   echo "net.ipv4.conf.$nic.arp_filter=1" >> /etc/sysctl.conf
+                   echo "net.ipv4.conf.$nic.arp_filter=1" >> ${ib_root}/etc/sysctl.conf
                fi
                cfg="net.ipv4.conf.$nic.arp_ignore=1"
-               grep "$cfg" /etc/sysctl.conf 2>&1 1>/dev/null
+               grep "$cfg" ${ib_root}/etc/sysctl.conf 2>&1 1>/dev/null
                if [ $? -ne 0 ]
                then
-                   echo "net.ipv4.conf.$nic.arp_ignore=1" >> /etc/sysctl.conf
+                   echo "net.ipv4.conf.$nic.arp_ignore=1" >> ${ib_root}/etc/sysctl.conf
                fi
            fi
 
@@ -426,9 +521,9 @@ IPADDR=$nicip" > $dir/ifcfg-$nic
                     fi
                    if [ -n "$gateway" ]; then
                        # Do not add duplicate default gateway entry
-                       grep -E "default\\s+$gateway\\s+" /etc/sysconfig/network/routes 2>&1 1>/dev/null
+                       grep -E "default\\s+$gateway\\s+" ${ib_root}/etc/sysconfig/network/routes 2>&1 1>/dev/null
                        if [ $? -ne 0 ]; then
-                           echo "default $gateway - -" >> /etc/sysconfig/network/routes
+                           echo "default $gateway - -" >> ${ib_root}/etc/sysconfig/network/routes
                        fi
                    fi
 
@@ -459,9 +554,9 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                     fi
                    if [ -n "$gateway" ]; then
                        # Do not add duplicate default gateway entry
-                       grep -E "default\\s+$gateway\\s+" /etc/sysconfig/network/routes 2>&1 1>/dev/null
+                       grep -E "default\\s+$gateway\\s+" ${ib_root}/etc/sysconfig/network/routes 2>&1 1>/dev/null
                        if [ $? -ne 0 ]; then
-                           echo "default $gateway - -" >> /etc/sysconfig/network/routes
+                           echo "default $gateway - -" >> ${ib_root}/etc/sysconfig/network/routes
                        fi
                    fi
                    #add extra params
@@ -491,7 +586,7 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                             # ipv6
                             if echo $nicip | grep : 2>&1 1>/dev/null
                             then
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip
+                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip/$netmask
                             else # ipv4
                                 prefix=$(convert_netmask_to_cidr $netmask)
                                 nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv4.method manual ipv4.addresses $nicip/$prefix
@@ -500,7 +595,7 @@ IPADDR_$ipindex=$nicip" >> $dir/ifcfg-$nic
                             # ipv6
                             if echo $nicip | grep : 2>&1 1>/dev/null
                             then
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip
+                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip/$netmask
                             else # ipv4
                                 prefix=$(convert_netmask_to_cidr $netmask)
                                 nmcli con add type infiniband con-name $nic ifname $nic ipv4.method manual ipv4.addresses $nicip/$prefix
@@ -565,25 +660,14 @@ IPADDR=$nicip" > $dir/ifcfg-$nic
                     done		
                else # not the first ip address
                    if xcat_is_el9_or_later "$OSVER"; then
-                       if nmcli --field connection.id con show $nic 2>&1 1>/dev/null
-                       then # modify current connection
-                            # ipv6
-                            if echo $nicip | grep : 2>&1 1>/dev/null
-                            then
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv6.method manual ipv6.addresses $nicip
-                            else # ipv4
-                                prefix=$(convert_netmask_to_cidr $netmask)
-                                nmcli con modify $nic type infiniband con-name $nic ifname $nic connection.autoconnect yes ipv4.method manual ipv4.addresses $nicip/$prefix
-                            fi
-                       else # create new connection
-                            # ipv6
-                            if echo $nicip | grep : 2>&1 1>/dev/null
-                            then
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv6.method manual ipv6.addresses $nicip
-                            else # ipv4
-                                prefix=$(convert_netmask_to_cidr $netmask)
-                                nmcli con add type infiniband con-name $nic ifname $nic ipv4.method manual ipv4.addresses $nicip/$prefix
-                            fi
+                       # The connection exists from the first address. "+" adds an address,
+                       # a plain ipv4.addresses replaces the list.
+                       if echo $nicip | grep : 2>&1 1>/dev/null
+                       then
+                           nmcli con modify $nic ipv6.method manual +ipv6.addresses $nicip/$netmask
+                       else
+                           prefix=$(convert_netmask_to_cidr $netmask)
+                           nmcli con modify $nic ipv4.method manual +ipv4.addresses $nicip/$prefix
                        fi
                    else
                        # ipv6
@@ -662,6 +746,29 @@ IPADDR$ipindex=$nicip"
                         fi
                     fi
                 fi # end not the first ip address
+            elif [ $OS_name == 'ubuntu' ] && [ $ib_netplan -eq 1 ]
+            then
+                if echo $nicip | grep : 2>&1 1>/dev/null
+                then
+                    netplan_addrs+=("$nicip/$netmask")
+                else
+                    netplan_addrs+=("$nicip/$(convert_netmask_to_cidr $netmask)")
+                fi
+                # netplan rejects the whole configuration for one unknown key. MTU is the only
+                # nicextraparams name with a netplan meaning here.
+                i=0
+                while [ $i -lt ${#array_extra_param_names[@]} ]
+                do
+                    name="${array_extra_param_names[$i]}"
+                    value="${array_extra_param_values[$i]}"
+                    if [ "$(echo $name | tr 'A-Z' 'a-z')" = "mtu" ]; then
+                        netplan_mtu=$value
+                    else
+                        echo "configib: $nic: netplan ignores nicextraparams $name"
+                        logger -p local4.info -t $log_label "configib: $nic: netplan ignores nicextraparams $name"
+                    fi
+                    i=$((i+1))
+                done
             elif [ $OS_name == 'ubuntu' ]
             then
                 # First ip address
@@ -672,10 +779,10 @@ IPADDR$ipindex=$nicip"
                         echo "auto $nic
 iface $nic inet6 static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         if [ -n "$gateway" ]; then
-                            echo "gateway $gateway" >> /etc/network/interfaces
+                            echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         fi
                     # ipv4		
                     else
@@ -683,10 +790,10 @@ netmask $netmask" >> /etc/network/interfaces
                         echo "auto $nic
 iface $nic inet static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         #if [ -n "$gateway" ]; then
-                        #    echo "gateway $gateway" >> /etc/network/interfaces
+                        #    echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         #fi
                     fi
                 else   # Not the first ip address
@@ -696,19 +803,19 @@ netmask $netmask" >> /etc/network/interfaces
                         echo "auto $nic
 iface $nic inet6 static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         if [ -n "$gateway" ]; then
-                            echo "gateway $gateway" >> /etc/network/interfaces
+                            echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         fi
                     else  # ipv4
                         echo "auto $nic:$ipindex
 iface $nic:$ipindex inet static
 address $nicip
-netmask $netmask" >> /etc/network/interfaces
+netmask $netmask" >> ${ib_root}/etc/network/interfaces
 
                         #if [ -n "$gateway" ]; then
-                        #    echo "gateway $gateway" >> /etc/network/interfaces
+                        #    echo "gateway $gateway" >> ${ib_root}/etc/network/interfaces
                         #fi
                     fi
                 fi
@@ -719,11 +826,11 @@ netmask $netmask" >> /etc/network/interfaces
                     name="${array_extra_param_names[$i]}"
                     value="${array_extra_param_values[$i]}"
                     echo "  $i: name=$name value=$value"
-                    grep -i "${name}" /etc/network/interfaces
+                    grep -i "${name}" ${ib_root}/etc/network/interfaces
                     if [ $? -eq 0 ];then
-                        sed -i "s/.*${name}.*/${name} ${value}/i" >> /etc/network/interfaces 
+                        sed -i "s/.*${name}.*/${name} ${value}/i" >> ${ib_root}/etc/network/interfaces 
                     else
-                        echo "${name} ${value}" >> /etc/network/interfaces 
+                        echo "${name} ${value}" >> ${ib_root}/etc/network/interfaces 
                     fi
                     i=$((i+1))
                 done
@@ -796,6 +903,9 @@ netmask $netmask" >> /etc/network/interfaces
            fi # end assume it is ib*
        fi # end if AIX
    done # end for nicip
+   if [ "$ib_netplan" = "1" ] && [ ${#netplan_addrs[@]} -gt 0 ]; then
+       ib_netplan_write $nic "$netplan_mtu" "${netplan_addrs[@]}"
+   fi
 done # end for nic
 
 # echo "goodnics=$goodnics"
@@ -803,21 +913,27 @@ done # end for nic
 if [ $PLTFRM == "Linux" ]
 then
     #/sbin/service $ib_driver restart
-    if [ "$restart_ib_driver" = "1" ]; then
+    if [ "$restart_ib_driver" = "1" ] && [ -n "$ib_driver" ]; then
             echo "restart $ib_driver service"
             logger -p local4.info -t $log_label "restart $ib_driver service"
             restartservice $ib_driver
     fi
+    netplan_apply=0
     for nic in `echo "$goodnics" | tr "," "\n"|sort -u`
     do
         sleep 5
+        # netplan apply takes no nic, so it runs once after the loop.
+        if [ "$ib_netplan" = "1" ]; then
+            netplan_apply=1
+            continue
+        fi
         if [[ "$OSVER" == rhels6* ]]
         then
             ip link set dev $nic up
         else
             if [[ "$OSVER" == ubuntu14* ]]
             then
-                interfaces="/etc/network/interfaces"
+                interfaces="${ib_root}/etc/network/interfaces"
                 for tmp in `cat $interfaces |grep "auto ib" |sort -u|awk '{print $2}'`
                 do
                     ifdown $tmp  > /dev/null 2>&1
@@ -829,11 +945,17 @@ then
                     if ! xcat_is_el9_or_later "$OSVER"; then
                         nmcli con reload $dir/ifcfg-$nic
                     fi
-                    nmcli con up $nic 2>&1
+                    nmcli con up $nic 2>&1 || ib_rc=1
                 else
-                    ifup $nic > /dev/null 2>&1
+                    ifup $nic > /dev/null 2>&1 || ib_rc=1
                 fi
             fi
         fi
     done
+    if [ $netplan_apply -eq 1 ] && ! netplan apply; then
+        echo "configib: netplan apply failed"
+        logger -p local4.err -t $log_label "configib: netplan apply failed"
+        ib_rc=1
+    fi
+    exit $ib_rc
 fi

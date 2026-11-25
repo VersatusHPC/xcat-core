@@ -1,0 +1,10 @@
+# The InfiniBand stack of Ubuntu 24.04. All packages except rdma-core are in universe.
+# Add this list after the compute list: pkglist=<compute list>,<this list>
+rdma-core
+ibverbs-utils
+rdmacm-utils
+infiniband-diags
+ibacm
+opensm
+perftest
+ucx-utils

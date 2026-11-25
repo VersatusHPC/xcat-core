@@ -68,6 +68,15 @@ assert_root_home_is_slash()
     grep -qxF "$DECOY" <<<"$passwd"
 }
 
+# module-setup.sh gives a dracut 105 image the service users of its own build root. A fixed
+# entry from the hook would duplicate one of them, or add a name of the other family.
+assert_hook_adds_only_root()
+{
+    local hook="$1" passwd
+    passwd="$(run_rewrite "$hook" "$DRACUT_107")"
+    [ "$(wc -l <<<"$passwd")" -eq 2 ]
+}
+
 assert_hook()
 {
     local hook="$1"
@@ -82,8 +91,10 @@ assert_hook()
 
 @test "the el dracut 105 hook gives root the home directory /" {
     assert_hook 'xCAT-genesis-base/dracut_105/el/xcat-cmdline.sh'
+    assert_hook_adds_only_root 'xCAT-genesis-base/dracut_105/el/xcat-cmdline.sh'
 }
 
 @test "the ubuntu dracut 105 hook gives root the home directory /" {
     assert_hook 'xCAT-genesis-base/dracut_105/ubuntu/xcat-cmdline.sh'
+    assert_hook_adds_only_root 'xCAT-genesis-base/dracut_105/ubuntu/xcat-cmdline.sh'
 }

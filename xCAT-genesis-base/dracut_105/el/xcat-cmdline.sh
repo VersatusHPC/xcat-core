@@ -23,15 +23,11 @@ mkdir -p /etc/ssh
 mkdir -p /var/tmp/
 mkdir -p /var/empty/sshd
 # dracut writes this entry itself, with an empty password field unless the image is
-# built --hostonly. Match the user name only.
+# built --hostonly. Match the user name only. module-setup.sh copies the service users
+# from the build root, so only root is rewritten here.
 sed -i '/^root:/d' /etc/passwd
 cat >>/etc/passwd <<"__ENDL"
 root:x:0:0::/:/bin/bash
-sshd:x:30:30:SSH User:/var/empty/sshd:/sbin/nologin
-rpc:x:32:32:Rpcbind Daemon:/var/cache/rpcbind:/sbin/nologin
-rpcuser:x:29:29:RPC Service User:/var/lib/nfs:/sbin/nologin
-qemu:x:107:107:qemu user:/:/sbin/nologin
-chrony:x:995:991::/var/lib/chrony:/sbin/nologin
 __ENDL
 # Fedora 20 ppc64 uses /lib/dracut/hooks/initqueue/finished
 # CentOS 7 probably uses /lib/dracut/hooks/initqueue/finished also

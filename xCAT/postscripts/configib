@@ -87,6 +87,41 @@ convert_netmask_to_cidr() {
 
 
 
+# ib_netplan_file <nic> -- the netplan drop-in that configib owns for one IB nic.
+ib_netplan_file()
+{
+    echo "$ib_root/etc/netplan/90-xcat-$1.yaml"
+}
+
+# ib_netplan_write <nic> <mtu> <address/prefix>... -- write the whole drop-in of one IB nic.
+# netplan has no infiniband section. An IPoIB nic is declared under ethernets by its name.
+# dhcp4 and dhcp6 are false so that a netdef of the same name in another file cannot add a lease.
+ib_netplan_write()
+{
+    local nic=$1 mtu=$2 file addr
+    shift 2
+    file=$(ib_netplan_file "$nic")
+    (
+        umask 077
+        {
+            echo "# Written by the xCAT configib postscript."
+            echo "network:"
+            echo "  version: 2"
+            echo "  ethernets:"
+            echo "    $nic:"
+            echo "      dhcp4: false"
+            echo "      dhcp6: false"
+            [ -n "$mtu" ] && echo "      mtu: $mtu"
+            echo "      addresses:"
+            for addr in "$@"; do
+                echo "        - $addr"
+            done
+        } >"$file.tmp.$$"
+    )
+    mv -f "$file.tmp.$$" "$file"
+    chmod 600 "$file"
+}
+
 #if $NIC_IBNICS is not defined, all ib nics' configuration files will be deleted.
 if [ -z "$NIC_IBNICS" ]; then
     echo "nothing to do."
@@ -194,6 +229,17 @@ then
         logger -p local4.info -t $log_label "Unsupported to config IB on this OS!"
         exit
     fi
+
+    # Ubuntu 18.04 and later render the network with netplan and do not install ifupdown. Only
+    # ifup that is installed AND a running networking service mean /etc/network/interfaces is
+    # still in use. This is the test of configeth.
+    ib_netplan=0
+    if [ $OS_name == 'ubuntu' ] && command -v netplan >/dev/null 2>&1 && [ -d "$ib_root/etc/netplan" ]; then
+        ib_netplan=1
+        if command -v ifup >/dev/null 2>&1 && systemctl is-active networking >/dev/null 2>&1; then
+            ib_netplan=0
+        fi
+    fi
 	
     if [[ $OS_name != 'ubuntu' ]] && ! xcat_is_el9_or_later "$OSVER"; then
         if [ $OS_name == 'suse' ]
@@ -210,6 +256,11 @@ then
             rm -f $dir/ifcfg-$nic 2>&1 1>/dev/null
         done
 
+    elif [ $OS_name == 'ubuntu' ] && [ $ib_netplan -eq 1 ]; then
+        for nic in `echo "$NIC_IBNICS" | tr "," "\n"`
+        do
+            rm -f "$(ib_netplan_file $nic)"
+        done
     elif [ $OS_name == 'ubuntu' ]; then
         interfaces="${ib_root}/etc/network/interfaces"
 
@@ -323,6 +374,8 @@ do
 	   j=$((j+1))
    done
 
+   netplan_addrs=()
+   netplan_mtu=""
    ipindex=0
    for nicip in `echo $nicips | tr "|" "\n"`
    do
@@ -669,6 +722,29 @@ IPADDR$ipindex=$nicip"
                         fi
                     fi
                 fi # end not the first ip address
+            elif [ $OS_name == 'ubuntu' ] && [ $ib_netplan -eq 1 ]
+            then
+                if echo $nicip | grep : 2>&1 1>/dev/null
+                then
+                    netplan_addrs+=("$nicip/$netmask")
+                else
+                    netplan_addrs+=("$nicip/$(convert_netmask_to_cidr $netmask)")
+                fi
+                # netplan rejects the whole configuration for one unknown key. MTU is the only
+                # nicextraparams name with a netplan meaning here.
+                i=0
+                while [ $i -lt ${#array_extra_param_names[@]} ]
+                do
+                    name="${array_extra_param_names[$i]}"
+                    value="${array_extra_param_values[$i]}"
+                    if [ "$(echo $name | tr 'A-Z' 'a-z')" = "mtu" ]; then
+                        netplan_mtu=$value
+                    else
+                        echo "configib: $nic: netplan ignores nicextraparams $name"
+                        logger -p local4.info -t $log_label "configib: $nic: netplan ignores nicextraparams $name"
+                    fi
+                    i=$((i+1))
+                done
             elif [ $OS_name == 'ubuntu' ]
             then
                 # First ip address
@@ -803,6 +879,9 @@ netmask $netmask" >> ${ib_root}/etc/network/interfaces
            fi # end assume it is ib*
        fi # end if AIX
    done # end for nicip
+   if [ "$ib_netplan" = "1" ] && [ ${#netplan_addrs[@]} -gt 0 ]; then
+       ib_netplan_write $nic "$netplan_mtu" "${netplan_addrs[@]}"
+   fi
 done # end for nic
 
 # echo "goodnics=$goodnics"
@@ -815,8 +894,11 @@ then
             logger -p local4.info -t $log_label "restart $ib_driver service"
             restartservice $ib_driver
     fi
+    ib_rc=0
     for nic in `echo "$goodnics" | tr "," "\n"|sort -u`
     do
+        # netplan apply takes no nic, so it runs once after the loop.
+        [ "$ib_netplan" = "1" ] && continue
         sleep 5
         if [[ "$OSVER" == rhels6* ]]
         then
@@ -836,11 +918,19 @@ then
                     if ! xcat_is_el9_or_later "$OSVER"; then
                         nmcli con reload $dir/ifcfg-$nic
                     fi
-                    nmcli con up $nic 2>&1
+                    nmcli con up $nic 2>&1 || ib_rc=1
                 else
-                    ifup $nic > /dev/null 2>&1
+                    ifup $nic > /dev/null 2>&1 || ib_rc=1
                 fi
             fi
         fi
     done
+    if [ "$ib_netplan" = "1" ] && [ -n "$goodnics" ]; then
+        if ! netplan apply; then
+            echo "configib: netplan apply failed"
+            logger -p local4.err -t $log_label "configib: netplan apply failed"
+            ib_rc=1
+        fi
+    fi
+    exit $ib_rc
 fi

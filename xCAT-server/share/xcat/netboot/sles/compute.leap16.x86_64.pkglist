@@ -9,6 +9,7 @@ keyutils
 lvm2
 openssl
 openssh
+shadow
 procps
 psmisc
 wget

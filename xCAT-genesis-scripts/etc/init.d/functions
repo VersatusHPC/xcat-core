@@ -1675,8 +1675,12 @@ send_monitor_msg() {
     # Report the message to the monitor server.
     send_msg=`echo "mac=$mac:ip=$IPADDR:host=$HOSTNAME:cpu=$cpu:ncpus=$ncpus:kernel=$kernel_name:mem=$mem:os=$IMAGENAME:tmpfs=$tmpfs:time=$time:$msg"`
 
-    # Send data to monitor server.
-    echo "$send_msg" | nc $MONITOR_SERVER $MONITOR_PORT
+    # nc keeps reading until the server closes. Genesis has no timeout(1), so a watchdog stops nc.
+    echo "$send_msg" | nc -w 2 $MONITOR_SERVER $MONITOR_PORT &
+    monitor_nc_pid=$!
+    ( sleep 5; kill $monitor_nc_pid ) </dev/null >/dev/null 2>&1 &
+    wait $monitor_nc_pid
+    kill $! 2>/dev/null
 }
 #
 ################################################################################

@@ -3320,6 +3320,9 @@ sub named_service_action {
 
     Whether /usr/sbin/in.tftpd is atftpd. atftpd and tftp-hpa take different start options.
 
+    The probe uses -V, which both servers know. tftp-hpa has no long options: for one it logs
+    "Unknown option", then reads a TFTP request from stdin.
+
     Arguments: optional code reference that runs in.tftpd with the given arguments and
                returns its output. The default runs /usr/sbin/in.tftpd.
     Returns: 1 for atftpd, else 0
@@ -3331,10 +3334,10 @@ sub in_tftpd_is_atftpd {
     my ($run) = @_;
     unless ($run) {
         return 0 unless -x '/usr/sbin/in.tftpd';
-        $run = sub { return `/usr/sbin/in.tftpd @_ 2>&1`; };
+        $run = sub { return `/usr/sbin/in.tftpd @_ </dev/null 2>&1`; };
     }
-    my $help = $run->('--help');
-    return ($help =~ /--daemon/ && $help =~ /--group/ && $help =~ /--logfile/) ? 1 : 0;
+    my $version = $run->('-V');
+    return (defined($version) && $version =~ /^atftp/) ? 1 : 0;
 }
 
 

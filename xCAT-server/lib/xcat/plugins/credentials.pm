@@ -282,7 +282,11 @@ sub process_request
             unless ($tfilename) {
                 my $label = $type eq 'ed25519' ? $type : uc($type);
                 push @{ $rsp->{'error'} }, "Unable to read private $label key from $HOSTKEYDIR";
-                xCAT::MsgUtils->trace(0, 'E', "credentials: Unable to read private $label key");
+
+                # xcatconfig writes no DSA key where OpenSSH dropped DSA, and ssh-keygen refuses
+                # ed25519 in FIPS mode. remoteshell asks for both and continues without them.
+                my $level = ($type eq 'dsa' or $type eq 'ed25519') ? 'I' : 'E';
+                xCAT::MsgUtils->trace(0, $level, "credentials: Unable to read private $label key");
                 next;
             }
         } elsif ($parm eq 'munge_key') {

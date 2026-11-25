@@ -18,10 +18,11 @@ cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && xdsh $$CN "systemctl is-acti
 check:rc==0
 cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && xdsh $$SN "systemctl is-active slurmd"
 check:rc!=0
-# slurmd registers some seconds after the node boots.
-cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
+# srun waits for a node with no limit. Start it only on an idle node, and with a time limit.
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/slurm_job.sh wait_idle $$CN || { rm -f /tmp/mkopenhpc_slurm_hierarchy.ready; false; }
+check:rc==0
 check:output=~^idle$
-cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && srun -N1 -p $$SLURM_PARTITION --chdir=/tmp hostname
+cmd:test -f /tmp/mkopenhpc_slurm_hierarchy.ready && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/slurm_job.sh run_job $$SLURM_PARTITION
 check:rc==0
 check:output=~^$$CN
 cmd:rm -f /tmp/mkopenhpc_slurm_hierarchy.ready
@@ -35,9 +36,11 @@ cmd:state=`xdsh $$CN cat /proc/sys/crypto/fips_enabled | awk '{print $2}'`;echo 
 check:rc==0
 cmd:xdsh $$CN "systemctl is-active munge slurmd"
 check:rc==0
-cmd:for i in $(seq 60); do s=$(sinfo -h -o %T -n $$CN); test "$s" = idle && break; sleep 5; done; echo "$s"
+cmd:rm -f /tmp/mkopenhpc_slurm_fips_cn.idle; /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/slurm_job.sh wait_idle $$CN && touch /tmp/mkopenhpc_slurm_fips_cn.idle
+check:rc==0
 check:output=~^idle$
-cmd:srun -N1 -p $$SLURM_PARTITION --chdir=/tmp hostname
+cmd:test -f /tmp/mkopenhpc_slurm_fips_cn.idle && /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/slurm_job.sh run_job $$SLURM_PARTITION
 check:rc==0
 check:output=~^$$CN
+cmd:rm -f /tmp/mkopenhpc_slurm_fips_cn.idle
 end

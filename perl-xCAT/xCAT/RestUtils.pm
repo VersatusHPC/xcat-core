@@ -40,8 +40,18 @@ sub remote_client
 {
     my ($addr, $lookup) = @_;
     $lookup ||= sub { return gethostbyaddr($_[0], $_[1]) };
-    my ($name, $aliases) = $lookup->(Socket::inet_aton($addr), Socket::AF_INET());
-    return $name . ',' . $aliases;
+    my ($packed, $family);
+    if (defined $addr) {
+        # An IPv4-mapped address is the IPv4 client. /etc/hosts names it in IPv4 form only.
+        $addr =~ s/^::ffff:(\d+\.\d+\.\d+\.\d+)$/$1/i;
+        if ($addr =~ /:/) {
+            ($packed, $family) = (Socket::inet_pton(Socket::AF_INET6(), $addr), Socket::AF_INET6());
+        } else {
+            ($packed, $family) = (Socket::inet_aton($addr), Socket::AF_INET());
+        }
+    }
+    my ($name, $aliases) = defined $packed ? $lookup->($packed, $family) : ();
+    return ($name // '') . ',' . ($aliases // '');
 }
 
 1;

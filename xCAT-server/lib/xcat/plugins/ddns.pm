@@ -5,6 +5,7 @@ use Net::DNS;
 use File::Path;
 use xCAT::Table;
 use xCAT::DHCP::OmapiPolicy;
+use xCAT::DNS::NamedDir;
 use xCAT::StringUtils qw(trim);
 use Sys::Hostname;
 use xCAT::TableUtils;
@@ -1096,7 +1097,7 @@ sub get_dbdir {
     } elsif (-d "/var/lib/named") {
 
         # Temp fix for bugzilla 73119
-        chown(scalar(getpwnam('root')), scalar(getgrnam('named')), "/var/lib/named");
+        xCAT::DNS::NamedDir::prepare("/var/lib/named", scalar(getpwnam('root')), scalar(getgrnam('named')));
         return "/var/lib/named/";
     }
     elsif (-d "/var/lib/bind") {

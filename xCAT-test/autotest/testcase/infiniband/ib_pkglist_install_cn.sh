@@ -31,4 +31,10 @@ updatenode "$node" -P ospkgs || fail "updatenode -P ospkgs failed"
 xdsh "$node" "dnf -q repolist"
 packages=$(grep -v '^#' "$netlist" | tr '\n' ' ')
 xdsh "$node" "rpm -q $packages" || fail "$node lacks a package of $list"
+# A node with the online mirrors of the distribution can take the packages from there. Check that
+# the repositories ospkgs made from the osimage pkgdir, BaseOS and AppStream, carry all of them.
+offered=$(xdsh "$node" "dnf -q --disablerepo='*' --enablerepo='xCAT-*' repoquery --qf '%{name}\\n' $packages" | sed 's/^[^:]*: *//' | sort -u)
+for p in $packages; do
+    echo "$offered" | grep -qx "$p" || fail "the xCAT repositories of $node do not carry $p"
+done
 echo "$node holds the InfiniBand stack."

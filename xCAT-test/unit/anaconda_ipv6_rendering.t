@@ -24,12 +24,20 @@ my %addresses = (
     nodev6                => { 6 => '2001:db8:1::50' },
     nodedual              => { 4 => '192.0.2.60', 6 => '2001:db8:1::60' },
     'boot6.example.test'  => { 6 => '2001:db8::10' },
+    'dns6.example.test'   => { 6 => '2001:db8:4::53' },
+    'dns4.example.test'   => { 4 => '192.0.2.53' },
 );
 my @facing_calls;
 my %network_cfg = (
     nodev6 => [ '2001:db8:1::50', 'nodev6', '2001:db8:1::fe', 64 ],
     nodev6mastergw => [ '2001:db8:2::50', 'nodev6mastergw', '<xcatmaster>', 64 ],
     nodev6nogw => [ '2001:db8:3::50', 'nodev6nogw', '', 64 ],
+    nodev6dns => [ '2001:db8:4::50', 'nodev6dns', '', 64 ],
+    nodev6v4dns => [ '2001:db8:4::51', 'nodev6v4dns', '', 64 ],
+);
+my %nameservers = (
+    nodev6dns => '<xcatmaster>,192.0.2.53,dns4.example.test,dns6.example.test,2001:db8:4::54',
+    nodev6v4dns => '192.0.2.53',
 );
 
 no warnings 'redefine';
@@ -53,6 +61,12 @@ local *xCAT::NetworkUtils::getNodeNetworkCfg6 = sub {
     my $node = shift;
     $node = shift if defined($node) && $node eq 'xCAT::NetworkUtils';
     return @{ $network_cfg{$node} || [] };
+};
+
+local *xCAT::NetworkUtils::getNodeNameservers = sub {
+    my $nodes = shift;
+    $nodes = shift if defined($nodes) && $nodes eq 'xCAT::NetworkUtils';
+    return { map { exists $nameservers{$_} ? ($_ => $nameservers{$_}) : () } @$nodes };
 };
 
 ok(xCAT::SvrUtils->is_el10_os('rhels10.0'), 'RHEL 10 is recognized as EL10');
@@ -182,21 +196,21 @@ is(
     xCAT_plugin::anaconda::_el10_static_ipv6_boot_args(
         'nodev6', { nicname => 'eno1', mac => '02:00:00:00:00:61' }
     ),
-    'rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:1::50]::[2001:db8:1::fe]:64:nodev6:eno1:none',
+    'rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:1::50]::[2001:db8:1::fe]:64:nodev6:eno1:none nameserver=2001:db8::1',
     'named install interface receives the configured static IPv6 boot address'
 );
 is(
     xCAT_plugin::anaconda::_el10_static_ipv6_boot_args(
         'nodev6nogw', { mac => '02-00-00-00-00-63' }
     ),
-    'ifname=xcatboot0:02:00:00:00:00:63 rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:3::50]:::64:nodev6nogw:xcatboot0:none',
+    'ifname=xcatboot0:02:00:00:00:00:63 rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:3::50]:::64:nodev6nogw:xcatboot0:none nameserver=2001:db8::1',
     'unspecified install interface is deterministically named and bound to its MAC'
 );
 is(
     xCAT_plugin::anaconda::_el10_static_ipv6_boot_args(
         'nodev6mastergw', { nicname => 'ens3' }
     ),
-    'rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:2::50]::[2001:db8::1]:64:nodev6mastergw:ens3:none',
+    'rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:2::50]::[2001:db8::1]:64:nodev6mastergw:ens3:none nameserver=2001:db8::1',
     'xcatmaster gateway resolves to the IPv6-facing address and is bracketed'
 );
 is_deeply(
@@ -212,6 +226,24 @@ like(
     ),
     qr/(?:\A| )rd\.net\.timeout\.carrier=120(?: |\z)/,
     'static IPv6 boot waits up to 120 s for carrier on the boot interface'
+);
+# A static ip= carries no DNS, so the node has a resolver only when the command line names one.
+# An IPv4 name server is unreachable from an IPv6-only node.
+is(
+    xCAT_plugin::anaconda::_el10_static_ipv6_boot_args(
+        'nodev6dns', { mac => '02:00:00:00:00:64' }
+    ),
+    'ifname=xcatboot0:02:00:00:00:00:64 rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:4::50]:::64:nodev6dns:xcatboot0:none'
+      . ' nameserver=2001:db8::1 nameserver=2001:db8:4::53 nameserver=2001:db8:4::54',
+    'static IPv6 boot passes the IPv6 name servers of the node and drops the IPv4 ones'
+);
+is(
+    xCAT_plugin::anaconda::_el10_static_ipv6_boot_args(
+        'nodev6v4dns', { mac => '02:00:00:00:00:65' }
+    ),
+    'ifname=xcatboot0:02:00:00:00:00:65 rd.neednet=1 rd.net.timeout.carrier=120 ip=[2001:db8:4::51]:::64:nodev6v4dns:xcatboot0:none'
+      . ' nameserver=2001:db8::1',
+    'static IPv6 boot falls back to the IPv6 address of the management node when only IPv4 name servers exist'
 );
 ok(
     !defined(xCAT_plugin::anaconda::_el10_static_ipv6_boot_args('nodev6nogw', {})),

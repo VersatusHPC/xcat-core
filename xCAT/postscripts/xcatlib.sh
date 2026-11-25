@@ -979,7 +979,9 @@ function msgutil_r {
       if [ "$?" != "0" ];then
          exec 3<>/dev/udp/$logserver/514 && logger -s -t $logtag -p local4.$msgtype "$msgstr" 1>&3  2>&1 && exec 3>&-
          if [ "$?" != "0" ];then
-            logger -s -t $logtag -p local4.$msgtype "$msgstr" 2>&1|nc $logserver 514 >/dev/null 2>&1
+            # nc keeps reading until the server closes, and the caller waits for nc.
+            # nmap-ncat applies -w only to the connect, so timeout bounds the idle read.
+            logger -s -t $logtag -p local4.$msgtype "$msgstr" 2>&1|timeout 5 nc -w 2 $logserver 514 >/dev/null 2>&1
             if [ "$?" != "0" ];then
                logger -t $logtag -p local4.$msgtype "$msgstr"
             fi

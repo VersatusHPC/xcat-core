@@ -142,7 +142,7 @@ assert_doxcat_dhcp()
     [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; return 1; }
     : >"$fixture/expected-dhcp"
     for nic in "$(cat "$fixture/bootnic")" "$@"; do
-        printf '%s\n' "-cf /etc/dhclient.conf -pf /var/run/dhclient.$nic.pid $nic" \
+        printf '%s\n' "-cf /etc/dhclient.conf -pf /var/run/dhclient.$nic.pid $nic -lf /var/lib/dhclient/dhclient.leases" \
             "-6 -pf /var/run/dhclient6.$nic.pid $nic -lf /var/lib/dhclient/dhclient6.leases" \
             >>"$fixture/expected-dhcp"
     done

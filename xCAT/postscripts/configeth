@@ -1558,6 +1558,21 @@ elif [ "$1" = "-s" ];then
     exit $error_code
 fi
 
+# log_old_configuration <nic> -- record the state of the nic before configeth changes it.
+function log_old_configuration {
+    local nic=$1
+    local str_temp
+
+    if [ "$str_os_type" = "aix" ];then
+        str_temp=`lsattr -El $nic`
+    else
+        str_temp=`ip addr show dev $nic`
+    fi
+
+    logger -t $log_label -p local4.err "configeth: old configuration: $str_temp"
+    echo "configeth on $NODE: old configuration: $str_temp"
+}
+
 #main prcess
 #1. get all ip,netmask,subnet,gateway for the nic
 #2. get current configurations
@@ -1576,14 +1591,7 @@ array_nic_ips=($2)
 array_nic_networks=($3)
 IFS=$old_ifs
 
-if [ "$str_os_type" = "aix" ];then
-    str_temp=`lsattr -El $str_nic_name`
-else
-    str_temp=`ip addr show dev $str_nic_name`
-fi
-
-logger -t $log_label -p local4.err "configeth: old configuration: $str_temp"
-echo "configeth on $NODE: old configuration: $str_temp"
+log_old_configuration $str_nic_name
 
 
 #parse the networks tables contains

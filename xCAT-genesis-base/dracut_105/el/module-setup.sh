@@ -54,6 +54,23 @@ _dracut_install_openssl_config() {
     dracut_install "$cnf"
 }
 
+# Copy the passwd entry, primary group and home of each named user the build root defines.
+# The names differ by family, and dhcpcd uses the home as its chroot.
+_xcat_install_service_users() {
+    local name entry gid home
+    for name in "$@"; do
+        grep -q "^$name:" "$initdir/etc/passwd" 2>/dev/null && continue
+        entry=$(grep -m1 "^$name:" "$dracutsysrootdir/etc/passwd" 2>/dev/null) || continue
+        printf '%s\n' "$entry" >>"$initdir/etc/passwd"
+        gid=$(printf '%s\n' "$entry" | cut -d: -f4)
+        if ! grep -q "^[^:]*:[^:]*:$gid:" "$initdir/etc/group" 2>/dev/null; then
+            grep -m1 "^[^:]*:[^:]*:$gid:" "$dracutsysrootdir/etc/group" >>"$initdir/etc/group"
+        fi
+        home=$(printf '%s\n' "$entry" | cut -d: -f6)
+        [ -n "$home" ] && [ "$home" != / ] && mkdir -p "$initdir$home"
+    done
+}
+
 install() {
     local genesis_openeuler=0 timezone timezone_files locale_file locale_files
     [[ -f /etc/openEuler-release ]] && genesis_openeuler=1
@@ -720,6 +737,7 @@ install() {
     inst "/usr/share/terminfo/l/linux"
     inst "/usr/share/terminfo/v/vt100"
     inst_hook cmdline 10 "$moddir/xcat-cmdline.sh"
+    _xcat_install_service_users sshd chrony _chrony dhcpcd rpc _rpc rpcuser statd
     dracut_install /lib64/rsyslog/lmtcpclt.so
     dracut_install /lib64/rsyslog/omtesting.so
     dracut_install /lib64/rsyslog/lmnetstrms.so

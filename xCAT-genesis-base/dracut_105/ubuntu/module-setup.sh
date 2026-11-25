@@ -40,6 +40,16 @@ _dracut_install_opt() {
     fi
 }
 
+# glibc accepts LC_ALL=C.UTF-8 only when every category loads. LC_MESSAGES is a directory
+# that holds SYS_LC_MESSAGES, so install the files of the locale, not its top-level entries.
+_xcat_install_c_utf8_locale() {
+    local root="${dracutsysrootdir:-}" file
+    [[ -s $root/usr/lib/locale/C.utf8/LC_CTYPE ]] || return 0
+    while IFS= read -r file; do
+        dracut_install "${file#"$root"}"
+    done < <(find "$root/usr/lib/locale/C.utf8" \( -type f -o -type l \) -print)
+}
+
 # openssl req reads the config file at OPENSSLDIR/openssl.cnf and exits 1 without it, so the
 # node makes no certificate request. dracut_install copies the program and its libraries only.
 # OPENSSLDIR is /usr/lib/ssl on Ubuntu and /etc/pki/tls on EL, so ask openssl where it looks.
@@ -106,9 +116,7 @@ install() {
     done
 
     # tmux exits under the C locale, and the image carries no locale data of its own.
-    for _lc_file in /usr/lib/locale/C.utf8/LC_*; do
-        _dracut_install_opt "$_lc_file"
-    done
+    _xcat_install_c_utf8_locale
     _dracut_install_opt "/lib/$TRIPLET/libnss_dns.so.2"
     dracut_install poweroff hwclock date /usr/share/terminfo/x/xterm /usr/share/terminfo/s/screen /etc/nsswitch.conf /etc/services
     dracut_install /usr/sbin/rsyslogd /etc/protocols umount /usr/bin/dpkg

@@ -54,10 +54,11 @@ _dracut_install_openssl_config() {
     dracut_install "$cnf"
 }
 
-# Copy the passwd entry, primary group and home of each named user the build root defines.
-# The names differ by family, and dhcpcd uses the home as its chroot.
+# Copy the passwd entry and primary group of each named user the build root defines. The
+# names differ by family. The package installs the image as root:root, so the daemons create
+# their own home directories at boot.
 _xcat_install_service_users() {
-    local name entry gid home
+    local name entry gid
     for name in "$@"; do
         grep -q "^$name:" "$initdir/etc/passwd" 2>/dev/null && continue
         entry=$(grep -m1 "^$name:" "$dracutsysrootdir/etc/passwd" 2>/dev/null) || continue
@@ -66,8 +67,6 @@ _xcat_install_service_users() {
         if ! grep -q "^[^:]*:[^:]*:$gid:" "$initdir/etc/group" 2>/dev/null; then
             grep -m1 "^[^:]*:[^:]*:$gid:" "$dracutsysrootdir/etc/group" >>"$initdir/etc/group"
         fi
-        home=$(printf '%s\n' "$entry" | cut -d: -f6)
-        [ -n "$home" ] && [ "$home" != / ] && mkdir -p "$initdir$home"
     done
 }
 

@@ -17,6 +17,7 @@ use xCAT::TableUtils;
 use xCAT::NetworkUtils;
 use xCAT::DHCP::Backend;
 use xCAT::SELinux;
+use xCAT::FstabUtils;
 
 use xCAT::MsgUtils;
 use xCAT_plugin::dhcp;
@@ -448,40 +449,33 @@ sub setupInstallloc
         # update fstab
         my $cmd = "grep \"$master:$installloc $installdir\"  /etc/fstab  ";
         xCAT::Utils->runcmd($cmd, -1);
-        if ($::RUNCMD_RC != 0)
+        if ($nomount == 0)
         {
-            if ($nomount == 0)    # then add the entry
+            my $options = xCAT::SELinux->nfs_mount_options('timeo=14,intr', 'public_content_t',
+                xCAT::SELinux->runtime_mode());
+            if (!defined(xCAT::FstabUtils::update_file('/etc/fstab',
+                        "$master:$installloc", $installdir, 'nfs', $options)))
             {
-                my $options = xCAT::SELinux->nfs_mount_options('timeo=14,intr', 'public_content_t',
-                    xCAT::SELinux->runtime_mode());
-`echo "$master:$installloc $installdir nfs $options 1 2" >>/etc/fstab`;
-
+                xCAT::MsgUtils->message("S", "Cannot update /etc/fstab for $installdir.");
             }
         }
-        else
-        {                         # fstab entry there
-
-            if ($nomount == 1)
+        elsif ($::RUNCMD_RC == 0)
+        {                         # fstab entry there, remove it
+            my $sedcmd = "sed \\";
+            $sedcmd .= "$installdir/d  /etc/fstab > /etc/fstab.tmp";
+            system $sedcmd;
+            if ($? > 0)
+            {                     # error
+                xCAT::MsgUtils->message("S", "Error $cmd");
+            }
+            else
             {
-
-                # then remove the entry
-                my $sedcmd = "sed \\";
-                $sedcmd .= "$installdir/d  /etc/fstab > /etc/fstab.tmp";
-                system $sedcmd;
+                $cmd = "cp /etc/fstab.tmp /etc/fstab";
+                system $cmd;
                 if ($? > 0)
                 {                 # error
                     xCAT::MsgUtils->message("S", "Error $cmd");
                 }
-                else
-                {
-                    $cmd = "cp /etc/fstab.tmp /etc/fstab";
-                    system $cmd;
-                    if ($? > 0)
-                    {             # error
-                        xCAT::MsgUtils->message("S", "Error $cmd");
-                    }
-                }
-
             }
         }
     }
@@ -1315,13 +1309,10 @@ sub setup_TFTP
         {
 
             # update fstab so that it will restart on reboot
-            $cmd =
-"fgrep \"$tftphost:$tftpdir $tftpdir nfs timeo=14,intr 1 2\" /etc/fstab";
-            xCAT::Utils->runcmd($cmd, -1);
-            if ($::RUNCMD_RC != 0)    # not already there
+            if (!defined(xCAT::FstabUtils::update_file('/etc/fstab',
+                        "$tftphost:$tftpdir", $tftpdir, 'nfs', 'timeo=14,intr')))
             {
-
-`echo "$tftphost:$tftpdir $tftpdir nfs timeo=14,intr 1 2" >>/etc/fstab`;
+                xCAT::MsgUtils->message("S", "Cannot update /etc/fstab for $tftpdir.");
             }
         }
     }

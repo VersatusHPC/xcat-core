@@ -43,6 +43,15 @@ sub image_root {
     ok(!-e "$root/etc/init.d/xcatpostinit", 'the SysV script is gone, so systemd generates no second unit');
     ok(!-l "$root/etc/rc2.d/S61xcatpostinit", 'the rc2.d link is gone');
 
+    # systemd-sysv-generator orders every SysV script after network-online.target. The
+    # native unit says only After=network.target, and on Ubuntu 22.04 xcatpostinit then
+    # starts before the node has its address.
+    my $dropin = "$root/etc/systemd/system/xcatpostinit.service.d/network-online.conf";
+    my $text   = -e $dropin ? read_text($dropin) : '';
+    like($text, qr/^\[Unit\]$/m, 'a drop-in extends the [Unit] section of xcatpostinit.service');
+    like($text, qr/^Wants=network-online\.target$/m, 'the drop-in pulls in network-online.target');
+    like($text, qr/^After=network-online\.target$/m, 'the drop-in orders xcatpostinit after network-online.target');
+
     imgutils::install_postinit_service($root, $postscripts);
     is(readlink("$root/etc/systemd/system/multi-user.target.wants/xcatpostinit.service"),
         '../xcatpostinit.service', 'a second genimage run on the same root keeps the unit enabled');
@@ -55,6 +64,7 @@ sub image_root {
         'an image without systemd keeps the SysV script in rc2.d');
     ok(-x "$root/etc/init.d/xcatpostinit", 'and the SysV script is executable');
     ok(!-e "$root/etc/systemd/system/xcatpostinit.service", 'and gets no unit');
+    ok(!-e "$root/etc/systemd/system/xcatpostinit.service.d", 'and no drop-in');
 }
 
 done_testing();

@@ -406,7 +406,8 @@ sub debootstrap_finished {
 
     Descriptions:
         Install xcatpostinit into a diskless root image. An image with systemd gets the
-        native xcatpostinit.service. An image without systemd gets the SysV script in rc2.d.
+        native xcatpostinit.service, ordered after network-online.target. An image without
+        systemd gets the SysV script in rc2.d.
     Arguments:
         $rootimg_dir: the root image directory
         $postscripts_dir: the directory that holds xcatpostinit and xcatpostinit.service
@@ -441,6 +442,15 @@ sub install_postinit_service {
     my $wants = "$rootimg_dir/etc/systemd/system/multi-user.target.wants/xcatpostinit.service";
     unlink($wants);
     symlink('../xcatpostinit.service', $wants) or die "Error: cannot link $wants: $!\n";
+
+    # systemd-sysv-generator ordered the SysV script after network-online.target. The unit
+    # orders only after network.target, which systemd-networkd reaches before the address.
+    my $dropin_dir = "$rootimg_dir/etc/systemd/system/xcatpostinit.service.d";
+    mkpath([$dropin_dir]);
+    open(my $fh, '>', "$dropin_dir/network-online.conf")
+      or die "Error: cannot write $dropin_dir/network-online.conf: $!\n";
+    print $fh "[Unit]\nWants=network-online.target\nAfter=network-online.target\n";
+    close($fh) or die "Error: cannot write $dropin_dir/network-online.conf: $!\n";
     return 1;
 }
 

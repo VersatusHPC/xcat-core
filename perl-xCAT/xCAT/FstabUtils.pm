@@ -4,6 +4,12 @@ package xCAT::FstabUtils;
 use strict;
 use warnings;
 
+# fsck checks block devices only. systemd-fstab-generator logs an error for each entry of
+# another type that asks for a check.
+my %NO_FSCK = map { $_ => 1 } qw(
+  nfs nfs4 cifs smb3 tmpfs ramfs proc sysfs devpts devtmpfs aufs overlay swap none
+);
+
 #-------------------------------------------------------------------------------
 
 =head3 fsck_pass
@@ -14,16 +20,15 @@ use warnings;
         $vfstype: the file system type (third fstab field)
         $file:    the mount point (second fstab field)
     Returns:
-        The pass number that xCAT has always written for this entry
+        0 for a network or pseudo file system, 1 for /, 2 for the others
 
 =cut
 
 #-------------------------------------------------------------------------------
 sub fsck_pass {
     my ($vfstype, $file) = @_;
-    return 1 if $file eq '/';
-    return 2 if $vfstype eq 'nfs' || $file eq '/tmp' || $file eq '/var/tmp';
-    return 0;
+    return 0 if $NO_FSCK{ lc($vfstype) };
+    return ($file eq '/') ? 1 : 2;
 }
 
 #-------------------------------------------------------------------------------
@@ -31,7 +36,7 @@ sub fsck_pass {
 =head3 entry
 
     Descriptions:
-        Return one fstab line, with the pass from fsck_pass.
+        Return one fstab line, with dump 0 and the pass from fsck_pass.
     Arguments:
         $spec, $file, $vfstype, $mntops: the first four fstab fields
     Returns:
@@ -42,8 +47,7 @@ sub fsck_pass {
 #-------------------------------------------------------------------------------
 sub entry {
     my ($spec, $file, $vfstype, $mntops) = @_;
-    my $dump = ($vfstype eq 'nfs') ? 1 : 0;
-    return join(' ', $spec, $file, $vfstype, $mntops, $dump, fsck_pass($vfstype, $file)) . "\n";
+    return join(' ', $spec, $file, $vfstype, $mntops, 0, fsck_pass($vfstype, $file)) . "\n";
 }
 
 #-------------------------------------------------------------------------------

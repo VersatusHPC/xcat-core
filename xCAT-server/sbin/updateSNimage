@@ -16,6 +16,7 @@ use File::Basename;
 use Getopt::Long;
 use xCAT::MsgUtils;
 use xCAT::Utils;
+use xCAT::FstabUtils;
 use File::Copy;
 
 #-----------------------------------------------------------------------------
@@ -362,7 +363,7 @@ sub create_fstab
         $fstabtemplate[2] =
           "devpts      /dev/pts         devpts   rw,gid=5,mode=620 0 0\n";
         $fstabtemplate[3] = "#tmpfs      /dev/shm         tmpfs    rw 0 0\n";
-        $fstabtemplate[4] = "compute_x86_64 /             tmpfs    rw 0 1\n";
+        $fstabtemplate[4] = xCAT::FstabUtils::entry('compute_x86_64', '/', 'tmpfs', 'rw');
         $fstabtemplate[5] =
           "#none        /tmp             tmpfs    defaults,size=10m 0 2\n";
         $fstabtemplate[6] =

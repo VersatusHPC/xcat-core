@@ -560,14 +560,18 @@ sub process_request {
     #now, notify the node to continue life
     # IO::Socket::INET cannot reach an IPv6 address, so a node discovered over IPv6
     # never received this message and exited on the discovery timeout.
-    my $sock = xCAT::NetworkUtils->open_tcp_socket($clientip, 3001, 1);
-    unless ($sock) { xCAT::MsgUtils->message("S", "xcat.discovery.nodediscover: Failed to notify $clientip that it's actually $node. $node has not been discovered: $!"); return; }
-    print $sock $restartstring;
-    close($sock);
-
-
-    #Update the discoverydata table to indicate the successful discovery
-    xCAT::DiscoveryUtils->update_discovery_data($request);
+    my $notify_error = '';
+    my $notify = sub {
+        my $sock = xCAT::NetworkUtils->open_tcp_socket($clientip, 3001, 1);
+        unless ($sock) { $notify_error = "$!"; return 0; }
+        print $sock $restartstring;
+        close($sock);
+        return 1;
+    };
+    unless (xCAT::DiscoveryUtils->complete_discovery($request, $notify)) {
+        xCAT::MsgUtils->message("S", "xcat.discovery.nodediscover: Failed to notify $clientip that it's actually $node. $node has not been discovered: $notify_error");
+        return;
+    }
 
     xCAT::MsgUtils->message("S", "xcat.discovery.nodediscover: $node has been discovered");
 }

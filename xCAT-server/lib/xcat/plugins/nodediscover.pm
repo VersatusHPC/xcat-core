@@ -569,7 +569,7 @@ sub process_request {
         return 1;
     };
     unless (xCAT::DiscoveryUtils->complete_discovery($request, $notify)) {
-        xCAT::MsgUtils->message("S", "xcat.discovery.nodediscover: Failed to notify $clientip that it's actually $node. $node has not been discovered: $notify_error");
+        xCAT::MsgUtils->message("S", "xcat.discovery.nodediscover: Failed to notify $clientip that it's actually $node: $notify_error");
         return;
     }
 

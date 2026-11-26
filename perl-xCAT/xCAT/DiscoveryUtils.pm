@@ -126,7 +126,7 @@ sub update_discovery_data {
 
 =head3 complete_discovery
 
-    Descriptions: Tell the node which node it is, and record the discovery in discoverydata.
+    Descriptions: Record the discovery in discoverydata, and tell the node which node it is.
     Arguments   : $request - the findme request, with discoverymethod set
                   $notify  - code reference that sends the node its new identity.
                              Returns true when the node received the message.
@@ -138,9 +138,10 @@ sub update_discovery_data {
 sub complete_discovery {
     my ($class, $request, $notify) = @_;
 
-    return 0 unless $notify->();
+    # Record first. A repeated findme reset the row to undef, and the notify for the
+    # repeat fails because the node already uses its new address.
     $class->update_discovery_data($request);
-    return 1;
+    return $notify->() ? 1 : 0;
 }
 
 #-------------------------------------------------------------------------------

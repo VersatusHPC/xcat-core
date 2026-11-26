@@ -200,6 +200,15 @@ secondary_nic_needs_dhcp() {
     local address_output
     local usb_vendor
     local usb_product
+    local link_type
+
+    # dhclient serves Ethernet (1), Token Ring (6), InfiniBand (32) and FDDI (774) links. It
+    # exits on any other type, such as the AX.25, WWAN and EQL links of the image modules.
+    read -r link_type < "$sys_class_net/$nic/type" || return 1
+    case "$link_type" in
+        1|6|32|774) ;;
+        *) return 1 ;;
+    esac
 
     link_output=$(ip -o link show dev "$nic") || return 1
     case "$link_output" in

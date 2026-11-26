@@ -1,19 +1,23 @@
 #!/bin/bash
 # IBM(c) 2007 EPL license http://www.eclipse.org/legal/epl-v10.html
 #Redhcp, do the xcat part again
+# doxcat keeps the IPv4 leases in /var/lib/dhclient. The Debian dhclient default directory,
+# /var/lib/dhcp, is not in the image. A family with no client leaves its pid file glob unmatched.
 FORCENICS="$(awk '{print $2}' /restart)"
 rm /restart
 if [ ! -z "$FORCENICS" ]; then
     echo "Forcing down nics aside from $FORCENICS due to discoverynics setting"
     for pidfile in /var/run/dhclient.*.pid; do
+	[ -e "$pidfile" ] || continue
 	NIC="$(echo "$pidfile"|awk -F. '{print $2}')"
 	if [ ! -z "$NIC" ] && echo "$NIC" | egrep -qv "$FORCENICS"; then
-		dhclient -r -1 -cf /etc/dhclient.conf -pf "$pidfile" "$NIC"
+		dhclient -r -1 -cf /etc/dhclient.conf -pf "$pidfile" -lf /var/lib/dhclient/dhclient.leases "$NIC"
 		rm "$pidfile"
 		ip link set "$NIC" down
 	fi
     done
     for pidfile in /var/run/dhclient6.*.pid; do
+	[ -e "$pidfile" ] || continue
 	NIC="$(echo "$pidfile"|awk -F. '{print $2}')"
 	if [ ! -z "$NIC" ] && echo "$NIC" | egrep -qv "$FORCENICS"; then
 		dhclient -6 -r -1 -pf "$pidfile" -lf /var/lib/dhclient/dhclient6.leases "$NIC"
@@ -25,12 +29,14 @@ fi
 WAITING=1
 while [ $WAITING -gt 0 ]; do
     for pidfile in /var/run/dhclient.*.pid; do
+	[ -e "$pidfile" ] || continue
 	NIC="$(echo "$pidfile"|awk -F. '{print $2}')"
-	dhclient -r -1 -cf /etc/dhclient.conf -pf "$pidfile" "$NIC"
+	dhclient -r -1 -cf /etc/dhclient.conf -pf "$pidfile" -lf /var/lib/dhclient/dhclient.leases "$NIC"
 	ip -4 addr flush dev "$NIC"
-	dhclient -cf /etc/dhclient.conf -nw -pf "$pidfile" "$NIC"
+	dhclient -cf /etc/dhclient.conf -nw -pf "$pidfile" -lf /var/lib/dhclient/dhclient.leases "$NIC"
     done
     for pidfile in /var/run/dhclient6.*.pid; do
+	[ -e "$pidfile" ] || continue
 	NIC="$(echo "$pidfile"|awk -F. '{print $2}')"
 	dhclient -6 -r -1 -pf "$pidfile" -lf /var/lib/dhclient/dhclient6.leases "$NIC"
 	ip -6 addr flush dev "$NIC"  scope global

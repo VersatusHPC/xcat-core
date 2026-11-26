@@ -122,6 +122,12 @@ add_doxcat_link()
 {
     local nic=$1 flags=$2 kind=${3:-ether} address=${4:-00:11:22:33:44:55}
     mkdir -p "$fixture/sys/class/net/$nic"
+    # The kernel ARPHRD type: 32 for InfiniBand, 1 for Ethernet.
+    if [ "$kind" = infiniband ]; then
+        printf '32\n' >"$fixture/sys/class/net/$nic/type"
+    else
+        printf '1\n' >"$fixture/sys/class/net/$nic/type"
+    fi
     printf '2: %s: <%s> mtu 1500 state UP\n    link/%s %s\n' \
         "$nic" "$flags" "$kind" "$address" >"$fixture/links/$nic"
     if [ "$kind" = infiniband ]; then

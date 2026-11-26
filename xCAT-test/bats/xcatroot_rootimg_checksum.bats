@@ -394,3 +394,14 @@ check_each_script()
 @test 'every script reads imgurl from the kernel command line when its environment has none' {
     check_each_script 'packed image' "$URL.sha256 $URL $URL.sha256 " 0 '' --unsetenv imgurl
 }
+
+@test 'a node whose initial ramdisk ran no dhclient copies no lease and reports no error' {
+    # NetworkManager configures the network in the EL 8 and later initial ramdisk, so no
+    # /tmp/dhclient.*.lease exists there.
+    local script shell
+    while read -r script shell; do
+        run_xcatroot "$script" "$shell"
+        [ "$(cat "$FX/extracted" 2>/dev/null)" = 'packed image' ] || { echo "$script extracted nothing"; return 1; }
+        ! grep -F 'dhclient' "$FX/console" || { echo "$script: $(cat "$FX/console")"; return 1; }
+    done <<<"$ALL_SCRIPTS"
+}

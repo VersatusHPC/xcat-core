@@ -389,6 +389,7 @@ function getdevfrommac() {
 
 if [ -z $STATEMNT ]; then
     for lf in /tmp/dhclient.*.lease; do
+        [ -f "$lf" ] || continue
         netif=${lf#*.}
         netif=${netif%.*}
         cp $lf  "$NEWROOT/var/lib/dhclient/dhclient-$netif.leases"

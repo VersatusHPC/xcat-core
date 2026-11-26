@@ -40,6 +40,24 @@ check_secondary()
     check_secondary veth0
 }
 
+@test "DOWN interface of a link type dhclient cannot serve gets no DHCP" {
+    # Kernel modules in the image create these. dhclient exits on each one with
+    # "Unsupported device type" and the ISC bug-report banner.
+    local nic type
+    while read -r nic type; do
+        add_doxcat_link "$nic" BROADCAST,MULTICAST
+        printf '%s\n' "$type" >"$fixture/sys/class/net/$nic/type"
+    done <<'NICS'
+yam0 3
+bcsf0 3
+eql 256
+wwan0 65534
+hwsim0 803
+NICS
+    add_doxcat_link eno19 BROADCAST,MULTICAST
+    check_secondary eno19
+}
+
 @test "DOWN interface short-circuits every ownership guard" {
     add_doxcat_link eno1 BROADCAST,MULTICAST
     physical_nic eno1 046b ffb0

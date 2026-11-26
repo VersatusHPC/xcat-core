@@ -124,6 +124,28 @@ sub update_discovery_data {
 
 #-------------------------------------------------------------------------------
 
+=head3 complete_discovery
+
+    Descriptions: Record the discovery in discoverydata, and tell the node which node it is.
+    Arguments   : $request - the findme request, with discoverymethod set
+                  $notify  - code reference that sends the node its new identity.
+                             Returns true when the node received the message.
+    Returns     : 1 when the node received the message, else 0
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub complete_discovery {
+    my ($class, $request, $notify) = @_;
+
+    # Record first. A repeated findme reset the row to undef, and the notify for the
+    # repeat fails because the node already uses its new address.
+    $class->update_discovery_data($request);
+    return $notify->() ? 1 : 0;
+}
+
+#-------------------------------------------------------------------------------
+
 =head3 client_certificate_name
 
     Descriptions: The name xcatd may record as the verified client certificate of a request.

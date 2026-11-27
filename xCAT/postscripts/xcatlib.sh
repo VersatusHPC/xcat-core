@@ -1046,6 +1046,12 @@ function xcat_wait_for_processes_to_exit {
 }
 
 function xcat_in_chroot {
+    # curtin in-target runs the command as PID 1 of a new PID namespace with its own /proc.
+    # The root comparison below then finds no chroot.
+    case "$(cat "${XCAT_PROC:-/proc}/1/comm" 2>/dev/null)" in
+    systemd | init) ;;
+    *) return 0 ;;
+    esac
     if command -v systemd-detect-virt >/dev/null 2>&1; then
         systemd-detect-virt --quiet --chroot
         return $?

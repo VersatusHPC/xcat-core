@@ -117,6 +117,13 @@ do
         exit 1
     fi
 
+    # "nodeset next" sets currstate to boot when the installer finishes. A node that booted its old disk keeps "install".
+    currstate=`lsdef $node -i currstate -c | cut -d '=' -f 2-`
+    if [[ $tobooted -eq 0 && $currstate == install* ]]; then
+        echo "$node booted without running the installer: currstate is still '$currstate'"
+        tobooted=1
+    fi
+
     node_pingable $node
     pingable=$?
     echo "The pingable is $pingable"

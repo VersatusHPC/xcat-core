@@ -94,6 +94,10 @@ check:rc==0
 cmd:xdsh $$CN update-crypto-policies --show
 check:rc==0
 check:output=~FIPS
+# The kickstart %post logs the FIPS state of the installer kernel.
+cmd:xdsh $$CN "grep -h 'fips_enabled=' /var/log/xcat/xcat.log"
+check:rc==0
+check:output=~fips_enabled=1
 cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=
 cmd:rm -f /tmp/xcattest.fips_node_enabled.t0
 end

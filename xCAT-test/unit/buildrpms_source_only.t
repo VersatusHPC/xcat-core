@@ -47,6 +47,7 @@ our @STAGES;
     no warnings 'redefine';
     # Collaborators the lifted code calls. Each records instead of acting.
     sub createrepo_dir { push @main::CREATEREPO, $_[0]; }
+    sub repo_metadata_compress_args { return ''; }
     # The stages buildall drives. Each records that it was reached.
     sub prepare_mock_resultdirs { push @main::STAGES, 'prepare_mock_resultdirs'; }
     sub buildsources     { push @main::STAGES, 'buildsources'; }

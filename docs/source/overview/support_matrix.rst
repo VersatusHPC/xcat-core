@@ -41,6 +41,6 @@ stateless nodes are supported, and the management node itself can run on riscv64
 :doc:`/guides/admin-guides/manage_clusters/riscv64/index` for details.
 
 aarch64 support covers EL 10 on nodes that boot through UEFI firmware and grub2. The
-management node, stateful compute nodes and stateless compute nodes are supported. Service
-nodes and statelite are not covered. See
+management node, stateful compute nodes and stateless compute nodes are supported.
+Sequential discovery is a technology preview. Service nodes and statelite are not covered. See
 :doc:`/guides/admin-guides/manage_clusters/aarch64/index` for details.

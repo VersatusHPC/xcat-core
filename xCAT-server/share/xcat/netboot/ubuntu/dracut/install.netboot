@@ -24,3 +24,10 @@ fi
 # which systemd-networkd and NetworkManager both reach.
 inst_hook initqueue/online 90 "$moddir/xcat-online.sh"
 inst_simple "$moddir/xcat-bootif-dhcp.conf" /etc/systemd/network/70-BOOTIF.network.d/xcat-bootif-dhcp.conf
+# udev names a NIC by the .link files. Without them the NIC keeps its kernel name until the
+# booted system renames it, after netplan listed the names that wait-online waits for.
+for link in "${systemdnetwork:-/usr/lib/systemd/network}"/*.link "${systemdnetworkconfdir:-/etc/systemd/network}"/*.link; do
+    if [ -f "$link" ]; then
+        inst_simple "$link"
+    fi
+done

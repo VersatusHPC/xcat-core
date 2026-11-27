@@ -2206,6 +2206,12 @@ sub mknetboot
             my $ip6 = static_ip6_boot_arg($node, $net_params)
               || $net_params->{ip6};
             $kcmdline .= "$ip6 " if $ip6;
+
+            # A static ip= gets no DHCP lease, so xcatroot writes resolv.conf from these.
+            my $resolver_args = xCAT::NetworkUtils::dracut_resolver_args(
+                [ xCAT::NetworkUtils->ipv6_nameservers_for_node($node) ],
+                xCAT::NetworkUtils->getNodeDomains([$node])->{$node});
+            $kcmdline .= "$resolver_args " if $resolver_args;
         }
 
         my %client_nethash = xCAT::DBobjUtils->getNetwkInfo([$node]);

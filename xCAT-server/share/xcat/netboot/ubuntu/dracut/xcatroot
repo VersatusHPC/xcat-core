@@ -117,6 +117,37 @@ xcat_resolv_from_leases() {
 }
 xcat_resolv_from_leases
 
+# Writes resolv.conf from the nameserver= and XCATDOMAIN= kernel arguments. A node with a static
+# ip= has no lease, and debian.pm passes its resolvers here. dracut network-legacy writes the
+# name servers itself and no search line, so the domain is added to that file too.
+xcat_resolv_from_cmdline() {
+	local cmdline="${XCAT_CMDLINE:-/proc/cmdline}"
+	local resolv="${XCAT_RESOLV_CONF:-/etc/resolv.conf}"
+	local dns="" domain="" word server
+	[ -r "$cmdline" ] || return 0
+	for word in $(cat "$cmdline"); do
+		case "$word" in
+		nameserver=*) dns="$dns ${word#nameserver=}" ;;
+		XCATDOMAIN=*) domain=${word#XCATDOMAIN=} ;;
+		esac
+	done
+	if grep -qs '^nameserver' "$resolv"; then
+		[ -n "$domain" ] || return 0
+		grep -qsE '^(search|domain)[[:space:]]' "$resolv" && return 0
+		{ echo "search $domain"; cat "$resolv"; } >"$resolv.xcat" && mv -f "$resolv.xcat" "$resolv"
+		return 0
+	fi
+	[ -n "$dns" ] || return 0
+	{
+		[ -z "$domain" ] || echo "search $domain"
+		for server in $dns; do
+			server=${server#[}
+			echo "nameserver ${server%]}"
+		done
+	} >"$resolv"
+}
+xcat_resolv_from_cmdline
+
 XCATMASTER=$XCAT
 
 # Downloads the checksum file published for the image at $1 to $2.

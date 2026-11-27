@@ -339,6 +339,49 @@ check_each_script()
     [ "$(cat "$FX/resolv.conf")" = "$(printf 'search cluster.example\nnameserver 192.0.2.53\nnameserver 192.0.2.54')" ]
 }
 
+@test 'the Ubuntu xcatroot writes resolv.conf from the kernel command line when no lease names a server' {
+    # An IPv6-only node takes a static ip=, so no DHCP lease carries a name server. debian.pm
+    # passes the resolvers and the domain on the command line instead.
+    KERNEL_ARGS='nameserver=2001:db8:147::1 nameserver=2001:db8:147::2 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/extracted" 2>/dev/null)" = 'packed image' ]
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search cluster.example\nnameserver 2001:db8:147::1\nnameserver 2001:db8:147::2')" ]
+    [ "$(cat "$FX/newroot-resolv.conf")" = "$(cat "$FX/resolv.conf")" ]
+}
+
+@test 'the Ubuntu xcatroot adds the search domain to the resolv.conf that dracut wrote from nameserver=' {
+    # dracut network-legacy turns nameserver= into a resolv.conf with no search line, and the
+    # server name in imgurl is a short name.
+    printf 'nameserver 2001:db8:147::1\n' >"$FX/resolv.conf"
+    KERNEL_ARGS='nameserver=2001:db8:147::1 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/extracted" 2>/dev/null)" = 'packed image' ]
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search cluster.example\nnameserver 2001:db8:147::1')" ]
+}
+
+@test 'the Ubuntu xcatroot keeps a search line that resolv.conf already has' {
+    printf 'search other.example\nnameserver 2001:db8:147::1\n' >"$FX/resolv.conf"
+    KERNEL_ARGS='nameserver=2001:db8:147::1 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search other.example\nnameserver 2001:db8:147::1')" ]
+}
+
+@test 'the Ubuntu xcatroot prefers the lease to the kernel command line' {
+    mkdir -p "$FX/leases"
+    printf 'DNS=192.0.2.53\nDOMAINNAME=lease.example\n' >"$FX/leases/2"
+    KERNEL_ARGS='nameserver=2001:db8:147::1 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search lease.example\nnameserver 192.0.2.53')" ]
+}
+
 @test 'the Ubuntu xcatroot keeps a resolv.conf that already names a server' {
     mkdir -p "$FX/leases"
     printf 'DNS=192.0.2.53\n' >"$FX/leases/2"

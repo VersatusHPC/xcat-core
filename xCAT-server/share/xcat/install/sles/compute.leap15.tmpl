@@ -7,6 +7,12 @@
         <append>#XCATVAR:PERSKCMDLINE#</append>
       </global>
     </bootloader>
+    <!-- The bootloader append above replaces the kernel command line, so the crashkernel=
+         that YaST proposes never reaches the node. Without this section YaST still enables
+         kdump, and kdump fails at every boot. -->
+    <kdump>
+      <add_crash_kernel config:type="boolean">false</add_crash_kernel>
+    </kdump>
     <general>
       <mode>
         <confirm config:type="boolean">false</confirm>

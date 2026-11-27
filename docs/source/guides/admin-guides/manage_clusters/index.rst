@@ -11,5 +11,6 @@ The sections cover hardware architectures and distribution-specific setup.
 
    ppc64le/index.rst
    x86_64/index.rst
+   aarch64/index.rst
    riscv64/index.rst
    openeuler/index.rst

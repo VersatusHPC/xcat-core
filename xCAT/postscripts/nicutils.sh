@@ -2475,6 +2475,32 @@ function set_roce_v2 {
 
 ######################################################################
 #
+# add_rxe_link: add a soft-RoCE (rdma_rxe) device on a nic
+# input: <nic> <device name>
+# output: sets rxe_added_by to "link" or "param", the interface that
+#         added the device
+#
+######################################################################
+function add_rxe_link {
+    local nic=$1
+    local dev=$2
+    local params=${XCAT_RXE_PARAMS:-/sys/module/rdma_rxe/parameters}
+    local err
+
+    rxe_added_by=link
+    err=$($rdma link add $dev type rxe netdev $nic 2>&1) && return 0
+    # Kernels before 5.1 have no rdma link add. Their rdma_rxe adds the device
+    # when the nic is written to its add parameter, and names it rxe<N>.
+    if [ ! -e "$params/add" ]; then
+        log_error "rdma link add $dev failed: $err"
+        return 1
+    fi
+    rxe_added_by=param
+    echo $nic >"$params/add" || { log_error "Cannot write $nic to $params/add."; return 1; }
+}
+
+######################################################################
+#
 # configure_roce_nic: the RDMA half of a nic with nictypes=RoCE
 # input: <nic>
 # The caller configures the IP of the nic, as for an ethernet nic.
@@ -2486,15 +2512,17 @@ function configure_roce_nic {
     local unitdir=${XCAT_SYSTEMD_UNIT_DIR:-/etc/systemd/system}
     local unit="xcat-roce-${nic}.service"
     local cfg=${XCAT_RDMA_CM_CONFIGFS:-/sys/kernel/config/rdma_cm}
+    local params=${XCAT_RXE_PARAMS:-/sys/module/rdma_rxe/parameters}
 
     # A RoCE adapter binds its own RDMA device to the nic. Only a nic
     # without one gets a soft-RoCE (rdma_rxe) link, and a second link fails.
     dev=$(rdma_dev_of_nic $nic)
     if [ -z "$dev" ]; then
         soft=1
-        dev="rxe_${nic}"
         $modprobe rdma_rxe || { log_error "The kernel has no rdma_rxe module."; return 1; }
-        $rdma link add $dev type rxe netdev $nic || { log_error "rdma link add $dev failed."; return 1; }
+        add_rxe_link $nic rxe_${nic} || return 1
+        dev=$(rdma_dev_of_nic $nic)
+        [ -n "$dev" ] || { log_error "The kernel added no RDMA device on $nic."; return 1; }
     fi
     log_info "RDMA device $dev is on $nic"
 
@@ -2513,7 +2541,11 @@ function configure_roce_nic {
         echo "RemainAfterExit=yes"
         if [ $soft -eq 1 ]; then
             echo "ExecStart=/usr/sbin/modprobe rdma_rxe"
-            echo "ExecStart=/bin/sh -c 'test -e /sys/class/infiniband/$dev || rdma link add $dev type rxe netdev $nic'"
+            if [ "$rxe_added_by" = param ]; then
+                echo "ExecStart=/bin/sh -c 'test -e /sys/class/infiniband/$dev || echo $nic >$params/add'"
+            else
+                echo "ExecStart=/bin/sh -c 'test -e /sys/class/infiniband/$dev || rdma link add $dev type rxe netdev $nic'"
+            fi
         fi
         echo "ExecStart=/usr/sbin/modprobe rdma_cm"
         echo "ExecStart=/bin/sh -c 'mkdir -p $cfg/$dev && echo RoCE v2 >$cfg/$dev/ports/1/default_roce_mode'"

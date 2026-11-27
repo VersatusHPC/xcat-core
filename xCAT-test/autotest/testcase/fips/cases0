@@ -64,7 +64,7 @@ cmd:token=`curl -s -X POST --cacert /install/postscripts/ca/ca-cert.pem 'https:/
 check:rc==0
 cmd:tabch -d key=xcat passwd
 check:rc==0
-cmd:mv -f /tmp/ssl.conf.fips_case /etc/httpd/conf.d/ssl.conf; dnf remove -y mod_ssl; systemctl restart httpd
+cmd:mv -f /tmp/ssl.conf.fips_case /etc/httpd/conf.d/ssl.conf; dnf remove -y mod_ssl; systemctl daemon-reload; systemctl restart httpd
 check:rc==0
 end
 

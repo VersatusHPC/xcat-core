@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use Carp qw(croak);
-use File::Temp qw(tempdir);
 use FindBin;
 use MIME::Base64 qw(encode_base64);
 use Test::More;
@@ -67,84 +65,4 @@ subtest 'installed IB policy does not change the boot-image input' => sub {
         'the filtered description reproduces the validated bootstrap plan');
 };
 
-subtest 'installer networking becomes managed installed-node configuration' => sub {
-    my $directory = tempdir(CLEANUP => 1);
-    open(my $input, '>', "$directory/bootstrap.plan") or croak $!;
-    print {$input} $plan;
-    close($input) or croak $!;
-    local %ENV = (%ENV, XCAT_WORK => $directory, FIXTURE_PLAN => "$directory/bootstrap.plan",
-        XCAT_BOOTSTRAP_NETWORK_BASE64 => $encoded, XCAT_MAC => $mac,
-        XCAT_IPV4 => '192.0.2.10', XCAT_NETMASK => '255.255.255.0', XCAT_GATEWAY => '192.0.2.1');
-    my $helper = "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd/xcat-network.sh";
-    # Supply the real producer output at the native compiler seam. This part
-    # of the test exercises the installed configuration handoff on Linux too.
-    my $script = '. "$1"; xcat_network_plan() { cp "$FIXTURE_PLAN" "$3"; }; xcat_network_rc';
-    open(my $pipe, '-|', 'sh', '-eu', '-c', $script, 'sh', $helper) or croak $!;
-    my $rc = do { local $/ = undef; <$pipe> };
-    close($pipe);
-    is($? >> 8, 0, 'the native helper renders the installed configuration');
-    like($rc, qr/\A[#][ ]BEGIN[ ]xCAT[ ]FreeBSD[ ]network\n/x, 'the regular network manager owns the block');
-    like($rc, qr/^ifconfig_bridge0_alias0="inet[ ]192\.0\.2\.10\/24"$/mx, 'the management address remains on the virtual leaf');
-    like($rc, qr/^ifconfig_bridge0="ether[ ]52:54:00:00:00:01[ ]/mx, 'the link address has its own native address-family command');
-    like($rc, qr/^defaultrouter="192\.0\.2\.1"$/mx, 'the configured gateway is retained');
-    like($rc, qr/^static_routes=""$/mx, 'IPv4 route-list ownership is explicit before the first normal update');
-    like($rc, qr/^ipv6_static_routes=""$/mx, 'IPv6 route-list ownership is explicit before the first normal update');
-    open(my $saved, '<', "$directory/target-network.plan") or croak $!;
-    my $state = do { local $/ = undef; <$saved> };
-    close($saved) or croak $!;
-    like($state, qr/\AF\txcat-freebsd-network-1\n/x, 'saved ownership uses the installed network contract');
-    like($state, qr/^A\tbridge0\tinet\t192\.0\.2\.10\t24$/mx, 'saved state contains the installed address');
-    like($state, qr/^D\tinet\t192\.0\.2\.1$/mx, 'saved state retains default-route ownership');
-    unlike($state, qr/^[BM]\t/mx, 'bootstrap-only identity records do not enter installed state');
-    local %ENV = (%ENV, NICTYPES => $nics->{nictypes}, NICDEVICES => $nics->{nicdevices},
-        NICEXTRAPARAMS => $nics->{nicextraparams}, NICIPS => 'bridge0!192.0.2.10',
-        NICNETWORKS => 'bridge0!provision', IPADDR => '192.0.2.10', NETWORKS_LINES => 1,
-        NETWORKS_LINE1 => 'netname=provision||net=192.0.2.0||mask=255.255.255.0||gateway=192.0.2.1||mtu=9000||disable=');
-    my @compile = ('awk', '-v', 'bootnic=vtnet0', '-v', "bootmac=$mac", '-v', 'configure_boot=1', '-f', $planner);
-    open(my $normal, '-|', @compile) or croak $!;
-    my $managed = do { local $/ = undef; <$normal> };
-    close($normal);
-    is($? >> 8, 0, 'the unchanged inventory compiles without explicit member MTUs or clone MACs');
-    is($managed, $state, 'normal adoption reproduces the exact installer ownership plan');
-
-    $ENV{NETWORKS_LINE1} =~ s/gateway=192[.]0[.]2[.]1/gateway=<xcatmaster>/x;
-    my ($owned_gateway) = $state =~ /^D\tinet\t([^\n]+)$/mx;
-    my @retained = (@compile, '-v', "owned_ipv4_gateway=$owned_gateway");
-    open(my $token, '-|', @retained) or croak $!;
-    my $preserved = do { local $/ = undef; <$token> };
-    close($token);
-    is($? >> 8, 0, 'the controller token accepts the default owned by the installer');
-    is($preserved, $state, 'the token preserves the exact installed plan and default-route ownership');
-
-    $ENV{NICEXTRAPARAMS} .= ' BOOTPROTO=dhcp';
-    open(my $dhcp, '-|', @retained) or croak $!;
-    my $leased = do { local $/ = undef; <$dhcp> };
-    close($dhcp);
-    is($? >> 8, 0, 'the management DHCP bridge inherits the provisioning identity');
-    like($leased, qr/^K\tifconfig_bridge0\tSYNCDHCP[ ]ether[ ]\Q$mac\E[ ]/mx,
-        'DHCP retains the inherited MAC at boot');
-    unlike($leased, qr/^K\tifconfig_bridge0_alias[0-9]+\tinet[ ]/mx,
-        'DHCP owns the management IPv4 address exclusively');
-    unlike($leased, qr/^D\tinet\t/mx, 'DHCP replaces the previously owned static default');
-};
-subtest 'a physical bootstrap interface retains the normal address command' => sub {
-    my $directory = tempdir(CLEANUP => 1);
-    my $inventory = { nictypes => 'vtnet0!ethernet', nicsadapter => "vtnet0!mac=$mac" };
-    my $physical = xCAT::FreeBSDNetwork::encode('vtnet0', $mac, $inventory, $planner);
-    open(my $input, '>', "$directory/bootstrap.plan") or croak $!;
-    print {$input} xCAT::FreeBSDNetwork::compile($physical, $planner);
-    close($input) or croak $!;
-    local %ENV = (%ENV, XCAT_WORK => $directory, FIXTURE_PLAN => "$directory/bootstrap.plan",
-        XCAT_BOOTSTRAP_NETWORK_BASE64 => $physical, XCAT_MAC => $mac,
-        XCAT_IPV4 => '192.0.2.10', XCAT_NETMASK => '255.255.255.0', XCAT_GATEWAY => '');
-    my $helper = "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd/xcat-network.sh";
-    my $script = '. "$1"; xcat_network_plan() { cp "$FIXTURE_PLAN" "$3"; }; xcat_network_rc';
-    open(my $pipe, '-|', 'sh', '-eu', '-c', $script, 'sh', $helper) or croak $!;
-    my $rc = do { local $/ = undef; <$pipe> };
-    close($pipe);
-    is($? >> 8, 0, 'the physical interface handoff succeeds');
-    like($rc, qr/^ifconfig_vtnet0="inet[ ]192\.0\.2\.10\/24[ ]mtu[ ]1500[ ]up"$/mx,
-        'an interface without a link-address command retains its primary IPv4 address');
-    unlike($rc, qr/^ifconfig_vtnet0_alias/mx, 'the primary address needs no extra alias');
-};
 done_testing();

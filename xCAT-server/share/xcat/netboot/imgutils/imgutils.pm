@@ -343,6 +343,37 @@ sub stage_dracut_module {
     return map { $_->[1] } @copy;
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 write_dracut_no_hostonly
+
+    Descriptions:
+        Write a dracut configuration file into the image that turns host-only
+        mode off. The kernel and microcode_ctl scriptlets run dracut while
+        genimage installs the packages, and the chroot has no /dev mounted
+        then. dracut prints "Turning off host-only mode: '/dev' is not
+        mounted!" unless the configuration already turns it off. genimage
+        builds its own initrd with -N, so the image never needs host-only.
+    Arguments:
+        $rootimg_dir: the root of the image
+    Returns:
+        the path of the file written; dies when the file cannot be written
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub write_dracut_no_hostonly {
+    my ($rootimg_dir) = @_;
+    my $dir  = "$rootimg_dir/etc/dracut.conf.d";
+    my $file = "$dir/99-xcat-genimage.conf";
+    mkpath($dir);
+    open(my $fh, '>', $file) or die("Error: cannot write $file: $!\n");
+    print $fh "# Written by xCAT genimage. A diskless image boots on other hardware.\n";
+    print $fh "hostonly=\"no\"\n";
+    close($fh) or die("Error: cannot write $file: $!\n");
+    return $file;
+}
+
 # The extra dracut modules a SUSE diskless image names when it boots with NetworkManager. The dracut
 # 059 dbus meta module takes dbus-broker only when the list names it, so without these names
 # network-manager fails its dbus dependency and network falls back to network-legacy (dhclient).

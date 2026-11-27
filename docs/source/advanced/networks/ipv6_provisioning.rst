@@ -108,6 +108,9 @@ Ubuntu, diskful   ``ip6=dhcp``, and casper runs ``dhcpcd -6`` as a third client
 SLES, openSUSE    ``ipv6only=1 hostip=<address>/<prefix>``, from ``static_ipv6_boot_args``
 ================  =========================================================================
 
+xCAT 2.21 does not support Ubuntu diskless nodes on an IPv6-only provisioning network.
+Provision Ubuntu diskless nodes over IPv4.
+
 A BMC on an IPv6 address
 ------------------------
 

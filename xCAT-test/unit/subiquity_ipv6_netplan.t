@@ -55,6 +55,15 @@ local *xCAT::NetworkUtils::ipv6_server_for_node = sub {
     return $RESOLVED{$server} if defined($server) && exists $RESOLVED{$server};
     return $server;
 };
+# The installer resolves through the systemd-resolved stub, which does not send a short name
+# to a unicast server. The callback names the management node by its short name, so the
+# netplan has to carry the search domain.
+my $domain = 'cluster.test';
+local *xCAT::NetworkUtils::getNodeDomains = sub {
+    my $nodes = shift;
+    $nodes = shift if defined($nodes) && $nodes eq 'xCAT::NetworkUtils';
+    return { $nodes->[0] => $domain };
+};
 local *xCAT::NetworkUtils::getNodeNameservers = sub {
     my $nodes = shift;
     $nodes = shift if defined($nodes) && $nodes eq 'xCAT::NetworkUtils';
@@ -92,12 +101,15 @@ is( $v6, <<'EOV6' =~ s/\n\z//r, 'an IPv6-only node is given its reserved address
             via: 2001:db8:147::1
         nameservers:
           addresses: [2001:db8:147::1]
+          search: [cluster.test]
 EOV6
 like( $v6, qr/^\s+addresses: \[\Q$ADDR\E\/$PREFIX\]$/m,
     '... with the prefix length netplan needs' );
 like( $v6, qr/^\s+- to: default$/m, '... and a default route' );
 like( $v6, qr/^\s+via: \Q$MASTER\E$/m, '... through the resolved IPv6 gateway' );
 like( $v6, qr/^\s+addresses: \[\Q$MASTER\E\]$/m, '... resolving through the IPv6 resolver' );
+like( $v6, qr/^\s+search: \[cluster\.test\]$/m,
+    '... with the domain of the node as its search list, so a short name resolves' );
 unlike( $v6, qr/192\.0\.2\.53/,
     '... and not through the IPv4 resolver it cannot reach' );
 like( $v6, qr/^\s+dhcp4: false$/m, '... with DHCPv4 turned off explicitly' );
@@ -130,6 +142,15 @@ unlike( $v6, qr/dhcp4: true/, '... never asking for DHCPv4' );
         '... and the management node does not replace it' );
 }
 
+# A node with no domain gets no search key, rather than an empty list.
+{
+    $domain = undef;
+    my $nodomain = keys_for( 1, 8 );
+    $domain = 'cluster.test';
+    unlike( $nodomain, qr/search:/, 'a node with no domain is given no search list' );
+    like( $nodomain, qr/^\s+addresses: \[\Q$MASTER\E\]$/m, '... and keeps its resolver' );
+}
+
 # A node with no address must fail the template rather than install and hang at post.xcat.
 {
     $cfg6 = [ undef, $NODE, '<xcatmaster>', undef ];
@@ -154,7 +175,7 @@ is( $t6,
     '"      dhcp4: false" "      dhcp6: false" "      accept-ra: false"'
       . ' "      addresses: [2001:db8:147::20/64]" "      routes:"'
       . ' "        - to: default" "          via: 2001:db8:147::1" "      nameservers:"'
-      . ' "        addresses: [2001:db8:147::1]"',
+      . ' "        addresses: [2001:db8:147::1]" "        search: [cluster.test]"',
     'the installed system keeps the same static address' );
 like( $t6, qr/"      addresses: \[\Q$ADDR\E\/$PREFIX\]"/,
     '... as a quoted printf argument' );

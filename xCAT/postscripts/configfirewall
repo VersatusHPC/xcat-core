@@ -328,8 +328,13 @@ sub configure_firewalld
     # --info-policy on an absent policy makes firewalld log INVALID_POLICY. --get-policies does not.
     my @policies = $nat ? split(' ', `firewall-cmd --permanent --get-policies 2>/dev/null`) : ();
 
+    my %present = (
+        ports      => [ split(' ', `firewall-cmd --permanent --zone=public --list-ports 2>/dev/null`) ],
+        masquerade => (system('firewall-cmd --permanent --zone=public --query-masquerade >/dev/null 2>&1') == 0),
+    );
+
     my $rc = 0;
-    foreach my $args (xCAT::FirewallUtils::firewalld_commands($plan, \@allowed_ports, $nat, \@policies))
+    foreach my $args (xCAT::FirewallUtils::firewalld_commands($plan, \@allowed_ports, $nat, \@policies, \%present))
     {
         if (system('firewall-cmd', @$args) != 0)
         {

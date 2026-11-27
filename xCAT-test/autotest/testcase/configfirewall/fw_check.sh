@@ -140,7 +140,8 @@ restore)
         systemctl unmask firewalld >/dev/null 2>&1
         systemctl start firewalld
         for z in $(sed -n 's/^masq=//p' "$STATE"); do
-            firewall-cmd --permanent --zone="$z" --add-masquerade >/dev/null
+            firewall-cmd --permanent --zone="$z" --query-masquerade >/dev/null 2>&1 ||
+                firewall-cmd --permanent --zone="$z" --add-masquerade >/dev/null
         done
         firewall-cmd --reload >/dev/null
     else

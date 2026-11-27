@@ -1,12 +1,11 @@
 #!/usr/bin/env perl
 # The netplan match key of the Subiquity installer.
 #
-# Both autoinstall templates carried the literal glob name: "e*". A DHCPv4 node can take it: the
-# lease is offered on one interface only, so the other candidates stay unaddressed. An IPv6-only
-# node is given a static address instead, and three interfaces of one bridge all match "e*", so
-# netplan put the same static address on each of them. The node then answered on whichever
-# interface won, and the installer could not reach its package source. An IPv6-only node is
-# matched by its own MAC.
+# Both autoinstall templates carried the literal glob name: "e*". An IPv6-only node is given a
+# static address, and three interfaces of one bridge all match "e*", so netplan put the same
+# static address on each of them. A DHCPv4 node ran DHCP on every interface the glob matched,
+# including the ones xCAT marks *NOIP*, for the whole install. Every node is matched by its own
+# MAC.
 use strict;
 use warnings;
 no warnings 'once';
@@ -40,11 +39,16 @@ sub match_for {
     return xCAT::Template::subiquity_install_match($indent, $NODE);
 }
 
-# An IPv4 node keeps the glob the templates carried, byte for byte.
-is( match_for( 0, 10 ), '          name: "e*"',
-    'an IPv4 node matches every ethernet candidate, as before' );
-is( match_for( 0, 8 ), '        name: "e*"',
+# An IPv4 node matches its own MAC, so the installer runs no DHCP on its other interfaces.
+is( match_for( 0, 10 ), '          macaddress: "aa:bb:cc:dd:ee:07"',
+    'an IPv4 node matches its own MAC, lower-cased' );
+is( match_for( 0, 8 ), '        macaddress: "aa:bb:cc:dd:ee:07"',
     '... at whichever indent the tag asks for' );
+{
+    local $TAB{'mac:mac'} = 'AA:BB:CC:DD:EE:07|AA:BB:CC:DD:EE:08!*NOIP*|AA:BB:CC:DD:EE:0A!*NOIP*';
+    is( match_for( 0, 10 ), '          macaddress: "aa:bb:cc:dd:ee:07"',
+        'an IPv4 node with *NOIP* interfaces matches only its install MAC' );
+}
 
 # An IPv6-only node matches one interface, and netplan wants the address lower-cased.
 is( match_for( 1, 10 ), '          macaddress: "aa:bb:cc:dd:ee:07"',
@@ -68,6 +72,8 @@ is( match_for( 1, 8 ), '        macaddress: "aa:bb:cc:dd:ee:07"',
     local $TAB{'mac:mac'} = '';
     is( match_for( 1, 10 ), '',
         'an IPv6-only node with no MAC renders no match key' );
+    is( match_for( 0, 10 ), '',
+        'an IPv4 node with no MAC renders no match key' );
 }
 
 # The templates ask for the tag, or the sub is dead code and the glob is still shipped.

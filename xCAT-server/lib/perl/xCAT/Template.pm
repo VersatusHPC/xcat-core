@@ -2184,11 +2184,9 @@ sub subiquity_target_dhcp_keys {
     The netplan match key that picks the provisioning NIC of the node being
     installed.
 
-    An IPv4 node keeps the glob the templates carried: DHCPv4 answers on one
-    interface only, so every candidate may be offered the lease. An IPv6-only
-    node is given a static address, and a static address on each of three
-    interfaces of one bridge is a broken network, so that node is matched by
-    its own MAC.
+    The node is matched by its own MAC. A glob gives DHCPv4 to the *NOIP*
+    interfaces for the whole install, and gives an IPv6-only node the same
+    static address on each interface of one bridge.
 
     Arguments:
         $indent   how many spaces the key is indented by
@@ -2203,7 +2201,6 @@ sub subiquity_install_match {
     my ($indent, $nodename) = @_;
 
     my $pad = ' ' x (defined($indent) ? $indent : 10);
-    return "${pad}name: \"e*\"" unless $node_ipv6_only;
 
     $nodename = $node unless defined($nodename);
     my (undef, $macaddress) = subiquity_install_netcfg_for_node($nodename);

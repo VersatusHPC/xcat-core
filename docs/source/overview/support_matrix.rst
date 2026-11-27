@@ -39,3 +39,21 @@ riscv64 support covers EL 10 (Rocky Linux 10 and the RHEL 10 RISC-V developer pr
 Ubuntu 24.04 and 26.04, on nodes that boot through UEFI firmware and grub2. Both stateful and
 stateless nodes are supported, and the management node itself can run on riscv64. See
 :doc:`/guides/admin-guides/manage_clusters/riscv64/index` for details.
+
+FIPS mode
+---------
+
+xCAT runs on a management node that boots with the FIPS mode of the operating system, and
+installs diskful nodes in FIPS mode. See :doc:`/advanced/security/fips`.
+
++--------------------------------------------+---------------------------------------------+
+| Item                                       | State                                       |
++============================================+=============================================+
+| Management node and diskful nodes, EL 9    | supported                                   |
+| and EL 10, x86_64                          |                                             |
++--------------------------------------------+---------------------------------------------+
+| EL 8, Ubuntu, openSUSE, openEuler          | not supported                               |
++--------------------------------------------+---------------------------------------------+
+| Diskless and statelite nodes; ppc64le,     | not supported                               |
+| aarch64 and riscv64                        |                                             |
++--------------------------------------------+---------------------------------------------+

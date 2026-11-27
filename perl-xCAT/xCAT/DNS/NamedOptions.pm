@@ -25,11 +25,8 @@ sub dnssec_options {
     return () unless defined($bind_version) && $bind_version =~ /^\d+(\.\d+)*$/;
     return () if _version_cmp($bind_version, "9.16.6") < 0;
 
-    my @lines;
-    # dnssec-enable was removed in bind 9.18
-    push @lines, "\tdnssec-enable no;\n" if _version_cmp($bind_version, "9.18.0") < 0;
-    push @lines, "\tdnssec-validation no;\n";
-    return @lines;
+    # No dnssec-enable: bind 9.16 reports it obsolete and 9.18 refuses it.
+    return ("\tdnssec-validation no;\n");
 }
 
 sub _version_cmp {

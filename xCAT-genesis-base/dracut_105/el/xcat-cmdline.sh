@@ -18,9 +18,10 @@ xcat_console_mode() {
 }
 
 # Run doxcat in the tmux session doxcat, or attach to that session when it exists. The caller
-# loops, so a person who leaves the session gets it back.
+# loops, so a person who leaves the session gets it back. attach-session before the session
+# exists writes "can't find session" to the console; new-session -A does not.
 xcat_doxcat_session() {
-    tmux attach-session -t doxcat || tmux new-session -s doxcat doxcat
+    tmux new-session -A -s doxcat doxcat
 }
 clear
 echo PS1="'"'[xCAT Genesis running on \H \w]\$ '"'" > /.bashrc

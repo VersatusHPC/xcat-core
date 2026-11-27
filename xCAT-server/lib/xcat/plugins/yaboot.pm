@@ -205,6 +205,11 @@ sub setstate {
     }
 
 
+    # Check the address before any file is written. grub2.pm refuses the same node.
+    unless (xCAT::NetworkUtils->getipaddr($node)) {
+        return (1, "xCAT unable to resolve IP in yaboot plugin");
+    }
+
     my $pcfg;
     unless (-d "$tftpdir/etc") {
         mkpath("$tftpdir/etc");
@@ -664,7 +669,7 @@ sub process_request {
             ($rc, $errstr) = setstate($_, \%bphash, $chainhash, $machash, $tftpdir, $nrhash, $linuximghash);
             if ($rc) {
                 $response{node}->[0]->{errorcode}->[0] = $rc;
-                $response{node}->[0]->{errorc}->[0]    = $errstr;
+                $response{node}->[0]->{error}->[0]     = $errstr;
                 $::YABOOT_callback->(\%response);
             }
         }

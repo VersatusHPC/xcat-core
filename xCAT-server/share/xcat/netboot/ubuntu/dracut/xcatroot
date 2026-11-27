@@ -120,6 +120,11 @@ xcat_resolv_from_leases
 XCATMASTER=$XCAT
 
 # Downloads the checksum file published for the image at $1 to $2.
+# xcat_make_loop0 [<node>] -- create the loop device node that mounts the squashfs root image.
+xcat_make_loop0() {
+    mknod ${1:-/dev/loop0} b 7 0
+}
+
 rootimg_fetch_checksum() {
 	rm -f "$2"
 	wget -q -O "$2" "$1.sha256"
@@ -195,7 +200,7 @@ fi
 
 if [ -r /rootimg.sfs ]; then
   echo Setting up squashfs with ram overlay.
-  mknod /dev/loop0 b 7 0
+  xcat_make_loop0
   mkdir -p /ro
   mkdir -p /rw
   mount -t squashfs /rootimg.sfs /ro

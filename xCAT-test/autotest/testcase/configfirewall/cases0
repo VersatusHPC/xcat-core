@@ -38,7 +38,7 @@ label:firewall
 os:rhels
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh save
 check:rc==0
-cmd:sh -c 'if systemctl is-active --quiet firewalld; then for z in $(firewall-cmd --get-zones); do firewall-cmd --zone=$z --remove-masquerade >/dev/null; firewall-cmd --permanent --zone=$z --remove-masquerade >/dev/null; done; fi; true'
+cmd:sh -c 'if systemctl is-active --quiet firewalld; then for z in $(firewall-cmd --get-zones); do firewall-cmd --zone=$z --query-masquerade >/dev/null && firewall-cmd --zone=$z --remove-masquerade >/dev/null; firewall-cmd --permanent --zone=$z --query-masquerade >/dev/null && firewall-cmd --permanent --zone=$z --remove-masquerade >/dev/null; done; fi; true'
 check:rc==0
 cmd:xdsh $$CN "curl -sS -m 30 -o /dev/null -w CNEXT=%{http_code} http://1.1.1.1/"
 check:output!~CNEXT=[1-5][0-9][0-9]

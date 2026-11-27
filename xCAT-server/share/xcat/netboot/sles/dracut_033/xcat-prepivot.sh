@@ -158,12 +158,19 @@ function getdevfrommac() {
     done
 }
 
-# get boot interface name and generate network/ifcfg-<name> file
-bootif=$(ls /tmp/net.*.up|grep -v ":"|sed -e s/.*net\.// -e s/\.up//)
-cat <<EOF >  $NEWROOT/etc/sysconfig/network/ifcfg-$bootif
+# xcat_write_bootif_ifcfg <newroot> [<rundir>] -- write the wicked ifcfg file of the NIC that
+# dracut brought up. dracut network-legacy marks that NIC with <rundir>/net.<nic>.up.
+xcat_write_bootif_ifcfg() {
+    local newroot=$1 rundir=${2:-/tmp} bootif
+    bootif=$(ls $rundir/net.*.up|grep -v ":"|sed -e 's/.*net\.//' -e 's/\.up//')
+    cat <<EOF >  $newroot/etc/sysconfig/network/ifcfg-$bootif
 BOOTPROTO='dhcp'
 STARTMODE='auto'
 EOF
+}
+
+# get boot interface name and generate network/ifcfg-<name> file
+xcat_write_bootif_ifcfg $NEWROOT
 
 if [ -f $NEWROOT/etc/hostname ]; then
     echo "$ME" > $NEWROOT/etc/hostname

@@ -759,6 +759,12 @@ function check_brctl() {
 function check_and_set_device_managed() {
     devname=$1
     rc=1
+    # nmcli reads "device show" with no name as every device, and "device set managed yes"
+    # as a device named "managed".
+    if [ -z "$devname" ]; then
+        log_error "check_and_set_device_managed needs a device name"
+        return 1
+    fi
     log_info "check_and_set_device_managed for device $devname"
     $nmcli device show $devname >/dev/null 2>/dev/null
     if [ $? -ne 0 ]; then
@@ -2013,6 +2019,10 @@ function create_bridge_interface_nmcli {
     ipv4_addr=$(get_first_addr_ipv4 $_ipaddr)
     if [ $? -ne 0 ]; then
         log_error "No valid IP address get for $ifname, please check $ipaddrs"
+        return 1
+    fi
+    if [ -z "$_port" ]; then
+        log_error "bridge $ifname has no port device in nics.nicdevices"
         return 1
     fi
     # Check and set slave device status

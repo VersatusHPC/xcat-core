@@ -15,6 +15,19 @@ xcat_x86_net_modules() {
         sed -e 's/\.ko.*//' -e 's/.*\///'
 }
 
+# The modules of xcat_x86_net_modules that drive a device of this host, one name per line.
+# <bus> is a sysfs bus directory. A legacy ISA or parallel port driver finds no device and its
+# modprobe prints "could not insert"; modprobe -R names the driver of each device instead.
+xcat_x86_present_net_modules() {
+    local present mod
+    present=$(cat "$2"/*/devices/*/modalias 2>/dev/null | sort -u |
+        while read -r alias; do modprobe -R "$alias" 2>/dev/null; done | tr - _ | sort -u)
+    for mod in $(xcat_x86_net_modules "$1"); do
+        printf '%s\n' "$present" | grep -qx "$(printf '%s' "$mod" | tr - _)" && echo "$mod"
+    done
+    return 0
+}
+
 # tmux exits when the image carries no UTF-8 locale. doxcat is the whole of Genesis, so it
 # must run whether or not the multiplexer starts. Prints tmux or direct.
 xcat_console_mode() {
@@ -111,7 +124,7 @@ elif [[ ${ARCH} =~ x86_64 ]]; then
     KERVER=`uname -r`
     # Xen guests require xen-netfront for the paravirtual NIC.
     modprobe xen-netfront 2>/dev/null || :
-    for mod in $(xcat_x86_net_modules /lib/modules/$KERVER/modules.dep); do
+    for mod in $(xcat_x86_present_net_modules /lib/modules/$KERVER/modules.dep /sys/bus); do
         modprobe $mod
     done
 fi

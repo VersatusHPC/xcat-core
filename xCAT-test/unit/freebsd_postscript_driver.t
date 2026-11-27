@@ -13,33 +13,20 @@ use File::Temp qw(tempdir);
 use Test::More;
 use xCAT::FreeBSDPkg;
 use xCAT::FreeBSDPostscript;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 plan(skip_all => 'Driver execution requires a Linux or FreeBSD lab root')
   unless ($^O eq 'linux' || $^O eq 'freebsd') && $> == 0;
 my $root = abs_path(tempdir(CLEANUP => 1, DIR => '/tmp'));
 my $chroot = -x '/usr/sbin/chroot' ? '/usr/sbin/chroot' : '/usr/bin/chroot';
-sub read_file {
-    open(my $file, '<', $_[0]) or croak $!;
-    local $/ = undef;
-    my $bytes = <$file>;
-    close($file) or croak $!;
-    return defined($bytes) ? $bytes : '';
-}
-sub write_file {
-    my ($path, $bytes, $mode) = @_;
-    open(my $file, '>', $path) or croak $!;
-    binmode($file) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    chmod(defined($mode) ? $mode : oct('0600'), $path) == 1 or croak $!;
-    return;
-}
+
 make_path("$root/bin", "$root/usr/local/libexec", "$root/tree");
 copy('/bin/sh', "$root/bin/sh") or croak $!;
 chmod(oct('0555'), "$root/bin/sh") == 1 or croak $!;
 my $loader = xCAT::FreeBSDPkg::run_command(['/usr/bin/ldd', '/bin/sh'], cwd => $root,
     environment => { PATH => '/usr/bin:/bin', LC_ALL => 'C' }, timeout => 10);
-BAIL_OUT('Cannot inspect shell dependencies') if $loader->{exitcode} || $loader->{signal};
+die('Cannot inspect shell dependencies') if $loader->{exitcode} || $loader->{signal};
 for my $path ($loader->{stdout} =~ m{(/[^\s()]+)}gx) {
     next unless -f $path;
     make_path(dirname("$root$path"));
@@ -113,8 +100,8 @@ sub exercise {
     my $compiled = xCAT::FreeBSDPostscript::_driver($rendered, $selection, $repeat);
     is($compiled->{enabled}, $enabled, "$label execution policy");
     is_deeply([map { pack('H*', $_->{name}) } @{$compiled->{entries}}], $expected, "$label selected entries");
-    write_file("$root/driver", $compiled->{driver});
-    write_file("$root/$_", '') for qw(events effects custom states);
+    write_file("$root/driver", $compiled->{driver}, oct('0600'));
+    write_file("$root/$_", '', oct('0600')) for qw(events effects custom states);
     my $outcome = xCAT::FreeBSDPkg::run_command([$chroot, $root, '/bin/sh', '/driver', 'run'],
         cwd => $root, environment => { PATH => '/bin', LC_ALL => 'C' }, timeout => 10);
     is($outcome->{exitcode}, 0, "$label driver exits normally");

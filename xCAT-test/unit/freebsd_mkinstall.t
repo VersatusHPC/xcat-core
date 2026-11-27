@@ -21,6 +21,8 @@ use Test::More;
 use xCAT::FreeBSDInstall;
 use xCAT::FreeBSDImage;
 use xCAT::Schema;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 our (%XCATSITEVALS, %GLOBAL_TAB_HASH, %GLOBAL_SN_HASH, %GLOBAL_TABDUMP_HASH, @exclude_nodes);
 
 BEGIN { $INC{'xCAT/Table.pm'} = 1; }
@@ -112,18 +114,7 @@ my $inspect = \&xCAT::FreeBSDImage::inspect_media;
     *xCAT::FreeBSDInstall::state = sub { return $read_state->(@_, directory => $state_directory); };
     *xCAT::FreeBSDImage::inspect_media = sub { ++$inspect_count; return $inspect->(@_); };
 }
-sub write_file {
-    my ($path, $text) = @_;
-    make_path(dirname($path));
-    open(my $file, '>', $path) or die "$path: $!";
-    binmode($file);
-    print {$file} $text or die $!;
-    close($file) or die $!;
-}
-sub read_file {
-    open(my $file, '<', $_[0]) or die "$_[0]: $!";
-    return do { local $/; <$file> };
-}
+
 sub fixture {
     my $format = shift || 'xcat-mfsbsd-1';
     my $install_contract = shift;

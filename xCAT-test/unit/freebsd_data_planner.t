@@ -7,17 +7,11 @@ use FindBin;
 use IPC::Open3;
 use Symbol qw(gensym);
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $planner = "$FindBin::Bin/../../xCAT/postscripts/configzfs-freebsd.awk";
 my $directory = tempdir(CLEANUP => 1);
-
-sub write_file {
-    my ($name, $bytes) = @_;
-    open(my $out, '>', "$directory/$name") or croak $!;
-    print {$out} $bytes;
-    close($out) or croak $!;
-    return "$directory/$name";
-}
 
 sub invoke {
     my (@arguments) = @_;
@@ -39,7 +33,7 @@ sub base {
 
 sub compile {
     my ($policy) = @_;
-    return invoke(write_file('policy', join('', map { "$_=$policy->{$_}\n" } sort keys %$policy)));
+    return invoke(write_file("$directory/policy", join('', map { "$_=$policy->{$_}\n" } sort keys %$policy)));
 }
 
 sub settings {
@@ -64,7 +58,7 @@ sub status {
 
 sub verify {
     my ($plan, $native) = @_;
-    return invoke('-v', 'mode=verify', write_file('plan', $plan), write_file('status', $native));
+    return invoke('-v', 'mode=verify', write_file("$directory/plan", $plan), write_file("$directory/status", $native));
 }
 
 subtest 'dedicated pool defaults and native readback' => sub {
@@ -134,7 +128,7 @@ subtest 'invalid policy cannot emit a partial create plan' => sub {
         like($error, qr/configzfs:/x, 'rejection identifies the policy problem');
     }
     for my $bytes ("format=xcat-freebsd-data-1\nformat=xcat-freebsd-data-1\n", "pool=tank\t\n", 'x' x 32769) {
-        my ($exit, $plan) = invoke(write_file('malformed', $bytes));
+        my ($exit, $plan) = invoke(write_file("$directory/malformed", $bytes));
         isnt($exit, 0, 'duplicate, control-character or oversized input is rejected');
         is($plan, '', 'malformed input emits no plan');
     }
@@ -249,13 +243,13 @@ subtest 'native startup-cache identities' => sub {
     my $native = "createproof:\n    pool_guid: 12448067557558924659\n" .
         "zroot:\n    pool_guid: 6329292263267649316\n" .
         "tank:\n    pool_guid: 5556949434698476598\n";
-    my ($exit, $records, $error) = invoke('-v', 'mode=cache', write_file('cache', $native));
+    my ($exit, $records, $error) = invoke('-v', 'mode=cache', write_file("$directory/cache", $native));
     is($exit, 0, 'all native startup pool identities are read');
     is($error, '', 'valid cache has no diagnostic');
     is_deeply([sort split(/\n/x, $records)], [
         "createproof\t12448067557558924659", "tank\t5556949434698476598", "zroot\t6329292263267649316"],
         'every pool retains its full-width identity');
-    my ($duplicate, $deduplicated) = invoke('-v', 'mode=cache', write_file('cache', $native . $native));
+    my ($duplicate, $deduplicated) = invoke('-v', 'mode=cache', write_file("$directory/cache", $native . $native));
     is($duplicate, 0, 'matching identities from both native cache paths are accepted');
     is_deeply([sort split(/\n/x, $deduplicated)], [sort split(/\n/x, $records)], 'duplicate caches do not duplicate pools');
     for my $invalid (
@@ -264,11 +258,11 @@ subtest 'native startup-cache identities' => sub {
         "tank:\n", "tank:\n    pool_guid: 0\n", "tank:\n    pool_guid: 18446744073709551616\n",
         "tank:\n    pool_guid: 12\n    pool_guid: 12\n", "tank;reboot:\n    pool_guid: 12\n",
     ) {
-        my ($bad, $partial) = invoke('-v', 'mode=cache', write_file('cache', $invalid));
+        my ($bad, $partial) = invoke('-v', 'mode=cache', write_file("$directory/cache", $invalid));
         isnt($bad, 0, 'ambiguous or incomplete cached identities are rejected');
         is($partial, '', 'no partial startup inventory escapes');
     }
-    my ($empty, $none) = invoke('-v', 'mode=cache', write_file('cache', ''));
+    my ($empty, $none) = invoke('-v', 'mode=cache', write_file("$directory/cache", ''));
     is($empty, 0, 'a system without a cache has no existing cached pools');
     is($none, '', 'an absent cache invents no startup membership');
 };

@@ -15,17 +15,11 @@ use Test::More;
 use Time::HiRes qw(time sleep);
 use xCAT::FreeBSDPkg;
 use xCAT::Utils;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file);
 
 my $temporary = abs_path(tempdir(CLEANUP => 1));
 my $json = JSON->new->canonical;
-
-sub read_file {
-    my ($path) = @_;
-    open(my $file, '<:raw', $path) or croak "$path: $!";
-    my $text = do { local $/; <$file> };
-    close($file) or croak "$path: $!";
-    return defined($text) ? $text : '';
-}
 
 sub observed_exit {
     my ($result, $status, $name) = @_;

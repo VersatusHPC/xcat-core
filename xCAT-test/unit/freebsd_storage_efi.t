@@ -11,28 +11,12 @@ use lib "$FindBin::Bin/../lib";
 use Test::More;
 use XCAT::Test::File qw(repo_path);
 use XCAT::Test::Process qw(run_command);
+use XCAT::Test::File qw(read_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR}
     || repo_path('xCAT-server/share/xcat/install/freebsd');
 my $root = tempdir(CLEANUP => 1);
 my $prefix = 'xe' . ('a' x 32);
-
-sub write_file {
-    my ($path, $data) = @_;
-    open(my $fh, '>', $path) or croak "$path: $!";
-    print {$fh} $data or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
-
-sub read_file {
-    my ($path) = @_;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    local $/ = undef;
-    my $data = <$fh>;
-    close($fh) or croak "$path: $!";
-    return $data // '';
-}
 
 make_path("$root/bin");
 write_file("$root/bin/sha256", "#!$^X\n" . <<'HASH');

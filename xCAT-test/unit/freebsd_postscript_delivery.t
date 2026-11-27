@@ -11,6 +11,8 @@ use JSON;
 use Test::More;
 use XCAT::Test::PostageFixture ();
 use xCAT::FreeBSDPostscript;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 umask 0077;
 my $temporary = tempdir(CLEANUP => 1);
@@ -21,21 +23,6 @@ my $generation = 'c' x 32;
 my $attempt = 'd' x 32;
 my $archive = "\0" x 10240;
 my $sequence = 0;
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $file, '>:raw', $path) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
-
-sub read_file {
-    open(my $file, '<:raw', shift) or croak $!;
-    my $bytes = do { local $/ = undef; <$file> };
-    close($file) or croak $!;
-    return $bytes;
-}
 
 sub terminal {
     my $outcome = shift;

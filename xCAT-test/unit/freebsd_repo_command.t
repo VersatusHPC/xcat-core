@@ -21,6 +21,8 @@ use xCAT::FreeBSDPkg;
 use xCAT::FreeBSDRepo;
 use xCAT::FreeBSDRepoImport;
 use xCAT::FreeBSDPackagePlan;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 BEGIN { ## no critic (Variables::RequireLocalizedPunctuationVars)
     $INC{"xCAT/$_.pm"} = 1 for qw(Table TableUtils);
@@ -125,26 +127,6 @@ my $source_tree = xCAT::FreeBSDRepo::snapshot_tree($signed);
 my ($unsigned, $nested);
 my $default_policy = { format => 'xcat-freebsd-import-policy-1', tool => $tool,
     releases => {}, repositories => {} };
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$fh>;
-    close($fh) or croak "$path: $!";
-    return defined($bytes) ? $bytes : '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub command {
     my @argv = @_;

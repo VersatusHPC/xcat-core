@@ -12,6 +12,8 @@ use Storable qw(dclone);
 use Test::More;
 use xCAT::FreeBSDConfig;
 use xCAT::FreeBSDInstall;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $root = abs_path(tempdir(CLEANUP => 1));
 my $sequence = 0;
@@ -21,14 +23,6 @@ my $planner = abs_path("$FindBin::Bin/../../xCAT/postscripts/configzfs-freebsd.a
 my $mirror = {filesystem => 'zfs', zfs_topology => 'mirror', zfs_vdevs => 'auto:2',
     zfs_log_vdevs => '-', zfs_cache_vdevs => '-', zfs_special_vdevs => '-'};
 my $members = 'vtbd0@OS0,vtbd1@OS1';
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
 
 sub read_state {
     my $directory = shift;

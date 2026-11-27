@@ -9,6 +9,8 @@ use File::Temp qw(tempdir);
 use MIME::Base64 qw(encode_base64);
 use Test::More;
 use xCAT::FreeBSDConfig;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
 my $root = tempdir(CLEANUP => 1);
@@ -20,23 +22,6 @@ my $network = { master => '192.0.2.1', port => '3002', mac => '52:54:00:12:34:56
     hostname => 'node1.example.test', nameservers => '192.0.2.1', install_url => 'http://192.0.2.1/install' };
 my $disk = { target_disk => 'vtbd0', target_disk_ident => 'TEST_DISK', filesystem => 'ufs',
     swap_size => '0', authorized_key_base64 => encode_base64("ssh-ed25519 AAAA\n", '') };
-
-sub write_file {
-    my ($path, $text) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $text or croak $!;
-    close($file) or croak $!;
-    return;
-}
-
-sub read_file {
-    my $path = shift;
-    open(my $file, '<', $path) or croak $!;
-    local $/ = undef;
-    my $text = <$file>;
-    close($file) or croak $!;
-    return $text;
-}
 
 sub rejected {
     my ($operation, $pattern, $label) = @_;

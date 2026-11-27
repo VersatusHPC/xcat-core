@@ -6,24 +6,10 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
-
-sub read_file {
-    my ($path) = @_;
-    open(my $in, '<', $path) or die "$path: $!";
-    local $/;
-    my $bytes = <$in>;
-    close($in) or die "$path: $!";
-    return $bytes // '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $out, '>', $path) or die "$path: $!";
-    print {$out} $bytes;
-    close($out) or die "$path: $!";
-}
 
 my $root = tempdir(CLEANUP => 1);
 make_path("$root/bin", "$root/work");

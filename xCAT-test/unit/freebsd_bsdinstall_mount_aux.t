@@ -8,6 +8,8 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 plan skip_all => 'requires native FreeBSD bsdconfig without mounted DVD packages'
     if $^O ne 'freebsd' || !-d '/usr/share/bsdconfig' || -e '/packages';
@@ -17,23 +19,6 @@ my $helper = "$directory/patch-bsdinstall-mount_aux.sh";
 my $native = "$FindBin::Bin/fixtures/freebsd15.1-bsdinstall-mount_aux";
 my $root = tempdir('xcat-mount-test.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $digest = '39ecb2ae16c45198b5fbda31dbc41278417f07f60521ba458e530ffa4a720ecb';
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    local $/ = undef;
-    my $data = <$fh>;
-    close($fh) or croak "$path: $!";
-    return $data // '';
-}
-
-sub write_file {
-    my ($path, $data) = @_;
-    open(my $fh, '>', $path) or croak "$path: $!";
-    print {$fh} $data or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub run {
     my @args = @_;
@@ -48,7 +33,7 @@ sub run {
 is(sha256_hex(read_file($native)), $digest, 'fixture is the pinned native mount helper');
 my ($patch_status, $patched) = run('/bin/sh', $helper, $native);
 is($patch_status, 0, 'patcher accepts the pinned native source');
-BAIL_OUT('native mount patch failed') if $patch_status;
+die('native mount patch failed') if $patch_status;
 write_file("$root/patched", $patched);
 is((run('/bin/sh', '-n', "$root/patched"))[0], 0, 'generated helper has shell syntax');
 write_file("$root/changed", read_file($native) . "\n");

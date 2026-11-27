@@ -8,29 +8,14 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
 my $helper = "$directory/patch-bsdinstall-umount.sh";
 my $native = "$FindBin::Bin/fixtures/freebsd15.1-bsdinstall-umount";
 my $root = tempdir(CLEANUP => 1);
 make_path("$root/bin");
-
-sub write_file {
-    my ($path, $content) = @_;
-    open(my $fh, '>', $path) or croak "$path: $!";
-    print {$fh} $content or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    local $/ = undef;
-    my $content = <$fh>;
-    close($fh) or croak "$path: $!";
-    return $content;
-}
 
 sub run_shell {
     my ($code, @args) = @_;

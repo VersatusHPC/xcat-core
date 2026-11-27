@@ -6,10 +6,12 @@ use warnings;
 use Cwd qw(abs_path);
 use Exporter qw(import);
 use File::Basename qw(dirname);
+use File::Path qw(make_path);
+use File::Slurper qw(read_binary write_binary);
 use File::Spec;
 use IO::Handle;
 
-our @EXPORT_OK = qw(repo_path slurp_repo_file);
+our @EXPORT_OK = qw(repo_path slurp_repo_file read_file read_optional_file write_file);
 
 my $module_dir = dirname( File::Spec->rel2abs(__FILE__) );
 my $repo_root = abs_path(
@@ -52,6 +54,65 @@ sub slurp_repo_file {
     return $contents;
 }
 
+#--------------------------------------------------------------------------
+
+=head3 read_file
+
+    Descriptions: Read a scratch file in raw mode.
+    Arguments:    the path of the file
+    Returns:      the complete contents; dies when the file cannot be read
+
+=cut
+
+#--------------------------------------------------------------------------
+sub read_file {
+    my ($path) = @_;
+    my $bytes = read_binary($path);
+    return defined($bytes) ? $bytes : q{};
+}
+
+#--------------------------------------------------------------------------
+
+=head3 read_optional_file
+
+    Descriptions: Read a scratch file that the code under test may not write.
+    Arguments:    the path of the file
+    Returns:      the complete contents, or an empty string when no file exists
+
+=cut
+
+#--------------------------------------------------------------------------
+sub read_optional_file {
+    my ($path) = @_;
+    return q{} unless -e $path;
+    return read_file($path);
+}
+
+#--------------------------------------------------------------------------
+
+=head3 write_file
+
+    Descriptions: Write a scratch file in raw mode, and create its parent
+                  directories. A read-only file is replaced.
+    Arguments:    the path of the file, the bytes, an optional mode
+    Returns:      the path; dies on any error
+
+=cut
+
+#--------------------------------------------------------------------------
+sub write_file {
+    my ($path, $bytes, $mode) = @_;
+    my $parent = dirname($path);
+    make_path($parent) unless -d $parent;
+    # A fixture can leave a file read-only, and a later write replaces it.
+    chmod(0644, $path) if -f $path && !-w $path;
+    write_binary($path, $bytes);
+    if (defined $mode) {
+        chmod($mode, $path) == 1 or die "Unable to set the mode of $path: $!";
+    }
+    return $path;
+}
+
 1;
 
 __END__
@@ -69,5 +130,11 @@ Returns the absolute path for a repository-relative path.
 =head2 slurp_repo_file
 
 Reads a repository-relative file in raw mode and returns its complete contents.
+
+=head2 read_file, read_optional_file, write_file
+
+Raw reads and writes of scratch files. C<read_optional_file> returns an empty
+string when the file does not exist. C<write_file> creates the parent
+directories and sets the optional mode.
 
 =cut

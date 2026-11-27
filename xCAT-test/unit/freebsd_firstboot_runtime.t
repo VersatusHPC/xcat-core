@@ -9,26 +9,11 @@ use MIME::Base64 qw(encode_base64);
 use POSIX qw(WNOHANG);
 use Test::More;
 use Time::HiRes qw(time sleep);
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
 my %children;
-
-sub write_file {
-    my ($path, $content) = @_;
-    open(my $fh, '>', $path) or die "$path: $!";
-    print {$fh} $content;
-    close($fh) or die "$path: $!";
-}
-
-sub read_file {
-    my $path = shift;
-    return '' unless -f $path;
-    open(my $fh, '<', $path) or die "$path: $!";
-    local $/;
-    my $data = <$fh>;
-    close($fh) or die "$path: $!";
-    return $data;
-}
 
 sub wait_for {
     my ($predicate, $seconds) = @_;
@@ -167,7 +152,7 @@ DAEMON
     $postscript =~ s{(?<![A-Za-z0-9_.+-])/(usr/local|usr/sbin/daemon|etc|root|var)(?=/|[\s"'])}{$root/$1}g;
     write_file("$root/postscript", $postscript);
     is(system('sh', "$root/postscript"), 0, 'production-generated postscript installs a service in an isolated filesystem');
-    is(read_file("$root/etc/xcat/os-disks"), "vtbd0\@OS0\n", 'postscript records the concrete OS identity');
+    is(read_optional_file("$root/etc/xcat/os-disks"), "vtbd0\@OS0\n", 'postscript records the concrete OS identity');
     return $root;
 }
 
@@ -189,11 +174,11 @@ sub start_service {
 
 {
     my $root = fixture();
-    my $pending = read_file("$root/var/db/xcat/firstboot");
+    my $pending = read_optional_file("$root/var/db/xcat/firstboot");
     my $first = start_service($root);
-    is(wait_exit($first, 1), 0, 'service start returns while the controller is unavailable') or diag(read_file("$root/start.log"));
+    is(wait_exit($first, 1), 0, 'service start returns while the controller is unavailable') or diag(read_optional_file("$root/start.log"));
     ok(wait_for(sub { -s "$root/requests" }, 1), 'detached worker calls the production status protocol');
-    is(read_file("$root/var/db/xcat/firstboot"), $pending, 'missing acknowledgment retains the pending marker');
+    is(read_optional_file("$root/var/db/xcat/firstboot"), $pending, 'missing acknowledgment retains the pending marker');
     ok(!-e "$root/var/db/xcat/firstboot.done", 'no done marker appears before acknowledgment');
     write_file("$root/ack", "wrong-generation\n");
     sleep 0.15;
@@ -201,12 +186,12 @@ sub start_service {
     my $second = start_service($root);
     my $duplicate_status = wait_exit($second, 1);
     ok(defined($duplicate_status) && $duplicate_status != 0, 'pidfile rejects a concurrent service start');
-    is(read_file("$root/workers"), "worker\n", 'only one reporter is launched');
+    is(read_optional_file("$root/workers"), "worker\n", 'only one reporter is launched');
     write_file("$root/ack", "matching\n");
     ok(wait_for(sub { -e "$root/var/db/xcat/firstboot.done" }, 3), 'matching acknowledgment completes the marker');
-    is(read_file("$root/var/db/xcat/firstboot.done"), $pending, 'completion preserves generation and attempt');
+    is(read_optional_file("$root/var/db/xcat/firstboot.done"), $pending, 'completion preserves generation and attempt');
     ok(!-e "$root/var/db/xcat/firstboot", 'successful acknowledgment consumes the pending marker');
-    ok(wait_for(sub { read_file("$root/enabled") eq "NO\n" }, 1), 'successful acknowledgment disables the service');
+    ok(wait_for(sub { read_optional_file("$root/enabled") eq "NO\n" }, 1), 'successful acknowledgment disables the service');
     ok(wait_for(sub { !-e "$root/var/run/xcatfirstboot.pid" }, 1), 'worker exit releases its pidfile');
     wait_exit($_, 2) for grep { exists($children{$_}) } ($first, $second);
 }
@@ -216,11 +201,11 @@ sub start_service {
     my $pid = start_service($root);
     is(wait_exit($pid, 1), 0, 'unavailable-controller start does not wait for the retry deadline');
     ok(wait_for(sub { -f "$root/worker-exit" }, 10), 'production retry policy eventually stops its worker');
-    is(read_file("$root/worker-exit"), "1\n", 'exhausted acknowledgment retries fail');
-    like(read_file("$root/syslog"), qr/Controller did not acknowledge booted/, 'daemon retains the production status failure diagnostic');
-    is(read_file("$root/clock"), "900\n", 'worker retains the fifteen-minute retry policy');
+    is(read_optional_file("$root/worker-exit"), "1\n", 'exhausted acknowledgment retries fail');
+    like(read_optional_file("$root/syslog"), qr/Controller did not acknowledge booted/, 'daemon retains the production status failure diagnostic');
+    is(read_optional_file("$root/clock"), "900\n", 'worker retains the fifteen-minute retry policy');
     ok(-e "$root/var/db/xcat/firstboot" && !-e "$root/var/db/xcat/firstboot.done", 'timeout leaves installation reporting pending');
-    is(read_file("$root/enabled"), "YES\n", 'timeout keeps the service enabled for a later boot');
+    is(read_optional_file("$root/enabled"), "YES\n", 'timeout keeps the service enabled for a later boot');
     wait_exit($pid, 2) if exists($children{$pid});
 }
 

@@ -10,25 +10,11 @@ use lib "$FindBin::Bin/../lib", "$FindBin::Bin/../../xCAT-server/lib/perl";
 use File::Copy qw(copy);
 use Test::More;
 use XCAT::Test::Chroot qw(stage_binary);
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
 my $library = "$directory/xcat-install-lib.sh";
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $out, '>', $path) or die "$path: $!";
-    print {$out} $bytes;
-    close($out) or die "$path: $!";
-}
-
-sub read_file {
-    my ($path) = @_;
-    open(my $in, '<', $path) or die "$path: $!";
-    local $/;
-    my $bytes = <$in>;
-    close($in) or die "$path: $!";
-    return $bytes // '';
-}
 
 sub fixture {
     my ($count) = @_;

@@ -17,6 +17,8 @@ use xCAT::FreeBSDPkg;
 use xCAT::FreeBSDRepo;
 use xCAT::FreeBSDRepoImport;
 use xCAT::FreeBSDPackagePlan;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 plan(skip_all => 'Scoped package fixtures require Linux root') unless $^O eq 'linux' && $> == 0;
 for my $variable (qw(XCAT_FREEBSD_NATIVE_PKG XCAT_FREEBSD_NATIVE_SOLVER XCAT_FREEBSD_NATIVE_LIBDIR)) {
@@ -29,26 +31,6 @@ my $tool = { path => abs_path($ENV{XCAT_FREEBSD_NATIVE_PKG}),
     library_directory => abs_path($ENV{XCAT_FREEBSD_NATIVE_LIBDIR}) };
 my $solver = { path => abs_path($ENV{XCAT_FREEBSD_NATIVE_SOLVER}) };
 my %environment = (PATH => '/usr/bin:/bin', LC_ALL => 'C', LD_LIBRARY_PATH => $tool->{library_directory});
-
-sub read_file {
-    my ($path) = @_;
-    open(my $file, '<', $path) or croak "$path: $!";
-    binmode($file) or croak $!;
-    local $/ = undef;
-    my $bytes = <$file>;
-    close($file) or croak $!;
-    return defined($bytes) ? $bytes : '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    make_path(dirname($path));
-    open(my $file, '>', $path) or croak "$path: $!";
-    binmode($file) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
 
 sub command {
     my (@arguments) = @_;

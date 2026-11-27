@@ -14,31 +14,15 @@ use IO::Compress::Gzip qw(gzip);
 use JSON;
 use Test::More;
 use xCAT::FreeBSDImage;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $tmp = abs_path(tempdir(CLEANUP => 1));
 my $sequence = 0;
 
-sub write_file {
-    my ($path, $data) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or die "$path: $!";
-    binmode($fh);
-    print $fh $data;
-    close($fh) or die "$path: $!";
-}
-
 sub write_manifest {
     my ($root, $manifest) = @_;
     write_file("$root/xcat/mfsbsd.json", JSON->new->canonical->encode($manifest));
-}
-
-sub read_file {
-    my $path = shift;
-    open(my $file, '<', $path) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$file>;
-    close($file) or croak "$path: $!";
-    return $bytes;
 }
 
 sub runtime_descriptor {

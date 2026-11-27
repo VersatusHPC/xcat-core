@@ -61,3 +61,30 @@ Sequential discovery is a technology preview. Service nodes and statelite are no
 FreeBSD 15.1 is a technology preview. It covers stateful compute nodes on x86_64 only. The
 management node and service nodes stay Linux. See
 :doc:`/guides/admin-guides/manage_clusters/x86_64/freebsd` for the tested configuration.
+
+KVM
+---
+
+xCAT manages KVM virtual machines (VMs) with ``mkvm``, ``rmvm``, ``rpower`` and ``lsvm``, and
+can install an EL node as a KVM host. See
+:doc:`/guides/admin-guides/manage_clusters/common/kvm/kvm_host`.
+
++--------------------------------------------+---------------------------------------------+
+| Item                                       | State                                       |
++============================================+=============================================+
+| VMs on a KVM host, x86_64 and ppc64le      | tested, management node on EL, openEuler,   |
+|                                            | openSUSE Leap and Ubuntu                    |
++--------------------------------------------+---------------------------------------------+
+| UEFI Secure Boot VMs                       | tested on x86_64                            |
++--------------------------------------------+---------------------------------------------+
+| KVM host installed by xCAT, EL 10 x86_64   | tested                                      |
++--------------------------------------------+---------------------------------------------+
+| KVM host installed by xCAT, EL 8 and EL 9, | templates shipped, not tested               |
+| and ppc64le                                |                                             |
++--------------------------------------------+---------------------------------------------+
+| Diskless KVM host; KVM host on Ubuntu,     | not supported                               |
+| openSUSE or openEuler                      |                                             |
++--------------------------------------------+---------------------------------------------+
+| ``chvm``, ``clonevm``, ``rmigrate``,       | not tested                                  |
+| storage other than ``dir:``                |                                             |
++--------------------------------------------+---------------------------------------------+

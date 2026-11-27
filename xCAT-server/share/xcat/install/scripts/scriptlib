@@ -76,6 +76,19 @@ declare -F xcat_download_postscripts &>/dev/null || function xcat_download_posts
     wget -l inf -N -r --waitretry=10 --random-wait --retry-connrefused -e robots=off -nH --cut-dirs=2 --reject "index.html*,post.xcat.ng,post.xcat.rhels10" --no-parent -t 20 -T 60 "http://${server}${install_dir}/postscripts/" -P "$postroot" 2> "$log_file"
 }
 
+# Anaconda installs the node in FIPS mode only when the installer kernel runs with fips=1.
+# A kernel without the FIPS file is reported as unknown: 0 would claim a state nobody read.
+declare -F xcat_fips_state &>/dev/null || function xcat_fips_state {
+    local state_file="${1:-/proc/sys/crypto/fips_enabled}"
+    local state
+
+    state="$(cat "$state_file" 2>/dev/null)"
+    case "$state" in
+    0|1) printf 'fips_enabled=%s\n' "$state" ;;
+    *) printf 'fips_enabled=unknown: cannot read %s\n' "$state_file" ;;
+    esac
+}
+
 declare -F set_sles11_uefi_bootloader &>/dev/null || function set_sles11_uefi_bootloader {
     local cmdline="${1:-/proc/cmdline}"
     local profile="${2:-/tmp/profile/modified.xml}"

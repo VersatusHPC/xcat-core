@@ -150,6 +150,11 @@ my @mkvm = run_command( 'mkvm', ['cn1'] );
 ok( ( grep { /Unable to find 'efi' firmware/ } @mkvm ), 'mkvm reports the libvirt refusal of cn1 to the client' )
   or diag( join "\n", @mkvm );
 ok( !exists $XCATTestHypervisor::domains{cn1}, 'and no domain of cn1 exists' );
+{
+    my $tab = xCAT::Table->new('kvm_nodedata');
+    my $ent = $tab ? $tab->getNodeAttribs( 'cn1', ['xml'] ) : undef;
+    ok( !( $ent and $ent->{xml} ), 'and mkvm keeps no domain XML of cn1 for the next mkvm' );
+}
 
 # A UEFI domain as libvirt keeps it: with the variable store of the guest.
 $XCATTestHypervisor::domains{cn2} = <<'XML';

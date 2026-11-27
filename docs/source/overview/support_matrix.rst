@@ -56,3 +56,21 @@ stateless nodes are supported, and the management node itself can run on riscv64
 FreeBSD 15.1 is a technology preview. It covers stateful compute nodes on x86_64 only. The
 management node and service nodes stay Linux. See
 :doc:`/guides/admin-guides/manage_clusters/x86_64/freebsd` for the tested configuration.
+
+FIPS mode
+---------
+
+xCAT runs on a management node that boots with the FIPS mode of the operating system, and
+installs diskful nodes in FIPS mode. See :doc:`/advanced/security/fips`.
+
++--------------------------------------------+---------------------------------------------+
+| Item                                       | State                                       |
++============================================+=============================================+
+| Management node and diskful nodes, EL 9    | supported                                   |
+| and EL 10, x86_64                          |                                             |
++--------------------------------------------+---------------------------------------------+
+| EL 8, Ubuntu, openSUSE, openEuler          | not supported                               |
++--------------------------------------------+---------------------------------------------+
+| Diskless and statelite nodes; ppc64le,     | not supported                               |
+| aarch64 and riscv64                        |                                             |
++--------------------------------------------+---------------------------------------------+

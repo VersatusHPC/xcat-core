@@ -6728,7 +6728,8 @@ sub dhcp6_served_routes
 {
     my ($routes, $activenics) = @_;
 
-    return @{ $routes || [] };
+    # A NIC outside site.dhcpinterfaces has no shared-network block, and addnet6 fails on it.
+    return grep { $activenics->{ $_->{iface} } } @{ $routes || [] };
 }
 
 sub addnet6

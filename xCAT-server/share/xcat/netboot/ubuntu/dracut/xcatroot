@@ -77,6 +77,8 @@ network:
 XCATNETPLAN
     fi
     chmod 600 $file
+    # genimage's 90-xcat-dhcp.yaml runs DHCP on every NIC, including the *NOIP* ones.
+    rm -f "${file%/*}/90-xcat-dhcp.yaml"
 }
 
 NEWROOT=$3

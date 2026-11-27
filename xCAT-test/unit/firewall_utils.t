@@ -9,7 +9,7 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../../xCAT/postscripts";
 
-use Test::More tests => 24;
+use Test::More tests => 28;
 
 use xCAT::FirewallUtils;
 
@@ -62,6 +62,18 @@ my @againcmds = map { join ' ', @$_ }
 ok( !( grep { /--new-policy/ } @againcmds ), '--nat does not create a policy that exists' );
 ok( ( grep { $_ eq '--permanent --policy=xcat-nat --add-ingress-zone=trusted' } @againcmds ),
     '--nat still sets an existing policy' );
+
+# A second run adds nothing that the public zone already has.
+my @opencmds = map { join ' ', @$_ }
+  xCAT::FirewallUtils::firewalld_commands( $plan, [ '22', '443' ], $nat, ['xcat-nat'],
+    { ports => [ '22/tcp', '22/udp', '443/tcp' ], masquerade => 1 } );
+ok( !( grep { /--add-port=22\// } @opencmds ), 'a port open for tcp and udp gets no command' );
+ok( ( grep { $_ eq '--permanent --zone=public --add-port=443/udp' } @opencmds ),
+    'only the missing protocol of a port is added' );
+ok( !( grep { /--add-masquerade/ } @opencmds ), 'a masquerade that is on gets no command' );
+ok( ( grep { /--add-masquerade/ } map { join ' ', @$_ }
+      xCAT::FirewallUtils::firewalld_commands( $plan, [], $nat, ['xcat-nat'], { ports => [], masquerade => 0 } ) ),
+    'a masquerade that is off is added' );
 
 # networks and private_nics
 my %env = (

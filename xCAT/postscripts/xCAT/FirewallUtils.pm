@@ -94,15 +94,20 @@ sub nat_plan
 #---
 # =head3 firewalld_commands
 # Descriptions: The firewall-cmd argument lists for a plan. Every change is permanent and
-#               only adds, so ports and services that other tools opened stay open.
+#               only adds, so ports and services that other tools opened stay open. A port
+#               or a masquerade that the public zone already has gets no command: firewalld
+#               logs ALREADY_ENABLED as a warning for each one.
 # Arguments: $plan -- the zone_plan result, $ports -- array ref of ports, $nat -- nat_plan or undef,
-#            $policies -- array ref of the policy names that firewalld already has, or undef
+#            $policies -- array ref of the policy names that firewalld already has, or undef,
+#            $present -- hash ref { ports => [ '22/tcp', ... ], masquerade => 0|1 } with the
+#            permanent state of the public zone, or undef
 # Returns: list of array refs, each one the arguments of one firewall-cmd call
 # =cut
 #---
 sub firewalld_commands
 {
-    my ($plan, $ports, $nat, $policies) = @_;
+    my ($plan, $ports, $nat, $policies, $present) = @_;
+    my %open = map { $_ => 1 } @{ ($present && $present->{ports}) || [] };
     my @cmds;
     foreach my $zone (qw(trusted public)) {
         foreach my $nic (@{ $plan->{$zone} || [] }) {
@@ -111,11 +116,13 @@ sub firewalld_commands
     }
     if (@{ $plan->{public} || [] }) {
         foreach my $p (@{ $ports || [] }) {
-            push @cmds, [ '--permanent', '--zone=public', "--add-port=$p/tcp", "--add-port=$p/udp" ];
+            my @add = map { "--add-port=$p/$_" } grep { !$open{"$p/$_"} } qw(tcp udp);
+            push @cmds, [ '--permanent', '--zone=public', @add ] if @add;
         }
     }
     if ($nat) {
-        push @cmds, [ '--permanent', "--zone=$nat->{masquerade_zone}", '--add-masquerade' ];
+        push @cmds, [ '--permanent', "--zone=$nat->{masquerade_zone}", '--add-masquerade' ]
+          unless $present && $present->{masquerade};
         # A policy from an earlier run is kept, with what other tools added to it.
         push @cmds, [ '--permanent', "--new-policy=$nat->{policy}" ]
           unless grep { $_ eq $nat->{policy} } @{ $policies || [] };

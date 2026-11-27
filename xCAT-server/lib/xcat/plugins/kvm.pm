@@ -1724,6 +1724,48 @@ sub invnics {
     }
 }
 
+#-------------------------------------------------------
+
+=head3 libvirt_error
+
+    Descriptions:
+        The text of an error that Sys::Virt died with.
+    Arguments:
+        $error - the value of $@
+    Returns:
+        the message
+
+=cut
+
+#-------------------------------------------------------
+sub libvirt_error {
+    my ($error) = @_;
+    return $error->{message} if ref($error) and defined $error->{message};
+    my $text = "$error";
+    $text =~ s/\s+\z//;
+    return $text;
+}
+
+#-------------------------------------------------------
+
+=head3 undefine_flag
+
+    Descriptions:
+        A Sys::Virt::Domain undefine flag, or 0 when this Sys::Virt has no such flag.
+    Arguments:
+        $name - the flag name, e.g. UNDEFINE_NVRAM
+    Returns:
+        the flag value
+
+=cut
+
+#-------------------------------------------------------
+sub undefine_flag {
+    my ($name) = @_;
+    my $value = eval { no strict 'refs'; &{"Sys::Virt::Domain::$name"}() };
+    return defined($value) ? $value : 0;
+}
+
 sub rmvm {
     shift;
     @ARGV = @_;
@@ -1802,10 +1844,18 @@ sub rmvm {
             }
         }
     }
-    eval { #try to fetch the domain by name even after it has been destroyed, if it is still there it needs an 'undefine'
-        $dom = $hypconn->get_domain_by_name($node);
-        $dom->undefine();
-    };
+    # A transient domain is gone after destroy. A persistent one still needs an undefine.
+    $dom = undef;
+    eval { $dom = $hypconn->get_domain_by_name($node); };
+    if ($dom) {
+        # libvirt refuses a plain undefine of a domain with a UEFI variable store.
+        my $flags = $purge ? undefine_flag('UNDEFINE_NVRAM') : undefine_flag('UNDEFINE_KEEP_NVRAM');
+        eval { $dom->undefine($flags); };
+        if ($@) {
+            xCAT::SvrUtils::sendmsg([ 1, "Cannot undefine the domain: " . libvirt_error($@) ], $callback, $node);
+            return;
+        }
+    }
 
     $updatetable->{kvm_nodedata}->{'!*XCATNODESTODELETE*!'}->{$node} = 1;
 }
@@ -3103,7 +3153,8 @@ sub mkvm {
             $updatetable->{kvm_nodedata}->{$node}->{xml} = $xml;
         }
         if ($::XCATSITEVALS{persistkvmguests}) {
-            $hypconn->define_domain($xml);
+            eval { $hypconn->define_domain($xml); };
+            return (1, ":" . libvirt_error($@)) if $@;
         }
         return @return;
     } else {
@@ -3986,7 +4037,17 @@ sub process_request {
 
         unless ($cpid) {
             close($cfd);
-            dohyp($pfd, $hyp, $command, -args => \@exargs);
+            # Under xcatd a die here returns into the request handler of the parent, which then
+            # never closes $pfd, and the command hangs. Report the error and exit instead.
+            eval { dohyp($pfd, $hyp, $command, -args => \@exargs); };
+            if ($@) {
+                my $message = libvirt_error($@);
+                my %err = (node => []);
+                foreach (sort keys %{ $hyphash{$hyp}->{nodes} }) {
+                    push(@{ $err{node} }, { name => [$_], error => ["kvm: $message"], errorcode => [1] });
+                }
+                eval { store_fd([ \%err ], $pfd); waitforack($pfd); };
+            }
             exit(0);
         }
         $vm_comm_pids{$cpid} = 1;

@@ -121,8 +121,10 @@ XCATMASTER=$XCAT
 
 # Downloads the checksum file published for the image at $1 to $2.
 # xcat_make_loop0 [<node>] -- create the loop device node that mounts the squashfs root image.
+# udev usually creates the node first.
 xcat_make_loop0() {
-    mknod ${1:-/dev/loop0} b 7 0
+    local node=${1:-/dev/loop0}
+    [ -e "$node" ] || mknod "$node" b 7 0
 }
 
 rootimg_fetch_checksum() {

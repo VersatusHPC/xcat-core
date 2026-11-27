@@ -365,6 +365,50 @@ sub sles_dracut_network_modules {
     return ($dbus, 'network-manager', grep { $present{$_} } qw(systemd systemd-initrd dracut-systemd));
 }
 
+#-------------------------------------------------------------------------------
+
+=head3 dracut_i18n_modules
+
+    Descriptions:
+        The i18n module to add to an exclusive netboot dracut module list. The dracut 059
+        systemd module installs systemd-vconsole-setup, and the i18n module installs the
+        loadkeys and setfont that it starts. A list that names systemd and not i18n gives
+        an initrd where "Virtual Console Setup" fails at every boot.
+    Arguments:
+        $rootimg_dir: the root image directory
+        $moduledir:   the dracut modules.d directory in the image
+        $modulelist:  the module names the list already has, separated by spaces
+    Returns:
+        ('i18n'), or an empty list when the list does not need it
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub dracut_i18n_modules {
+    my ($rootimg_dir, $moduledir, $modulelist) = @_;
+    my %named = map { $_ => 1 } split(' ', $modulelist // '');
+    return () if !$named{systemd} or $named{i18n};
+    my %present;
+    if (opendir(my $dh, $moduledir)) {
+        foreach my $entry (readdir($dh)) {
+            $present{$1} = "$moduledir/$entry" if $entry =~ /^[0-9]+(.+)$/ && -d "$moduledir/$entry";
+        }
+        closedir($dh);
+    }
+    return () unless $present{i18n} && $present{systemd};
+    my $setup;
+    open(my $fh, '<', "$present{systemd}/module-setup.sh") or return ();
+    { local $/; $setup = <$fh>; }
+    close($fh);
+    return () unless $setup =~ /systemd-vconsole-setup/;
+
+    # The check() of i18n requires these binaries. dracut stops when a named module fails it.
+    foreach my $bin (qw(setfont loadkeys kbd_mode)) {
+        return () unless grep { -x "$rootimg_dir/$_/$bin" } qw(usr/bin bin usr/sbin sbin);
+    }
+    return ('i18n');
+}
+
 # The netboot dracut.conf names an exclusive module list, so a module nothing in the list depends
 # on is left out of the initial ramdisk. dracut reads the list and nothing else.
 #

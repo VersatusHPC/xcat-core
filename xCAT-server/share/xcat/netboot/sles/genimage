@@ -1085,6 +1085,7 @@ sub mkinitrd_dracut {
     print "Try to load drivers: $add_drivers to initrd.\n";
     my $DRACUTCONF;
     my $netmods = join('', map { "$_ " } imgutils::sles_dracut_network_modules($rootimg_dir, $dracutmoduledir));
+    $netmods .= "$_ " foreach imgutils::dracut_i18n_modules($rootimg_dir, $dracutmoduledir, $netmods);
 
     if ($mode eq "statelite") {
 

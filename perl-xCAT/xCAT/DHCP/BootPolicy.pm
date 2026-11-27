@@ -249,6 +249,20 @@ sub isc_dhcp6_boot_stage_statement {
 }
 
 #---
+# =head3 isc_dhcp6_declare_user_class
+# Descriptions: Adds the declaration of option 15, the User Class, to an ISC DHCPv6 configuration.
+#               ISC DHCP 4.4 defines no dhcp6.user-class, so it refuses a host statement from
+#               isc_dhcp6_boot_stage_statement with "no option named user-class in space dhcp6".
+# Arguments: $conf -- arrayref of the lines of dhcpd6.conf
+# Returns: 1 when it added the declaration, 0 when the configuration already has it
+#---
+sub isc_dhcp6_declare_user_class {
+    my ( $class, $conf ) = @_;
+
+    return 0;
+}
+
+#---
 # =head3 kea_node_boot_classes6
 # Descriptions: The two DHCPv6 client classes that give one chainloading node its boot file, one
 #               for each stage. A reservation cannot do this: Kea gives a reservation's option

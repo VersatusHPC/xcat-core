@@ -1065,9 +1065,8 @@ passed as argument rather than by table value',
 " -------------\n" .
 " dhcpbackend:  The DHCP implementation used by makedhcp. Valid values are auto,\n" .
 "               isc, and kea. The default is auto. In auto mode, xCAT uses ISC\n" .
-"               DHCP on existing supported platforms and Kea DHCP on platforms\n" .
-"               where ISC DHCP is no longer available, such as EL10 and Ubuntu\n" .
-"               24.04.\n\n" .
+"               DHCP when the ISC server (dhcpd) is installed, and Kea DHCP\n" .
+"               otherwise.\n\n" .
 " keacontrolagent:  Whether makedhcp should generate Kea Control Agent socket\n" .
 "                  configuration. Valid values are 1/yes/true/enabled or\n" .
 "                  0/no/false/disabled. The default is disabled; host\n" .

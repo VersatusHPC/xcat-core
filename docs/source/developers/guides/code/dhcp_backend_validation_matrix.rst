@@ -44,12 +44,9 @@ off. A Secure Boot OVMF build, such as ``OVMF_CODE.secboot.fd`` with
 Backend Policy
 --------------
 
-The default backend split is:
-
-* EL9, Ubuntu 20.04 LTS, and older supported releases: ``ISC DHCP``
-* EL10, Ubuntu 22.04 LTS, and newer supported releases: ``Kea``
-
-``site.dhcpbackend=auto`` must follow that rule. Explicit ``isc`` and ``kea``
+``site.dhcpbackend=auto`` selects ``ISC DHCP`` when ``dhcpd`` is installed and
+``Kea`` otherwise. EL10 packages install only Kea; the Ubuntu metapackage
+installs ``isc-dhcp-server`` where the archive carries it. Explicit ``isc`` and ``kea``
 overrides remain available for development and troubleshooting.
 
 Always-Run Checks

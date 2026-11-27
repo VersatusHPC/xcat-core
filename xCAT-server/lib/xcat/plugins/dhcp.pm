@@ -2621,14 +2621,6 @@ sub process_request
         xCAT::MsgUtils->message("E", $rsp, $callback, 1);
         return;
     }
-    if ( $backend->can('fallback_from') && ( my $from = $backend->fallback_from ) ) {
-        my $rsp = {};
-        $rsp->{data}->[0] =
-            "DHCP backend '$from' auto-selected for this OS is not installed; "
-          . "falling back to the available '" . $backend->name . "' backend. "
-          . "Install '$from' or set site.dhcpbackend to silence this.";
-        xCAT::MsgUtils->message("W", $rsp, $callback);
-    }
     if ( $opt{n} || $opt{a} ) {
         foreach my $warning ( xCAT::DHCP::BootPolicy->upstream_loader_warnings( tftpdir => $tftpdir ) ) {
             my $rsp = {};

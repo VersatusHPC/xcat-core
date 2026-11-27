@@ -48,6 +48,10 @@ EOF
         [ "${IN_CHROOT:-no}" = yes ]
     }
 
+    XCAT_PROC="${BATS_TEST_TMPDIR}/proc"
+    mkdir -p "$XCAT_PROC/1"
+    printf '%s\n' "${PID1_COMM:-systemd}" >"$XCAT_PROC/1/comm"
+
     source "$XCATLIB"
     xcat_restart_sshd_after_failed_service_restart sshd
 }
@@ -77,6 +81,14 @@ run_wait_for_processes()
     EVENT_LOG="${BATS_TEST_TMPDIR}/events.log"
     export EVENT_LOG
     OSVER=ubuntu22.04 IN_CHROOT=yes run run_restart_fallback
+    [ "$status" -eq 0 ]
+    [ "$(read_file_or_empty "$EVENT_LOG")" = "" ]
+}
+
+@test "remoteshell starts no sshd in the PID namespace of curtin in-target" {
+    EVENT_LOG="${BATS_TEST_TMPDIR}/events.log"
+    export EVENT_LOG
+    OSVER=ubuntu22.04.5 IN_CHROOT=no PID1_COMM=post.script run run_restart_fallback
     [ "$status" -eq 0 ]
     [ "$(read_file_or_empty "$EVENT_LOG")" = "" ]
 }

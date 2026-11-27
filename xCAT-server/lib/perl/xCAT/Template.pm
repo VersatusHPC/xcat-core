@@ -500,6 +500,7 @@ sub subvars {
         $inc =~ s/#SUBIQUITYINSTALLMATCH:(\d+)#/subiquity_install_match($1)/eg;
         $inc =~ s/#SUBIQUITYDHCP:(\d+)#/subiquity_dhcp_keys($1)/eg;
         $inc =~ s/#SUBIQUITYTARGETDHCP#/subiquity_target_dhcp_keys()/eg;
+        $inc =~ s/#AGAMA_NOIP_FILES#/agama_noip_files(tabdb('mac', 'THISNODE', 'mac', 1))/eg;
         $inc =~ s/#MACHINEPASSWORD#/machinepassword()/eg;
         $inc =~ s/#CRYPT:([^:]+):([^:]+):([^#]+)#/crydb($1,$2,$3)/eg;
         $inc =~ s/#CRYPTORLOCKED:([^:]+):([^:]+):([^#]+)#/crydb_or_locked($1,$2,$3)/eg;
@@ -2248,6 +2249,33 @@ sub agama_json_items
     return join(', ', map { (my $n = $_) =~ s/(["\\])/\\$1/g; "\"$n\"" } @names);
 }
 
+#-------------------------------------------------------
+
+=head3 agama_noip_files
+
+    Descriptions: The Agama profile files that keep NetworkManager in the installed system from
+                  starting DHCP on the NICs that the mac table marks *NOIP*.
+    Arguments: the mac table entry of the node
+    Returns: one JSON object for the files array of the profile, or an empty string
+=cut
+
+#-------------------------------------------------------
+sub agama_noip_files
+{
+    my ($macs) = @_;
+    my @specs;
+    foreach my $entry (split /\|/, ($macs // '') =~ s/^'|'$//gr) {
+        next unless $entry =~ /^\s*([0-9a-fA-F]{2}(?:[:-][0-9a-fA-F]{2}){5})!\*NOIP\*\s*$/;
+        (my $mac = lc $1) =~ tr/-/:/;
+        push @specs, "mac:$mac";
+    }
+    return '' unless @specs;
+
+    # The MN has no address for these NICs. The other NICs keep the automatic profile, because
+    # the boot NIC can depend on it.
+    my $content = '[main]\nno-auto-default=' . join(',', @specs) . '\n';
+    return '{ "destination": "/etc/NetworkManager/conf.d/xcat-noip.conf", "content": "' . $content . '" }';
+}
 
 # ubuntu_autoinstall_packages: the packages of the pkglist records (whole lines, as
 # get_pkglist_records returns them) that a Subiquity autoinstall can install through its packages

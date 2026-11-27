@@ -351,6 +351,27 @@ check_each_script()
     [ "$(cat "$FX/newroot-resolv.conf")" = "$(cat "$FX/resolv.conf")" ]
 }
 
+@test 'the Ubuntu xcatroot adds the search domain to the resolv.conf that dracut wrote from nameserver=' {
+    # dracut network-legacy turns nameserver= into a resolv.conf with no search line, and the
+    # server name in imgurl is a short name.
+    printf 'nameserver 2001:db8:147::1\n' >"$FX/resolv.conf"
+    KERNEL_ARGS='nameserver=2001:db8:147::1 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/extracted" 2>/dev/null)" = 'packed image' ]
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search cluster.example\nnameserver 2001:db8:147::1')" ]
+}
+
+@test 'the Ubuntu xcatroot keeps a search line that resolv.conf already has' {
+    printf 'search other.example\nnameserver 2001:db8:147::1\n' >"$FX/resolv.conf"
+    KERNEL_ARGS='nameserver=2001:db8:147::1 XCATDOMAIN=cluster.example'
+    run_xcatroot xCAT-server/share/xcat/netboot/ubuntu/dracut/xcatroot dash \
+        --setenv XCAT_NETWORKD_LEASES /fx/leases --setenv XCAT_RESOLV_CONF /fx/resolv.conf \
+        --setenv XCAT_CMDLINE /fx/cmdline
+    [ "$(cat "$FX/resolv.conf")" = "$(printf 'search other.example\nnameserver 2001:db8:147::1')" ]
+}
+
 @test 'the Ubuntu xcatroot prefers the lease to the kernel command line' {
     mkdir -p "$FX/leases"
     printf 'DNS=192.0.2.53\nDOMAINNAME=lease.example\n' >"$FX/leases/2"

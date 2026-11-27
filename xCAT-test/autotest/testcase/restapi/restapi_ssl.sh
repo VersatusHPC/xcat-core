@@ -27,8 +27,10 @@ os_family() {
 use_xcat_cred() {
     local file=$1
     [ -f "$file.xcattest-orig" ] || cp -p "$file" "$file.xcattest-orig"
+    # The xCAT CA has no OCSP responder, so stapling cannot work with the xCAT credential.
     sed -i -e "s|^\(\s*\)SSLCertificateFile.*$|\1SSLCertificateFile $cred|" \
-        -e 's|^\(\s*SSLCertificateKeyFile.*\)$|#\1|' "$file"
+        -e 's|^\(\s*SSLCertificateKeyFile.*\)$|#\1|' \
+        -e 's|^\(\s*\)SSLUseStapling\s.*$|\1SSLUseStapling off|' "$file"
 }
 
 restore() {

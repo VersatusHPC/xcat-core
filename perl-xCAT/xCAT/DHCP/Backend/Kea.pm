@@ -178,7 +178,16 @@ sub render_ddns_config {
         },
     );
 
-    $ddns{'control-sockets'} = $intent->{'control-sockets'} if $intent->{'control-sockets'};
+    # restart_services() reloads a running kea-dhcp-ddns through this socket. Without it,
+    # every makedhcp restarts the daemon.
+    if ( $intent->{'control-sockets'} ) {
+        $ddns{'control-sockets'} = $intent->{'control-sockets'};
+    } else {
+        $ddns{'control-socket'} = $intent->{'control-socket'} || {
+            'socket-type' => 'unix',
+            'socket-name' => $self->control_socket_path('kea-ddns-ctrl-socket'),
+        };
+    }
 
     return JSON->new->canonical->pretty->encode( { DhcpDdns => \%ddns } );
 }

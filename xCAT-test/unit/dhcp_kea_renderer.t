@@ -600,6 +600,9 @@ ok( $ddns_config->{DhcpDdns}, 'renderer creates a DhcpDdns document' );
 is( $ddns_config->{DhcpDdns}{port}, 53001, 'DDNS port is numeric' );
 is( $ddns_config->{DhcpDdns}{'dns-server-timeout'}, 500, 'DDNS timeout is numeric' );
 is( $ddns_config->{DhcpDdns}{'forward-ddns'}{'ddns-domains'}[0]{name}, 'cluster.example.com.', 'DDNS forward domain is rendered' );
+is( $ddns_config->{DhcpDdns}{'control-socket'}{'socket-name'},
+    $backend->control_socket_path('kea-ddns-ctrl-socket'),
+    'DDNS opens the control socket that restart_services reloads through' );
 
 my $ctrl_agent_backend = xCAT::DHCP::Backend::Kea->new( kea_socket_dirs => [] );
 my $ctrl_agent_config = decode_json($ctrl_agent_backend->render_ctrl_agent_config({ 'http-port' => '8000' }));

@@ -3154,7 +3154,11 @@ sub mkvm {
         }
         if ($::XCATSITEVALS{persistkvmguests}) {
             eval { $hypconn->define_domain($xml); };
-            return (1, ":" . libvirt_error($@)) if $@;
+            if ($@) {
+                # Do not keep XML that libvirt refused: the next mkvm would reuse it.
+                delete $updatetable->{kvm_nodedata}->{$node};
+                return (1, ":" . libvirt_error($@));
+            }
         }
         return @return;
     } else {

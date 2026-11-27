@@ -16,6 +16,12 @@ xcat_console_mode() {
         echo direct
     fi
 }
+
+# Run doxcat in the tmux session doxcat, or attach to that session when it exists. The caller
+# loops, so a person who leaves the session gets it back.
+xcat_doxcat_session() {
+    tmux attach-session -t doxcat || tmux new-session -s doxcat doxcat
+}
 clear
 echo PS1="'"'[xCAT Genesis running on \H \w]\$ '"'" > /.bashrc
 echo PS1="'"'[xCAT Genesis running on \H \w]\$ '"'" > /.bash_profile
@@ -103,7 +109,7 @@ elif [[ ${ARCH} =~ x86_64 ]]; then
 fi
 
 if [ "$XCAT_CONSOLE_MODE" = "tmux" ]; then
-    while :; do tmux attach-session -t doxcat || tmux new-session -s doxcat doxcat; done
+    while :; do xcat_doxcat_session; done
 else
     while :; do doxcat; sleep 5; done
 fi

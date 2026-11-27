@@ -332,7 +332,7 @@ description: Verify when yaboot is used for OS loader, whether the configuration
 label:others
 cmd:rmdef testnode1
 cmd:rm -f /tftpboot/yaboot.conf-e6-d4-d2-3a-ad-06
-cmd:mkdef -t node -o testnode1 arch=ppc64 cons=hmc groups=lpar ip=10.1.1.200 mac=e6:d4:d2:3a:ad:06 mgt=hmc profile=compute os=rhels6.99
+cmd:mkdef -t node -o testnode1 arch=ppc64 cons=hmc groups=lpar ip=10.1.1.200 mac=e6:d4:d2:3a:ad:06 mgt=hmc profile=compute os=rhels6.99 xcatmaster=10.1.1.1
 check:rc==0
 cmd:cp -f /etc/hosts /etc/hosts.xcattestbak
 cmd:echo "10.1.1.200 testnode1" >> /etc/hosts

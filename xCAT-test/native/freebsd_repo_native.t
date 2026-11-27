@@ -19,6 +19,7 @@ use Test::More;
 use XCAT::Test::FreeBSDRepoFixture;
 use xCAT::FreeBSDPkg;
 use xCAT::FreeBSDRepo;
+use XCAT::Test::File qw(read_file write_file);
 
 plan(skip_all => 'Set XCAT_FREEBSD_NATIVE_PKG to the Linux pkg 2.8.2 executable')
   unless defined($ENV{XCAT_FREEBSD_NATIVE_PKG});
@@ -33,26 +34,6 @@ if (defined($ENV{XCAT_FREEBSD_NATIVE_LIBDIR})) {
 }
 my $fixture = XCAT::Test::FreeBSDRepoFixture->new(root => $tmp,
     run_pkg => \&run_pkg, command => \&command, write_file => \&write_file);
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$fh>;
-    close($fh) or croak "$path: $!";
-    return defined($bytes) ? $bytes : '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub command {
     my @argv = @_;

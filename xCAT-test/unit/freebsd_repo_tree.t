@@ -13,19 +13,11 @@ use File::Temp qw(tempdir);
 use POSIX qw(mkfifo);
 use Test::More;
 use xCAT::FreeBSDRepo;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $tmp = abs_path(tempdir(CLEANUP => 1));
 my $sequence = 0;
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub tree {
     my $root = "$tmp/tree-" . ++$sequence;

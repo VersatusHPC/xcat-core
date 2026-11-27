@@ -12,16 +12,11 @@ use Test::More;
 use xCAT::FreeBSDConfig;
 use xCAT::FreeBSDPkg;
 use xCAT::FreeBSDStorage;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $root = abs_path(tempdir(CLEANUP => 1));
 my $scripts = abs_path("$FindBin::Bin/../../xCAT/postscripts");
-sub write_file {
-    my ($path, $text) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $text or croak $!;
-    close($file) or croak $!;
-    return $path;
-}
 write_file("$root/key.pub", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPu2fQbGvNixfzG3hYrKcXFP6eZDrZMDnuES0GhLWDPE\n");
 write_file("$root/settings", "authorized_keys_file=$root/key.pub\n");
 my $os = "[os]\nfilesystem=zfs\nzfs_topology=mirror\nzfs_vdevs=vtbd0\@OS0,vtbd1\@OS1\nswap_mode=none\n";

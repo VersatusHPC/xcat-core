@@ -361,7 +361,7 @@ make-freebsd-plan-fixtures.pl - generate controller-qualified decoder fixtures
 
 =head1 SYNOPSIS
 
-  perl xCAT-test/bin/make-freebsd-plan-fixtures.pl source empty-output-directory
+  perl xCAT-test/native/freebsd/make-freebsd-plan-fixtures.pl source empty-output-directory
 
 =head1 USAGE
 

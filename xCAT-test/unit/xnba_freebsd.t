@@ -10,6 +10,8 @@ use File::Temp qw(tempdir);
 use Storable qw(dclone);
 use Test::More;
 use xCAT::FreeBSDInstall;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file write_file);
 
 BEGIN {
     for my $module (qw(Scope MsgUtils Utils BootUtils TableUtils ServiceNodeUtils Usage Table NetworkUtils)) {
@@ -71,24 +73,6 @@ my $real_cancel = \&xCAT::FreeBSDInstall::cancel;
     };
 }
 
-sub write_file {
-    my ($path, $content) = @_;
-    make_path(File::Basename::dirname($path));
-    open(my $handle, '>', $path) or die "$path: $!";
-    print {$handle} $content;
-    close($handle) or die "$path: $!";
-}
-
-sub read_file {
-    my $path = shift;
-    return undef unless -f $path;
-    open(my $handle, '<', $path) or die "$path: $!";
-    local $/;
-    my $content = <$handle>;
-    close($handle) or die "$path: $!";
-    return $content;
-}
-
 sub fixture {
     my $tftp = "$temporary/tftp-" . ++$sequence;
     write_file("$tftp/xcat/freebsd/node1/boot/pxeboot", 'BIOS loader');
@@ -120,10 +104,10 @@ subtest 'native loader scripts replace legacy scripts' => sub {
     my @result = render($tftp, $params, $state, $type,
         {boottarget => 'unrelated-linux', addkcmdline => 'root=/dev/sda'});
     is_deeply(\@result, [0, ''], 'native installation renders successfully');
-    is(read_file("$tftp/xcat/xnba/nodes/node1"),
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1"),
         "#!gpxe\n#$state\n" . 'chain tftp://${next-server}/xcat/freebsd/node1/boot/pxeboot' . "\n",
         'BIOS chains the native loader without a Linux command line');
-    is(read_file("$tftp/xcat/xnba/nodes/node1.uefi"),
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"),
         "#!gpxe\n#$state\n" . 'chain tftp://${next-server}/xcat/freebsd/node1/boot/loader.efi' . "\n",
         'UEFI chains the matching native loader without script root-path settings');
     is(xCAT_plugin::xnba::getstate('node1', $tftp), $state, 'existing state reader recognizes native script');
@@ -144,8 +128,8 @@ for my $attribute (qw(initrd kcmdline addkcmdline)) {
             my ($rc, $error) = render($tftp, $invalid, 'install', $type);
             is($rc, 1, 'invalid bootparams fail');
             like($error, qr/\Q$attribute\E must be empty/, 'error identifies the invalid attribute');
-            is(read_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'validation failure preserves BIOS script');
-            is(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), "old script\n", 'validation failure preserves UEFI script');
+            is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'validation failure preserves BIOS script');
+            is(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"), "old script\n", 'validation failure preserves UEFI script');
         };
     }
 }
@@ -156,7 +140,7 @@ for my $kernel ('xcat/freebsd/node2/boot/pxeboot', '../pxeboot', 'xcat/os/kernel
         my ($rc, $error) = render($tftp, {%$params, kernel => $kernel}, 'install', $type);
         is($rc, 1, 'invalid loader path fails');
         like($error, qr/node native loader/, 'error identifies the loader contract');
-        is(read_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'invalid loader leaves previous script intact');
+        is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'invalid loader leaves previous script intact');
     };
 }
 
@@ -173,7 +157,7 @@ subtest 'missing native loader preserves existing scripts' => sub {
     my ($rc, $error) = render($tftp, $params, 'install', $type);
     is($rc, 1, 'missing UEFI loader fails');
     like($error, qr/Cannot read.*loader\.efi/, 'missing loader is identified');
-    is(read_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'BIOS script is not partially replaced');
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'BIOS script is not partially replaced');
 };
 
 subtest 'native identifiers cannot inject script lines or paths' => sub {
@@ -184,7 +168,7 @@ subtest 'native identifiers cannot inject script lines or paths' => sub {
     ($rc, $error) = render($tftp, $params, 'install', $type, {}, {}, '../node1');
     is($rc, 1, 'path traversal node fails');
     like($error, qr/Invalid FreeBSD node name/, 'node validation is explicit');
-    is(read_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'invalid identifiers leave previous script unchanged');
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'invalid identifiers leave previous script unchanged');
 };
 
 subtest 'native script publication reports filesystem failure' => sub {
@@ -204,29 +188,29 @@ subtest 'Linux direct kernel and MEMDISK behavior are unchanged' => sub {
     my $linux = {kernel => 'linux/vmlinuz', initrd => 'linux/initrd', kcmdline => 'quiet ds=nocloud-net;s=http://192.0.2.1/seed/'};
     my ($rc) = render($tftp, $linux, 'install', {os => 'rhels9', arch => 'x86_64'});
     is($rc, 0, 'Linux kernel still renders');
-    my $bios = read_file("$tftp/xcat/xnba/nodes/node1");
+    my $bios = read_optional_file("$tftp/xcat/xnba/nodes/node1");
     like($bios, qr{imgfetch -n kernel http://\$\{next-server\}:8080/tftpboot/linux/vmlinuz}, 'Linux retains the configured HTTP port');
     like($bios, qr{imgargs kernel quiet ds=nocloud-net;s=http://192\.0\.2\.1/seed/ BOOTIF=}, 'Linux kernel arguments retain the semicolon');
     unlike($bios, qr/chain tftp:/, 'Linux kernel is not treated as a native loader');
-    like(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr/imgexec kernel/, 'modern Linux retains direct EFI-stub boot');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr/imgexec kernel/, 'modern Linux retains direct EFI-stub boot');
     write_file("$xCAT::TableUtils::tftpdir/sles11/vmlinuz", pack('H*', '504500006486'));
     ($rc) = render($tftp, {%$linux, kernel => 'sles11/vmlinuz', initrd => 'sles11/initrd'}, 'install', {os => 'sles11', arch => 'x86_64'});
     is($rc, 0, 'SLES 11 still renders');
-    like(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr{chain http://\$\{next-server\}:8080/tftpboot/xcat/elilo-x64\.efi}, 'SLES 11 retains the legacy elilo path despite its EFI stub');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr{chain http://\$\{next-server\}:8080/tftpboot/xcat/elilo-x64\.efi}, 'SLES 11 retains the legacy elilo path despite its EFI stub');
     ($rc) = render($tftp, {kernel => 'xcat/memdisk', initrd => 'disk.img'}, 'install', {os => 'dos', arch => 'x86'});
     is($rc, 0, 'MEMDISK still renders');
     ok($::XNBA_pxelinux_required, 'legacy MEMDISK still requires PXELINUX');
-    like(read_file("$tftp/xcat/xnba/nodes/node1.pxelinux"), qr/KERNEL xcat\/memdisk/, 'legacy PXELINUX payload is preserved');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1.pxelinux"), qr/KERNEL xcat\/memdisk/, 'legacy PXELINUX payload is preserved');
 };
 
 subtest 'nodetype and installation state are required for native routing' => sub {
     my $tftp = fixture();
     my ($rc) = render($tftp, $params, 'install', {os => 'rhels9', arch => 'x86_64'});
     is($rc, 0, 'foreign OS follows existing renderer');
-    unlike(read_file("$tftp/xcat/xnba/nodes/node1"), qr/chain tftp:/, 'loader-looking path alone does not select FreeBSD');
+    unlike(read_optional_file("$tftp/xcat/xnba/nodes/node1"), qr/chain tftp:/, 'loader-looking path alone does not select FreeBSD');
     ($rc) = render($tftp, {kernel => 'xcat/genesis.kernel.x86_64', initrd => 'xcat/genesis.fs.x86_64', kcmdline => 'destiny=shell'}, 'shell', $type);
     is($rc, 0, 'FreeBSD node retains the existing shell path');
-    like(read_file("$tftp/xcat/xnba/nodes/node1"), qr/imgexec kernel/, 'shell still uses the Genesis renderer');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1"), qr/imgexec kernel/, 'shell still uses the Genesis renderer');
 };
 
 subtest 'boot never reads or cancels installation ownership' => sub {
@@ -248,10 +232,10 @@ subtest 'boot never reads or cancels installation ownership' => sub {
     ok($completed, 'completion does not deadlock') or diag($@);
     is($cancel_calls, 0, 'boot never invokes cancellation');
     is(xCAT::FreeBSDInstall::state('node1', directory => $state_directory)->{phase}, 'installed', 'completion persists installed ownership');
-    is(read_file("$tftp/xcat/xnba/nodes/node1"), "#!gpxe\n#boot\nexit\n", 'BIOS boot returns to firmware');
-    is(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), "#!gpxe\n#boot\nexit 1\n", 'UEFI boot replaces the installer with exit');
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "#!gpxe\n#boot\nexit\n", 'BIOS boot returns to firmware');
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"), "#!gpxe\n#boot\nexit 1\n", 'UEFI boot replaces the installer with exit');
     render($tftp, {}, 'boot', {os => 'rhels9'}, {}, {server => '192.0.2.20', target => 'iqn.example'});
-    like(read_file("$tftp/xcat/xnba/nodes/node1"), qr/hdboot\n/, 'existing iSCSI BIOS local-boot behavior is preserved');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1"), qr/hdboot\n/, 'existing iSCSI BIOS local-boot behavior is preserved');
 };
 
 subtest 'offline cancels real ownership before removing scripts' => sub {
@@ -279,7 +263,7 @@ subtest 'offline cancellation failure preserves scripts and is reported' => sub 
     my ($rc, $error) = render($tftp, {}, 'offline', $type);
     is($rc, 1, 'unsafe ownership state makes offline fail');
     like($error, qr/Invalid state file/, 'real lifecycle failure reaches nodeset');
-    is(read_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'failed cancellation leaves scripts unchanged');
+    is(read_optional_file("$tftp/xcat/xnba/nodes/node1"), "old script\n", 'failed cancellation leaves scripts unchanged');
 };
 
 subtest 'Linux offline does not enter the FreeBSD lifecycle' => sub {
@@ -307,7 +291,7 @@ subtest 'nodeset passes nodetype identity through the public request path' => su
             $request->{bootparams}{node1} = [dclone($params)] if $request->{command}[0] eq 'setdestiny';
         });
     is_deeply(\@responses, [], 'public request reports no errors or PXELINUX warning');
-    like(read_file("$tftp/xcat/xnba/nodes/node1"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/pxeboot}, 'bulk nodetype lookup reaches native renderer');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/pxeboot}, 'bulk nodetype lookup reaches native renderer');
     is_deeply(\@xCAT::Table::lookups, [], 'FreeBSD image is never looked up in linuximage');
     is_deeply(\@commands, [qw(runbeginpre setdestiny makedhcp runendpre)], 'existing nodeset hooks and DHCP update remain ordered');
 };

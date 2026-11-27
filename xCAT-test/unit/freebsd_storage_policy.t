@@ -9,17 +9,12 @@ use Cwd qw(abs_path);
 use File::Temp qw(tempdir);
 use Test::More;
 use xCAT::FreeBSDConfig;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $root = abs_path(tempdir(CLEANUP => 1));
 my $planner = abs_path("$FindBin::Bin/../../xCAT/postscripts/configzfs-freebsd.awk");
 my $key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPu2fQbGvNixfzG3hYrKcXFP6eZDrZMDnuES0GhLWDPE';
-sub write_file {
-    my ($path, $text) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $text or croak $!;
-    close($file) or croak $!;
-    return;
-}
 write_file("$root/key.pub", "$key\n");
 write_file("$root/settings", "authorized_keys_file=$root/key.pub\n");
 my $os = "filesystem=zfs\nzfs_topology=mirror\nzfs_vdevs=vtbd0\@OS0,vtbd1\@OS1\nswap_mode=none\n";

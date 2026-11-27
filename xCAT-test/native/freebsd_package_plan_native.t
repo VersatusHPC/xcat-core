@@ -9,36 +9,18 @@ use File::Temp qw(tempdir);
 use FindBin;
 use JSON::PP;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 plan skip_all => 'requires native FreeBSD flua'
     unless $^O eq 'freebsd' && -x '/usr/libexec/flua';
 
 my $fixtures = $ENV{XCAT_FREEBSD_PLAN_FIXTURES};
-BAIL_OUT('Set XCAT_FREEBSD_PLAN_FIXTURES to the controller-generated fixture directory')
+die('Set XCAT_FREEBSD_PLAN_FIXTURES to the controller-generated fixture directory')
     unless defined($fixtures) && -d $fixtures;
 my $decoder = $ENV{XCAT_FREEBSD_PLAN_DECODER}
     || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd/xcat-package-plan.lua";
 my $task = tempdir('xcat-plan-decoder.XXXXXX', TMPDIR => 1, CLEANUP => 1);
-
-sub read_file {
-    my ($path, $limit) = @_;
-    croak "Invalid fixture file: $path" if !-f $path || -l $path || -s $path > $limit;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$fh>;
-    close($fh) or croak "$path: $!";
-    croak "Fixture grew: $path" if length($bytes // '') > $limit;
-    return $bytes // '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $fh, '>', $path) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub lua_string {
     my $value = shift;
@@ -77,7 +59,7 @@ sub framed {
 my $decoder_bytes = read_file($decoder, 1048576);
 my $manifest_bytes = read_file("$fixtures/manifest.json", 67108864);
 my $manifest = JSON::PP->new->utf8->decode($manifest_bytes);
-BAIL_OUT('Unsupported controller fixture manifest') unless ref($manifest) eq 'HASH'
+die('Unsupported controller fixture manifest') unless ref($manifest) eq 'HASH'
     && $manifest->{format} eq 'xcat-freebsd-plan-fixtures-1'
     && $manifest->{controller_sha256} =~ /\A[0-9a-f]{64}\z/x
     && ref($manifest->{cases}) eq 'ARRAY' && @{$manifest->{cases}};
@@ -113,12 +95,12 @@ write_file("$task/driver.lua", $driver);
 my %names;
 sub validate_case {
     my $case = shift;
-    BAIL_OUT('Invalid or duplicate controller case') unless ref($case) eq 'HASH'
+    die('Invalid or duplicate controller case') unless ref($case) eq 'HASH'
         && $case->{name} =~ /\A[a-z0-9-]+\z/x
         && $case->{file} =~ /\A[a-z0-9-]+[.]plan\z/x
         && $case->{sha256} =~ /\A[0-9a-f]{64}\z/x
         && ($case->{accepted} eq 'yes' || $case->{accepted} eq 'no');
-    BAIL_OUT('Duplicate controller case') if $names{$case->{name}}++;
+    die('Duplicate controller case') if $names{$case->{name}}++;
     return;
 }
 

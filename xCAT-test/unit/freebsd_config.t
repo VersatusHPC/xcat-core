@@ -13,15 +13,11 @@ use MIME::Base64 qw(decode_base64 encode_base64);
 use POSIX ();
 use Test::More;
 use xCAT::FreeBSDConfig;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $root = abs_path(tempdir(CLEANUP => 1));
 my $key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPu2fQbGvNixfzG3hYrKcXFP6eZDrZMDnuES0GhLWDPE';
-sub write_file {
-    my ($path, $text) = @_;
-    open(my $handle, '>', $path) or die $!;
-    print {$handle} $text or die $!;
-    close($handle) or die $!;
-}
 sub rejected {
     my ($code, $pattern, $label) = @_;
     my $ok = eval { $code->(); 1 };

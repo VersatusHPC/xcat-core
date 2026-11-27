@@ -11,6 +11,8 @@ use JSON;
 use POSIX qw(mkfifo);
 use Test::More;
 use xCAT::FreeBSDPkg;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 plan(skip_all => 'Set XCAT_FREEBSD_NATIVE_SOLVER to the pinned resolver executable')
   unless defined($ENV{XCAT_FREEBSD_NATIVE_SOLVER});
@@ -23,29 +25,10 @@ plan(skip_all => 'Native resolver root fixtures require root') if $> != 0;
 my $tmp = abs_path(tempdir(CLEANUP => 1, DIR => '/tmp'));
 my $solver = abs_path($ENV{XCAT_FREEBSD_NATIVE_SOLVER});
 my $libraries = abs_path($ENV{XCAT_FREEBSD_NATIVE_LIBDIR});
-BAIL_OUT('Missing native resolver inputs') unless defined($solver) && -x $solver
+die('Missing native resolver inputs') unless defined($solver) && -x $solver
   && defined($libraries) && -d $libraries;
 my %environment = (PATH => '/usr/bin:/bin', LC_ALL => 'C', LD_LIBRARY_PATH => $libraries);
 my $json = JSON->new->utf8->canonical;
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$fh>;
-    close($fh) or croak "$path: $!";
-    return defined($bytes) ? $bytes : '';
-}
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $fh, '>', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return;
-}
 
 sub directory {
     my ($path, $mode) = @_;

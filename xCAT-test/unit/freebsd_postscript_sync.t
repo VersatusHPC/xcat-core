@@ -11,26 +11,13 @@ use Test::More;
 use XCAT::Test::PostageFixture qw(fixture);
 use xCAT::FreeBSDPostscript;
 use xCAT::SvrUtils;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 umask 0077;
 my $temporary = tempdir(CLEANUP => 1);
 my $sequence = 0;
 my $tables;
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
-
-sub read_file {
-    open(my $file, '<', shift) or croak $!;
-    my $bytes = do { local $/ = undef; <$file> };
-    close($file) or croak $!;
-    return $bytes;
-}
 
 sub setup {
     $tables = fixture();

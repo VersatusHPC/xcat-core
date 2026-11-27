@@ -10,6 +10,8 @@ use XML::Simple;
 use Cwd qw(abs_path);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file);
 
 BEGIN {
     for my $module (qw(Scope MsgUtils BootUtils TableUtils ServiceNodeUtils Usage Table NetworkUtils)) {
@@ -293,15 +295,6 @@ sub process_scoped {
     return (\@responses, \@commands, $tftp);
 }
 
-sub read_file {
-    my ($path) = @_;
-    return unless -f $path;
-    open(my $file, '<', $path) or die $!;
-    my $text = do { local $/; <$file> };
-    close($file) or die $!;
-    return $text;
-}
-
 subtest 'selected FreeBSD owner generates routed-node configuration through both request handlers' => sub {
     fixture();
     $xCAT::NetworkUtils::off_subnet{'198.51.100.10'} = 1;
@@ -310,8 +303,8 @@ subtest 'selected FreeBSD owner generates routed-node configuration through both
     $xCAT::NetworkUtils::local = '192.0.2.2';
     my ($responses, $commands, $tftp) = process_scoped($requests->[0]);
     is_deeply($responses, [], 'routed native node is not dropped by the legacy subnet filter');
-    like(read_file("$tftp/xcat/xnba/nodes/node1"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/pxeboot}, 'owner publishes the BIOS native loader script');
-    like(read_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/loader.efi}, 'owner publishes the UEFI native loader script');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/pxeboot}, 'owner publishes the BIOS native loader script');
+    like(read_optional_file("$tftp/xcat/xnba/nodes/node1.uefi"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/node1/boot/loader.efi}, 'owner publishes the UEFI native loader script');
     is_deeply([map { $_->{command}[0] } @$commands], [qw(runbeginpre setdestiny makedhcp runendpre)], 'routed native request completes all existing stages');
     is_deeply([map { $_->{node} } @$commands], [map { ['node1'] } 1 .. 4], 'all stages retain the selected node');
     is_deeply([map { $_->{arg} } grep { $_->{command}[0] ne 'setdestiny' } @$commands],
@@ -335,7 +328,7 @@ subtest 'routed native nodes remain in a batch with directly connected nodes' =>
     my ($responses, $commands, $tftp) = process_scoped($requests->[0]);
     is_deeply($responses, [], 'native batch reports no error');
     for my $node ('node1', 'node2') {
-        like(read_file("$tftp/xcat/xnba/nodes/$node"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/$node/boot/pxeboot}, "$node receives its own boot script");
+        like(read_optional_file("$tftp/xcat/xnba/nodes/$node"), qr{chain tftp://\$\{next-server\}/xcat/freebsd/$node/boot/pxeboot}, "$node receives its own boot script");
     }
     is_deeply([map { [sort @{ $_->{node} }] } @$commands], [map { ['node1', 'node2'] } 1 .. 4],
         'routed and directly connected native nodes remain in every stage');

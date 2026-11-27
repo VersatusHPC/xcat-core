@@ -12,6 +12,8 @@ use IO::Compress::Gzip qw(gzip);
 use JSON;
 use Storable qw(dclone);
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 our ($mock_system, $mock_readpipe);
 BEGIN {
@@ -82,15 +84,6 @@ require $plugin;
 
 my $tmp = abs_path(tempdir(CLEANUP => 1));
 my $sequence = 0;
-
-sub write_file {
-    my ($path, $data) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or die "$path: $!";
-    binmode($fh);
-    print $fh $data;
-    close($fh) or die "$path: $!";
-}
 
 sub fixture {
     my $format = shift || 'xcat-mfsbsd-1';

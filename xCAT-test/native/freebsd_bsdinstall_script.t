@@ -7,6 +7,8 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file write_file);
 
 plan skip_all => 'requires native FreeBSD bsdconfig includes'
     unless $^O eq 'freebsd' && -d '/usr/share/bsdconfig';
@@ -15,23 +17,6 @@ my $patcher = $ENV{XCAT_FREEBSD_SCRIPT_PATCHER}
     || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd/patch-bsdinstall-script.sh";
 my $task = tempdir('xcat-script-test.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $native_digest = '1683193f5d36338d3a3db10322a0953222bcee357715819e0f8996e48c192788';
-
-sub read_file {
-    my $path = shift;
-    return '' unless -e $path;
-    open(my $fh, '<', $path) or die "$path: $!";
-    local $/;
-    my $data = <$fh>;
-    close($fh) or die "$path: $!";
-    return $data // '';
-}
-
-sub write_file {
-    my ($path, $data) = @_;
-    open(my $fh, '>', $path) or die "$path: $!";
-    print {$fh} $data or die "$path: $!";
-    close($fh) or die "$path: $!";
-}
 
 sub run {
     open(my $pipe, '-|', '/bin/sh', '-c', 'exec "$@" 2>&1', 'sh', @_) or die $!;
@@ -42,14 +27,14 @@ sub run {
     return (($status & 127) ? 128 + ($status & 127) : $status >> 8, $data // '');
 }
 
-BAIL_OUT('native bsdinstall script does not match the release')
-    unless sha256_hex(read_file($native)) eq $native_digest;
+die('native bsdinstall script does not match the release')
+    unless sha256_hex(read_optional_file($native)) eq $native_digest;
 my ($patch_status, $patched) = run('/bin/sh', $patcher, $native);
 is($patch_status, 0, 'patcher accepts the pinned native script');
-BAIL_OUT('native script patch failed') if $patch_status;
+die('native script patch failed') if $patch_status;
 write_file("$task/patched", $patched);
 is((run('/bin/sh', '-n', "$task/patched"))[0], 0, 'generated native script has shell syntax');
-write_file("$task/changed", read_file($native) . "\n");
+write_file("$task/changed", read_optional_file($native) . "\n");
 my ($changed_status, $changed_output) = run('/bin/sh', $patcher, "$task/changed");
 isnt($changed_status, 0, 'patcher rejects source drift');
 like($changed_output, qr/Unsupported FreeBSD 15\.1 bsdinstall script checksum/,
@@ -89,7 +74,7 @@ ZPOOL
     $ENV{XCAT_STORAGE_WORK} = "$root/storage" if $storage;
     my ($status, $output) = run('/usr/bin/timeout', '-k', '2', '15',
         '/bin/sh', $script, "$root/config");
-    return ($status, read_file("$root/events"), $output);
+    return ($status, read_optional_file("$root/events"), $output);
 }
 
 for my $filesystem (qw(ufs zfs)) {
@@ -120,5 +105,5 @@ for my $filesystem (qw(ufs zfs)) {
     like($native_guard_events, qr/^(?:zpool export|bsdinstall umount)/m,
         "$filesystem native control performs the unsafe automatic cleanup");
 }
-is(sha256_hex(read_file($native)), $native_digest, 'native bsdinstall source remains unchanged');
+is(sha256_hex(read_optional_file($native)), $native_digest, 'native bsdinstall source remains unchanged');
 done_testing();

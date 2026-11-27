@@ -19,28 +19,11 @@ use POSIX ();
 use Test::More;
 use xCAT::FreeBSDBoot;
 use xCAT::FreeBSDImage;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 my $temporary = abs_path(tempdir(CLEANUP => 1));
 my $sequence = 0;
-
-sub write_file {
-    my ($path, $text) = @_;
-    make_path(dirname($path));
-    chmod(0644, $path) if -f $path;
-    open(my $file, '>', $path) or die "$path: $!";
-    binmode($file);
-    print {$file} $text;
-    close($file) or die "$path: $!";
-}
-
-sub read_file {
-    my $path = shift;
-    open(my $file, '<', $path) or die "$path: $!";
-    binmode($file);
-    my $text = do { local $/; <$file> };
-    close($file);
-    return $text;
-}
 
 sub fixture {
     my $root = "$temporary/fixture-" . ++$sequence;

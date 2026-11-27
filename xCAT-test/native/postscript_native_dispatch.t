@@ -11,29 +11,13 @@ use File::Temp qw(tempdir);
 use Test::More;
 use xCAT::FreeBSDPkg;
 use XCAT::Test::Chroot qw(stage_binary);
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file write_file);
 
 plan(skip_all => 'Dispatch fixtures require a Linux lab root') unless $^O eq 'linux' && $> == 0;
 my $sources = $ENV{XCAT_POSTSCRIPT_DISPATCH_DIR} || "$FindBin::Bin/../../xCAT/postscripts";
 my $root = abs_path(tempdir(CLEANUP => 1));
 make_path("$root/bin", "$root/usr/bin", "$root/scripts", "$root/fixture");
-
-sub write_file {
-    my ($path, $bytes, $mode) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    chmod($mode, $path) == 1 or croak $!;
-    return;
-}
-
-sub read_file {
-    my $path = shift;
-    return '' unless -f $path;
-    open(my $file, '<', $path) or croak $!;
-    my $bytes = do { local $/ = undef; <$file> };
-    close($file) or croak $!;
-    return $bytes;
-}
 
 for my $binary ('/bin/sh', '/bin/bash', '/bin/cat', '/usr/bin/dirname', '/usr/bin/basename', '/usr/bin/tr') {
     stage_binary($root, $binary);
@@ -79,8 +63,8 @@ for my $name (sort keys %adapters) {
         my $result = invoke($name, 'FreeBSD', 'two words', '', '-n', '$literal');
         is($result->{signal}, 0, 'native adapter exits normally');
         is($result->{exitcode}, 23, 'native failure is preserved');
-        is(read_file("$root/fixture/native.argv"), "two words\0\0-n\0\$literal\0", 'arguments retain their exact boundaries');
-        is(read_file("$root/fixture/native.env"), "retained value\n", 'environment reaches the native adapter');
+        is(read_optional_file("$root/fixture/native.argv"), "two words\0\0-n\0\$literal\0", 'arguments retain their exact boundaries');
+        is(read_optional_file("$root/fixture/native.env"), "retained value\n", 'environment reaches the native adapter');
         is($result->{stdout}, "native stdout\n", 'native output is preserved');
         is($result->{stderr}, "native stderr\n", 'native errors are preserved');
         ok(!-e "$root/fixture/bash.argv", 'FreeBSD does not require Bash');
@@ -91,7 +75,7 @@ for my $name (sort keys %adapters) {
             my $result = invoke($name, $platform, 'two words', '');
             is($result->{signal}, 0, "$platform launcher exits normally");
             is($result->{exitcode}, 17, "$platform retains its Bash interpreter status");
-            is(read_file("$root/fixture/bash.argv"), "/scripts/$name\0two words\0\0", "$platform preserves script identity and arguments");
+            is(read_optional_file("$root/fixture/bash.argv"), "/scripts/$name\0two words\0\0", "$platform preserves script identity and arguments");
             ok(!-e "$root/fixture/native.argv", "$platform does not invoke the FreeBSD adapter");
         }
         done_testing();
@@ -133,7 +117,7 @@ sub bash_startup_tests {
                 is($result->{signal}, 0, "$shell entry exits normally");
                 is($result->{exitcode}, 0, "$shell entry retains the legacy early exit");
                 is($result->{stderr}, '', "$shell entry has no interpreter errors");
-                is(read_file("$root/fixture/bash.startup"), "startup\n", "$shell entry reads Bash startup once");
+                is(read_optional_file("$root/fixture/bash.startup"), "startup\n", "$shell entry reads Bash startup once");
             }
             done_testing();
         };
@@ -150,7 +134,7 @@ sub bash_startup_tests {
                     my $expected_exit = $legacy_entry eq 'confignetwork' && $platform eq 'AIX' ? 1 : 0;
                     is($result->{exitcode}, $expected_exit, "$platform $shell preserves the existing exit");
                     like($result->{stderr}, qr/^\+{1,2}[ ]exit[ ]$expected_exit$/mx, "$platform $shell traces the script body");
-                    is(read_file("$root/fixture/bash.startup"), "startup\n",
+                    is(read_optional_file("$root/fixture/bash.startup"), "startup\n",
                         "$platform $shell reads Bash startup exactly once");
                 }
             }
@@ -201,18 +185,18 @@ SYSRC
     my $result = $configure->('192.0.2.1');
     is($result->{exitcode}, 0, 'public script configures an IPv4 literal with no PTR record');
     is($result->{signal}, 0, 'native adapter exits normally');
-    like(read_file("$root/etc/syslog.d/90-xcat.conf"), qr/\@192[.]0[.]2[.]1\n\z/x,
+    like(read_optional_file("$root/etc/syslog.d/90-xcat.conf"), qr/\@192[.]0[.]2[.]1\n\z/x,
         'published forwarding configuration retains the numeric server');
     ok(!-e "$root/fixture/lookups", 'a numeric server requires no resolver query');
-    like(read_file("$root/fixture/services"), qr/^syslogd[ ]reload$/mx, 'successful configuration reloads syslogd');
+    like(read_optional_file("$root/fixture/services"), qr/^syslogd[ ]reload$/mx, 'successful configuration reloads syslogd');
     $result = $configure->('logger.example.test');
     is($result->{exitcode}, 0, 'resolvable hostname remains supported');
-    is(read_file("$root/fixture/lookups"), "logger.example.test\n", 'hostname uses the resolver');
-    my $configured = read_file("$root/etc/syslog.d/90-xcat.conf");
+    is(read_optional_file("$root/fixture/lookups"), "logger.example.test\n", 'hostname uses the resolver');
+    my $configured = read_optional_file("$root/etc/syslog.d/90-xcat.conf");
     for my $bad ('missing.example.test', '999.0.2.1') {
         $result = $configure->($bad);
         isnt($result->{exitcode}, 0, 'unresolvable hostname or invalid numeric address is rejected');
-        is(read_file("$root/etc/syslog.d/90-xcat.conf"), $configured, 'rejection preserves the previous forwarding policy');
+        is(read_optional_file("$root/etc/syslog.d/90-xcat.conf"), $configured, 'rejection preserves the previous forwarding policy');
     }
     return;
 };

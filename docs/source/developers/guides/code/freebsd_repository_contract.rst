@@ -442,8 +442,8 @@ Zstandard support, and the preparation tool. Run it explicitly::
     XCAT_FREEBSD_NATIVE_PKG=/absolute/path/to/pkg \
     XCAT_FREEBSD_NATIVE_LIBDIR=/absolute/path/to/private/lib \
     PERL5LIB=perl-xCAT:xCAT-server/lib/perl \
-        prove -v xCAT-test/unit/freebsd_repo_native.t \
-            xCAT-test/unit/freebsd_repo_import.t
+        prove -v xCAT-test/native/freebsd_repo_native.t \
+            xCAT-test/native/freebsd_repo_import.t
 
 Omit ``XCAT_FREEBSD_NATIVE_LIBDIR`` when the executable needs no private library
 directory. Without ``XCAT_FREEBSD_NATIVE_PKG``, the integration test skips;

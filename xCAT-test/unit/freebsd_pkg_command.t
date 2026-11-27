@@ -15,6 +15,8 @@ use Test::More;
 use Time::HiRes qw(time);
 use xCAT::FreeBSDPkg;
 use xCAT::Utils;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file);
 
 my $tmp = abs_path(tempdir(CLEANUP => 1));
 my $perl = abs_path($^X);
@@ -31,15 +33,6 @@ sub rejects {
 sub run_perl {
     my ($program, %options) = @_;
     return xCAT::FreeBSDPkg::run_command([$perl, '-e', $program], %options);
-}
-
-sub read_file {
-    my $path = shift;
-    open(my $fh, '<', $path) or croak "$path: $!";
-    local $/ = undef;
-    my $bytes = <$fh>;
-    close($fh) or croak "$path: $!";
-    return defined($bytes) ? $bytes : '';
 }
 
 sub basic_cases {

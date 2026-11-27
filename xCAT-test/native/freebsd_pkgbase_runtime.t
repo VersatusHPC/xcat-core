@@ -7,6 +7,8 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 plan skip_all => 'requires a disposable native FreeBSD amd64 builder'
     unless $^O eq 'freebsd' && $> == 0;
@@ -27,13 +29,6 @@ sub contents {
     my $data = <$fh>;
     close($fh) or die "$path: $!";
     return $data;
-}
-
-sub write_file {
-    my ($path, $data) = @_;
-    open(my $fh, '>', $path) or die "$path: $!";
-    print {$fh} $data or die "$path: $!";
-    close($fh) or die "$path: $!";
 }
 
 sub run {

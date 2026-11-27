@@ -10,21 +10,15 @@ use File::Temp qw(tempdir);
 use JSON;
 use Test::More;
 use xCAT::FreeBSDPkg;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 my $temporary = tempdir(CLEANUP => 1);
 my $client = $ENV{XCAT_UPDATENODE_CLIENT} || "$FindBin::Bin/../../xCAT-client/bin/updatenode";
 make_path("$temporary/bin", "$temporary/lib/perl/xCAT");
 copy($client, "$temporary/bin/updatenode") or croak $!;
 
-sub write_file {
-    my ($name, $bytes) = @_;
-    open(my $file, '>', "$temporary/lib/perl/xCAT/$name.pm") or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
-
-write_file('Client', <<'CLIENT');
+write_file("$temporary/lib/perl/xCAT/Client.pm", <<'CLIENT');
 package xCAT::Client;
 use strict;
 use warnings;
@@ -37,8 +31,8 @@ sub submit_request {
 }
 1;
 CLIENT
-write_file('MsgUtils', 'package xCAT::MsgUtils; sub message { print STDERR $_[2]; } 1;');
-write_file('Usage', 'package xCAT::Usage; sub getUsage { return "usage"; } 1;');
+write_file("$temporary/lib/perl/xCAT/MsgUtils.pm", 'package xCAT::MsgUtils; sub message { print STDERR $_[2]; } 1;');
+write_file("$temporary/lib/perl/xCAT/Usage.pm", 'package xCAT::Usage; sub getUsage { return "usage"; } 1;');
 
 sub command {
     my @arguments = @_;

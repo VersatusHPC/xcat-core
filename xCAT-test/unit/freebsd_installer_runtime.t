@@ -9,27 +9,12 @@ use File::Temp qw(tempdir);
 use FindBin;
 use MIME::Base64 qw(encode_base64);
 use Test::More;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_optional_file write_file);
 
 my $directory = $ENV{XCAT_FREEBSD_INSTALLER_DIR} || "$FindBin::Bin/../../xCAT-server/share/xcat/install/freebsd";
 my $library = "$directory/xcat-install-lib.sh";
 ok(-f $library, 'the installed runtime library exists');
-
-sub write_file {
-    my ($file, $content) = @_;
-    open(my $fh, '>', $file) or die "$file: $!";
-    print {$fh} $content;
-    close($fh) or die "$file: $!";
-}
-
-sub read_file {
-    my $file = shift;
-    return '' unless -e $file;
-    open(my $fh, '<', $file) or die "$file: $!";
-    local $/;
-    my $content = <$fh>;
-    close($fh);
-    return $content;
-}
 
 sub configuration {
     my %changes = @_;
@@ -116,7 +101,7 @@ SH
     chmod 0755, "$root/bin/fetch";
     is((run_runtime($root, 'XCAT_BOOT_NETWORK_BASE64=present; xcat_fetch_config http://192.0.2.1/config'))[0],
         0, 'configuration download waits for a delayed virtual network');
-    is(read_file("$root/work/config"), read_file("$root/config"), 'retry returns the complete configuration');
+    is(read_optional_file("$root/work/config"), read_optional_file("$root/config"), 'retry returns the complete configuration');
     unlink("$root/clock") or croak $!;
     isnt((run_runtime($root, 'XCAT_BOOT_NETWORK_BASE64=; xcat_fetch_config http://192.0.2.1/config'))[0],
         0, 'legacy physical networking retains its single download attempt');
@@ -165,7 +150,7 @@ for my $bad (
 
 {
     my $root = fixture();
-    write_file("$root/config", read_file("$root/config") . "filesystem=ufs\n");
+    write_file("$root/config", read_optional_file("$root/config") . "filesystem=ufs\n");
     isnt((run_runtime($root, 'xcat_read_config "$1"'))[0], 0, 'duplicate fields fail');
 }
 
@@ -183,12 +168,12 @@ for my $bad (
     write_file("$root/nc-busy", '4');
     is((run_runtime($root, 'xcat_read_config "$1" && xcat_status complete'))[0], 0,
         'completion survives more than three busy controller responses');
-    is(read_file("$root/nc-count"), "5\n", 'completion retries until the matching acknowledgment');
-    like(read_file("$root/events"), qr/nc -w 65 /, 'the client allows the full controller command deadline');
+    is(read_optional_file("$root/nc-count"), "5\n", 'completion retries until the matching acknowledgment');
+    like(read_optional_file("$root/events"), qr/nc -w 65 /, 'the client allows the full controller command deadline');
     write_file("$root/reject-booted", '');
     isnt((run_runtime($root, 'xcat_read_config "$1" && xcat_status booted'))[0], 0,
         'an unavailable controller eventually fails without an acknowledgment');
-    is(read_file("$root/clock"), "920\n", 'status retries stop after fifteen minutes');
+    is(read_optional_file("$root/clock"), "920\n", 'status retries stop after fifteen minutes');
 }
 
 my $single_disk_labels = "pool_guid: 12345\nname: 'zroot'\nvdev_children: 1\nvdev_tree:\n    type: 'disk'\n";
@@ -210,7 +195,7 @@ for my $partitions ('', "Geom name: ada1\nProviders:\n1. Name: ada1p3\nConsumers
 }
 {
     my $root = fixture();
-    write_file("$root/partitions", read_file("$root/partitions") .
+    write_file("$root/partitions", read_optional_file("$root/partitions") .
         "\nGeom name: diskid/DISK-QM00001\nProviders:\n1. Name: diskid/DISK-QM00001p3\nConsumers:\n1. Name: diskid/DISK-QM00001\n");
     write_file("$root/labels/ada0p3", $single_disk_labels);
     my ($status, $output) = run_runtime($root, 'xcat_read_config "$1" && xcat_scan_labels && printf "%s" "$XCAT_CLEAR_LABELS"');
@@ -230,7 +215,7 @@ for my $failure (
     write_file("$root/$failure->[0]", $failure->[1]);
     my ($status) = run_runtime($root, 'xcat_read_config "$1" && xcat_install_system "$2"', "$directory/installerconfig.tmpl");
     isnt($status, 0, "unreadable or malformed metadata fails: $failure->[0]=$failure->[1]");
-    unlike(read_file("$root/events"), qr/phase begin|zpool labelclear|bsdinstall script/,
+    unlike(read_optional_file("$root/events"), qr/phase begin|zpool labelclear|bsdinstall script/,
         'metadata failure stops before authorization or disk mutation');
 }
 {
@@ -241,7 +226,7 @@ for my $failure (
     is($output, " /dev/ada0p3\n", 'label clearing selects only the authorized partition');
     write_file("$root/labels/ada1p3", $single_disk_labels);
     isnt((run_runtime($root, 'xcat_read_config "$1" && xcat_scan_labels'))[0], 0, 'zroot on an unselected disk fails before mutation');
-    unlike(read_file("$root/events"), qr/zpool labelclear/, 'label scanning does not clear anything');
+    unlike(read_optional_file("$root/events"), qr/zpool labelclear/, 'label scanning does not clear anything');
 }
 for my $topology ("vdev_children: 2", "vdev_children: 1\n    type: 'mirror'") {
     my $root = fixture();
@@ -263,7 +248,7 @@ for my $bad (
     write_file("$root/labels/ada0p3", $single_disk_labels);
     my ($status, $output) = run_runtime($root, 'xcat_read_config "$1" && xcat_install_system "$2"', "$directory/installerconfig.tmpl");
     is($status, 0, 'the production installer sequence succeeds with external commands isolated') or diag($output);
-    my $events = read_file("$root/events");
+    my $events = read_optional_file("$root/events");
     like($events, qr/kldload -n zfs.*kldload -n geom_eli.*zpool list.*geli status/s,
         'required kernel modules load before checking attached storage');
     like($events, qr/sha256 .*base\.txz.*sha256 .*kernel\.txz.*phase begin.*zpool labelclear -f \/dev\/ada0p3.*bsdinstall script.*phase complete/s,
@@ -280,7 +265,7 @@ for my $failure (qw(checksum manifest begin installer complete)) {
     write_file("$root/install-fails", '') if $failure eq 'installer';
     my ($status, $output) = run_runtime($root, 'xcat_read_config "$1" && xcat_install_system "$2"', "$directory/installerconfig.tmpl");
     isnt($status, 0, "$failure failure stops installation");
-    my $events = read_file("$root/events");
+    my $events = read_optional_file("$root/events");
     if ($failure =~ /^(checksum|manifest|begin)$/) {
         unlike($events, qr/zpool labelclear|bsdinstall script/, "$failure failure does not modify the disk");
     }
@@ -416,7 +401,7 @@ sub pkgbase_install_refusal {
     like($output, qr/^parsed-pkgbase\n/mx, 'a valid parsed configuration reaches the installation refusal');
     like($output, qr/Pkgbase[ ]installation[ ]runtime[ ]is[ ]not[ ]available/x,
         'the runtime reports the missing pkgbase adapter');
-    is(read_file("$root/events"), '', 'pkgbase refusal invokes no fixture command');
+    is(read_optional_file("$root/events"), '', 'pkgbase refusal invokes no fixture command');
     ok(!-e "$root/work/installerconfig", 'pkgbase refusal creates no installer script');
     ok(!-e "$root/work/dist", 'pkgbase refusal stages no distribution payload');
     return;
@@ -438,14 +423,14 @@ SHELL
     chmod 0755, "$root/bin/nc";
     my ($status) = run_runtime($root, 'xcat_read_config "$1" && xcat_status begin && xcat_status complete');
     is($status, 0, 'native status exchange accepts disk-aware authorization');
-    is(read_file("$root/status-wire"), "freebsd-install-v2|begin|ada0\@XCAT_TEST_DISK\nfreebsd-install-v1|complete|\n",
+    is(read_optional_file("$root/status-wire"), "freebsd-install-v2|begin|ada0\@XCAT_TEST_DISK\nfreebsd-install-v1|complete|\n",
         'only begin carries the concrete selected OS identity');
     write_file("$root/status-wire", '');
     ($status) = run_runtime($root, 'xcat_read_config "$1" || exit; XCAT_FORMAT=xcat-freebsd-install-5; '
         . 'XCAT_FILESYSTEM=zfs; XCAT_SWAP_MODE=none; XCAT_SWAP_SIZE=0; XCAT_ZFS_TOPOLOGY=raid10; '
         . 'XCAT_ZFS_VDEVS="ada0@OS0,ada1@OS1;ada2@OS2,ada3@OS3"; xcat_status begin');
     is($status, 0, 'grouped native membership reaches authorization');
-    is(read_file("$root/status-wire"), "freebsd-install-v2|begin|ada0\@OS0,ada1\@OS1;ada2\@OS2,ada3\@OS3\n",
+    is(read_optional_file("$root/status-wire"), "freebsd-install-v2|begin|ada0\@OS0,ada1\@OS1;ada2\@OS2,ada3\@OS3\n",
         'wire preserves the original mirror groups');
 };
 done_testing;

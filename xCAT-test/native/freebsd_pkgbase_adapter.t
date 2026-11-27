@@ -11,6 +11,8 @@ use File::Temp qw(tempdir);
 use FindBin;
 use Test::More;
 use Time::HiRes qw(time);
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(write_file);
 
 plan skip_all => 'requires a disposable native FreeBSD root'
     unless $^O eq 'freebsd' && $> == 0 && -x '/usr/libexec/flua';
@@ -32,16 +34,6 @@ sub contents {
     my $bytes = <$fh>;
     close($fh) or croak "$path: $!";
     return defined($bytes) ? $bytes : '';
-}
-
-sub write_file {
-    my ($path, $bytes, $mode) = @_;
-    make_path(dirname($path));
-    open(my $fh, '>', $path) or croak "$path: $!";
-    binmode($fh) or croak "$path: $!";
-    print {$fh} $bytes or croak "$path: $!";
-    close($fh) or croak "$path: $!";
-    return chmod(defined($mode) ? $mode : oct('0600'), $path) || croak "$path: $!";
 }
 
 sub run {
@@ -130,7 +122,7 @@ esac
 exec /bin/cat /fixture/catalogue
 SH
 
-BAIL_OUT('native pkgbase source does not match the release')
+die('native pkgbase source does not match the release')
     unless sha256_hex(contents($source)) eq $native_digest;
 my $generated = checked('/bin/sh', $patcher, $source);
 my $adapter_bytes = contents($adapter);
@@ -140,19 +132,19 @@ copy_runtime($template, qw(/usr/libexec/flua /bin/sh /bin/cat /bin/sleep
     /usr/bin/env /bin/timeout /usr/bin/stat /sbin/sha256));
 write_file("$template/usr/libexec/bsdinstall/pkgbase", $generated, oct('0755'));
 write_file("$template/usr/local/libexec/xcat-pkgbase.lua", $adapter_bytes, oct('0644'));
-BAIL_OUT('native monotonic helper is unavailable') unless -f $timer && -x $timer;
+die('native monotonic helper is unavailable') unless -f $timer && -x $timer;
 write_file("$template/usr/local/libexec/xcat-postscript-time", contents($timer), oct('0555'));
-write_file("$template/dev/null", '');
+write_file("$template/dev/null", '', oct('0600'));
 my $footprint = checked('/usr/bin/du', '-sk', $template);
 my ($template_kib) = $footprint =~ /\A([0-9]+)\s/x;
-BAIL_OUT('cannot bound native fixture space') unless defined($template_kib);
+die('cannot bound native fixture space') unless defined($template_kib);
 diag "Native fixture template: $template_kib KiB; at most 80 private copies";
-BAIL_OUT('native fixtures exceed the 700 MiB RAM-root budget') if $template_kib * 80 > 716800;
+die('native fixtures exceed the 700 MiB RAM-root budget') if $template_kib * 80 > 716800;
 my $fixture_count = 0;
 
 sub fixture {
     my (%options) = @_;
-    BAIL_OUT('native fixture count exceeds its space bound') if ++$fixture_count > 80;
+    die('native fixture count exceeds its space bound') if ++$fixture_count > 80;
     my $root = tempdir('root.XXXXXX', DIR => $task, CLEANUP => 1);
     checked('/bin/cp', '-a', "$template/.", $root);
     my $tool = '/fixture/pkg client;opaque';
@@ -161,14 +153,14 @@ sub fixture {
     make_path(map { "$root$_" } values %paths);
     chmod(oct('0700'), map { "$root$_" } values %paths) or croak $!;
     write_file("$root$tool", $fixture_pkg, oct('0700'));
-    write_file("$root/fixture/mode", ($options{mode} || 'query') . "\n");
+    write_file("$root/fixture/mode", ($options{mode} || 'query') . "\n", oct('0600'));
     my $packages = $options{packages} || [package_record(0, 'FreeBSD-set-minimal'),
         package_record(1, 'FreeBSD-kernel-generic'), package_record(2, 'FreeBSD-ssh'),
         package_record(3, 'FreeBSD-bsdconfig')];
     my $catalogue = $options{catalogue} || $packages;
     write_file("$root/fixture/catalogue", join('', map {
         join("\t", @{$_}{qw(name version origin abi)}) . "\n"
-    } @$catalogue));
+    } @$catalogue), oct('0600'));
     my $context = { components => $options{components} || [], packages => $packages,
         plan_sha256 => 'a' x 64, %paths, installer_sha256 => sha256_hex($generated),
         adapter_sha256 => sha256_hex($adapter_bytes),
@@ -200,7 +192,7 @@ if not ok then error(result, 0) end
 assert(type(result) == 'string', 'adapter did not return a receipt')
 io.write(result)
 LUA
-    write_file("$fixture->{root}/fixture/driver.lua", $driver);
+    write_file("$fixture->{root}/fixture/driver.lua", $driver, oct('0600'));
     local %ENV = (PATH => '/nonexistent', COMPONENTS => 'src tests debug',
         BSDINSTALL_PKG_REPOS_DIR => '/public-fallback', PACKAGESITE => 'https://invalid.example/',
         LC_ALL => 'C');
@@ -313,7 +305,7 @@ subtest 'generator accepts only the pinned native source' => sub {
         'assert(loadfile(' . lua_string("$template/usr/libexec/bsdinstall/pkgbase") . '))'))[0],
         0, 'generated selector compiles under native flua');
     my $changed = "$task/changed-native";
-    write_file($changed, contents($source) . "\n");
+    write_file($changed, contents($source) . "\n", oct('0600'));
     my ($status, $output) = run('/bin/sh', $patcher, $changed);
     isnt($status, 0, 'changed native source is rejected');
     like($output, qr/Unsupported\ FreeBSD\ 15\.1\ pkgbase\ checksum/x, 'changed source reports identity failure');
@@ -423,7 +415,7 @@ sub selected_identity_cases {
         my $path = "$fixture->{root}/fixture/catalogue";
         my $bytes = contents($path);
         $bytes =~ s/^\Q$name\E\t[^\n]*\n//mx;
-        write_file($path, $bytes);
+        write_file($path, $bytes, oct('0600'));
         rejects($fixture, qr/Native\ root\ is\ absent/x, "missing managed-node package $name");
         is(scalar(@{package_calls($fixture)}), 2, "$name is required without a repository fallback");
     }
@@ -465,7 +457,7 @@ subtest 'identity and archive path bounds match the package-plan fields' => sub 
     $unicode->{context}{packages}[0]{version} = $identity;
     write_file("$unicode->{root}/fixture/catalogue", join('', map {
         join("\t", @{$_}{qw(name version origin abi)}) . "\n"
-    } @{$unicode->{context}{packages}}));
+    } @{$unicode->{context}{packages}}), oct('0600'));
     succeeds($unicode, $unicode->{context}{packages}, '1024-character Unicode identity is accepted');
     $unicode->{context}{packages}[0]{version} .= pack('C*', 0xc3, 0xa9);
     rejects($unicode, qr/Invalid\ package\ identity/x, '1025-character Unicode identity');
@@ -551,7 +543,7 @@ sub catalogue_failure_cases {
         my $path = "$fixture->{root}/fixture/catalogue";
         my $bytes = contents($path);
         $changes{$case}->($bytes);
-        write_file($path, $bytes);
+        write_file($path, $bytes, oct('0600'));
         my $diagnostic = $case =~ /\Amissing-/x
             ? qr/(?:assertion\ failed|nil\ value)/x : qr/xCAT\ pkgbase\ selection:/x;
         rejects($fixture, $diagnostic, $case);
@@ -568,10 +560,10 @@ sub catalogue_bound_cases {
         $catalogue .= "unselected-$index\t1\tmisc/unselected\tFreeBSD:15:amd64\n";
     }
     cmp_ok(length($catalogue), '<=', 8388608, 'record-limit fixture fits the old byte limit');
-    write_file("$many->{root}/fixture/catalogue", $catalogue);
+    write_file("$many->{root}/fixture/catalogue", $catalogue, oct('0600'));
     succeeds($many, $many->{context}{packages}, '100000 catalogue records can supply four selected roots');
     write_file("$many->{root}/fixture/catalogue",
-        $catalogue . "unselected-extra\t1\tmisc/unselected\tFreeBSD:15:amd64\n");
+        $catalogue . "unselected-extra\t1\tmisc/unselected\tFreeBSD:15:amd64\n", oct('0600'));
     rejects($many, qr/Ambiguous\ native\ catalogue/x, '100001 catalogue records');
     is(scalar(@{package_calls($many)}), 4, 'record overflow adds only one version probe and query');
 
@@ -583,7 +575,7 @@ sub catalogue_bound_cases {
         push @{$wide->{context}{packages}}, package_record($index + 3, "unselected-$index");
     }
     cmp_ok(length($catalogue), '>', 8388608, '8192-record fixture exceeds the old byte limit');
-    write_file("$wide->{root}/fixture/catalogue", $catalogue);
+    write_file("$wide->{root}/fixture/catalogue", $catalogue, oct('0600'));
     succeeds($wide, [@{$wide->{context}{packages}}[0 .. 3]],
         'catalogue above 8 MiB supplies four roots from 8192 plan records');
     push @{$wide->{context}{packages}}, package_record(8192, 'unselected-extra');
@@ -601,7 +593,7 @@ subtest 'version, command and output failures are bounded without retry' => sub 
     rejects($failure, qr/Native\ command\ failed\ or\ exceeded\ its\ bound/x, 'catalogue process failure');
     is(scalar(@{package_calls($failure)}), 2, 'failed query has no retry or fallback');
     my $large = fixture();
-    write_file("$large->{root}/fixture/catalogue", 'x' x 67108865);
+    write_file("$large->{root}/fixture/catalogue", 'x' x 67108865, oct('0600'));
     rejects($large, qr/Native\ command\ failed\ or\ exceeded\ its\ bound/x, 'oversized catalogue output');
     is(scalar(@{package_calls($large)}), 2, 'oversized output has no retry');
     my $hang = fixture(mode => 'hang');
@@ -627,7 +619,7 @@ sub monotonic_budget_case {
         unlink($helper) or croak $!;
     }
     write_file("$root/fixture/clock.control", 'return ' . lua_value({
-        mode => $mode, values => $case->{values} || ["100\n", "101\n"] }) . "\n");
+        mode => $mode, values => $case->{values} || ["100\n", "101\n"] }) . "\n", oct('0600'));
     my $driver = 'local wall = ' . lua_value($case->{wall} || [1000000, 1000001]) . "\n";
     $driver .= <<'LUA';
 local reads = 0
@@ -654,7 +646,7 @@ io.write('retry reached configuration validation\n')
 LUA
     }
     $driver .= "os.exit(ok and 0 or 1)\n";
-    write_file("$root/fixture/clock-driver.lua", $driver);
+    write_file("$root/fixture/clock-driver.lua", $driver, oct('0600'));
     local %ENV = (PATH => '/nonexistent', LC_ALL => 'C',
         XCAT_WORK => '/clock/work', BSDINSTALL_CHROOT => '/target');
     my $started = time();
@@ -694,7 +686,7 @@ exec /bin/timeout.real "$@"
 SH
     make_path("$root/clock/work", "$root/target");
     chmod(oct('0700'), "$root/clock/work") or croak $!;
-    write_file("$root/clock/work/config", "invalid\n");
+    write_file("$root/clock/work/config", "invalid\n", oct('0600'));
     my $clock = <<'LUA';
 #!/usr/libexec/flua
 assert(arg[1] == 'uptime' and arg[2] == nil)

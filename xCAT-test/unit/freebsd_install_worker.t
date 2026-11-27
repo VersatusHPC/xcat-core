@@ -14,6 +14,8 @@ use Test::More;
 use Time::HiRes qw(time sleep);
 use xCAT::FreeBSDInstall;
 use xCAT::FreeBSDPostscript;
+use lib "$FindBin::Bin/../lib";
+use XCAT::Test::File qw(read_file write_file);
 
 BEGIN {
     $INC{'xCAT/Table.pm'} = __FILE__;
@@ -44,22 +46,6 @@ my $json = JSON->new->canonical;
 my ($attempt, $run) = map { $_ x 32 } qw(b c);
 my ($boot, $snapshot, $preparation) = map { $_ x 64 } qw(d e f);
 my $sequence = 0;
-
-sub write_file {
-    my ($path, $bytes) = @_;
-    open(my $file, '>', $path) or croak $!;
-    print {$file} $bytes or croak $!;
-    close($file) or croak $!;
-    return;
-}
-
-sub read_file {
-    my ($path) = @_;
-    open(my $file, '<', $path) or croak "$path: $!";
-    my $bytes = do { local $/ = undef; <$file> };
-    close($file) or croak $!;
-    return defined($bytes) ? $bytes : '';
-}
 
 sub fixture {
     my $root = "$temporary/case-" . ++$sequence;

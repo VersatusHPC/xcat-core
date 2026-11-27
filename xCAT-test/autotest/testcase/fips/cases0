@@ -73,6 +73,9 @@ description: A compute node installed from an osimage with fips=1 runs with the 
 os:Linux
 label:provision,fips
 # The case is flat: the MN installs the node. A hierarchy case before it leaves the node on the SN.
+# With disjointdhcps=1 the SN keeps its DHCP host after servicenode changes, so remove it first.
+cmd:makedhcp -d $$CN
+check:rc==0
 cmd:chdef -t node -o $$CN servicenode= monserver=$$MN nfsserver=$$MN tftpserver=$$MN xcatmaster=$$MN
 check:rc==0
 cmd:chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute fips=1

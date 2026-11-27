@@ -255,9 +255,13 @@ fi
 [ -e "/etc/init.d/$apachedaemon" ] && chkconfig $apachedaemon on
 [ -e "/usr/lib/systemd/system/$apacheserviceunit" ] && systemctl enable $apacheserviceunit
 # prevent running it during install into chroot image
+# Reload only an active web server. systemd logs an error for a reload of an inactive unit.
 if [ -f "/proc/cmdline" ] && [ "x$(stat -c '%i %d' /)" == "x$(stat -c '%i %d' /proc/1/root/. 2>/dev/null)" ]; then
-    [ -e "/etc/init.d/$apachedaemon" ] && /etc/init.d/$apachedaemon reload
-    [ -e "/usr/lib/systemd/system/$apacheserviceunit" ] && systemctl reload $apacheserviceunit
+    if [ -e "/usr/lib/systemd/system/$apacheserviceunit" ]; then
+        systemctl is-active --quiet $apacheserviceunit && systemctl reload $apacheserviceunit
+    elif [ -e "/etc/init.d/$apachedaemon" ]; then
+        /etc/init.d/$apachedaemon reload
+    fi
 fi
     echo "xCATsn is now installed"
 %else

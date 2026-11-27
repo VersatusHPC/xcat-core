@@ -1147,6 +1147,7 @@ sub mkinitrd_dracut {
             }
 
             open($DRACUTCONF, '>', "$rootimg_dir/etc/dracut.conf");
+            $dracutmodulelist .= " $_" foreach imgutils::dracut_i18n_modules($rootimg_dir, $dracutmoduledir, $dracutmodulelist);
             print $DRACUTCONF qq{dracutmodules+=" $dracutmodulelist "\n};
             print $DRACUTCONF qq{add_drivers+=" $add_drivers "\n};
             print $DRACUTCONF qq{filesystems+=" nfs "\n};
@@ -1162,6 +1163,7 @@ sub mkinitrd_dracut {
 
             # update etc/dracut.conf
             open($DRACUTCONF, '>', "$rootimg_dir/etc/dracut.conf");
+            $dracutmodulelist .= " $_" foreach imgutils::dracut_i18n_modules($rootimg_dir, $dracutmoduledir, $dracutmodulelist);
             print $DRACUTCONF qq{dracutmodules+=" $dracutmodulelist "\n};
             print $DRACUTCONF qq{add_drivers+=" $add_drivers "\n};
             close $DRACUTCONF;
@@ -1205,6 +1207,8 @@ sub mkinitrd_dracut {
                     $dracutmodulelist .= " $_";
                 }
             }
+
+            $dracutmodulelist .= " $_" foreach imgutils::dracut_i18n_modules($rootimg_dir, $dracutmoduledir, $dracutmodulelist);
 
             print $DRACUTCONF qq{dracutmodules+=" $dracutmodulelist "\n};
             print $DRACUTCONF qq{add_drivers+=" $add_drivers "\n};
@@ -1254,6 +1258,7 @@ sub mkinitrd_dracut {
 
             # update etc/dracut.conf
             open($DRACUTCONF, '>', "$rootimg_dir/etc/dracut.conf");
+            $dracutmodulelist .= " $_" foreach imgutils::dracut_i18n_modules($rootimg_dir, $dracutmoduledir, $dracutmodulelist);
             print $DRACUTCONF qq{dracutmodules+=" $dracutmodulelist "\n};
             print $DRACUTCONF qq{add_drivers+=" $add_drivers "\n};
             close $DRACUTCONF;

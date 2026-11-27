@@ -507,11 +507,12 @@ else
     /sbin/rsyslogd -c4
 fi
 
+# A node without a BMC refuses the module. ipmitool below decides IPMI_SUPPORT.
 HOST_ARCH=`uname -m`
 if echo $HOST_ARCH | grep "ppc64"; then
-    modprobe ipmi_powernv
+    modprobe ipmi_powernv 2>/dev/null
 else
-    modprobe ipmi_si
+    modprobe ipmi_si 2>/dev/null
 fi
 modprobe ipmi_devintf
 

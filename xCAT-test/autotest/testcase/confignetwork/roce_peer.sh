@@ -35,6 +35,9 @@ up)
             echo "$dev" >$PARAMS/add || exit 1
         fi
     fi
+    # udev loads rdma_ucm only after the first RDMA device appears. A server
+    # started before that finds no device.
+    modprobe rdma_ucm || exit 1
     rdma link show
     ;;
 serve)

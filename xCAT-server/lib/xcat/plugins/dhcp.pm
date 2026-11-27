@@ -2950,6 +2950,17 @@ sub process_request
         }
         addrangedetection($_); #add to hash for remembering whether a node has a static address or just happens to live dynamically
     }
+
+    # dhcpd6 must know option 15 before the host updates below, or it refuses every host that tests it.
+    if ($usingipv6 and @dhcp6conf and !$::XCATSITEVALS{externaldhcpservers} and $^O ne 'aix'
+        and xCAT::DHCP::BootPolicy->isc_dhcp6_declare_user_class(\@dhcp6conf)) {
+        my $fh;
+        unless (open($fh, '>', $dhcp6conffile) and print($fh @dhcp6conf) and close($fh)
+            and !restart_dhcpd6()) {
+            $callback->({ error => ["Unable to declare option dhcp6.user-class in $dhcp6conffile. Run makedhcp -n."],
+                errorcode => [1] });
+        }
+    }
     if ($^O eq 'aix')
     {
         @nrn = xCAT::NetworkUtils::get_subnet_aix();
@@ -7463,6 +7474,7 @@ sub newconfig6 {
     push @dhcp6conf, "\n";
     push @dhcp6conf, "ddns-update-style interim;\n";
     push @dhcp6conf, "ignore client-updates;\n";
+    xCAT::DHCP::BootPolicy->isc_dhcp6_declare_user_class( \@dhcp6conf );
 
     #    push @dhcp6conf, "update-static-leases on;\n";
     _append_omapi_key_config( \@dhcp6conf, $settings, 7912, $callback );

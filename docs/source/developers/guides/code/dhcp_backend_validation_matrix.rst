@@ -369,11 +369,9 @@ rendering.
 
 Current exceptions:
 
-* Ubuntu 22.04 LTS ISC OMAPI/``omshell`` host reservation updates are
-  unreliable on current upstream code and are not caused by the Kea backend
-  work. ``site.dhcpbackend=auto`` therefore selects Kea for Ubuntu 22.04 and
-  newer releases; live Ubuntu 22.04 Kea validation remains a follow-up matrix
-  row.
+* Ubuntu 20.04 and 22.04 LTS ISC OMAPI/``omshell`` host reservation updates
+  are unreliable. On those releases ``makedhcp`` writes ISC host entries to
+  ``dhcpd.conf`` instead of using OMAPI.
 * Ubuntu ``ppc64le`` package installation is missing required boot packages such
   as ``goconserver``, ``grub2-xcat``, and ``xcat-genesis-base-ppc64``. This is
   tracked separately and is not a Kea DHCP behavior issue.

@@ -9,6 +9,13 @@ To improve the security between the REST API clients and server, enabling the se
     systemctl restart httpd
     yum install perl-JSON
 
+* **[openEuler]**
+
+  openEuler uses the RHEL layout for httpd and ``mod_ssl``: ::
+
+    dnf install mod_ssl
+    systemctl restart httpd
+
 * **[RHEL5 (ppc64)]**
 
   Uninstall httpd.ppc64 and install httpd.ppc: ::
@@ -25,6 +32,20 @@ To improve the security between the REST API clients and server, enabling the se
     Insert line 'NameVirtualHost *:443' before the line '## SSL Virtual Host Context'
     /etc/init.d/apache2 restart
     zypper install perl-JSON
+
+* **[openSUSE Leap 15 and 16]**
+
+  The SSL virtual host of openSUSE Leap needs a certificate. Use the xCAT server credential
+  as described in `Enable the Certificate of HTTPs Server (Optional)`_, and turn off OCSP
+  stapling, because the xCAT CA has no OCSP responder: ::
+
+    a2enmod ssl
+    a2enflag SSL
+    cp /etc/apache2/vhosts.d/vhost-ssl.template /etc/apache2/vhosts.d/vhost-ssl.conf
+    sed -i 's/^\(\s*\)SSLCertificateFile.*$/\1SSLCertificateFile \/etc\/xcat\/cert\/server-cred.pem/' /etc/apache2/vhosts.d/vhost-ssl.conf
+    sed -i 's/^\(\s*SSLCertificateKeyFile.*\)$/#\1/' /etc/apache2/vhosts.d/vhost-ssl.conf
+    sed -i 's/^\(\s*\)SSLUseStapling\s.*$/\1SSLUseStapling off/' /etc/apache2/vhosts.d/vhost-ssl.conf
+    systemctl restart apache2
 
 * **[Ubuntu]** ::
 
@@ -60,15 +81,15 @@ After changing the hostname, run the xcat command ``xcatconfig`` to generate a n
 
 The steps to configure the certificate for https server: ::
 
-    export sslcfgfile=/etc/httpd/conf.d/ssl.conf              # rhel
-    export sslcfgfile=/etc/apache2/vhosts.d/vhost-ssl.conf    # sles
+    export sslcfgfile=/etc/httpd/conf.d/ssl.conf              # rhel, openEuler
+    export sslcfgfile=/etc/apache2/vhosts.d/vhost-ssl.conf    # sles, openSUSE Leap
     export sslcfgfile=/etc/apache2/sites-enabled/ssl.conf     # ubuntu
 
     sed -i 's/^\(\s*\)SSLCertificateFile.*$/\1SSLCertificateFile \/etc\/xcat\/cert\/server-cred.pem/' $sslcfgfile
     sed -i 's/^\(\s*SSLCertificateKeyFile.*\)$/#\1/' $sslcfgfile
 
-    systemctl restart httpd        # rhel
-    systemctl restart apache2      # sles/ubuntu
+    systemctl restart httpd        # rhel, openEuler
+    systemctl restart apache2      # sles, openSUSE Leap, ubuntu
 
 The REST API client needs to download the xCAT certificate CA from the xCAT http server to authenticate the certificate of the server. ::
 
@@ -80,6 +101,18 @@ When accessing the REST API, the certificate CA must be specified and the FQDN o
     curl -X GET --cacert /root/ca-cert.pem 'https://<FQDN of xCAT MN>/xcatws/nodes?userName=root&userPW=<root-pw>'
 
 .. attention:: Some operations like 'create osimage' (i.e.  copycds) may require a longer time to complete  and may result in a "504 Gateway Timeout" error. To avoid this, modify the ``httpd.conf`` file and extend the timeout to a larger value: ``Timeout: 600``
+
+Query Table Rows
+================
+
+``GET /xcatws/tables/<table>/rows/<key>=<value>`` returns every row of the table that matches
+the keys. Before xCAT 2.21, the reply held only the first matching row. For example, this
+request returns every row of the ``networks`` table with a ``/28`` mask: ::
+
+    curl -X GET --cacert /root/ca-cert.pem 'https://<FQDN of xCAT MN>/xcatws/tables/networks/rows/mask=255.255.255.240?userName=<user>&userPW=<pw>&pretty=1'
+
+Only the REST API asks ``xcatd`` for every matching row. The reply of ``xcatd`` to other
+clients keeps the one-row form.
 
 Set Up an Account for Web Service Access
 ========================================

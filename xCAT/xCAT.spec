@@ -107,6 +107,8 @@ Requires: (/usr/sbin/dhcpd if openEuler-release else ((kea and kea-hooks) if (sy
 Requires: radvd
 # On RHEL this pulls in openssh-server, on SLES it pulls in openssh
 Requires: /usr/bin/ssh
+# switchdiscover -s snmp runs snmpwalk. EL ships it in net-snmp-utils, openSUSE in net-snmp.
+Requires: /usr/bin/snmpwalk
 %if %nots390x
 %if 0%{?suse_version}
 # Two openSUSE packages provide /usr/sbin/in.tftpd and the solver may pick either. atftp has

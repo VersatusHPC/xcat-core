@@ -485,3 +485,6 @@ prerequisite it lacks.
 disposable FreeBSD 15.1 node, and `make-freebsd-plan-fixtures.pl`, which
 generates the package plan fixtures. They are not installed by the xCAT-test
 package, and no CI runs them.
+
+`freebsd_storage_preflight_chroot.t` runs the scalar installation sequence in a chroot as root.
+The other storage preflight cases are in `xCAT-test/bats/freebsd_storage_preflight.bats`.

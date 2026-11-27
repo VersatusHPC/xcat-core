@@ -472,3 +472,16 @@ The Subiquity case replaces downloads and external commands, and uses a
 loopback install-monitor peer. It does not install an operating system.
 Architecture names in these fixtures do not qualify native firmware or boot
 behavior on those architectures.
+
+## FreeBSD
+
+The `freebsd_*.t` files here and `postscript_native_dispatch.t` need a host that
+no CI runner provides: a disposable FreeBSD 15.1 amd64 root, Linux root with the
+lab fixtures, the Linux-native `pkg` 2.8.2 (`XCAT_FREEBSD_NATIVE_PKG`) or the
+pinned native resolver (`XCAT_FREEBSD_NATIVE_SOLVER`). Each test skips with the
+prerequisite it lacks.
+
+`freebsd/` holds the shell scripts and C fixtures that run as root on a
+disposable FreeBSD 15.1 node, and `make-freebsd-plan-fixtures.pl`, which
+generates the package plan fixtures. They are not installed by the xCAT-test
+package, and no CI runs them.

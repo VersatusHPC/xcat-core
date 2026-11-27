@@ -3260,8 +3260,8 @@ sub process_request
          xCAT::MsgUtils->trace($verbose_on_off, "d", "dhcp: Restore dhcp configuration file to  $dhcpconffile");
          exit 1;
     }
-    foreach (@nrn6) {    #do the ipv6 networks
-        addnet6($_);     #already did all the filtering before putting into nrn6
+    foreach (dhcp6_served_routes(\@nrn6, \%activenics)) {
+        addnet6($_);
     }
 
     if ($^O ne 'aix' && !$::XCATSITEVALS{externaldhcpservers}) {
@@ -6710,6 +6710,26 @@ sub dynamic_range_for
     (my $bare = $net) =~ s{/.*$}{};
     $cfg = $netcfgs{$bare};
     return $cfg ? $cfg->{range} : undef;
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 dhcp6_served_routes
+
+    Descriptions: The IPv6 routes that get a subnet6 in dhcpd6.conf.
+    Arguments: $routes - arrayref of { net, iface }, from "ip -6 route"
+               $activenics - hashref, the interfaces DHCP serves
+    Returns: the served routes, as a list, in route order.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub dhcp6_served_routes
+{
+    my ($routes, $activenics) = @_;
+
+    # A NIC outside site.dhcpinterfaces has no shared-network block, and addnet6 fails on it.
+    return grep { $activenics->{ $_->{iface} } } @{ $routes || [] };
 }
 
 sub addnet6

@@ -88,3 +88,21 @@ can install an EL node as a KVM host. See
 | ``chvm``, ``clonevm``, ``rmigrate``,       | not tested                                  |
 | storage other than ``dir:``                |                                             |
 +--------------------------------------------+---------------------------------------------+
+
+FIPS mode
+---------
+
+xCAT runs on a management node that boots with the FIPS mode of the operating system, and
+installs diskful nodes in FIPS mode. See :doc:`/advanced/security/fips`.
+
++--------------------------------------------+---------------------------------------------+
+| Item                                       | State                                       |
++============================================+=============================================+
+| Management node and diskful nodes, EL 9    | supported                                   |
+| and EL 10, x86_64                          |                                             |
++--------------------------------------------+---------------------------------------------+
+| EL 8, Ubuntu, openSUSE, openEuler          | not supported                               |
++--------------------------------------------+---------------------------------------------+
+| Diskless and statelite nodes; ppc64le,     | not supported                               |
+| aarch64 and riscv64                        |                                             |
++--------------------------------------------+---------------------------------------------+

@@ -259,7 +259,11 @@ sub isc_dhcp6_boot_stage_statement {
 sub isc_dhcp6_declare_user_class {
     my ( $class, $conf ) = @_;
 
-    return 0;
+    return 0 if grep { /^\s*option\s+dhcp6\.user-class\s+code\s/ } @$conf;
+
+    # After the "#xCAT generated" header: makedhcp discards a file whose first line is not that header.
+    splice( @$conf, ( @$conf ? 1 : 0 ), 0, "option dhcp6.user-class code 15 = string;\n" );
+    return 1;
 }
 
 #---

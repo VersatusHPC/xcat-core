@@ -347,6 +347,7 @@ sub expected_config
         $renderer_calls[1]->{config},
         [
             "#xCAT generated dhcp configuration\n",
+            "option dhcp6.user-class code 15 = string;\n",
             "\n",
             "ddns-update-style interim;\n",
             "ignore client-updates;\n",

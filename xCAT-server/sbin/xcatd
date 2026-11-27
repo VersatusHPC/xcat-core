@@ -1909,6 +1909,12 @@ while ($remains || $pid_UDP || $cmdlog_svrpid || $pid_MON) {
 xCAT::Table::shut_dbworker;
 if ($dbmaster) {
     kill 'INT', $dbmaster;
+
+    # KillMode=mixed SIGKILLs the cgroup once the main process exits. The worker needs about 1.5s to exit.
+    my $deadline = time() + 12;
+    while (waitpid($dbmaster, WNOHANG) == 0 and time() < $deadline) {
+        sleep(0.1);
+    }
 }
 
 # stop the monitoring process

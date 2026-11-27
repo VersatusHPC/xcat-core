@@ -617,6 +617,19 @@ sub setup_DHCP
 
     # if on the MN check to see if DHCP is running, and start it if not.
     if (xCAT::Utils->isMN()) {    # on the MN
+        # Before makedhcp -n the ISC configuration declares no subnet and dhcpd exits at
+        # start. makedhcp -n starts it.
+        if ($dhcpservice eq 'dhcp') {
+            require xCAT::DHCP::Backend::ISC;
+            my ($conf) = grep { -f $_ } ('/etc/dhcp/dhcpd.conf', '/etc/dhcp3/dhcpd.conf');
+            my $text;
+            if ($conf and open(my $fh, '<', $conf)) {
+                local $/;
+                $text = <$fh>;
+                close($fh);
+            }
+            return 0 unless xCAT::DHCP::Backend::ISC->config_declares_subnet($text);
+        }
         my $retcode = xCAT::Utils->checkservicestatus($dhcpservice);
         if ($retcode != 0) {
             $rc = xCAT::Utils->startservice($dhcpservice);

@@ -267,6 +267,8 @@ sub isc_commands {
         return $radvd_running ? 0 : 3;
     };
     local *xCAT::Utils::enableservice = sub { return 0; };
+    # On a Debian or Ubuntu host this stops the host's dhcpd6.
+    local *xCAT_plugin::dhcp::stop_unused_dhcpd6 = sub { return; };
     local *xCAT::NetworkUtils::determinehostname = sub { return ('mn'); };
     local *xCAT::NetworkUtils::nodeonmynet = sub { return 1; };
     local *xCAT::DBobjUtils::getnodetype = sub { return {}; };

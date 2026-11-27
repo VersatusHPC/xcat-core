@@ -117,6 +117,31 @@ xcat_resolv_from_leases() {
 }
 xcat_resolv_from_leases
 
+# Writes resolv.conf from the nameserver= and XCATDOMAIN= kernel arguments when it names no
+# server. A node with a static ip= has no lease, and debian.pm passes its resolvers here.
+xcat_resolv_from_cmdline() {
+	local cmdline="${XCAT_CMDLINE:-/proc/cmdline}"
+	local resolv="${XCAT_RESOLV_CONF:-/etc/resolv.conf}"
+	local dns="" domain="" word server
+	grep -qs '^nameserver' "$resolv" && return 0
+	[ -r "$cmdline" ] || return 0
+	for word in $(cat "$cmdline"); do
+		case "$word" in
+		nameserver=*) dns="$dns ${word#nameserver=}" ;;
+		XCATDOMAIN=*) domain=${word#XCATDOMAIN=} ;;
+		esac
+	done
+	[ -n "$dns" ] || return 0
+	{
+		[ -z "$domain" ] || echo "search $domain"
+		for server in $dns; do
+			server=${server#[}
+			echo "nameserver ${server%]}"
+		done
+	} >"$resolv"
+}
+xcat_resolv_from_cmdline
+
 XCATMASTER=$XCAT
 
 # Downloads the checksum file published for the image at $1 to $2.

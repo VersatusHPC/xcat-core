@@ -4117,6 +4117,35 @@ sub dracut_static_ip6 {
 
 #-------------------------------------------------------------------------------
 
+=head3 dracut_resolver_args
+
+    Descriptions: The kernel arguments that give the initial ramdisk of a node
+                  with a static ip= its name servers and its search domain.
+
+                  A static ip= gets no DHCP lease, so nothing else tells the
+                  initial ramdisk where to resolve the server name in imgurl.
+
+    Arguments:    $nameservers array reference of name server addresses
+                  $domain the search domain, which may be empty
+    Returns:      the arguments, space separated, or '' when there is no name
+                  server
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub dracut_resolver_args {
+    my ($nameservers, $domain) = @_;
+
+    my @servers = grep { defined($_) && length($_) } @{ $nameservers || [] };
+    return '' unless @servers;
+
+    my @args = map { "nameserver=$_" } @servers;
+    push @args, "XCATDOMAIN=$domain" if defined($domain) && length($domain);
+    return join(' ', @args);
+}
+
+#-------------------------------------------------------------------------------
+
 =head3 ipxe_script_server
 
     Descriptions: The server an iPXE boot script names for a node.

@@ -42,6 +42,12 @@ EOF
         printf '%s\n' start >>"$EVENT_LOG"
     }
 
+    systemd-detect-virt()
+    {
+        [ "$*" = "--quiet --chroot" ] || return 2
+        [ "${IN_CHROOT:-no}" = yes ]
+    }
+
     source "$XCATLIB"
     xcat_restart_sshd_after_failed_service_restart sshd
 }
@@ -65,6 +71,30 @@ run_wait_for_processes()
     [ "$status" -eq 0 ]
     [ "$(read_file_or_empty "$EVENT_LOG")" = $'kill -9 4321\npoll 4321 alive\npoll 4321 gone\nstart' ]
     run -1 grep -Eq '^kill 9( |$)' "$EVENT_LOG"
+}
+
+@test "remoteshell starts no sshd in the in-target chroot of the Ubuntu installer" {
+    EVENT_LOG="${BATS_TEST_TMPDIR}/events.log"
+    export EVENT_LOG
+    OSVER=ubuntu22.04 IN_CHROOT=yes run run_restart_fallback
+    [ "$status" -eq 0 ]
+    [ "$(read_file_or_empty "$EVENT_LOG")" = "" ]
+}
+
+@test "remoteshell restart fallback starts sshd on a booted Ubuntu node" {
+    EVENT_LOG="${BATS_TEST_TMPDIR}/events.log"
+    export EVENT_LOG
+    OSVER=ubuntu22.04 IN_CHROOT=no run run_restart_fallback
+    [ "$status" -eq 0 ]
+    [ "$(read_file_or_empty "$EVENT_LOG")" = $'kill -9 4321\npoll 4321 alive\npoll 4321 gone\nstart' ]
+}
+
+@test "remoteshell restart fallback starts sshd in the kickstart chroot of an EL node" {
+    EVENT_LOG="${BATS_TEST_TMPDIR}/events.log"
+    export EVENT_LOG
+    OSVER=rhels9.4 IN_CHROOT=yes run run_restart_fallback
+    [ "$status" -eq 0 ]
+    [ "$(read_file_or_empty "$EVENT_LOG")" = $'kill -9 4321\npoll 4321 alive\npoll 4321 gone\nstart' ]
 }
 
 @test "remoteshell wait loop reports a still-running process and gives up" {

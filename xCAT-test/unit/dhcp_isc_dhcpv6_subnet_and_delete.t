@@ -97,24 +97,26 @@ my @statements = xCAT_plugin::dhcp::isc_dhcp6_subnet_statements(
 );
 my $subnet = join( '', @statements );
 
-like( $subnet, qr/^\s*option domain-search\s+"ipv6\.cluster", "other\.cluster";$/m,
-    'the subnet6 carries the domain-search list of its own network' );
+# A DHCPv6 client reads option 24, dhcp6.domain-search. dhcpd6 sends nothing for the DHCPv4
+# domain-name and domain-search options, so a client could not resolve a short host name.
+like( $subnet, qr/^\s*option dhcp6\.domain-search\s+"ipv6\.cluster", "other\.cluster";$/m,
+    'the subnet6 carries the dhcp6.domain-search list of its own network' );
 like( $subnet, qr/^\s*option dhcp6\.name-servers 2001:db8:149::1,2001:db8:149::2;$/m,
     'the subnet6 carries the nameservers the networks row configured' );
-like( $subnet, qr/^\s*option domain-name "ipv6\.cluster";$/m,
-    'the network domain is the domain-name, not the site domain' );
+unlike( $subnet, qr/^\s*option domain-(?:name|search)\b/m,
+    'the subnet6 carries no DHCPv4 domain option, which dhcpd6 never sends' );
 unlike( $subnet, qr/"ipv6\.cluster", "ipv6\.cluster"/,
     'the own domain is not repeated in the search list' );
 
-# With no network domain the site domain names the subnet, and there is no search list to write.
+# With no network domain the site domain is the search list, as in the Kea subnet.
 my $sited = join( '', xCAT_plugin::dhcp::isc_dhcp6_subnet_statements(
     net => $LONG, config => {}, site_domain => 'site.cluster',
     alldomains => ['site.cluster'], domain_search => 1,
 ) );
-like( $sited, qr/^\s*option domain-name "site\.cluster";$/m,
-    'a network with no domain falls back to the site domain' );
-unlike( $sited, qr/domain-search/,
-    'a network with no domain gets no domain-search statement' );
+like( $sited, qr/^\s*option dhcp6\.domain-search\s+"site\.cluster";$/m,
+    'a network with no domain searches the site domain' );
+unlike( $sited, qr/^\s*option domain-name\b/m,
+    'a network with no domain gets no DHCPv4 domain-name statement' );
 
 # sles10 and rh5 dhcpd reject the option, and dhcpd refuses the whole file on one it does not know.
 my $old = join( '', xCAT_plugin::dhcp::isc_dhcp6_subnet_statements(

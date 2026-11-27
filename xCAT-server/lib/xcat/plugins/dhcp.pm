@@ -6672,21 +6672,18 @@ sub isc_dhcp6_subnet_statements
     my $cfg = $args{config} || {};
     my @lines;
 
+    # DHCPv6 has no domain-name option. dhcpd6 does not send the DHCPv4 domain-name and
+    # domain-search, so the search list goes in option 24, as in the Kea subnet.
     my $netdomain = $cfg->{domain} || $args{site_domain};
-    $netdomain = '' unless defined $netdomain;
-    push @lines, "    option domain-name \"" . $netdomain . "\";\n";
-
-    if ($args{domain_search} and $cfg->{domain}) {
-
-        # We want something like "option domain-search "foo.com", "bar.com";"
-        my $domainstring = qq~"$cfg->{domain}"~;
-        foreach my $dom (@{ $args{alldomains} || [] }) {
-            chomp $dom;
-            if ($dom ne $cfg->{domain}) {
-                $domainstring .= qq~, "$dom"~;
+    if ($args{domain_search} and $netdomain) {
+        my $domainstring = qq~"$netdomain"~;
+        if ($cfg->{domain}) {
+            foreach my $dom (@{ $args{alldomains} || [] }) {
+                chomp $dom;
+                $domainstring .= qq~, "$dom"~ if $dom ne $netdomain;
             }
         }
-        push @lines, "    option domain-search  $domainstring;\n";
+        push @lines, "    option dhcp6.domain-search $domainstring;\n";
     }
 
     my $nsstatement = isc_dhcp6_nameserver_statement($args{net}, $cfg->{nameservers});

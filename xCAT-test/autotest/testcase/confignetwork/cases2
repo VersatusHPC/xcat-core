@@ -41,7 +41,7 @@ check:output=~65536\s+1000\s+\d
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/confignetwork/roce_peer.sh down __GETNODEATTR($$CN,ip)__ 198.18.0.1/24
 check:rc==0
 cmd:xdsh $$CN "systemctl disable --now xcat-roce-$$SECONDNIC.service; rm -f /etc/systemd/system/xcat-roce-$$SECONDNIC.service; systemctl daemon-reload"
-cmd:xdsh $$CN "for l in \$(rdma link show | sed -n 's/^link \([^/]*\)\/.* netdev $$SECONDNIC *\$/\1/p'); do rdma link delete \$l; done"
+cmd:xdsh $$CN "for l in \$(rdma link show | sed -n 's/^link \([^/]*\)\/.* netdev $$SECONDNIC *\$/\1/p'); do rdma link delete \$l 2>/dev/null || echo \$l >/sys/module/rdma_rxe/parameters/remove; done"
 cmd:xdsh $$CN "ip addr del 198.18.0.10/24 dev $$SECONDNIC"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del $$SECONDNIC
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh restore

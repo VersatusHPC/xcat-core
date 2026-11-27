@@ -13,6 +13,9 @@
 ###############################################################################
 
 LINK=xcatci_rxe
+# Kernels before 5.1 have no rdma link add. Their rdma_rxe takes the NIC through
+# these parameters and names the device rxe<N>.
+PARAMS=/sys/module/rdma_rxe/parameters
 PIDDIR=${PIDDIR:-/tmp/xcatci-roce}
 
 nic_to() {
@@ -27,7 +30,10 @@ up)
     ip addr replace "$3" dev "$dev" || exit 1
     # A NIC carries one RDMA device. A second rdma link add on it fails.
     if ! rdma link show | grep -q " netdev $dev\$"; then
-        rdma link add "$LINK" type rxe netdev "$dev" || exit 1
+        if ! rdma link add "$LINK" type rxe netdev "$dev" 2>/dev/null; then
+            [ -e $PARAMS/add ] || { rdma link add "$LINK" type rxe netdev "$dev"; exit 1; }
+            echo "$dev" >$PARAMS/add || exit 1
+        fi
     fi
     rdma link show
     ;;
@@ -49,7 +55,11 @@ down)
         rm -f "$f"
     done
     dev=$(nic_to "$2")
-    rdma link delete "$LINK" 2>/dev/null
+    if [ -n "$dev" ]; then
+        for l in $(rdma link show | sed -n "s/^link \([^/]*\)\/.* netdev $dev *\$/\1/p"); do
+            rdma link delete "$l" 2>/dev/null || echo "$l" >$PARAMS/remove
+        done
+    fi
     [ -n "$dev" ] && ip addr del "$3" dev "$dev" 2>/dev/null
     true
     ;;

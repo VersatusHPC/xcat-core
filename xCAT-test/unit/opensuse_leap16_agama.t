@@ -89,7 +89,8 @@ for my $entry (
     [ 'nodelist', { groups => 'all' } ],
     [ 'nodetype', { os => 'leap16.0', arch => 'x86_64', provmethod => 'install' } ],
     [ 'noderes',  { xcatmaster => '192.0.2.1', nfsserver => '192.0.2.1', installnic => 'mac' } ],
-    [ 'mac',      { mac => '52:54:00:12:34:56' } ],
+    # Two NICs that the MN serves no address, as mkvm declares them.
+    [ 'mac',      { mac => '52:54:00:12:34:56|52:54:00:00:00:03!*NOIP*|52-54-00-00-00-0A!*NOIP*' } ],
 ) {
     my ($name, $values) = @$entry;
     my $tab = xCAT::Table->new($name, -create => 1);
@@ -125,6 +126,16 @@ my ($post) = @{ $profile->{scripts}{post} || [] };
 is($pre->{url}  // '', 'http://192.0.2.1/install/autoinst/cn1.pre',  'the pre script is the rendered node pre script');
 is($post->{url} // '', 'http://192.0.2.1/install/autoinst/cn1.post', 'the post script is the rendered node post script');
 ok($post->{chroot}, 'the post script runs in the installed system');
+# NetworkManager in the installed system makes a DHCP profile for every NIC without one, and the
+# MN has no address for a *NOIP* NIC.
+is_deeply(
+    $profile->{files},
+    [ { destination => '/etc/NetworkManager/conf.d/xcat-noip.conf',
+        content     => "[main]\nno-auto-default=mac:52:54:00:00:00:03,mac:52:54:00:00:00:0a\n" } ],
+    'the installed system makes no DHCP profile for the *NOIP* NICs, and keeps it for the others'
+);
+is(eval { xCAT::Template::agama_noip_files('52:54:00:12:34:56!cn1') } // 'no answer', '',
+    'a node without a *NOIP* NIC gets no NetworkManager file');
 unlike(read_text($out), qr/#[A-Z_]+(?::[^#\n]*)?#/, 'the profile leaves no template directive unresolved')
   if -r $out;
 

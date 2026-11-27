@@ -69,7 +69,7 @@ for my $os (qw(rhels10.1 rhels9.6)) {
     ok(!-e "$bare/etc/sysconfig" && !-e "$bare/etc/NetworkManager", "a $os image without either directory gets no profile");
 }
 
-for my $case (['rhels10.1', 1], ['rocky10.2', 1], ['rhels9.6', 0]) {
+for my $case (['rhels10.1', 1], ['rocky10.2', 1], ['rhels9.6', 1], ['alma8.10', 1], ['rhels7.9', 0]) {
     my ($os, $disabled) = @$case;
     my $root = image('etc/NetworkManager/conf.d');
     imgutils::disable_auto_profiles($root, $os);

@@ -150,8 +150,10 @@ cmd:lsdef -l $$CN -z > /tmp/$$CN.stanza
 cmd:chdef -t node -o $$CN mac=11:22:33:44:55:66
 cmd:makedhcp -a
 check:rc==0
-#makedhcp -a writes a reservation into the server configuration, never into a lease file.
-cmd:if [ -f /etc/kea/kea-dhcp4.conf ]; then cat /etc/kea/kea-dhcp4.conf; elif [ -f /etc/dhcp/dhcpd.conf ]; then cat /etc/dhcp/dhcpd.conf; fi
+#Ask makedhcp where the reservation is. ISC keeps it in dhcpd.conf on 20.04 and 22.04 and in
+#dhcpd.leases through OMAPI on 24.04 and later. Kea keeps it in kea-dhcp4.conf.
+cmd:makedhcp -q $$CN
+check:rc==0
 check:output=~$$CN
 check:output=~11:22:33:44:55:66
 cmd:chdef -t node -o $$CN mac=

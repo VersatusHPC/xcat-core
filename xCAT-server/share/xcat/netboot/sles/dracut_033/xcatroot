@@ -341,14 +341,20 @@ fi
 cd /
 
 # xcat_write_bootif_ifcfg <newroot> [<rundir>] -- write the wicked ifcfg file of the NIC that
-# dracut brought up. dracut network-legacy marks that NIC with <rundir>/net.<nic>.up.
+# dracut brought up. dracut network-legacy marks that NIC with <rundir>/net.<nic>.up. The
+# NetworkManager module (Leap 16) writes no such file, and then there is nothing to write.
 xcat_write_bootif_ifcfg() {
-    local newroot=$1 rundir=${2:-/tmp} bootif
-    bootif=$(ls $rundir/net.*.up|grep -v ":"|sed -e 's/.*net\.//' -e 's/\.up//')
-    cat <<EOF >  $newroot/etc/sysconfig/network/ifcfg-$bootif
+    local newroot=$1 rundir=${2:-/tmp} up bootif
+    for up in $rundir/net.*.up; do
+        [ -e "$up" ] || continue
+        bootif=${up##*/net.}
+        bootif=${bootif%.up}
+        case "$bootif" in *:*) continue ;; esac
+        cat <<EOF >  $newroot/etc/sysconfig/network/ifcfg-$bootif
 BOOTPROTO='dhcp'
 STARTMODE='auto'
 EOF
+    done
 }
 
 function getdevfrommac() {

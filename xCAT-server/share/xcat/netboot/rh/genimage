@@ -381,6 +381,7 @@ if($onlyinitrd){
     $repnum -= 1;
     close($yumconfig);
     mkpath "$rootimg_dir/etc";
+    eval { imgutils::write_dracut_no_hostonly($rootimg_dir) } or xdie($@);
 
 
     my $fd;

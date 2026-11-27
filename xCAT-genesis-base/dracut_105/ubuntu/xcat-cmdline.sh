@@ -6,6 +6,15 @@ netroot=xcat
 # The image ships the C.UTF-8 locale only. tmux refuses to start under the C locale.
 export LC_ALL=C.UTF-8
 
+# The x86_64 network drivers to load, one name per line, from a modules.dep file.
+# xen-netfront is left out: the hook loads it quietly before this list, and outside a Xen
+# guest a second modprobe prints "could not insert 'xen_netfront': No such device".
+xcat_x86_net_modules() {
+    grep -vE 'tunnel|ieee|ifb|bond|dummy|fjes|hv_netvsc|ntb_netdev|xen-netfront|hdlc_fr|dlci' "$1" |
+        awk -F: '$1 ~ /kernel\/drivers\/net/ {print $1}' |
+        sed -e 's/\.ko.*//' -e 's/.*\///'
+}
+
 # screen exits when the image carries no usable terminal. doxcat is the whole of Genesis, so
 # it must run whether or not the multiplexer starts. Prints screen or direct.
 xcat_console_mode() {
@@ -95,10 +104,8 @@ elif [[ ${ARCH} =~ x86_64 ]]; then
     KERVER=`uname -r`
     # Xen guests require xen-netfront for the paravirtual NIC.
     modprobe xen-netfront 2>/dev/null || :
-    for line in `cat /lib/modules/$KERVER/modules.dep |grep -vE 'tunnel|ieee|ifb|bond|dummy|fjes|hv_netvsc|ntb_netdev|hdlc_fr|dlci'| awk -F: '{print \$1}' | sed -e "s/\(.*\)\.ko.*/\1/"`; do
-        if [[ $line =~ "kernel/drivers/net" ]]; then
-            modprobe `basename $line`
-        fi
+    for mod in $(xcat_x86_net_modules /lib/modules/$KERVER/modules.dep); do
+        modprobe $mod
     done
 fi
 

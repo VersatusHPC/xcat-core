@@ -1045,9 +1045,26 @@ function xcat_wait_for_processes_to_exit {
     return 1
 }
 
+function xcat_in_chroot {
+    if command -v systemd-detect-virt >/dev/null 2>&1; then
+        systemd-detect-virt --quiet --chroot
+        return $?
+    fi
+    [ "$(stat -L -c %d:%i / 2>/dev/null)" != "$(stat -L -c %d:%i /proc/1/root/. 2>/dev/null)" ]
+}
+
 function xcat_restart_sshd_after_failed_service_restart {
     local sshd_cmd="${1:-/usr/sbin/sshd}"
     local PIDLIST
+
+    # The Ubuntu installer runs the postscripts in a chroot of the target, beside its own sshd on
+    # port 22. A second sshd cannot bind there. syncfiles runs after the first boot on these
+    # nodes (defer_syncfiles_to_postboot), and the installed sshd starts at that boot.
+    case "$OSVER" in
+    ubuntu* | debian*)
+        xcat_in_chroot && return 0
+        ;;
+    esac
 
     PIDLIST=`ps aux | grep -v grep | grep "/usr/sbin/sshd"|awk -F" " '{print $2}'|xargs`
     if [ -n "$PIDLIST" ]; then

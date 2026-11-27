@@ -34,6 +34,23 @@ sub take_answer {
     $identified = 1;
 }
 
+#---
+# =head3 mount_types
+# Descriptions: The -t list for the mount of an install medium. With udf first, the kernel
+#               probes UDF on every ISO 9660 medium and logs "UDF-fs: warning ... No VRS
+#               found". libblkid reports udf for a medium that carries both, like MS media.
+# Arguments: $fstype -- the TYPE that "blkid -p" reports, or undef
+# Returns: udf, iso9660, or udf,iso9660 when blkid gave no known type
+# =cut
+#---
+sub mount_types {
+    my ($fstype) = @_;
+    $fstype = '' unless defined $fstype;
+    $fstype =~ s/\s+//g;
+    return $fstype if $fstype eq 'udf' or $fstype eq 'iso9660';
+    return 'udf,iso9660';
+}
+
 sub process_request {
     my $request = shift;
     $callback = shift;
@@ -140,7 +157,8 @@ sub process_request {
             }
         }
 
-        my $mntopts = "-t udf,iso9660"; #Prefer udf formate to iso when media supports both, like MS media
+        my $fstype = `blkid -p -o value -s TYPE '$file' 2>/dev/null`;
+        my $mntopts = "-t " . mount_types($fstype);
         if (-r $file and -b $file)      # Block device?
         { $mntopts .= " -o ro"; }
         elsif (-r $file and -f $file)    # Assume ISO file

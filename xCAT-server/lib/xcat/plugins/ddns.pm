@@ -6,6 +6,7 @@ use File::Path;
 use xCAT::Table;
 use xCAT::DHCP::OmapiPolicy;
 use xCAT::DNS::NamedDir;
+use xCAT::DNS::NamedOptions;
 use xCAT::StringUtils qw(trim);
 use Sys::Hostname;
 use xCAT::TableUtils;
@@ -1458,14 +1459,7 @@ sub update_namedconf {
             push @newnamed, "\t};\n";
             my $bind_version_cmd="/usr/sbin/named -v | cut -d' ' -f2 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+'";
             my @bind_version =xCAT::Utils->runcmd($bind_version_cmd, 0);
-            # Turn off DNSSEC if running with bind vers 9.16.6 or higher
-            if ((scalar @bind_version > 0) && (xCAT::Utils::CheckVersion($bind_version[0], "9.16.6") >= 0)) {
-                # dnssec-enable was removed in bind 9.18
-                unless (xCAT::Utils::CheckVersion($bind_version[0], "9.18.0") >= 0) {
-                  push @newnamed, "\tdnssec-enable no;\n";
-                }
-                push @newnamed, "\tdnssec-validation no;\n";
-            }
+            push @newnamed, xCAT::DNS::NamedOptions::dnssec_options($bind_version[0]);
         }
 
         if ($ctx->{forwardmode}){

@@ -638,7 +638,7 @@ check:rc==0
 cmd:rmdef -t network -o confignetworks_test3
 cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=102;var2=`echo $cnip |sed -r 's/[^\.]{1,3}(\..*)/\1/'`;bond0ip=$var1$var2;xdsh $$CN "ip addr del $bond0ip/16 dev bond0"
 cmd:xdsh $$CN "ip link del dev bond0"
-cmd:xdsh $$CN "echo -bond0 > /sys/class/net/bonding_masters"
+cmd:xdsh $$CN "if [ -e /sys/class/net/bond0 ]; then echo -bond0 > /sys/class/net/bonding_masters; fi"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del bond0
 check:rc==0
 cmd:if [ -e /tmp/CN.stanza ]; then rmdef $$CN; cat /tmp/CN.stanza | mkdef -z; rm -rf /tmp/CN.stanza; fi
@@ -755,7 +755,7 @@ cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var2=103;var3=`echo $cnip |sed -r '
 cmd:xdsh $$CN "ip link del dev bond0"
 cmd:xdsh $$CN "ip link del dev bond0.2"
 cmd:xdsh $$CN "ip link del dev bond0.3"
-cmd:xdsh $$CN "echo -bond0 > /sys/class/net/bonding_masters"
+cmd:xdsh $$CN "if [ -e /sys/class/net/bond0 ]; then echo -bond0 > /sys/class/net/bonding_masters; fi"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del bond0 bond0.2 bond0.3
 check:rc==0
 cmd:if [ -e /tmp/CN.stanza ]; then rmdef $$CN; cat /tmp/CN.stanza | mkdef -z; rm -rf /tmp/CN.stanza; fi
@@ -815,7 +815,7 @@ cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=103;var2=`echo $cnip |sed -r '
 cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=101;var2=`echo $cnip |sed -r 's/[^\.]{1,3}(\..*)/\1/'`;second1ip=$var1$var2;xdsh $$CN "ip addr del $second1ip/16 dev $$SECONDNIC"
 cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=102;var2=`echo $cnip |sed -r 's/[^\.]{1,3}(\..*)/\1/'`;second1ip=$var1$var2;xdsh $$CN "ip addr del $second1ip/16 dev $$THIRDNIC"
 cmd:xdsh $$CN "ip link del dev br0"
-cmd:xdsh $$CN "echo -bond0 > /sys/class/net/bonding_masters"
+cmd:xdsh $$CN "if [ -e /sys/class/net/bond0 ]; then echo -bond0 > /sys/class/net/bonding_masters; fi"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del br0
 check:rc==0
 cmd:if [ -e /tmp/CN.stanza ]; then rmdef $$CN; cat /tmp/CN.stanza | mkdef -z; rm -rf /tmp/CN.stanza; fi
@@ -881,7 +881,7 @@ cmd:xdsh $$CN "ip link del dev bond0.3"
 cmd:xdsh $$CN "ip link del dev bond0"
 cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=100;var2=`echo $cnip |sed -r 's/[^\.]{1,3}(\..*)/\1/'`;secondip=$var1$var2;xdsh $$CN "ip addr del $secondip/16 dev $$SECONDNIC"
 cmd:cnip=__GETNODEATTR($$CN,ip)__;echo $cnip;var1=101;var2=`echo $cnip |sed -r 's/[^\.]{1,3}(\..*)/\1/'`;secondip=$var1$var2;xdsh $$CN "ip addr del $secondip/16 dev $$THIRDNIC"
-cmd:xdsh $$CN "echo -bond0 > /sys/class/net/bonding_masters"
+cmd:xdsh $$CN "if [ -e /sys/class/net/bond0 ]; then echo -bond0 > /sys/class/net/bonding_masters; fi"
 cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/nic_cfg.sh del bond0 bond0.2 bond0.3 br22 br33
 check:rc==0
 cmd:if [ -e /tmp/CN.stanza ]; then rmdef $$CN; cat /tmp/CN.stanza | mkdef -z; rm -rf /tmp/CN.stanza; fi

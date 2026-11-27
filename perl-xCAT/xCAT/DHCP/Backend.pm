@@ -34,24 +34,13 @@ sub choose {
     my $selected = $normalized eq 'auto' ? $class->default_backend(%args) : $normalized;
 
     if ( $args{check_available} && !$class->available( $selected, %args ) ) {
-        # The Ubuntu metapackage accepts either DHCP server, so the one auto prefers can be
-        # absent. Fall back to whatever is installed; an explicitly forced backend still fails
-        # hard. #7710
-        if ( $normalized eq 'auto' ) {
-            for my $alt (qw(kea isc)) {
-                next if $alt eq $selected;
-                next unless $class->available( $alt, %args );
-                return {
-                    requested     => $normalized,
-                    name          => $alt,
-                    fallback_from => $selected,
-                };
-            }
-        }
+        my $error = $normalized eq 'auto'
+          ? "No DHCP server is installed. Install ISC DHCP (dhcpd) or Kea (kea-dhcp4)."
+          : "The selected DHCP backend '$selected' is not available on this system.";
         return {
             requested => $normalized,
             name      => $selected,
-            error     => "The selected DHCP backend '$selected' is not available on this system.",
+            error     => $error,
         };
     }
 
@@ -61,27 +50,27 @@ sub choose {
     };
 }
 
+#--------------------------------------------------------------------------------
+
+=head3 default_backend
+
+    Descriptions:
+        Select the backend for site.dhcpbackend=auto. ISC wins whenever its server
+        is installed, and Kea is used otherwise. The packages decide, not the platform:
+        EL10 ships only Kea, and the Ubuntu metapackage installs ISC where the
+        archive carries it.
+    Arguments:
+        available => { isc => 0|1 } overrides the probe for dhcpd (optional).
+    Returns:
+        'isc' or 'kea'.
+
+=cut
+
+#--------------------------------------------------------------------------------
 sub default_backend {
     my ( $class, %args ) = @_;
 
-    my $platform = exists $args{platform} ? $args{platform} : $class->_osver('platform');
-    if ( defined($platform) && $platform =~ /^el(\d+)\b/i ) {
-        return 'kea' if $1 >= 10;
-    }
-
-    my $os = exists $args{os} ? $args{os} : $class->_osver();
-    if ( defined($os) && $os =~ /^(?:rhel|rhels|rocky|alma|centos|ol)(\d+)(?:\D|$)/i ) {
-        return 'kea' if $1 >= 10;
-    }
-
-    my $os_name = exists $args{os_name} ? $args{os_name} : $class->_osver('os');
-    my $version = exists $args{version} ? $args{version} : ( split /,/, $class->_osver('all'), 2 )[1];
-    if ( defined($os_name) && $os_name =~ /^ubuntu$/i && defined($version) && $version =~ /^\d+\.\d+(?:\.\d+)*$/ ) {
-        require xCAT::Utils;
-        return 'kea' if xCAT::Utils->version_cmp( $version, '22.04' ) >= 0;
-    }
-
-    return 'isc';
+    return $class->available( 'isc', %args ) ? 'isc' : 'kea';
 }
 
 sub available {
@@ -142,17 +131,6 @@ sub _site_backend {
     };
 
     return $backend || 'auto';
-}
-
-sub _osver {
-    my ( $class, $type ) = @_;
-
-    my $osver = eval {
-        require xCAT::Utils;
-        return defined($type) ? xCAT::Utils->osver($type) : xCAT::Utils->osver();
-    };
-
-    return $osver || 'unknown';
 }
 
 sub _command_exists {

@@ -57,9 +57,8 @@ Add a site attribute:
 
 Selection rules:
 
-* ``auto`` keeps ISC DHCP on existing supported platforms such as EL8, EL9,
-  Ubuntu 20.04 and older Ubuntu/Debian releases, and SLES.
-* ``auto`` selects Kea DHCP on EL10 and Ubuntu 22.04+.
+* ``auto`` selects ISC DHCP when the ISC server (``dhcpd``) is installed, and
+  Kea DHCP otherwise. The installed packages decide, not the platform.
 * ``isc`` forces the ISC backend.
 * ``kea`` forces the Kea backend.
 * A forced backend that is unavailable must fail with a clear error.

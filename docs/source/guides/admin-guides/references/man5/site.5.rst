@@ -93,9 +93,8 @@ site Attributes:
    -------------
    dhcpbackend:  The DHCP implementation used by makedhcp. Valid values are auto,
                  isc, and kea. The default is auto. In auto mode, xCAT uses ISC
-                 DHCP on existing supported platforms and Kea DHCP on platforms
-                 where ISC DHCP is no longer available, such as EL10 and Ubuntu
-                 24.04.
+                 DHCP when the ISC server (dhcpd) is installed, and Kea DHCP
+                 otherwise.
 
    keacontrolagent:  Whether makedhcp should generate Kea Control Agent socket
                     configuration. Valid values are 1/yes/true/enabled or

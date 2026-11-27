@@ -2621,14 +2621,6 @@ sub process_request
         xCAT::MsgUtils->message("E", $rsp, $callback, 1);
         return;
     }
-    if ( $backend->can('fallback_from') && ( my $from = $backend->fallback_from ) ) {
-        my $rsp = {};
-        $rsp->{data}->[0] =
-            "DHCP backend '$from' auto-selected for this OS is not installed; "
-          . "falling back to the available '" . $backend->name . "' backend. "
-          . "Install '$from' or set site.dhcpbackend to silence this.";
-        xCAT::MsgUtils->message("W", $rsp, $callback);
-    }
     if ( $opt{n} || $opt{a} ) {
         foreach my $warning ( xCAT::DHCP::BootPolicy->upstream_loader_warnings( tftpdir => $tftpdir ) ) {
             my $rsp = {};
@@ -3477,11 +3469,17 @@ sub process_request
             print "xx";
         }
     }
-    if (not $::XCATSITEVALS{externaldhcpservers} and $^O ne 'aix'
-        and xCAT::DHCP::Backend::ISC->dhcp6_restart_needed(
-            changed => $restartdhcp6, ipv6 => $usingipv6)) {
-        xCAT::MsgUtils->trace($verbose_on_off, "d", "dhcp: restart dhcp6 service");
-        restart_dhcpd6();
+    if (not $::XCATSITEVALS{externaldhcpservers} and $^O ne 'aix') {
+        if (xCAT::DHCP::Backend::ISC->dhcp6_restart_needed(
+                changed => $restartdhcp6, ipv6 => $usingipv6)) {
+            xCAT::MsgUtils->trace($verbose_on_off, "d", "dhcp: restart dhcp6 service");
+            restart_dhcpd6();
+        }
+        elsif (xCAT::DHCP::Backend::ISC->dhcp6_stop_needed(
+                ipv6 => $usingipv6, debian => ($distro =~ /^(?:ubuntu|debian)/i))) {
+            xCAT::MsgUtils->trace($verbose_on_off, "d", "dhcp: stop the unused dhcp6 service");
+            stop_unused_dhcpd6();
+        }
     }
     # Outside the restart branch, because radvd can be down while its configuration is
     # already correct. A call that reached this only when dhcpd6 restarted could never try
@@ -6491,7 +6489,21 @@ sub configure_router_advertisements
 
 sub restart_dhcpd6
 {
+    xCAT::Utils->enableservice("dhcp6");
     return xCAT::Utils->restartservice("dhcp6");
+}
+
+# The isc-dhcp-server postinst starts dhcpd6 before xCAT configures it. With no IPv6 network
+# it has no subnet6 to serve and exits, and systemd keeps the unit failed. restart_dhcpd6
+# enables it again when a network becomes IPv6.
+sub stop_unused_dhcpd6
+{
+    my $unit = xCAT::Utils->servicemap("dhcp6", 1);
+    return unless $unit;
+    xCAT::Utils->stopservice("dhcp6");
+    xCAT::Utils->disableservice("dhcp6");
+    system("systemctl reset-failed $unit >/dev/null 2>&1");
+    return;
 }
 
 # Restart dhcpd on aix

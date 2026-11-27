@@ -4395,9 +4395,9 @@ sub servicemap {
     #
     my %svchash = (
         "dhcp"           => [ "dhcp3-server", "dhcpd", "isc-dhcp-server" ],
-        # The second ISC daemon, which serves DHCPv6. Debian serves both families from
-        # isc-dhcp-server and has no v6-only unit, so the name does not resolve there.
-        "dhcp6"          => [ "dhcpd6" ],
+        # The second ISC daemon, which serves DHCPv6. Debian and Ubuntu name its unit
+        # isc-dhcp-server6; both units read /etc/default/isc-dhcp-server.
+        "dhcp6"          => [ "dhcpd6", "isc-dhcp-server6" ],
         "kea-dhcp4"      => [ "kea-dhcp4", "kea-dhcp4-server", "isc-kea-dhcp4-server" ],
         "kea-dhcp6"      => [ "kea-dhcp6", "kea-dhcp6-server", "isc-kea-dhcp6-server" ],
         "kea-ctrl-agent" => [ "kea-ctrl-agent", "kea-ctrl-agent-server", "isc-kea-ctrl-agent" ],

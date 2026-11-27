@@ -1,0 +1,34 @@
+start:go_xcat_ubuntu_single_dhcp_server
+description:go-xcat installs the xCAT under test on a provisioned Ubuntu node. Exactly one DHCP server package must be installed, and it must be the backend that site.dhcpbackend=auto selects.
+label:go_xcat
+os:ubuntu
+
+cmd:chdef -t node -o $$CN servicenode= monserver=$$MN nfsserver=$$MN tftpserver=$$MN xcatmaster=$$MN
+check:rc==0
+
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 2
+check:rc==0
+check:output=~Provision node\(s\)\: $$CN
+cmd:lsdef -l $$CN | grep status
+check:output=~booted
+
+cmd:xdsh $$CN "rm -f /go-xcat && scp $$MN:/opt/xcat/share/xcat/tools/go-xcat /go-xcat"
+check:rc==0
+
+#go-xcat takes a repository URL. Take xcat-core from the repository this management node installed xCAT from, so the node gets the xCAT under test. xcat-dep stays the go-xcat default: a run's own dep repository can lack the other architecture's xcat-genesis-base, which go-xcat installs.
+#go-xcat imports a key only for the published channel. Trust the key this management node verifies its xCAT repositories with.
+cmd:for f in /etc/apt/keyrings/xcat.gpg /etc/apt/trusted.gpg.d/xcat.gpg; do [ -f $f ] || continue; xdcp $$CN $f /etc/apt/trusted.gpg.d/xcat-under-test.gpg; exit $?; done; echo "no xCAT apt key on this management node"; exit 1
+check:rc==0
+cmd:xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"
+check:rc==0
+cmd:core=$(sed -n 's/^deb \(\[[^]]*\] \)*\([^ ]*\) .*/\2/p' /etc/apt/sources.list.d/xcat-core.list); echo "xcat-core=$core"; [ -n "$core" ] && xdsh $$CN "cd / && ./go-xcat --xcat-core=$core -y install"
+check:rc==0
+cmd:xdsh $$CN "source /etc/profile.d/xcat.sh; lsxcatd -v"
+check:output=~Version
+
+cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/check_single_dhcp_server.sh
+check:rc==0
+check:output=~single DHCP server (isc-dhcp-server|kea-dhcp4-server), selected backend (isc|kea)
+
+cmd:xdsh $$CN "service xcatd stop"
+end

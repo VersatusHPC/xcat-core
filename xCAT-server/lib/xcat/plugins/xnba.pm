@@ -458,9 +458,15 @@ sub _write_uefi_exit_script {
     open(my $ucfg, '>', "$bootloader_root/$node.uefi");
     print $ucfg "#!gpxe\n";
     print $ucfg "#$state\n" if $state;
-    # UEFI firmware stops at its boot manager menu when a boot option returns success. A
-    # failure status makes it try the next boot option, which is the disk.
-    print $ucfg "exit 1\n";
+    # UEFI firmware stops at its boot manager menu when a boot option returns success, so the
+    # script never exits with 0. The iPXE 2.0 of the ipxe method can sanboot the local disk.
+    # The iPXE 1.21 of xnba.efi can sanboot only a SAN device, so it exits with a failure
+    # status and the firmware tries its next boot option.
+    if ($METHOD eq 'ipxe') {
+        print $ucfg "sanboot --no-describe --drive 0x80 || exit 1\n";
+    } else {
+        print $ucfg "exit 1\n";
+    }
     close($ucfg);
 }
 

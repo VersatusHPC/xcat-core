@@ -1,0 +1,38 @@
+start:go_xcat_ubuntu_single_dhcp_server
+description:go-xcat installs the xCAT under test on a provisioned Ubuntu node. Exactly one DHCP server package must be installed, and it must be the backend that site.dhcpbackend=auto selects.
+label:go_xcat
+os:ubuntu
+
+cmd:chdef -t node -o $$CN servicenode= monserver=$$MN nfsserver=$$MN tftpserver=$$MN xcatmaster=$$MN
+check:rc==0
+
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/commoncmd/retry_install.sh $$CN __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute 2
+check:rc==0
+check:output=~Provision node\(s\)\: $$CN
+cmd:lsdef -l $$CN | grep status
+check:output=~booted
+
+cmd:xdsh $$CN "rm -rf /go-xcat /root/go-xcat-repo && mkdir -p /root/go-xcat-repo && scp $$MN:/opt/xcat/share/xcat/tools/go-xcat /go-xcat"
+check:rc==0
+
+#Install from the repositories this management node installed xCAT from, so the node gets the xCAT under test and not a published channel.
+cmd:xdcp $$CN /etc/apt/sources.list.d/xcat-core.list /root/go-xcat-repo/
+check:rc==0
+cmd:for f in /etc/apt/sources.list.d/xcat-dep.list; do [ -f $f ] || continue; xdcp $$CN $f /root/go-xcat-repo/ || exit 1; done
+check:rc==0
+cmd:for f in /etc/apt/keyrings/xcat.gpg /etc/apt/sources.list.d/xcat-dep-common.list /etc/apt/preferences.d/xcat-dep-common; do [ -f $f ] || continue; xdsh $$CN "mkdir -p $(dirname $f)" && xdcp $$CN $f $f || exit 1; done
+check:rc==0
+
+cmd:xdsh $$CN "echo '* libraries/restart-without-asking boolean true' | debconf-set-selections"
+check:rc==0
+cmd:xdsh $$CN 'cd / && dep= && if [ -f /root/go-xcat-repo/xcat-dep.list ]; then dep=--xcat-dep=/root/go-xcat-repo/xcat-dep.list; fi && ./go-xcat --xcat-core=/root/go-xcat-repo/xcat-core.list $dep -y install'
+check:rc==0
+cmd:xdsh $$CN "source /etc/profile.d/xcat.sh; lsxcatd -v"
+check:output=~Version
+
+cmd:xdsh $$CN -e /opt/xcat/share/xcat/tools/autotest/testcase/go_xcat/check_single_dhcp_server.sh
+check:rc==0
+check:output=~single DHCP server (isc-dhcp-server|kea-dhcp4-server), selected backend (isc|kea)
+
+cmd:xdsh $$CN "service xcatd stop"
+end

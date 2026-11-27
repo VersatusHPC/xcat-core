@@ -47,6 +47,9 @@ case "$family/$action" in
     redhat/cleanup)
         restore /etc/httpd/conf.d/ssl.conf
         dnf remove -y mod_ssl
+        # httpd.service wants httpd-init.service, which left with mod_ssl. Without a reload
+        # systemd still runs the removed unit and it fails.
+        systemctl daemon-reload
         systemctl restart httpd
         ;;
     suse/setup)

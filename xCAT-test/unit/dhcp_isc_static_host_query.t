@@ -204,4 +204,34 @@ like($responses[0]->{error}->[0], qr/\Qabsent.conf\E/,
     'the query reports the unreadable dhcpd.conf to the caller');
 is($responses[0]->{errorcode}->[0], 1, 'the query fails when dhcpd.conf cannot be read');
 
+# The omshell and Kea queries print nothing for a node without a reservation. A line that
+# names the node reads as a reservation to every caller that matches the node name.
+{
+    no warnings 'once';
+    $xCAT_plugin::dhcp::dhcpconffile = $conffile;
+}
+# MsgUtils moves the lines to info and empties the response after the callback returns.
+my @absent;
+eval {
+    local $SIG{ALRM} = sub { die "listnode did not return\n" };
+    alarm 20;
+    xCAT_plugin::dhcp::listnode('absent-node', sub { push @absent, map { @{ $_[0]->{$_} || [] } } qw(info data) });
+    alarm 0;
+    1;
+};
+alarm 0;
+is_deeply(\@absent, [], 'a query for a node without a reservation prints nothing');
+
+my @present;
+eval {
+    local $SIG{ALRM} = sub { die "listnode did not return\n" };
+    alarm 20;
+    xCAT_plugin::dhcp::listnode('xcat30-cn', sub { push @present, map { @{ $_[0]->{$_} || [] } } qw(info data) });
+    alarm 0;
+    1;
+};
+alarm 0;
+like(join("\n", @present), qr/^xcat30-cn: ip-address = 192\.168\.201\.30/m,
+    'a query for a node with a reservation prints its address');
+
 done_testing();

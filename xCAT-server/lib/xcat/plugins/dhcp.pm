@@ -1168,11 +1168,9 @@ sub listnode
             $callback->({ error => ["$node: $serr"], errorcode => [1] });
             return;
         }
+        # A node without a reservation prints nothing, as the omshell and Kea queries do.
         if ($sip) {
             push @{ $rsp->{data} }, "$sname: $sip, $shw";
-            xCAT::MsgUtils->message("I", $rsp, $callback);
-        } else {
-            $rsp->{data}->[0] = "$node: no DHCP reservation found in $dhcpconffile";
             xCAT::MsgUtils->message("I", $rsp, $callback);
         }
         return;

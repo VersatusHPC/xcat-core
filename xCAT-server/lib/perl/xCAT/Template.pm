@@ -2093,8 +2093,13 @@ sub _subiquity_netplan6 {
         # cluster runs one netplan dialect.
         push @lines, "${pad}routes:", "${pad}  - to: default", "${pad}    via: $gateway";
     }
-    push @lines, "${pad}nameservers:", "${pad}  addresses: [" . join(', ', @resolvers) . "]"
-      if @resolvers;
+    # The installer resolves through the systemd-resolved stub, which sends no single-label
+    # name to a unicast server. The late command names the MN by its short name.
+    if (@resolvers) {
+        push @lines, "${pad}nameservers:", "${pad}  addresses: [" . join(', ', @resolvers) . "]";
+        my $domain = xCAT::NetworkUtils->getNodeDomains([$nodename])->{$nodename};
+        push @lines, "${pad}  search: [$domain]" if defined($domain) && length($domain);
+    }
 
     return join("\n", @lines);
 }

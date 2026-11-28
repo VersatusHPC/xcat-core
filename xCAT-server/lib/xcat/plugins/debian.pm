@@ -17,6 +17,7 @@ use xCAT::SvrUtils;
 use xCAT::UFTP;
 use xCAT::MsgUtils;
 use xCAT::ConsolePolicy;
+use xCAT::SubiquityUtils;
 use Data::Dumper;
 use Getopt::Long;
 Getopt::Long::Configure("bundling");
@@ -1534,6 +1535,12 @@ sub mkinstall {
             }
 
             my $kcmdline = "nofb utf8 auto xcatd=" . $instserver;
+
+            # The base ends before "---", so the installed system does not get network-config=.
+            $kcmdline .= xCAT::SubiquityUtils::installer_network_arg($os,
+                xCAT::NetworkUtils->gen_net_boot_params($ent->{installnic}, $ent->{primarynic},
+                    xCAT::Utils->parseMacTabEntry($macent->{mac}, $node))->{mac})
+              if (using_subiquity($os, $tmplfile) && $macent && $macent->{mac});
 
             if (using_subiquity($os,$tmplfile)) {
                 # Fail rather than hand casper a name: klibc's nfsmount cannot resolve one, so

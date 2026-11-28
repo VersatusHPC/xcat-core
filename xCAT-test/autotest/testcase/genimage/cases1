@@ -1,0 +1,9 @@
+start:genimage_gpgcheck_unsigned
+description:With linuximage.gpgcheck=1, an unsigned package in otherpkgdir fails the package update of genimage, and genimage stops with its own failure message. The case builds a copy of the netboot-compute osimage and removes it.
+label:others,image
+os:Linux
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/genimage/genimage_gpgcheck_unsigned.sh __GETNODEATTR($$CN,os)__ __GETNODEATTR($$CN,arch)__
+check:rc==0
+check:output=~RPM package manager invocation failed
+check:output=~genimage stopped on the unsigned package
+end

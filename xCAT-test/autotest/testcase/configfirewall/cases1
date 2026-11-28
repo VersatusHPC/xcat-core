@@ -1,0 +1,118 @@
+start:configfirewall_sn_auto
+description:The service node runs "configfirewall --auto" as a postbootscript. The case reads what the SN kept: firewalld running and enabled, the SN NIC to the CN in the trusted zone, which serves DHCP and NFS, and the marker of configfirewall. The kickstart of the SN disables the firewall, so an SN that does not run configfirewall --auto, or runs one that stops firewalld, has none of these
+label:firewall
+os:rhels
+cmd:xdcp $$SN /opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh /tmp/fw_check.sh
+check:rc==0
+cmd:xdsh $$SN "/tmp/fw_check.sh check \$(/tmp/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__) 67/udp 69/udp 80/tcp 2049/tcp 3001/tcp 3002/tcp"
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:xdsh $$SN "firewall-cmd --get-zone-of-interface=\$(/tmp/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)"
+check:rc==0
+check:output=~: trusted
+cmd:xdsh $$SN "cat /etc/xcat/configfirewall.backend"
+check:rc==0
+check:output=~: firewalld
+cmd:xdsh $$SN rm -f /tmp/fw_check.sh
+end
+
+start:configfirewall_xcatconfig_keeps
+description:xcatconfig -i keeps the firewall that configfirewall configured on the MN. The case runs configfirewall, then xcatconfig -i, which stops and disables the firewall unless the configfirewall marker exists, and reads the firewall back. The case puts back the xCAT DB, the node host keys, the marker and the firewall state of the MN
+label:firewall
+os:rhels
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh save
+check:rc==0
+cmd:rm -rf /tmp/xcattest-fwkeep && mkdir -p /tmp/xcattest-fwkeep
+check:rc==0
+cmd:sh -c 'if [ -e /etc/xcat/configfirewall.backend ]; then cp -p /etc/xcat/configfirewall.backend /tmp/xcattest-fwkeep/marker; fi'
+check:rc==0
+cmd:dumpxCATdb -p /tmp/xcattest-fwkeep/db
+check:rc==0
+cmd:cp -a /etc/xcat/hostkeys /tmp/xcattest-fwkeep/hostkeys && cp -a /install/postscripts/hostkeys /tmp/xcattest-fwkeep/pshostkeys
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; /install/postscripts/configfirewall --private "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" --public "$($T/fw_check.sh nic-default)"'
+check:rc==0
+cmd:xcatconfig -i
+check:rc==0
+check:output=~Keeping the firewall that configfirewall configured
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 22/tcp 3001/tcp 3002/tcp 69/udp 67/udp 80/tcp 443/tcp 2049/tcp 873/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-default)" 22/tcp 3001/tcp 3002/tcp 69/udp 80/tcp 443/tcp 873/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:rm -rf /etc/xcat/hostkeys /install/postscripts/hostkeys && cp -a /tmp/xcattest-fwkeep/hostkeys /etc/xcat/hostkeys && cp -a /tmp/xcattest-fwkeep/pshostkeys /install/postscripts/hostkeys
+check:rc==0
+cmd:restorexCATdb -p /tmp/xcattest-fwkeep/db
+check:rc==0
+cmd:sh -c 'if [ -e /tmp/xcattest-fwkeep/marker ]; then cp -p /tmp/xcattest-fwkeep/marker /etc/xcat/configfirewall.backend; else rm -f /etc/xcat/configfirewall.backend; fi'
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh restore
+check:rc==0
+cmd:rm -rf /tmp/xcattest-fwkeep
+end
+
+start:configfirewall_xcatprobe_xcatmn
+description:xcatprobe xcatmn accepts the firewall that configfirewall configured on the MN. The probe sees a firewall when iptables lists a DROP rule, and firewalld on nftables lists none, so the case adds one DROP rule for the discard port 9/tcp. Without the configfirewall marker the probe must warn, which proves the rule arms the check. After configfirewall the firewall check must pass. The case puts back the marker and the firewall state of the MN
+label:firewall
+os:rhels
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh save
+check:rc==0
+cmd:rm -rf /tmp/xcattest-fwprobe && mkdir -p /tmp/xcattest-fwprobe
+check:rc==0
+cmd:sh -c 'if [ -e /etc/xcat/configfirewall.backend ]; then mv /etc/xcat/configfirewall.backend /tmp/xcattest-fwprobe/marker; fi'
+check:rc==0
+cmd:iptables -I INPUT -p tcp --dport 9 -j DROP
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; xcatprobe xcatmn -i "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" -H 2>&1'
+check:output=~Checking firewall is disabled\.\.\..*\[WARN\]
+check:output=~Firewall is configured on current server
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; /install/postscripts/configfirewall --private "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" --public "$($T/fw_check.sh nic-default)"'
+check:rc==0
+cmd:iptables -C INPUT -p tcp --dport 9 -j DROP
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; xcatprobe xcatmn -i "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" -H 2>&1'
+check:output=~Checking firewall is disabled\.\.\..*\[ OK \]
+check:output!~Firewall is configured on current server
+cmd:iptables -D INPUT -p tcp --dport 9 -j DROP
+check:rc==0
+cmd:sh -c 'if [ -e /tmp/xcattest-fwprobe/marker ]; then cp -p /tmp/xcattest-fwprobe/marker /etc/xcat/configfirewall.backend; else rm -f /etc/xcat/configfirewall.backend; fi'
+check:rc==0
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall/fw_check.sh restore
+check:rc==0
+cmd:rm -rf /tmp/xcattest-fwprobe
+end
+
+start:configfirewall_ipv6_run_begin
+description:Runs first on the IPv6 leaf. firewalld runs on the MN, and the MN NIC to the IPv6 address of the CN is in the trusted zone, which passes DHCPv6, ICMPv6 and router advertisements. The case records the systemd invocation of firewalld for configfirewall_ipv6_run_end
+label:firewall
+os:rhels
+cmd:firewall-cmd --state
+check:rc==0
+check:output=~^running
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 547/udp 69/udp 80/tcp 2049/tcp 3001/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; firewall-cmd --get-zone-of-interface="$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)"'
+check:rc==0
+check:output=~^trusted
+cmd:sh -c 'systemctl show -p InvocationID --value firewalld > /var/tmp/xcattest-fw-ipv6.invocation && grep -Eq "^[0-9a-f]{32}$" /var/tmp/xcattest-fw-ipv6.invocation'
+check:rc==0
+end
+
+start:configfirewall_ipv6_run_end
+description:Runs last on the IPv6 leaf, after the IPv6 discovery and provisioning cases. firewalld still runs with the invocation that configfirewall_ipv6_run_begin recorded, so it ran through the whole IPv6 run without a stop, and the MN NIC to the CN is still in the trusted zone
+label:firewall
+os:rhels
+cmd:sh -c 'test -s /var/tmp/xcattest-fw-ipv6.invocation && test "$(systemctl show -p InvocationID --value firewalld)" = "$(cat /var/tmp/xcattest-fw-ipv6.invocation)"'
+check:rc==0
+cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 547/udp 69/udp 80/tcp 2049/tcp 3001/tcp'
+check:rc==0
+check:output=~FWCHECK-OK
+check:output!~FWCHECK-BAD
+cmd:rm -f /var/tmp/xcattest-fw-ipv6.invocation
+end

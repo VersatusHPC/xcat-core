@@ -1812,8 +1812,13 @@ function create_vlan_interface_nmcli {
         log_info $cmd
         $cmd
     fi
+    # A VLAN without nicips, such as the port of a bridge, has no IP. nmcli gives a
+    # connection with no address ipv4.method auto, and NetworkManager runs DHCP on it.
+    if [ -z "$_ipaddrs" ]; then
+        _ipaddrs="ipv4.method disabled ipv6.method ignore"
+    fi
     #create VLAN connetion
-    cmd="$nmcli con add type vlan con-name $con_name dev $ifname id $(( 10#$vlanid )) method none $_ipaddrs $_mtu connection.autoconnect-priority 9 autoconnect yes connection.autoconnect-slaves 1 connection.autoconnect-retries 0"
+    cmd="$nmcli con add type vlan con-name $con_name dev $ifname id $(( 10#$vlanid )) $_ipaddrs $_mtu connection.autoconnect-priority 9 autoconnect yes connection.autoconnect-slaves 1 connection.autoconnect-retries 0"
     log_info $cmd
     $cmd
     log_info "create NetworkManager connection for $ifname.$vlanid"

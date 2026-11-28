@@ -117,6 +117,11 @@ autoinstall:
     # write their own after the first boot. A separate item, so the status of the post script above
     # still decides whether the install goes on.
     - rm -f /target/etc/apt/sources.list.d/xcat-otherpkgs-*.list /target/etc/apt/sources.list.d/xcat-otherpkgs-*.sources /target/etc/apt/sources.list.d/xcat-pkgdir-*.list /target/etc/apt/sources.list.d/xcat-pkgdir-*.sources /target/etc/apt/apt.conf.d/94curtin-config
+    # Ubuntu 26.04 builds the initrd with dracut. Its systemd-networkd module writes a unit that runs
+    # DHCP on every NIC to /run/systemd/network, and the installed system keeps /run, so the *NOIP*
+    # NICs ask for an address at every boot. A unit of the same name in /etc that links to /dev/null
+    # masks it. The initrd is rebuilt so that it carries the mask too.
+    - 'if grep -qs zzzz-dracut-default.network /target/usr/lib/dracut/modules.d/*/networkd-config.sh; then mkdir -p /target/etc/systemd/network && ln -sf /dev/null /target/etc/systemd/network/zzzz-dracut-default.network && curtin in-target --target /target -- dracut --force --regenerate-all; fi'
     # Flip the node to local-disk boot, or it PXE-loops back into the installer on reboot.
     # xcatd's install monitor greets with "ready", then answers "next" with "done" and runs
     # "nodeset <node> next". Require both tokens: another service on that port is not a flipped

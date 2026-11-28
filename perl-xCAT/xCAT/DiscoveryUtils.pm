@@ -117,6 +117,12 @@ sub update_discovery_data {
 
     my $distab = xCAT::Table->new('discoverydata');
     if ($distab) {
+        # Genesis repeats findme until it is answered, so repeats queued behind a slow discovery
+        # arrive after it is complete. An unclaimed repeat must not erase the method.
+        if ($disdata{'method'} eq 'undef') {
+            my $old = $distab->getAttribs({ uuid => $request->{'uuid'}->[0] }, 'method');
+            delete $disdata{'method'} if ($old && $old->{'method'} && $old->{'method'} ne 'undef');
+        }
         $distab->setAttribs({ uuid => $request->{'uuid'}->[0] }, \%disdata);
         $distab->close();
     }

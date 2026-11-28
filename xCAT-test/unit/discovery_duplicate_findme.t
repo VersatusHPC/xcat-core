@@ -7,7 +7,7 @@
 # fails. The row then must still name the method that discovered the node.
 use strict;
 use warnings;
-use Test::More tests => 5;
+use Test::More tests => 6;
 use FindBin;
 use lib "$FindBin::Bin/../../perl-xCAT";
 
@@ -27,6 +27,11 @@ BEGIN {
         my $row = $rows{ $key->{uuid} } ||= {};
         @{$row}{ keys %{$attrs} } = values %{$attrs};
         return;
+    }
+    sub getAttribs {
+        my ($self, $key, @attrs) = @_;
+        my $row = $rows{ $key->{uuid} } or return undef;
+        return { map { $_ => $row->{$_} } @attrs };
     }
     sub close { return; }
 }
@@ -61,3 +66,10 @@ $notified = xCAT::DiscoveryUtils->complete_discovery(findme('sequential'), sub {
 is($notified, 0, 'complete_discovery reports the failed notify');
 is($rows{$uuid}{method}, 'sequential',
     'the repeated findme leaves the node recorded as discovered, so nodediscoverls still lists it');
+
+# A slow management node takes longer to discover the node than Genesis waits between two
+# findme requests, so a backlog of repeats is processed after the discovery is complete.
+# aaadiscovery records each one before any method claims it.
+xCAT::DiscoveryUtils->update_discovery_data(findme('undef'));
+is($rows{$uuid}{method}, 'sequential',
+    'a findme recorded after a completed discovery keeps the discovery method');

@@ -32,7 +32,8 @@ check:rc==0
 cmd:sleep 10
 cmd:a=0;while true; do [ $a -eq 100 ] && exit 1;output=$(makedhcp -q $$CN);[ $? -ne 0 ] && exit 1;echo $output|grep $$CN 2>/dev/null && exit 0;a=$[$a+1];sleep 1;done
 check:rc==0
-cmd:copycds $$ISO
+# -w skips the copy when this media is already copied in. Ubuntu copycds has no -w.
+cmd:if [[ "__GETNODEATTR($$CN,os)__" =~ "ubuntu" ]]; then copycds $$ISO; else copycds -w $$ISO; fi
 check:rc==0
 cmd:if [[ -f /test.synclist ]] ;then mv -f /test.synclist /test.synclist.bak;fi;
 cmd:echo "/test.synclist -> /test.synclist" > /test.synclist;chdef -t osimage -o __GETNODEATTR($$CN,os)__-__GETNODEATTR($$CN,arch)__-install-compute synclists=/test.synclist

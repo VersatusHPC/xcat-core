@@ -87,13 +87,13 @@ cmd:rm -rf /tmp/xcattest-fwprobe
 end
 
 start:configfirewall_ipv6_run
-description:Runs last on the IPv6 leaf, after the IPv6 discovery and provisioning cases. firewalld runs on the MN and entered the active state before the first xcattest run on this MN started, so firewalld ran through every case of the run without a stop. The MN NIC to the IPv6 address of the CN is in the trusted zone, which passes DHCPv6, ICMPv6 and router advertisements
+description:Runs last on the IPv6 leaf, after the IPv6 discovery and provisioning cases. firewalld runs on the MN and entered the active state before the first xcattest run on this MN started, so firewalld ran through every case of the run without a stop. The command holds no hash sign, because xcattest cuts a cmd line at the first one. The MN NIC to the IPv6 address of the CN is in the trusted zone, which passes DHCPv6, ICMPv6 and router advertisements
 label:firewall
 os:rhels
 cmd:firewall-cmd --state
 check:rc==0
 check:output=~^running
-cmd:sh -c 'F=$(ls /opt/xcat/share/xcat/tools/autotest/result/xcattest.log.* | sort | head -1); T=${F##*.}; S=$(date -d "${T:0:8} ${T:8:2}:${T:10:2}:${T:12:2}" +%s); A=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value firewalld)" +%s); echo "firewalld active since $A, first xcattest run $T ($S)"; [ -n "$A" ] && [ -n "$S" ] && [ "$A" -lt "$S" ]'
+cmd:sh -c 'F=$(ls /opt/xcat/share/xcat/tools/autotest/result/xcattest.log.* | sort | head -1); T=$(echo "$F" | sed "s/.*\.//"); S=$(date -d "$(echo "$T" | sed -E "s/^([0-9]{8})([0-9]{2})([0-9]{2})([0-9]{2})$/\1 \2:\3:\4/")" +%s); A=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value firewalld)" +%s); echo "firewalld active since $A, first xcattest run $T ($S)"; [ -n "$A" ] && [ -n "$S" ] && [ "$A" -lt "$S" ]'
 check:rc==0
 cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 547/udp 69/udp 80/tcp 2049/tcp 3001/tcp'
 check:rc==0

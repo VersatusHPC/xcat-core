@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 # apt installs the FIRST alternative of a Depends group when none of them is installed, and it
-# does not count Recommends when it chooses. xCAT selects Kea on every Ubuntu release it builds
-# for (22.04 and later), so an xcat or xcatsn install must not bring isc-dhcp-server: its units
-# start with no interface configured and stay failed while Kea serves DHCP.
+# installs Recommends by default. site.dhcpbackend=auto selects ISC when dhcpd is installed and
+# Kea otherwise, so the packages decide: isc-dhcp-server where the archive carries it, kea where
+# it does not. An xcat or xcatsn install must bring exactly one DHCP server.
 use strict;
 use warnings;
 
@@ -44,9 +44,14 @@ for my $case ([ 'xCAT/debian/control', 'xcat' ], [ 'xCATsn/debian/control', 'xca
 
     my @dhcp = grep { my $g = $_; grep { $_ eq 'kea' || $_ eq 'isc-dhcp-server' } @$g } dependency_groups($depends);
     is(scalar @dhcp, 1, "$package names one DHCP server dependency group") or next;
-    is($dhcp[0][0], 'kea', "apt installs kea, not isc-dhcp-server, for a fresh $package install");
-    ok((grep { $_ eq 'isc-dhcp-server' } @{ $dhcp[0] }),
-        "$package still accepts an installed isc-dhcp-server for site.dhcpbackend=isc");
+    is($dhcp[0][0], 'isc-dhcp-server', "apt installs isc-dhcp-server first for a fresh $package install");
+    ok((grep { $_ eq 'kea' } @{ $dhcp[0] }),
+        "$package installs kea where the archive has no isc-dhcp-server");
+
+    my $recommends = binary_field($text, $package, 'Recommends') // '';
+    my @second = grep { my $g = $_; grep { $_ eq 'kea' || $_ eq 'isc-dhcp-server' } @$g }
+        dependency_groups($recommends);
+    is(scalar @second, 0, "$package does not recommend a second DHCP server");
 }
 
 done_testing();

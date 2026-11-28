@@ -45,6 +45,7 @@ our @EXPORT_OK = qw(
     rewrite_file write_script read_line
     buildinfo_text
     targetarch_from_target
+    repo_metadata_compress_args core_repo_target
     openeuler_build_target openeuler_repo_subdir package_skip_reason
     mock_config_text mock_build_owner prepare_mock_resultdirs
     mock_root_layout mock_additional_packages mock_package_opts mock_scrub_plan run_then_scrub
@@ -1020,6 +1021,51 @@ sub targetarch_from_target {
           if $part =~ /^(?:x86_64|i[3-6]86|ppc64le|ppc64|aarch64|riscv64|s390x|armv7hl)$/;
     }
     return $parts[-1];
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 repo_metadata_compress_args
+
+    Descriptions:
+        The createrepo_c options that compress the metadata of a repository built for
+        the given targets. zypper 1.13 on openSUSE Leap 42.3 has no zstd reader, and
+        createrepo_c writes zstd by default. The flat openSUSE core is built on the
+        Leap 15.6 target and also serves Leap 42.3, so every openSUSE index uses gzip.
+    Arguments:
+        @targets - the mock targets whose packages the repository holds
+    Returns:
+        The gzip options when one target is openSUSE or SLES, '' otherwise.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub repo_metadata_compress_args {
+    my (@targets) = @_;
+    return '' unless grep { defined($_) && /\A(?:opensuse-|sles)/ } @targets;
+    return '--compress-type gz --general-compress-type gz';
+}
+
+#-------------------------------------------------------------------------------
+
+=head3 core_repo_target
+
+    Descriptions:
+        The mock target of one per-arch core tree, as --merge-core-repos receives it.
+    Arguments:
+        $path      - the tree, normally dist/<target>/rpms
+        $buildinfo - the text of its buildinfo.txt, or undef
+    Returns:
+        The target from the path, else the BUILD_TARGET line of buildinfo, else undef.
+
+=cut
+
+#-------------------------------------------------------------------------------
+sub core_repo_target {
+    my ($path, $buildinfo) = @_;
+    return $1 if defined($path) && $path =~ m{(?:\A|/)dist/([^/]+)/rpms/*\z};
+    return $1 if defined($buildinfo) && $buildinfo =~ /^BUILD_TARGET=(\S+)$/m;
+    return undef;
 }
 
 # ------------------------------------------------------------------ Genesis --

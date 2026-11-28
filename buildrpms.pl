@@ -59,6 +59,7 @@ use XCAT::BuildUtils qw(git_revision source_date_epoch sh sh_or_die usage buildi
     sweep_build_sources_dirs stage_xcat_probe_sources stage_xcatsn_templates
                         stage_genesis_base_sources
                         write_script read_line targetarch_from_target
+                        repo_metadata_compress_args core_repo_target
                         openeuler_build_target openeuler_repo_subdir
                         package_skip_reason
                         mock_config_text acquire_lock_dir
@@ -719,7 +720,8 @@ sub createrepo_dir {
 # top-level strays; then index the binaries EXCLUDING the SRPMS/ subdir so no
 # src.rpm enters the binary repomd, and index the SRPMS repo separately.
 sub index_repo {
-    my ($repodir, $fresh) = @_;
+    my ($repodir, $fresh, $targets) = @_;
+    my $compress = repo_metadata_compress_args(@{ $targets // [] });
     my $alias = "$repodir/xCAT-release-latest.noarch.rpm";
 
     # The stable bootstrap filename is a direct-download convenience, not a
@@ -735,14 +737,14 @@ sub index_repo {
     # replace good metadata with metadata for an empty repo -- publishing a repo that
     # resolves nothing. Leave it exactly as the last binary build left it and index
     # only the srpms.
-    createrepo_dir($repodir, "--excludes 'SRPMS/*' --excludes '*.src.rpm'", $fresh)
+    createrepo_dir($repodir, "--excludes 'SRPMS/*' --excludes '*.src.rpm' $compress", $fresh)
         unless $opts{source_only};
-    createrepo_dir("$repodir/SRPMS", '', $fresh) if -d "$repodir/SRPMS";
+    createrepo_dir("$repodir/SRPMS", $compress, $fresh) if -d "$repodir/SRPMS";
 }
 
 sub update_repo {
     my ($target) = @_;
-    index_repo("dist/$target/rpms");
+    index_repo("dist/$target/rpms", undef, [$target]);
 }
 
 sub write_release_alias {
@@ -763,12 +765,12 @@ sub write_release_alias {
 
 sub sign_rpms {
     my ($target) = @_;
-    sign_repo_dir("dist/$target/rpms", $opts{gpg_key_name});
+    sign_repo_dir("dist/$target/rpms", $opts{gpg_key_name}, [$target]);
 }
 
 # Source-only runs sign and index only SRPMS; normal runs also update the binary repository.
 sub sign_repo_dir {
-    my ($repodir, $key_name) = @_;
+    my ($repodir, $key_name, $targets) = @_;
 
     say "Signing RPMs in $repodir";
     my @bin = $opts{source_only} ? () : glob("$repodir/*.rpm");
@@ -785,7 +787,7 @@ sub sign_repo_dir {
     }
 
     # Signing can change RPM bytes without changing the size or timestamp used by the metadata cache.
-    index_repo($repodir, 1);
+    index_repo($repodir, 1, $targets);
 
     for my $rd (($opts{source_only} ? () : ("$repodir/repodata")),
                 (-d "$repodir/SRPMS/repodata" ? ("$repodir/SRPMS/repodata") : ())) {
@@ -878,10 +880,12 @@ sub merge_core_repos {
     my @ins = @{ $opts{input_core_repos} || [] };
     die "FATAL: --merge-core-repos requires at least one --input-core-repos dir\n" unless @ins;
     -d $_ or die "FATAL: --input-core-repos dir '$_' does not exist\n" for @ins;
+    my @targets;
     for my $in (@ins) {
         my $info = -f "$in/buildinfo.txt" ? read_text("$in/buildinfo.txt") : '';
         die "FATAL: openEuler repositories must retain their release and architecture: $in\n"
             if $in =~ m{(?:^|/)openeuler[/-]} || $info =~ /^BUILD_TARGET=openeuler-/m;
+        push @targets, core_repo_target($in, $info);
     }
 
     sh_or_die(qq(rm -rf "$out"),
@@ -893,10 +897,10 @@ sub merge_core_repos {
     }
 
     # Create the bootstrap alias after the final index pass so it does not enter repository metadata.
-    index_repo($out);
+    index_repo($out, undef, \@targets);
     if ($opts{gpg_sign}) {
         $ENV{GNUPGHOME} = $opts{gpg_home} if $opts{gpg_home};
-        sign_repo_dir($out, $opts{gpg_key_name});
+        sign_repo_dir($out, $opts{gpg_key_name}, \@targets);
     }
     write_repo_metadata_dir($out);
     write_release_alias($out);

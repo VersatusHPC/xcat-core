@@ -366,6 +366,9 @@ class GenesisMetadata(unittest.TestCase):
         config = self.unit(file)
         self.assertEqual(config["connection"]["ipv4.dhcp-timeout"], "20")
         self.assertEqual(config["connection"]["ipv6.dhcp-timeout"], "20")
+        # Every node runs this image with one hostname, so no node may ask DDNS for it.
+        self.assertEqual(config["connection"]["ipv4.dhcp-send-hostname"], "0")
+        self.assertEqual(config["connection"]["ipv6.dhcp-send-hostname"], "0")
         # A node with no SMBIOS UUID gets a hw-address reservation, which Kea matches by
         # reading the hardware address out of a DUID-LL. genesis-duid overrides this from
         # 15-xcat-genesis-duid.conf, which NetworkManager reads later.

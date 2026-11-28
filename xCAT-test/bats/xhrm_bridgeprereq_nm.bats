@@ -124,3 +124,14 @@ EOF
     [ -f "$CONNDIR/br0-port-$PORT.nmconnection" ]
     ! grep -E "^connection (add|up)" "$NMCLI_LOG"
 }
+
+@test "a host without the which command still writes the bridge keyfiles" {
+    # A minimal install has no which package. The stub fails as an absent command does.
+    printf '#!/bin/sh\nexit 127\n' >"$BIN/which"
+    chmod 0755 "$BIN/which"
+    run bash "$SCRIPT" bridgeprereq br0
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"No bridge-utils installed"* ]]
+    [ -f "$CONNDIR/br0.nmconnection" ]
+}

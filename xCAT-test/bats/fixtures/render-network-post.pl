@@ -7,7 +7,7 @@ use lib "$FindBin::Bin/../../../xCAT-server/lib/perl";
 use XCAT::Test::File qw(repo_path);
 use File::Path qw(make_path);
 
-my ($version, $dir, $debug) = @ARGV;
+my ($version, $dir, $debug, $mac) = @ARGV;
 $version =~ /\A(?:8|10)\z/ or die 'Unsupported postscript';
 make_path("$dir/db");
 $ENV{XCATROOT} = repo_path('xCAT-server');
@@ -18,6 +18,11 @@ require xCAT::Template;
 my $site = xCAT::Table->new('site', -create => 1);
 $site->setAttribs({ key => 'xcatdebugmode' }, { value => $debug });
 $site->close();
+if (defined $mac) {
+    my $table = xCAT::Table->new('mac', -create => 1);
+    $table->setAttribs({ node => 'node' }, { mac => $mac });
+    $table->close();
+}
 my $error = xCAT::Template->subvars(
     repo_path("xCAT-server/share/xcat/install/scripts/post.rhels$version"),
     "$dir/post", 'node', undef, undef, 'rh', undef, { xcatmaster => '192.0.2.10' });

@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+# The FreeBSD modules refuse group-writable files. The fixtures model an administrator
+# tree, so their modes must not depend on the umask of the caller.
+BEGIN { umask(022) }
 use FindBin;
 use lib "$FindBin::Bin/../../perl-xCAT", "$FindBin::Bin/../../xCAT-server/lib/perl";
 use lib "$FindBin::Bin/../lib";

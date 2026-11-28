@@ -86,13 +86,15 @@ check:rc==0
 cmd:rm -rf /tmp/xcattest-fwprobe
 end
 
-start:configfirewall_ipv6_run_begin
-description:Runs first on the IPv6 leaf. firewalld runs on the MN, and the MN NIC to the IPv6 address of the CN is in the trusted zone, which passes DHCPv6, ICMPv6 and router advertisements. The case records the systemd invocation of firewalld for configfirewall_ipv6_run_end
+start:configfirewall_ipv6_run
+description:Runs last on the IPv6 leaf, after the IPv6 discovery and provisioning cases. firewalld runs on the MN and entered the active state before the first xcattest run on this MN started, so firewalld ran through every case of the run without a stop. The MN NIC to the IPv6 address of the CN is in the trusted zone, which passes DHCPv6, ICMPv6 and router advertisements
 label:firewall
 os:rhels
 cmd:firewall-cmd --state
 check:rc==0
 check:output=~^running
+cmd:sh -c 'F=$(ls /opt/xcat/share/xcat/tools/autotest/result/xcattest.log.* | sort | head -1); T=${F##*.}; S=$(date -d "${T:0:8} ${T:8:2}:${T:10:2}:${T:12:2}" +%s); A=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value firewalld)" +%s); echo "firewalld active since $A, first xcattest run $T ($S)"; [ -n "$A" ] && [ -n "$S" ] && [ "$A" -lt "$S" ]'
+check:rc==0
 cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 547/udp 69/udp 80/tcp 2049/tcp 3001/tcp'
 check:rc==0
 check:output=~FWCHECK-OK
@@ -100,19 +102,4 @@ check:output!~FWCHECK-BAD
 cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; firewall-cmd --get-zone-of-interface="$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)"'
 check:rc==0
 check:output=~^trusted
-cmd:sh -c 'systemctl show -p InvocationID --value firewalld > /var/tmp/xcattest-fw-ipv6.invocation && grep -Eq "^[0-9a-f]{32}$" /var/tmp/xcattest-fw-ipv6.invocation'
-check:rc==0
-end
-
-start:configfirewall_ipv6_run_end
-description:Runs last on the IPv6 leaf, after the IPv6 discovery and provisioning cases. firewalld still runs with the invocation that configfirewall_ipv6_run_begin recorded, so it ran through the whole IPv6 run without a stop, and the MN NIC to the CN is still in the trusted zone
-label:firewall
-os:rhels
-cmd:sh -c 'test -s /var/tmp/xcattest-fw-ipv6.invocation && test "$(systemctl show -p InvocationID --value firewalld)" = "$(cat /var/tmp/xcattest-fw-ipv6.invocation)"'
-check:rc==0
-cmd:sh -c 'T=/opt/xcat/share/xcat/tools/autotest/testcase/configfirewall; $T/fw_check.sh check "$($T/fw_check.sh nic-to __GETNODEATTR($$CN,ip)__)" 547/udp 69/udp 80/tcp 2049/tcp 3001/tcp'
-check:rc==0
-check:output=~FWCHECK-OK
-check:output!~FWCHECK-BAD
-cmd:rm -f /var/tmp/xcattest-fw-ipv6.invocation
 end

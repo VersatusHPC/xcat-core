@@ -1,5 +1,5 @@
 start:hostbased_auth_nonroot_ssh
-description:after mkhostbased-auth, a user with no ssh keys logs in by ssh from the CN to the SN through host-based authentication alone. Root's private keys on the CN are moved aside for the login. A login before mkhostbased-auth must fail, so the second login can only come from the host-based setup
+description:after mkhostbased-auth, a user with no ssh keys logs in by ssh from the CN to the SN through host-based authentication alone. Root's private keys on the CN are moved aside for the login. A login before mkhostbased-auth must fail, so the second login can only come from the host-based setup. Both nodes must run SELinux in enforcing mode, and the audit log of the CN must hold no AVC denial for ssh-keysign or for the ssh client after the login
 label:hostbased
 os:Linux
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh setup xcathba $$CN $$SN
@@ -10,10 +10,23 @@ check:rc!=0
 check:output=~HBA-LOGIN-BAD
 cmd:mkhostbased-auth $$SN,$$CN
 check:rc==0
+cmd:xdsh $$SN getenforce
+check:rc==0
+check:output=~^\S+: Enforcing\s*$
+cmd:xdsh $$CN getenforce
+check:rc==0
+check:output=~^\S+: Enforcing\s*$
+cmd:xdsh $$CN systemctl is-active auditd
+check:rc==0
+check:output=~^\S+: active\s*$
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh login xcathba $$CN $$SN
 check:rc==0
 check:output=~HBA-LOGIN-OK
 check:output!~HBA-LOGIN-BAD
+cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh keysign-avc $$CN
+check:rc==0
+check:output=~HBA-AVC-NONE
+check:output!~HBA-AVC-FOUND
 cmd:/opt/xcat/share/xcat/tools/autotest/testcase/hostbased_auth/nonroot_ssh.sh cleanup xcathba $$CN $$SN
 check:rc==0
 check:output=~HBA-CLEANUP-OK

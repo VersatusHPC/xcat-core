@@ -19,20 +19,49 @@
 #   nonroot_ssh.sh setup <user> <from> <to>      create the user on both nodes, hide root's keys on <from>
 #   nonroot_ssh.sh login <user> <from> <to>      ssh as <user> from <from> to <to>
 #   nonroot_ssh.sh cleanup <user> <from> <to>    delete the user, put root's keys back on <from>
+#   nonroot_ssh.sh keysign-avc <node>            look for SELinux denials of ssh-keysign on <node>
 #
 # Prints: HBA-SETUP-OK, HBA-LOGIN-OK or HBA-CLEANUP-OK on success. HBA-LOGIN-BAD when the
-#         login did not return the token.
+#         login did not return the token. HBA-AVC-NONE when the audit log of the last ten
+#         minutes holds no AVC record for ssh-keysign or ssh, HBA-AVC-FOUND when it holds one.
 # Exits:  0 on success, 1 on a failure, 2 on a usage error.
 
 USER_UID=4711
 HIDDEN=/root/.ssh/xcattest-hostbased-hidden
 
 action=$1
+
+# ausearch reads stdin, not the audit log, when stdin is not a terminal, and under xdsh it
+# then finds nothing. --input-logs makes it read the log. The USER_LOGIN record of the xdsh
+# login itself shows that the search reads the log. ausearch exits 1 both for "no match" and
+# for an error, so only "<no matches>" with exit 1 is a clean log. The ssh client reads the
+# host keys itself before it starts ssh-keysign, so a denial on that path can name ssh.
+if [ "$action" = keysign-avc ]; then
+    node=$2
+    [ -n "$node" ] || { echo "usage: $0 keysign-avc <node>"; exit 2; }
+    out=$(xdsh "$node" "ausearch --input-logs -m USER_LOGIN -ts recent >/dev/null 2>&1; echo HBA-AUDIT-READ=\$?; for c in ssh-keysign ssh; do ausearch --input-logs -m avc -c \$c -ts recent 2>&1; echo HBA-AVC-RC=\$?; done" 2>&1)
+    echo "$out"
+    if ! echo "$out" | grep -q 'HBA-AUDIT-READ=0$'; then
+        echo "HBA-AVC-ERROR: ausearch finds no USER_LOGIN record on $node, so it does not read the audit log"
+        exit 1
+    fi
+    if [ "$(echo "$out" | grep -c 'HBA-AVC-RC=1$')" = 2 ] && [ "$(echo "$out" | grep -cF '<no matches>')" = 2 ]; then
+        echo HBA-AVC-NONE
+        exit 0
+    fi
+    if echo "$out" | grep -q 'HBA-AVC-RC=0$'; then
+        echo "HBA-AVC-FOUND: SELinux denied ssh-keysign or ssh on $node"
+        exit 1
+    fi
+    echo "HBA-AVC-ERROR: ausearch gave no answer on $node"
+    exit 1
+fi
+
 user=$2
 from=$3
 to=$4
 if [ -z "$action" ] || [ -z "$user" ] || [ -z "$from" ] || [ -z "$to" ]; then
-    echo "usage: $0 setup|login|cleanup <user> <from> <to>"
+    echo "usage: $0 setup|login|cleanup <user> <from> <to> | keysign-avc <node>"
     exit 2
 fi
 

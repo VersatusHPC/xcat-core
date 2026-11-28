@@ -49,12 +49,16 @@ foreach my $name (@lists) {
     ok($list, "$name is readable");
 
     SKIP: {
-        skip "no $name to inspect", 2 unless $list;
+        skip "no $name to inspect", 3 unless $list;
 
         ok(scalar(grep { $_ eq 'dracut' } @{$list}),
             "$name installs dracut, so genimage enters dracut mode");
         ok(scalar(grep { $_ eq 'dracut-network' } @{$list}),
             "$name installs dracut-network, which brings the IPv6 boot modules");
+        # netplan and systemd-networkd configure the node. ifupdown adds networking.service,
+        # which fails at every boot of the image on the systemd-resolved if-up hook.
+        ok(!scalar(grep { $_ eq 'ifupdown' } @{$list}),
+            "$name does not install ifupdown");
     }
 }
 

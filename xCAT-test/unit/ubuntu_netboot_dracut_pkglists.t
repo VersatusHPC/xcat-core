@@ -12,6 +12,9 @@ use Test::More;
 # never boots. The package list is the artifact that decides this.
 #
 # 24.04 x86_64 is the reference: it already carries the entries and boots IPv6-only.
+#
+# The legacy /init also keeps the image's 90-xcat-dhcp.yaml, which xcatroot removes in dracut
+# mode, so a 22.04 ppc64el diskless node runs DHCP on its *NOIP* NICs.
 
 use lib "$FindBin::Bin/../lib";
 use XCAT::Test::File qw(repo_path);
@@ -21,6 +24,8 @@ my $netboot = 'xCAT-server/share/xcat/netboot/ubuntu';
 
 my @lists = (
     "compute.ubuntu24.04.x86_64.pkglist",     # the working reference
+    "compute.ubuntu22.04.ppc64el.pkglist",
+    "compute.ubuntu22.04.ppc64le.pkglist",
     "compute.ubuntu24.04.ppc64el.pkglist",
     "compute.ubuntu24.04.ppc64le.pkglist",
     "compute.ubuntu26.04.pkglist",

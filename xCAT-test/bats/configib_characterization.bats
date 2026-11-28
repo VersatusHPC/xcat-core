@@ -40,11 +40,13 @@ case "$*" in
 esac
 SH
     chmod 0755 "$fixture/bin"/*
+    # The scratch /etc hides /etc/alternatives, and on Debian /usr/bin/awk is a link into it.
     sandbox=(env -i PATH=/run/fixture/bin:/usr/bin:/bin LC_ALL=C "$bwrap"
         --unshare-all --die-with-parent --new-session
         --ro-bind / / --tmpfs /run --proc /proc --dev /dev
         --bind "$fixture" /run/fixture --bind "$fixture/tmp" /tmp
-        --bind "$fixture/etc" /etc --ro-bind "$fixture/sys" /sys
+        --bind "$fixture/etc" /etc --ro-bind-try /etc/alternatives /etc/alternatives
+        --ro-bind "$fixture/sys" /sys
         --ro-bind "$(dirname "$CONFIGIB")" /run/postscripts --chdir /tmp)
 }
 

@@ -33,6 +33,8 @@ run_script()
     }
     firewall-cmd() { echo "firewall-cmd $*" >>"$EVENTS"; }
     logger() { :; }
+    # Records the munge key that a sync makes durable.
+    sync() { echo "sync munge.key=$(cat "$XCAT_MUNGE_ETC/munge.key" 2>/dev/null)" >>"$EVENTS"; }
     # Replaces the xcatd credential request of the script.
     slurm_fetch_munge_key() { [ -n "${NO_KEY:-}" ] && return 1; echo 'S2V5S2V5' >"$1"; }
     slurm_main "$@"
@@ -50,6 +52,46 @@ run_script()
     [ "$(cat "$ROOT/slurm/slurm.conf")" = 'ClusterName=xcat' ]
     grep -qx 'systemctl restart slurmd' "$EVENTS"
     run -1 grep -q '^firewall-cmd' "$EVENTS"
+}
+
+@test "the installed munge key is synced to disk" {
+    run run_script
+    [ "$status" -eq 0 ]
+    grep -qx 'sync munge.key=S2V5S2V5' "$EVENTS"
+}
+
+# The listener is a script that records its stdout and its pid, then waits.
+listener_state()
+{
+    local stat
+    stat=$(ps -o stat= -p "$1" 2>/dev/null) || return 1
+    [ -n "$stat" ] && [ "${stat#Z}" = "$stat" ]
+}
+
+@test "the credential listener is stopped and does not hold the output of the postscript" {
+    XCAT_SLURM_SOURCED=1
+    . "$SCRIPT"
+    export LISTENER="${BATS_TEST_TMPDIR}/listener"
+    printf '#!/bin/bash\necho $$ >"$LISTENER.pid"\nreadlink /proc/$$/fd/1 >"$LISTENER.stdout"\nexec sleep 30\n' \
+        >"$ROOT/post/allowcred.awk"
+    printf '#!/bin/sh\necho S2V5S2V5\n' >"$ROOT/post/getcredentials.awk"
+    chmod 0755 "$ROOT/post/allowcred.awk" "$ROOT/post/getcredentials.awk"
+    xcat_filter_credentials() { cat; }
+    slurm_fetch_munge_key "$ROOT/key" >"${BATS_TEST_TMPDIR}/postscript.out"
+    [ "$(cat "$ROOT/key")" = 'S2V5S2V5' ]
+    pid=$(cat "$LISTENER.pid")
+    [ "$(cat "$LISTENER.stdout")" = /dev/null ]
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        listener_state "$pid" || break
+        command sleep 0.2
+    done
+    run -1 listener_state "$pid"
+}
+
+teardown()
+{
+    [ -s "${LISTENER:-/nonexistent}.pid" ] && kill -9 "$(cat "$LISTENER.pid")" 2>/dev/null
+    return 0
 }
 
 @test "firewalld running: the slurmd port is opened" {

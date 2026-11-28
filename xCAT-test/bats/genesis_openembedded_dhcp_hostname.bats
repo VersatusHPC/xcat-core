@@ -6,6 +6,8 @@
 #
 # The value NetworkManager uses for <family>.dhcp-send-hostname is the one in the connection
 # profile when the profile sets it, else the last [connection] default in conf.d, else true.
+# NetworkManager 1.56 reads that default as an integer from 0 to 1 and uses true for any other
+# value, "false" included (_prop_get_ipvx_dhcp_send_hostname in src/core/devices/nm-device.c).
 # The profiles are the two that genesis-bootnic writes, or the default wired profile when the
 # command line has no BOOTIF.
 
@@ -50,37 +52,44 @@ keyfile_value()
     ' "$1"
 }
 
-# send_hostname <family> [profile]: the value NetworkManager uses for that profile.
+# send_hostname <family> [profile]: 0 or 1, the value NetworkManager uses for that profile.
 send_hostname()
 {
     local family=$1 profile=${2:-} value="" file found
     if [ -n "$profile" ]; then
-        value=$(keyfile_value "$profile" "$family" dhcp-send-hostname)
+        case $(keyfile_value "$profile" "$family" dhcp-send-hostname) in
+            true | 1) value=1 ;;
+            false | 0) value=0 ;;
+        esac
     fi
     if [ -z "$value" ]; then
         for file in $(LC_ALL=C ls "$CONFD"/*.conf); do
             found=$(keyfile_value "$file" connection "$family.dhcp-send-hostname")
             [ -z "$found" ] || value=$found
         done
+        case $value in
+            0 | 1) ;;
+            *) value=1 ;;
+        esac
     fi
-    printf '%s\n' "${value:-true}"
+    printf '%s\n' "$value"
 }
 
 @test "the boot nic profile sends no hostname in DHCPv4 or DHCPv6" {
     boot_image 'BOOTIF=01-42-7c-b6-21-e1-81'
-    [ "$(send_hostname ipv4 "$CONND/xcat-genesis-bootnic.nmconnection")" = false ]
-    [ "$(send_hostname ipv6 "$CONND/xcat-genesis-bootnic.nmconnection")" = false ]
+    [ "$(send_hostname ipv4 "$CONND/xcat-genesis-bootnic.nmconnection")" = 0 ]
+    [ "$(send_hostname ipv6 "$CONND/xcat-genesis-bootnic.nmconnection")" = 0 ]
 }
 
 @test "the secondary nic profile sends no hostname in DHCPv4 or DHCPv6" {
     boot_image 'BOOTIF=01-42-7c-b6-21-e1-81'
-    [ "$(send_hostname ipv4 "$CONND/xcat-genesis-secondary.nmconnection")" = false ]
-    [ "$(send_hostname ipv6 "$CONND/xcat-genesis-secondary.nmconnection")" = false ]
+    [ "$(send_hostname ipv4 "$CONND/xcat-genesis-secondary.nmconnection")" = 0 ]
+    [ "$(send_hostname ipv6 "$CONND/xcat-genesis-secondary.nmconnection")" = 0 ]
 }
 
 @test "without BOOTIF the default wired profile sends no hostname" {
     boot_image 'quiet'
     [ ! -e "$CONND" ] || [ -z "$(ls "$CONND")" ]
-    [ "$(send_hostname ipv4)" = false ]
-    [ "$(send_hostname ipv6)" = false ]
+    [ "$(send_hostname ipv4)" = 0 ]
+    [ "$(send_hostname ipv6)" = 0 ]
 }

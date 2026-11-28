@@ -1,5 +1,4 @@
 bash
-ifupdown
 nfs-common
 openssl
 isc-dhcp-client
@@ -18,3 +17,6 @@ gzip
 xz-utils
 cpio
 chrony
+iproute2
+dracut
+dracut-network

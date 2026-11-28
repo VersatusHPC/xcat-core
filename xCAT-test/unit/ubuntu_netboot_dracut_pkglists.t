@@ -12,6 +12,9 @@ use Test::More;
 # never boots. The package list is the artifact that decides this.
 #
 # 24.04 x86_64 is the reference: it already carries the entries and boots IPv6-only.
+#
+# The legacy /init also keeps the image's 90-xcat-dhcp.yaml, which xcatroot removes in dracut
+# mode, so a 22.04 ppc64el diskless node runs DHCP on its *NOIP* NICs.
 
 use lib "$FindBin::Bin/../lib";
 use XCAT::Test::File qw(repo_path);
@@ -21,6 +24,8 @@ my $netboot = 'xCAT-server/share/xcat/netboot/ubuntu';
 
 my @lists = (
     "compute.ubuntu24.04.x86_64.pkglist",     # the working reference
+    "compute.ubuntu22.04.ppc64el.pkglist",
+    "compute.ubuntu22.04.ppc64le.pkglist",
     "compute.ubuntu24.04.ppc64el.pkglist",
     "compute.ubuntu24.04.ppc64le.pkglist",
     "compute.ubuntu26.04.pkglist",
@@ -44,12 +49,16 @@ foreach my $name (@lists) {
     ok($list, "$name is readable");
 
     SKIP: {
-        skip "no $name to inspect", 2 unless $list;
+        skip "no $name to inspect", 3 unless $list;
 
         ok(scalar(grep { $_ eq 'dracut' } @{$list}),
             "$name installs dracut, so genimage enters dracut mode");
         ok(scalar(grep { $_ eq 'dracut-network' } @{$list}),
             "$name installs dracut-network, which brings the IPv6 boot modules");
+        # netplan and systemd-networkd configure the node. ifupdown adds networking.service,
+        # which fails at every boot of the image on the systemd-resolved if-up hook.
+        ok(!scalar(grep { $_ eq 'ifupdown' } @{$list}),
+            "$name does not install ifupdown");
     }
 }
 

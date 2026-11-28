@@ -1,5 +1,4 @@
 bash
-ifupdown
 nfs-common
 openssl
 isc-dhcp-client
